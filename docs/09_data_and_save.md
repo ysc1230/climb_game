@@ -18,7 +18,7 @@
 | content_version | 양의 정수 | 배치 변경 식별 |
 | title_key / description_key | 번역 키 | UI 텍스트 |
 | theme_id | 존재하는 테마 ID | 에셋 참조 |
-| bounds / fail_line_y | 평면 영역/높이 | 카메라·실패 경계 |
+| bounds / fail_line_y | 평면 영역/높이 | 실패선은 시작 바닥보다 아래. 실제 실패는 선 통과/연출 상한 중 먼저 충족한 조건 |
 | start_pose | 골반·회전·초기 슬롯 4개 | 검증된 시작 상태 |
 | holds | HoldInstance 목록 | 잡을 지점 |
 | platforms | 바닥 지지 영역 목록 | 서기·휴식 |
@@ -28,6 +28,23 @@
 | prerequisite_route_id | 루트 ID 또는 없음 | 선행 완등 |
 | intended_moves | limb/slot 순서 목록 | 제작·QA 경로 기록 |
 | validation_status | Draft 등 지정 값 | 미검증 콘텐츠 구분 |
+| tutorial_phases | 튜토리얼만 갖는 단계 목록 | 안전 자세·안내·완료 조건 |
+
+### 플랫폼·체크포인트·튜토리얼 정의
+
+| 구조 | 필드 | 계약 |
+| --- | --- | --- |
+| PlatformDefinition | platform_id, bounds, top_y | 바닥 지지 영역, 일반 벽 장애물과 구분 |
+| PlatformDefinition | foot_slot_keys | 존재하는 서로 다른 발 슬롯 정확히 2개 |
+| CheckpointDefinition | checkpoint_id, platform_id | 루트 내 고유 ID와 활성화 플랫폼 |
+| CheckpointDefinition | respawn_pose | 골반·회전·네 슬롯, 속도 0, 손 피로 100 |
+| CheckpointDefinition | required_content_version | 오래된 CP 자세 로드 방지 |
+| TutorialPhaseDefinition | phase_id, start_pose, prompt_key | 단계 시작 상태·안내 |
+| TutorialPhaseDefinition | fatigue_enabled, initial_stamina | 공개된 교육용 규칙, 일반 루트와 분리 |
+| TutorialPhaseDefinition | completion_condition, target_slots | 지정 접점·무터치 유지·동시 입력 등 지정 조건 |
+| TutorialPhaseDefinition | reset_phase_id, next_phase_id | 실패·성공 시 전이, 존재하는 단계만 참조 |
+
+플랫폼 발 슬롯은 일반 슬롯과 같은 전역 키를 사용하며 별도의 중복 점유 저장소를 만들지 않는다. 체크포인트 활성화 카운트와 튜토리얼 진행 카운트는 콘텐츠가 아니라 런타임 상태다. 의도된 추락 체험 여부는 튜토리얼 단계에 명시한다.
 
 ## 홀드·슬롯 정의
 
@@ -49,13 +66,15 @@
 
 | 구조 | 핵심 필드 | 수명/제약 |
 | --- | --- | --- |
-| PointerBinding | input_generation, touch_id, limb_id, origin | 터치 생존 기간만 유지 |
-| LimbIntent | selected, requested_target, release_requested | 틱 경계에서 소비 |
+| PointerBinding | input_generation, touch_id, gesture_id, limb_id, origin, scale_at_down | 터치 생존 기간만 유지 |
+| LimbIntent | selected, requested_target, presented_candidate_id, release_requested, sequence | 틱/제스처 경계에서 소비 |
 | LimbState | limb_id, attachment_state, slot_key, actual_endpoint | 게임 상태의 단일 권한 |
 | HandState | stamina, warning_active | 손에만 존재, 0~100 |
 | BodyState | pelvis_position, body_angle, velocity | 유한 값·속도·회전 제한 |
 | SupportState | supported_hand_ids, loaded_foot_ids, platform_id | 자세 결과에서 계산 |
-| RunState | route_id, mode_key, elapsed, falls, checkpoint_id | 현재 시도의 진행 |
+| RunState | run_id, route_id, content_version, tuning_version, assist_flags, recovery_flag | 시도와 판정 프로필 식별 |
+| RunState | elapsed_ticks, falls, checkpoint_id, result_id, run_status | 시간·추락·재개·결과 중복 방지 |
+| SessionTransient | phase, paused_return_phase, support_state, unsupported_ticks, goal_ticks, checkpoint_ticks | 정확한 일시정지 복귀용, 물리 상태로 영구 저장하지 않음 |
 
 입력 ID와 슬롯 점유는 영구 저장하지 않는다. 로드 시 터치는 모두 없는 상태에서 시작한다. 최신 상태를 UI가 변경할 수 없게 읽기 전용 스냅숏을 전달한다.
 
@@ -68,7 +87,8 @@
 | GripRejected | Grip/Pose → UI/진단 | 팔다리, 후보, 사유, tick |
 | SupportChanged | Pose → Rules/UI | 유효 손/발, 플랫폼 여부 |
 | FatigueWarning | Rules → UI/Audio/Haptics | 손, 현재 값, 진입/종료 |
-| RunFailed | Rules → Session/기록 | 실패 원인, 높이, 시간, 추락 수 |
+| RunFalling | Rules → Session/Save | 추락 수를 1회 증가시킨 결과, 실패 원인, 높이 |
+| RunFailed | Rules → Session/결과 | 실패 연출 종료, 이미 증가한 추락 수, 시간 |
 | CheckpointReached | Rules → Save | route/content 버전, 체크포인트 ID |
 | RunCleared | Rules → Save/결과 | 결과·메달·모드·버전 |
 | SystemInterrupted | 앱 계층 → Session/Input | 취소/백그라운드/화면 변경 사유 |
@@ -82,16 +102,19 @@
 | 메타데이터 | schema_version, 저장 일련번호, 앱/콘텐츠 버전 |
 | 설정 | 패드 배치·감도, 음량·진동, UI·그래픽, 보조 옵션 |
 | 진행 | 튜토리얼 완료, 루트 완등, 해금 외형 |
-| 기록 | route_id/content_version/mode_key별 메달·최고 시간 |
-| 재개 정보 | 최근 루트·체크포인트·같은 시도의 시간/추락 수 |
+| 기록 | route_id/content_version/tuning_version/assist_flags별 일반·보조 메달·최고 시간 |
+| 재개 정보 | run_id, 상태·버전, 루트·CP, elapsed_ticks, 추락 수, 누적 보조·복구 플래그 |
+| 결과 적용 이력 | 완료 result_id와 저장 일련번호 |
 
-플레이 중의 임의 스켈레톤과 물리 엔진 내부 상태를 저장하지 않는다. 이어하기는 같은 콘텐츠 버전의 검증된 체크포인트로 복귀하며, 없으면 루트 시작 자세로 간다. 앱 종료 전 공중 위치를 정확히 복원한다고 약속하지 않는다. 설정과 완료 기록은 재개 실패와 별개로 보존한다.
+플레이 중의 임의 스켈레톤과 물리 엔진 내부 상태를 저장하지 않는다. 프로세스 종료 후 이어하기는 같은 콘텐츠·조정 버전의 검증된 체크포인트로 복귀하며, 없으면 루트 시작 자세로 간다. 이 시도는 recovery_flag=true로 분류한다. 정확한 상태를 보존한 인프로세스 일시정지는 이에 해당하지 않는다. 앱 종료 전 공중 위치를 정확히 복원한다고 약속하지 않는다. 설정과 완료 기록은 재개 실패와 별개로 보존한다.
 
-보조 기록의 mode_key에는 피로 소모 끄기·후보 반경 확대 등 판정에 영향을 주는 플래그를 포함한다. 순수 표시 옵션과 감도·패드 위치는 기록을 나누지 않는다. 중간에 보조를 켜면 해당 시도의 보조 플래그는 누적되어 유지된다. 콘텐츠/조정 버전이 바뀐 기록은 보존하되 새 버전 최고기록과 혼합 비교하지 않는다.
+assist_flags는 fatigue_disabled와 expanded_candidates 두 판정 옵션의 집합이다. 순수 도달 영역 표시·힌트·감도·패드 위치는 기록을 나누지 않는다. 중간에 보조를 켜면 해당 시도의 플래그는 누적되어 유지된다. mode_key라는 표시 키가 필요하면 이 집합에서 도출하고 별도로 수정 가능한 원본 값을 두지 않는다. recovery_flag가 true이면 일반/보조 최고기록·무추락/시간 메달을 갱신하지 않고 진행만 반영한다. 튜토리얼은 tutorial 구분으로 별도 진행을 기록한다. 자세한 자격은 [15](15_runtime_contract.md)를 따른다.
+
+콘텐츠/조정 버전이 바뀐 완료 기록은 보존하되 새 버전 최고기록과 혼합 비교하지 않는다. 버전이 안 맞는 미완료 시도는 이어 붙이지 않고 포기한 상태로 정리한 뒤 새 시도를 선택하게 한다. 런타임 중 조정 프로필 자체를 갈아 끼우는 개발 기능은 일반 기록 시도에서 사용할 수 없다.
 
 ## 저장 시점과 원자성
 
-설정 확정, 체크포인트 도달, 완등 결과 확정, 루트 이탈, 앱 중단 시 저장한다. 플레이 중 안정 상태에서는 최대 2초 간격으로 재개용 시도 메타데이터만 갱신할 수 있다. 매 프레임 디스크에 쓰지 않는다. OS 강제 종료 전 마지막 저장 이후의 수 초가 손실될 수 있으며 모든 종료 상황의 저장을 보장하지 않는다.
+설정 확정, 체크포인트 도달, Falling 진입, 완등 결과 확정, 루트 이탈, 앱 중단 시 저장한다. 플레이 중 안정 상태에서는 최대 2초 간격으로 재개용 시도 메타데이터만 갱신할 수 있다. 매 프레임 디스크에 쓰지 않는다. OS 강제 종료 전 마지막 저장 이후의 수 초가 손실될 수 있으며 모든 종료 상황의 저장을 보장하지 않는다.
 
 한 저장 요청에는 진행·메달·해금·재개 정보를 함께 묶는다. 임시 파일 쓰기 → 읽어 검증 → 기존 유효 파일을 백업 → 교체 순서로 처리한다. 동일 저장 위치에는 한 쓰기만 수행하고 대기 중인 최신 요청은 합칠 수 있다. 구체적인 원자적 교체 보장은 실제 플랫폼 파일 API로 확인한다.
 
@@ -106,7 +129,7 @@
 | 이전 스키마 | 단계별 변환 후 검증, 원본 백업 보존 |
 | 미래 스키마 | 낮은 버전 앱이 덮어쓰지 않음, 업데이트 필요 표시 |
 | 삭제/변경된 루트 | 기존 기록 보관, 재개만 루트 선택으로 이동 |
-| 체크포인트 버전 불일치 | 새 콘텐츠의 시작 자세로 이동, 공중 좌표 적용 금지 |
+| 체크포인트/조정 버전 불일치 | 이전 미완료 시도 종료, 새 시작 선택. 이전 기록과 누적 시간 혼합 금지 |
 | 저장 공간 부족 | 현재 세션은 유지, 저장 실패 안내, 기존 파일 보존 |
 | 사용자 진행 초기화 | 설정 유지/전체 초기화 범위를 UI에서 명확히 확인 |
 
@@ -115,3 +138,18 @@
 개발 빌드는 최근 입력 명령, 틱, 잡기 거부 사유, 접점 오차, 프레임 시간, 빌드/콘텐츠 버전을 제한된 로컬 순환 로그로 남긴다. 화면 녹화·기기 고유 ID·연락처·계정 데이터는 필요하지 않다. 테스트 로그 공유는 사용자가 직접 내보내는 방식으로 시작한다. 외부 수집은 MVP에 없다.
 
 진단 로그는 저장 데이터와 분리하고 용량 상한을 둔다. 앱 배포 시 개발 로그 수준을 낮춘다. 릴리스 버그 보고에는 개인정보가 없는 재현 단계·루트·버전·기기 모델·OS·입력 순서만 요청한다.
+
+## 로드 전 불변 조건
+
+| 검사 | 위반 시 |
+| --- | --- |
+| 모든 좌표·각도·피로·감도는 유한 수이고 허용 범위 안 | 콘텐츠는 로드 거부, 저장은 유효 백업 복구 |
+| start_pose/respawn_pose의 슬롯 4개는 서로 중복되지 않고 말단 종류와 일치 | 해당 루트 Ready 처리 금지 |
+| 정상 슬롯은 서로 다른 손 슬롯 2개, 플랫폼 슬롯은 서로 다른 발 슬롯 2개 | 루트 로드 거부 |
+| 루트 내 ID·슬롯 키는 고유하고 모든 참조가 존재 | 저작 오류로 표시 |
+| elapsed_ticks/falls/저장 일련번호는 음이 아닌 정수 | 손상 저장으로 처리 |
+| 보조 플래그는 알려진 값만, 스키마·콘텐츠·조정 버전 검사 통과 | 새 버전 처리 규칙 적용, 임의 추정 금지 |
+| 완료 결과 적용은 같은 result_id에 한 번 | 중복 메달·해금 갱신 거부 |
+| 같은 슬롯의 실행 중 점유자는 최대 1개 | 틱 수치/구조 오류로 전체 롤백 후 정지 |
+
+값 하나가 이상하다고 관련 없는 완료 기록까지 삭제하지 않는다. 복구 가능 영역과 손상 영역을 구분하되, 존재하지 않는 슬롯이나 미래 스키마를 임의의 기본값으로 채워 플레이를 시작하지 않는다.
