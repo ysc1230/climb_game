@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1040" viewBox="0 0 1600 1040" role="img" aria-labelledby="title desc">
+  <title id="title">Climb Game 가로 화면과 네 손가락 조작 배치 초안</title>
+  <desc id="desc">왼쪽 위 왼손, 왼쪽 아래 왼발, 오른쪽 위 오른손, 오른쪽 아래 오른발 패드. 중앙 벽의 캐릭터와 홀드를 조작한다. 최종 그래픽이 아닌 구조 검토용 와이어프레임이다.</desc>
+  <defs>
+    <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse"><path d="M 44 0 L 0 0 0 44" fill="none" stroke="#26364a" stroke-width="1"/></pattern>
+    <style>
+      text{font-family:'Noto Sans CJK KR','Noto Sans KR','Apple SD Gothic Neo',sans-serif}
+      .title{font-size:34px;font-weight:700;fill:#f2f6fc}
+      .sub{font-size:20px;fill:#99adc4}
+      .label{font-size:25px;font-weight:700;fill:#eff5fc}
+      .pad{font-size:22px;font-weight:700;fill:#eff5fc}
+      .small{font-size:18px;fill:#aebed0}
+      .num{font-size:40px;font-weight:700;fill:#f1f6fc}
+    </style>
+  </defs>
+  <rect width="1600" height="1040" rx="24" fill="#0d1623"/>
+  <text x="64" y="70" class="title">CLIMB GAME · FOUR-FINGER CONTROL</text>
+  <text x="64" y="107" class="sub">LAYOUT STUDY / LANDSCAPE / VISUAL STYLE TO BE CONFIRMED</text>
+  <rect x="64" y="144" width="1472" height="746" rx="30" fill="#142134" stroke="#3d526b" stroke-width="2"/>
+  <rect x="88" y="170" width="285" height="694" rx="18" fill="#182b40"/>
+  <rect x="1227" y="170" width="285" height="694" rx="18" fill="#28243d"/>
+  <rect x="391" y="170" width="818" height="694" rx="18" fill="#1b293a"/>
+  <rect x="391" y="170" width="818" height="694" rx="18" fill="url(#grid)"/>
+  <text x="419" y="211" class="small">R01 FIRST ASCENT</text>
+  <text x="800" y="211" text-anchor="middle" class="small">REACH THE TOP WITH BOTH HANDS</text>
+  <rect x="1126" y="184" width="54" height="44" rx="10" fill="#34445b"/>
+  <rect x="1143" y="195" width="6" height="22" rx="2" fill="#dbe5f2"/>
+  <rect x="1157" y="195" width="6" height="22" rx="2" fill="#dbe5f2"/>
+  <text x="230" y="214" text-anchor="middle" class="small">TWO LEFT FINGERS</text>
+  <text x="1370" y="214" text-anchor="middle" class="small">TWO RIGHT FINGERS</text>
+  <circle cx="230" cy="368" r="91" fill="#1b3d50" stroke="#5ad0cc" stroke-width="4"/>
+  <circle cx="230" cy="368" r="68" fill="none" stroke="#365c6c" stroke-width="2" stroke-dasharray="6 7"/>
+  <text x="230" y="362" text-anchor="middle" class="num">LH</text>
+  <text x="230" y="398" text-anchor="middle" class="pad">LEFT HAND</text>
+  <text x="230" y="488" text-anchor="middle" class="small">UPPER PAD · HAND</text>
+  <circle cx="230" cy="675" r="91" fill="#1b3d50" stroke="#5ad0cc" stroke-width="3"/>
+  <circle cx="230" cy="675" r="68" fill="none" stroke="#365c6c" stroke-width="2" stroke-dasharray="6 7"/>
+  <text x="230" y="669" text-anchor="middle" class="num">LF</text>
+  <text x="230" y="705" text-anchor="middle" class="pad">LEFT FOOT</text>
+  <text x="230" y="795" text-anchor="middle" class="small">LOWER PAD · FOOT</text>
+  <circle cx="1370" cy="368" r="91" fill="#3a2e50" stroke="#c3a1f0" stroke-width="4"/>
+  <circle cx="1370" cy="368" r="68" fill="none" stroke="#65517a" stroke-width="2" stroke-dasharray="6 7"/>
+  <text x="1370" y="362" text-anchor="middle" class="num">RH</text>
+  <text x="1370" y="398" text-anchor="middle" class="pad">RIGHT HAND</text>
+  <text x="1370" y="488" text-anchor="middle" class="small">UPPER PAD · HAND</text>
+  <circle cx="1370" cy="675" r="91" fill="#3a2e50" stroke="#c3a1f0" stroke-width="3"/>
+  <circle cx="1370" cy="675" r="68" fill="none" stroke="#65517a" stroke-width="2" stroke-dasharray="6 7"/>
+  <text x="1370" y="669" text-anchor="middle" class="num">RF</text>
+  <text x="1370" y="705" text-anchor="middle" class="pad">RIGHT FOOT</text>
+  <text x="1370" y="795" text-anchor="middle" class="small">LOWER PAD · FOOT</text>
+  <rect x="700" y="263" width="200" height="34" rx="16" fill="#d8b770"/>
+  <circle cx="746" cy="280" r="8" fill="#5f4d31"/><circle cx="854" cy="280" r="8" fill="#5f4d31"/>
+  <text x="800" y="249" text-anchor="middle" class="small">TOP HOLD · TWO HAND SLOTS</text>
+  <ellipse cx="641" cy="374" rx="29" ry="17" fill="#587fa1"/>
+  <ellipse cx="937" cy="384" rx="29" ry="17" fill="#587fa1"/>
+  <ellipse cx="628" cy="487" rx="32" ry="19" fill="#5ad0cc"/>
+  <ellipse cx="977" cy="461" rx="32" ry="19" fill="#c3a1f0"/>
+  <ellipse cx="648" cy="714" rx="27" ry="13" fill="#5ad0cc"/>
+  <ellipse cx="947" cy="719" rx="27" ry="13" fill="#c3a1f0"/>
+  <ellipse cx="723" cy="801" rx="26" ry="13" fill="#56738b"/>
+  <ellipse cx="876" cy="803" rx="26" ry="13" fill="#56738b"/>
+  <circle cx="641" cy="374" r="43" fill="none" stroke="#f4d482" stroke-width="3" stroke-dasharray="7 7"/>
+  <path d="M 628 466 Q 605 426 632 398" fill="none" stroke="#f4d482" stroke-width="3"/>
+  <path d="M 622 404 L 633 395 L 636 410" fill="none" stroke="#f4d482" stroke-width="3"/>
+  <rect x="430" y="310" width="240" height="34" rx="10" fill="#1b293a"/>
+  <text x="442" y="333" class="small">NEXT GRIP TARGET</text>
+  <path d="M 768 523 L 699 548 L 628 487" fill="none" stroke="#5ad0cc" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 832 523 L 903 513 L 977 461" fill="none" stroke="#c3a1f0" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 777 633 L 700 650 L 648 714" fill="none" stroke="#5ad0cc" stroke-width="25" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 823 633 L 884 661 L 947 719" fill="none" stroke="#c3a1f0" stroke-width="25" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 763 517 Q 799 499 837 517 L 832 616 Q 800 653 768 616 Z" fill="#d1dce9" stroke="#91a6bd" stroke-width="3"/>
+  <rect x="766" y="610" width="68" height="35" rx="15" fill="#879bb1"/>
+  <circle cx="800" cy="469" r="32" fill="#acbbcd"/>
+  <circle cx="628" cy="487" r="10" fill="#e2f7f5"/><circle cx="977" cy="461" r="10" fill="#f2e8ff"/>
+  <text x="800" y="847" text-anchor="middle" class="small">BODY FOLLOWS A VALID SUPPORTED POSE</text>
+  <circle cx="88" cy="942" r="18" fill="#314961"/><text x="88" y="949" text-anchor="middle" font-size="19" fill="#ffffff">1</text>
+  <text x="119" y="950" class="label">PRESS THE PAD</text>
+  <circle cx="460" cy="942" r="18" fill="#314961"/><text x="460" y="949" text-anchor="middle" font-size="19" fill="#ffffff">2</text>
+  <text x="491" y="950" class="label">DRAG TO MOVE</text>
+  <circle cx="861" cy="942" r="18" fill="#314961"/><text x="861" y="949" text-anchor="middle" font-size="19" fill="#ffffff">3</text>
+  <text x="892" y="950" class="label">RELEASE TO GRIP</text>
+  <text x="64" y="1000" class="sub">GRIP STAYS WITHOUT TOUCH · FOUR INDEPENDENT INPUTS · ADJUSTABLE PADS</text>
+</svg>
