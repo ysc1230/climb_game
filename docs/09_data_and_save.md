@@ -1,6 +1,6 @@
 # 09. 데이터·저장 계약
 
-소스와 직렬화 스키마를 작성하기 전의 필드 명세다. 코드·JSON 예제는 포함하지 않는다. 필드명은 구현 협업을 위한 제안이며 변경 시 소비 모듈과 문서를 함께 갱신한다.
+설계 v0.5의 목표 데이터 계약이다. 현재 구현의 일부 필드와 다르며 코드·JSON 예제나 구현 완료를 의미하지 않는다. 변경 시 소비 모듈과 문서를 함께 갱신한다.
 
 ## 데이터 원칙
 
@@ -26,7 +26,7 @@
 | goal_slots | 손 슬롯 ID 정확히 2개 | 양손 성공 조건 |
 | time_medal_seconds | 양수 또는 없음 | 시간 도전 |
 | prerequisite_route_id | 루트 ID 또는 없음 | 선행 완등 |
-| intended_moves | limb/slot 순서 목록 | 제작·QA 경로 기록 |
+| intended_moves | limb/slot 및 무브·출발 자세·지지·경로 목록 | v0.5 확장은 아래 계약 적용. 런타임의 정답 경로 강제가 아님 |
 | validation_status | Draft 등 지정 값 | 미검증 콘텐츠 구분 |
 | tutorial_phases | 튜토리얼만 갖는 단계 목록 | 안전 자세·안내·완료 조건 |
 
@@ -54,7 +54,8 @@
 | HoldDefinition | slots | 슬롯 종류·상대 위치·허용 팔다리 |
 | HoldInstance | hold_id, hold_type_id, position, rotation | 루트 안의 배치 |
 | SlotDefinition | slot_id, allowed_limbs | LH/RH/LF/RF 중 허용 목록 |
-| SlotDefinition | local_anchor, support_direction, support_angle | 접점과 발 지지 판단 |
+| SlotDefinition | local_anchor(XYZ), contact_frame, support_direction, support_angle | 실제 접촉 위치·방향과 발 지지 판단 |
+| SlotDefinition | load_mode, force_axis(XY), force_half_angle, max_load_bw, pivot_allowed | 기본 hand_pull/foot_press/platform_press, 04의 지지 계산 |
 | SlotDefinition | capacity | MVP는 슬롯당 1. 정상은 슬롯 2개 |
 | SlotState | occupant_limb_id 또는 비어 있음 | 실행 중 점유, 콘텐츠에 저장하지 않음 |
 
@@ -68,14 +69,14 @@
 | --- | --- | --- |
 | PointerBinding | input_generation, touch_id, gesture_id, limb_id, origin, scale_at_down | 터치 생존 기간만 유지 |
 | LimbIntent | selected, requested_target, presented_candidate_id, release_requested, sequence | 틱/제스처 경계에서 소비 |
-| LimbState | limb_id, attachment_state, slot_key, actual_endpoint | 게임 상태의 단일 권한 |
+| LimbState | limb_id, attachment_state, slot_key, actual_endpoint(XYZ), free_purpose, free_target | 게임 상태의 단일 권한. free_purpose=Rest/Flag |
 | HandState | stamina, warning_active | 손에만 존재, 0~100 |
-| BodyState | pelvis_position, body_angle, velocity | 유한 값·속도·회전 제한 |
-| SupportState | supported_hand_ids, loaded_foot_ids, platform_id | 자세 결과에서 계산 |
+| BodyState | pelvis_position(XYZ), body_roll, pelvis_yaw/pitch, chest_yaw/pitch, velocity, angular_velocities | 04의 절대·상대 회전·깊이·속도 제한 |
+| SupportState | eligible_limb_ids, loaded_foot_ids, platform_id, forces, load_ratios, force_residual, moment_residual | Attached/Eligible/Loaded 분리, 04의 힘 해와 허용 오차 |
 | RunState | run_id, route_id, content_version, tuning_version, assist_flags, recovery_flag | 시도와 판정 프로필 식별 |
 | RunState | elapsed_ticks, falls, checkpoint_id, result_id, run_status | 시간·추락·재개·결과 중복 방지 |
 | RunState | max_pelvis_y | 확정된 골반 높이의 최댓값, 시작 높이로 초기화. CP 재시도 중 보존 |
-| SessionTransient | phase, paused_return_phase, support_state, unsupported_ticks, goal_ticks, checkpoint_ticks | 정확한 일시정지 복귀용, 물리 상태로 영구 저장하지 않음 |
+| SessionTransient | phase, paused_return_phase, support_state, unsupported_ticks, imbalance_ticks, balance_confirm_ticks, rest_confirm_ticks, goal_ticks, checkpoint_ticks | 정확한 일시정지 복귀용, 물리 상태로 영구 저장하지 않음 |
 
 입력 ID와 슬롯 점유는 영구 저장하지 않는다. 로드 시 터치는 모두 없는 상태에서 시작한다. 최신 상태를 UI가 변경할 수 없게 읽기 전용 스냅숏을 전달한다.
 
@@ -166,3 +167,19 @@ selected_color_id는 CH04_01~03 중 해금된 항목만 허용하며 초기값�
 | 같은 슬롯의 실행 중 점유자는 최대 1개 | 틱 수치/구조 오류로 전체 롤백 후 정지 |
 
 값 하나가 이상하다고 관련 없는 완료 기록까지 삭제하지 않는다. 복구 가능 영역과 손상 영역을 구분하되, 존재하지 않는 슬롯이나 미래 스키마를 임의의 기본값으로 채워 플레이를 시작하지 않는다.
+
+## v0.5 자세·무브 데이터 추가
+
+| 구조 | 추가 필드 | 계약 |
+| --- | --- | --- |
+| PoseState | joint_positions, parent_local_frames, pole_branch_ids, previous_valid_frames | 표시 계층이 임의 IK·180° 회전을 새로 만들지 않음 |
+| MoveState | primary_move_id, limb_phases, target_profile_id, profile_confirm_ticks | MV01~MV12, Hold/Shift/Reach/Contact/Settle/Blocked. 입력 소유권과 별개 |
+| ConstraintResult | hard_valid, reasons, feasible_path, balance_result | 힘 해는 Feasible/Infeasible/Unresolved. 실패 계산을 실제 불균형으로 가장하지 않음 |
+| IntendedMove | from_contacts, limb_id, to_slot, move_id, preparation_pose, loaded_feet, orientation_range, return_path | 제작·검수용 경로. 다른 합법 경로 금지에 사용하지 않음 |
+| PoseDefinition | pelvis_position(XYZ), body_roll, pelvis_yaw/pitch, chest_yaw/pitch, endpoints, contacts, pole_branch_ids | start/CP/튜토리얼 공통의 사전 검증 자세 |
+
+기존 body_angle은 벽면 roll만 뜻한다. 이를 yaw·뼈 twist와 혼용하지 않는다. 오래된 XY anchor와 단일 angle을 새 런타임이 조용히 기본값으로 채우지 않는다. 콘텐츠 제작 단계에서 명시적인 변환값을 기록하고 3D 길이·방향·충돌·힘 해를 확인해야 한다.
+
+추가 이벤트는 MoveBlocked(말단·사유·tick), BalanceChanged(상태·접점별 하중·tick), FreePurposeChanged(Rest/Flag·tick)다. 모두 15의 최종 틱 확정 뒤에만 전달한다. 균형용 발을 GripAccepted로 통보하지 않는다.
+
+04 변경을 적용할 때 tuning_version을 새로 부여한다. 기존 R01 v2 및 CP는 새 제약에서 다시 검수한 후에만 content_version을 올린다. 이번 문서 작업은 실제 JSON 버전이나 검증 상태를 올리지 않는다. 기존 완료 기록은 보존하고 새 버전과 분리한다. 앱 내 Paused는 pole·무브·깊이·카운터를 정확히 보존하며, 프로세스 재실행은 기존 CP 복구 계약을 유지한다.
