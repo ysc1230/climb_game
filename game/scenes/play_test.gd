@@ -12,10 +12,9 @@ var route: RouteDef
 var router := InputRouter.new()
 var body: BodyState
 var limbs := {}  # limb -> {state, key, pos(실제 말단), req(요청 목표)}
-var feet: Array[StringName] = []
-var stamina := {&"LH": 100.0, &"RH": 100.0}
-var unsupported := 0
+var rules := ClimbRules.new()  # 지지·피로·유예 규칙(RouteBot과 공유, docs/04 §4·§7)
 var goal_ticks := 0
+var last_phase := -1
 var falling := false
 var fall_ticks := 0
 var paused := false
@@ -67,9 +66,7 @@ func _reset(reason: String) -> void:
 		var key: String = route.start_slots[limb]
 		var p := route.slot_pos(key)
 		limbs[limb] = {"state": "Attached", "key": key, "pos": p, "req": p}
-	stamina = {&"LH": 100.0, &"RH": 100.0}
-	feet = PoseSolver.supporting_feet(body.pos, body.angle, _attached())
-	unsupported = 0
+	rules.reset(body, _attached(), {}, false)
 	goal_ticks = 0
 	falling = false
 	cam_y = body.pos.y + 0.12 * PLAY_H
@@ -217,27 +214,33 @@ func _physics_process(_delta: float) -> void:
 		return
 	_move_endpoints()
 	var attached := _attached()
-	var hands := int(attached.has(&"LH")) + int(attached.has(&"RH"))
-	var platform := _on_platform(attached)
-	# v0.5: 붙어 있어도 하중 자격이 없는 손(어깨보다 0.10m 넘게 낮음)은 지지로 세지 않는다
-	if PoseSolver.eligible_hands(body.pos, body.angle, attached) > 0 or platform:
-		unsupported = 0
-		PoseSolver.step_body(body, attached, feet)
-		feet = PoseSolver.supporting_feet(body.pos, body.angle, attached, feet)
-	else:
-		unsupported += 1
-		if unsupported >= Tuning.UNSUPPORTED_GRACE_TICKS:
+	var endpoints := {}
+	var moving := false
+	for limb in limbs:
+		if not attached.has(limb):
+			endpoints[limb] = limbs[limb].pos
+			moving = moving or limbs[limb].state == "Dragging"
+	var outcome := rules.tick(body, attached, endpoints, _on_platform(attached), moving)
+	for hand in rules.slipped:
+		limbs[hand].state = "Free"
+		_flash("손이 미끄러졌어요")
+	if rules.phase != last_phase:
+		if rules.phase == ClimbRules.Phase.REBALANCING:
+			_flash("균형이 무너지고 있어요")
+		elif rules.phase == ClimbRules.Phase.STRAINED and last_phase == ClimbRules.Phase.STABLE:
+			_flash("남은 손발로 버티기 힘들어요")
+		last_phase = rules.phase
+	match outcome:
+		"NO_SUPPORT":
 			_start_fall("지지를 잃었어요")
 			return
-	var speed := body.vel.length()
-	for hand in [&"LH", &"RH"]:
-		var rate := Fatigue.FREE_HAND_RATE
-		if attached.has(hand):
-			rate = Fatigue.attached_hand_rate(platform and speed <= Fatigue.STABLE_SPEED, feet.size(), hands, speed)
-		stamina[hand] = Fatigue.apply(stamina[hand], rate, Tuning.DT)
-		if attached.has(hand) and stamina[hand] <= 0.0:
-			limbs[hand].state = "Free"
-			_flash("손이 미끄러졌어요")
+		"BALANCE_LOST":
+			_start_fall("균형을 잃었어요")
+			return
+		"UNRESOLVED":
+			_log("힘 계산 실패: 일시정지")
+			_pause()
+			return
 	_goal_tick()
 	_camera_tick()
 	queue_redraw()
@@ -259,7 +262,7 @@ func _move_endpoints() -> void:
 
 
 func _on_platform(attached: Dictionary) -> bool:
-	if not (attached.has(&"LF") and attached.has(&"RF")) or feet.size() < 2:
+	if not (attached.has(&"LF") and attached.has(&"RF")) or rules.feet_eligible.size() < 2:
 		return false
 	for p in route.platforms:
 		if p.foot_slot_keys.has(limbs[&"LF"].key) and p.foot_slot_keys.has(limbs[&"RF"].key):
@@ -274,7 +277,7 @@ func _goal_tick() -> void:
 	for limb in [&"LH", &"RH"]:
 		if limbs[limb].state in ["Attached", "Armed"] and route.goal_slots.has(limbs[limb].key):
 			held += 1
-	goal_ticks = goal_ticks + 1 if held == 2 else 0
+	goal_ticks = goal_ticks + 1 if held == 2 and rules.balance_confirmed() else 0  # 균형 확인 뒤에만(docs/15)
 	if goal_ticks >= Tuning.GOAL_DWELL_TICKS:
 		clears += 1
 		_log("완등 %d회" % clears)
@@ -388,7 +391,7 @@ func _draw_pads(size: Vector2) -> void:
 		var label := "%s %s" % [limb, "손" if PoseSolver.is_hand(limb) else "발"]
 		draw_string(font, p.center + Vector2(-p.radius, 8), label, HORIZONTAL_ALIGNMENT_CENTER, p.radius * 2, int(26 * ui_k), Color.WHITE)
 		if PoseSolver.is_hand(limb):
-			var s: float = stamina[limb]
+			var s: float = rules.stamina[limb]
 			draw_arc(p.center, p.radius + 8 * ui_k, -PI / 2, -PI / 2 + TAU * s / 100.0, 48, Color("f1d59a") if s > 25 else Color("ff5a4a"), 6.0 * ui_k)
 
 
@@ -396,6 +399,22 @@ func _draw_hud(size: Vector2) -> void:
 	var fs := int(22 * ui_k)
 	var height := maxf(body.pos.y - route.start_pelvis.y, 0.0)
 	draw_string(font, Vector2(size.x * 0.25, 40 * ui_k), "R01 시험 빌드 · 높이 %.1fm · 완등 %d · 추락 %d" % [height, clears, falls], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
+	# 지지 상태(docs/25 피드백): 색만이 아니라 문구와 막대로 표시
+	var names := ["안정", "부담 큼", "균형 회복 중", "지지 없음"]
+	var colors := [Color("cfe3c8"), Color("f1d59a"), Color("ff8a6a"), Color("ff5a4a")]
+	var ph: int = rules.phase
+	var status := "지지: %s" % names[ph]
+	var hu: Dictionary = rules.last.get("u", {})
+	status += " · 손 하중 L%d%% R%d%%" % [roundi(hu.get(&"LH", 0.0) * 100), roundi(hu.get(&"RH", 0.0) * 100)]
+	draw_rect(Rect2(Vector2(size.x * 0.25 - 6 * ui_k, 50 * ui_k), Vector2(430 * ui_k, 26 * ui_k)), Color(0.16, 0.18, 0.17, 0.6))
+	draw_string(font, Vector2(size.x * 0.25, 70 * ui_k), status, HORIZONTAL_ALIGNMENT_LEFT, -1, int(21 * ui_k), colors[ph])
+	if ph == ClimbRules.Phase.REBALANCING or ph == ClimbRules.Phase.GRACE:
+		var budget := ClimbRules.IMBALANCE_BUDGET_TICKS if ph == ClimbRules.Phase.REBALANCING else Tuning.UNSUPPORTED_GRACE_TICKS
+		var used := rules.imbalance_ticks if ph == ClimbRules.Phase.REBALANCING else rules.unsupported_ticks
+		var w := 220.0 * ui_k
+		var left := clampf(1.0 - float(used) / budget, 0.0, 1.0)
+		draw_rect(Rect2(Vector2(size.x * 0.25, 80 * ui_k), Vector2(w, 8 * ui_k)), Color(0, 0, 0, 0.4))
+		draw_rect(Rect2(Vector2(size.x * 0.25, 80 * ui_k), Vector2(w * left, 8 * ui_k)), colors[ph])
 	var y := size.y - 20 * ui_k
 	for i in range(log_lines.size() - 1, -1, -1):
 		draw_string(font, Vector2(size.x * 0.25, y), log_lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, int(15 * ui_k), Color(1, 1, 1, 0.6))

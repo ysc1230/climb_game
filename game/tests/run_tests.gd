@@ -10,16 +10,24 @@ var current := ""
 func _init() -> void:
 	var total := 0
 	var dir := DirAccess.open("res://tests")
-	var files := Array(dir.get_files()).filter(func(f): return f.begins_with("test_") and f.ends_with(".gd"))
+	var only := OS.get_cmdline_user_args()  # 예: -- test_support.gd
+	var files := Array(dir.get_files()).filter(func(f): return f.begins_with("test_") and f.ends_with(".gd") and (only.is_empty() or only.has(f)))
 	files.sort()
 	for file in files:
-		var suite = load("res://tests/" + file).new()
+		var script: GDScript = load("res://tests/" + file)
+		if script == null or not script.can_instantiate():
+			failures += 1
+			total += 1
+			print("  FAIL " + file + " (불러오기 실패)")
+			continue
+		var suite = script.new()
 		suite.set("runner", self)
 		for m in suite.get_method_list():
 			if not String(m.name).begins_with("test_"):
 				continue
 			total += 1
 			current = "%s::%s" % [file, m.name]
+			print("  ..   " + current)
 			var before := failures
 			suite.call(m.name)
 			print(("  ok   " if failures == before else "  FAIL ") + current)

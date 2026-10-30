@@ -24,12 +24,21 @@ func _physics_process(_delta: float) -> void:
 		_drag(0, c + Vector2(cos(a), sin(a)) * pad.radius * 1.4 + Vector2(0, -pad.radius * 0.3))
 	elif frame == 220:
 		_touch(0, c, false)
+	# 오른발을 고관절 높이까지 올려 "붙었지만 하중 없음" 표시 확인(MC07)
+	var rf: Dictionary = logic.router.pads[&"RF"]
+	if frame == 240:
+		_touch(1, rf.center, true)
+	elif frame > 240 and frame < 300:
+		_drag(1, rf.center + Vector2(0, -(frame - 240) * 2.2))
 	if frame == 21:
 		var sk: Skeleton3D = scene.skeleton
 		print("skeleton global=", sk.global_transform if sk else "none")
 	if frame % 20 == 0 and frame > 20:
 		var l: Dictionary = logic.limbs[&"LH"]
-		print("f%d LH state=%s angle=%.1f" % [frame, l.state, PoseSolver.limb_angle(logic.body.pos, logic.body.angle, &"LH", l.pos)])
+		print("f%d LH state=%s angle=%.1f phase=%s u=%s loaded=%s" % [frame, l.state, PoseSolver.limb_angle(logic.body.pos, logic.body.angle, &"LH", l.pos), logic.rules.phase_name(), logic.rules.last.get("u", {}), logic.rules.loaded_feet])
+		if frame == 60:
+			var fm = scene.foot_marks[&"LF"]
+			print("  LF mark visible filled=%s hollow=%s pos=%s" % [fm[0].visible, fm[1].visible, fm[0].global_position])
 
 
 func _touch(i: int, p: Vector2, pressed: bool) -> void:

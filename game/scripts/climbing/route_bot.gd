@@ -15,9 +15,12 @@ var route: RouteDef
 var body: BodyState
 var attached := {}        # limb -> Vector2
 var attached_keys := {}   # limb -> slot key
-var stamina := {PoseSolver.LH: 100.0, PoseSolver.RH: 100.0}
-var feet: Array[StringName] = []
+var rules := ClimbRules.new()   # 게임과 같은 지지·피로·유예 규칙
+var endpoints := {}             # 떼어 낸 말단의 현재 위치(무게중심 계산용)
+var moving := false
 var ticks := 0
+var phase_ticks := {"Stable": 0, "Strained": 0, "Rebalancing": 0, "Grace": 0}
+var max_hand_u := 0.0
 var min_stamina := 100.0
 var log: PackedStringArray = []
 var failure := ""
@@ -54,7 +57,7 @@ func _play(moves: Array) -> void:
 	for limb in route.start_slots:
 		attached_keys[limb] = route.start_slots[limb]
 		attached[limb] = route.slot_pos(route.start_slots[limb])
-	feet = PoseSolver.supporting_feet(body.pos, body.angle, attached)
+	rules.reset(body, attached, endpoints, _on_platform())
 	_settle()
 	log.append("시작 안정 자세 골반=(%.3f, %.3f) θ=%.1f° (저작값 %.3f, %.3f)" % [body.pos.x, body.pos.y, body.angle, route.start_pelvis.x, route.start_pelvis.y])
 	for m in moves:
@@ -68,16 +71,21 @@ func _move(limb: StringName, key: String) -> bool:
 	var from: Vector2 = attached[limb]
 	attached.erase(limb)
 	attached_keys.erase(limb)
+	endpoints[limb] = from
+	moving = true
 	var travel := int(ceil(from.distance_to(target) / ENDPOINT_FOLLOW_SPEED * Tuning.TICK_HZ))
 	for wait in MAX_WAIT_TICKS + 1:
+		endpoints[limb] = PoseSolver.clamp_endpoint(body.pos, body.angle, limb, endpoints[limb], (endpoints[limb] as Vector2).move_toward(target, ENDPOINT_FOLLOW_SPEED * Tuning.DT))
 		if wait >= travel:
 			var with_new := attached.duplicate()
 			with_new[limb] = target
 			if PoseSolver.can_reach(body.pos, body.angle, limb, target) and PoseSolver.is_valid(body.pos, body.angle, with_new):
 				attached = with_new
 				attached_keys[limb] = key
+				endpoints.erase(limb)
+				moving = false
 				_settle()
-				log.append("%s→%s 성공 (뗀 뒤 %d틱) 안정 골반=(%.3f, %.3f) θ=%.1f° 지지발=%s 손피로 L%.0f R%.0f" % [limb, key, wait, body.pos.x, body.pos.y, body.angle, feet, stamina[PoseSolver.LH], stamina[PoseSolver.RH]])
+				log.append("%s→%s 성공 (뗀 뒤 %d틱) 골반=(%.3f, %.3f) θ=%.1f° %s 하중발=%s 손피로 L%.0f R%.0f" % [limb, key, wait, body.pos.x, body.pos.y, body.angle, rules.phase_name(), rules.loaded_feet, rules.stamina[PoseSolver.LH], rules.stamina[PoseSolver.RH]])
 				return true
 		if not _tick():
 			return false
@@ -97,12 +105,8 @@ func _settle() -> void:
 			return
 
 
-func _hands_attached() -> int:
-	return int(attached.has(PoseSolver.LH)) + int(attached.has(PoseSolver.RH))
-
-
 func _on_platform() -> bool:
-	if not (attached.has(PoseSolver.LF) and attached.has(PoseSolver.RF)) or feet.size() < 2:
+	if not (attached.has(PoseSolver.LF) and attached.has(PoseSolver.RF)) or rules.feet_eligible.size() < 2:
 		return false
 	for p in route.platforms:
 		var keys: Array = p.foot_slot_keys
@@ -115,25 +119,20 @@ func _on_platform() -> bool:
 
 func _tick() -> bool:
 	ticks += 1
-	var platform := _on_platform()
-	if PoseSolver.eligible_hands(body.pos, body.angle, attached) == 0 and not platform:
-		failure = "지지 상실: 손 0개, 플랫폼 지지 없음"
+	var outcome := rules.tick(body, attached, endpoints, _on_platform(), moving)
+	phase_ticks[rules.phase_name()] += 1
+	for hand in [PoseSolver.LH, PoseSolver.RH]:
+		max_hand_u = maxf(max_hand_u, rules.last.get("u", {}).get(hand, 0.0))
+		if attached.has(hand):
+			min_stamina = minf(min_stamina, rules.stamina[hand])
+	if not rules.slipped.is_empty():
+		failure = "%s 피로 소진" % [rules.slipped]
 		log.append(failure)
 		return false
-	PoseSolver.step_body(body, attached, feet)
-	feet = PoseSolver.supporting_feet(body.pos, body.angle, attached, feet)
-	var speed := body.vel.length()
-	for hand in [PoseSolver.LH, PoseSolver.RH]:
-		var rate := Fatigue.FREE_HAND_RATE
-		if attached.has(hand):
-			rate = Fatigue.attached_hand_rate(platform and speed <= Fatigue.STABLE_SPEED, feet.size(), _hands_attached(), speed)
-		stamina[hand] = Fatigue.apply(stamina[hand], rate, Tuning.DT)
-		if attached.has(hand):
-			min_stamina = minf(min_stamina, stamina[hand])
-			if stamina[hand] <= 0.0:
-				failure = "%s 피로 소진" % hand
-				log.append(failure)
-				return false
+	if not outcome.is_empty():
+		failure = {"NO_SUPPORT": "지지 상실(무지지 9틱)", "BALANCE_LOST": "균형 상실(불균형 18틱)", "UNRESOLVED": "힘 계산 실패(내부 오류)"}[outcome] + " 골반=(%.3f, %.3f)" % [body.pos.x, body.pos.y]
+		log.append(failure)
+		return false
 	return true
 
 
@@ -143,7 +142,15 @@ func _check_goal() -> void:
 			failure = "정상 슬롯 %s를 잡지 않은 채 경로 종료" % key
 			log.append(failure)
 			return
-	for i in Tuning.GOAL_DWELL_TICKS:
+	var held := 0
+	for i in Tuning.GOAL_DWELL_TICKS + 120:
 		if not _tick():
 			return
-	log.append("완등: %d틱(%.2f초), 최저 손 피로 %.0f" % [ticks, ticks / float(Tuning.TICK_HZ), min_stamina])
+		held = held + 1 if rules.balance_confirmed() else 0  # 균형 확인 이후에만 정상 유지 카운트(docs/15)
+		if held >= Tuning.GOAL_DWELL_TICKS:
+			break
+	if held < Tuning.GOAL_DWELL_TICKS:
+		failure = "정상 유지 실패: 균형이 확인되지 않음"
+		log.append(failure)
+		return
+	log.append("완등: %d틱(%.2f초), 최저 손 피로 %.0f, 최대 손 사용률 %.2f, 상태 틱 %s" % [ticks, ticks / float(Tuning.TICK_HZ), min_stamina, max_hand_u, phase_ticks])

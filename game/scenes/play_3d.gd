@@ -24,6 +24,7 @@ var camera: Camera3D
 var parts := {}       # 이름 -> MeshInstance3D (모델이 없을 때의 대체 캡슐)
 var skeleton: Skeleton3D
 var candidate_ring: MeshInstance3D
+var foot_marks := {}  # foot -> [채운, 빈]
 var rng := RandomNumberGenerator.new()
 
 
@@ -38,6 +39,13 @@ func _ready() -> void:
 		_build_character()
 	candidate_ring = _mesh(_torus(0.10, 0.012), _unshaded(TARGET_CREAM), false)
 	add_child(candidate_ring)
+	# 발 하중 표시(docs/25): 채운 삼각형 = Loaded, 빈 삼각형 = Attached·Unloaded
+	for foot in [&"LF", &"RF"]:
+		var filled := _mesh(_tri_mesh(false), _overlay(TARGET_CREAM), false)
+		var hollow := _mesh(_tri_mesh(true), _overlay(TARGET_CREAM), false)
+		add_child(filled)
+		add_child(hollow)
+		foot_marks[foot] = [filled, hollow]
 
 
 # ---------- 재질 ----------
@@ -53,6 +61,15 @@ func _toon(albedo: Color, shade: Color, wall := false) -> ShaderMaterial:
 	o.set_shader_parameter("ink", INK)
 	o.set_shader_parameter("width", 0.03)
 	m.next_pass = o
+	return m
+
+
+## 다른 물체에 가려지지 않는 표시용 재질(판정 피드백)
+func _overlay(c: Color) -> StandardMaterial3D:
+	var m := _unshaded(c)
+	m.no_depth_test = true
+	m.render_priority = 10
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	return m
 
 
@@ -250,6 +267,7 @@ func _process(delta: float) -> void:
 	else:
 		_pose_capsules(t)
 	_update_candidate()
+	_update_foot_marks()
 
 
 var _bends := {}  # limb -> 직전 굽힘 축(연속성)
@@ -380,6 +398,35 @@ func _update_camera() -> void:
 	var dist := (visible_h * 0.5) / tan(deg_to_rad(camera.fov * 0.5))
 	camera.position = Vector3(0, logic.cam_y, CONTACT_DEPTH + dist)
 	camera.rotation = Vector3.ZERO
+
+
+## 발 아래 작은 삼각형(꼭짓점 위). hollow=true이면 테두리만.
+func _tri_mesh(hollow: bool) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	var r := 0.07
+	var pts := [Vector3(0, 0, 0), Vector3(-r, -r * 1.4, 0), Vector3(r, -r * 1.4, 0)]
+	if hollow:
+		st.begin(Mesh.PRIMITIVE_LINES)
+		for i in 3:
+			st.add_vertex(pts[i])
+			st.add_vertex(pts[(i + 1) % 3])
+	else:
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for p in pts:
+			st.add_vertex(p)
+	return st.commit()
+
+
+func _update_foot_marks() -> void:
+	for foot in foot_marks:
+		var l: Dictionary = logic.limbs[foot]
+		var attached: bool = l.state in ["Attached", "Armed"]
+		var loaded: bool = logic.rules.loaded_feet.has(foot)
+		var p: Vector2 = l.pos
+		for m in foot_marks[foot]:
+			m.position = Vector3(p.x, p.y - 0.09, Tuning.CONTACT_DEPTH)
+		foot_marks[foot][0].visible = attached and loaded
+		foot_marks[foot][1].visible = attached and not loaded
 
 
 func _update_candidate() -> void:

@@ -63,8 +63,11 @@ func test_body_speed_limit() -> void:
 		runner.check(body.vel.length() <= Tuning.ROOT_SPEED_LIMIT + 0.0001, "속도 상한 초과")
 
 
-func test_fatigue_table() -> void:
-	runner.check(Fatigue.attached_hand_rate(false, 0, 1, 0) == -30.0, "발0 손1 = -30")
-	runner.check(Fatigue.attached_hand_rate(false, 2, 2, 0.05) == 10.0, "발2 정지 = +10")
-	runner.check(Fatigue.attached_hand_rate(false, 2, 2, 0.5) == -2.0, "발2 이동 = -2")
+func test_fatigue_table_v05() -> void:
+	# (rebalancing, platform, rest_ok, loaded_feet, hands, u, low_load)
+	runner.check(Fatigue.attached_hand_rate(true, false, false, 2, 2, 0.2, true) == -30.0, "Rebalancing -30, 배율 없음")
+	runner.check(Fatigue.attached_hand_rate(false, true, true, 2, 2, 0.1, true) == 15.0, "플랫폼 휴식 +15")
+	runner.check(Fatigue.attached_hand_rate(false, false, true, 2, 2, 0.1, true) == 10.0, "발 2·휴식·저하중 +10")
+	runner.check(Fatigue.attached_hand_rate(false, false, false, 2, 2, 0.1, true) == -2.0, "발 2·휴식 조건 미충족 -2")
+	runner.check(is_equal_approx(Fatigue.attached_hand_rate(false, false, false, 0, 1, 0.91, false), -30.0 * 1.41), "발 0·손 1, u=0.91 → -30×1.41")
 	runner.check(Fatigue.apply(50, -30, 1.0, true) == 50.0, "피로 끄기는 감소만 0")
