@@ -58,7 +58,31 @@
 
 | 항목 | 결정 | 상태 |
 | --- | --- | --- |
-| 엔진 | Godot 4.7 계열 최신 안정 패치(13의 S01 기준 4.7.2). 설치 시 실제 버전을 확인해 이 표와 08에 고정 | 개발 맥에 미설치, 1단계 시작 시 설치 |
-| 테스트 | 의존성 없는 자체 헤드리스 러너(`godot --headless --script`)로 시작. 기능이 부족해지면 GUT/gdUnit4 도입 검토 | 미작성 |
-| 로직 구조 | `game/scripts/climbing/` 아래 RefCounted 기반, 노드·싱글턴 의존 없음 | 미작성 |
+| 엔진 | Godot **4.7.2.stable.official.ed1daf0bf**로 고정 | 개발 맥에 설치(Homebrew), 헤드리스 실행 확인 |
+| 테스트 | 의존성 없는 자체 헤드리스 러너 `game/tests/run_tests.gd`. 기능이 부족해지면 GUT/gdUnit4 도입 검토 | 작성 |
+| 로직 구조 | `game/scripts/climbing/` 아래 RefCounted 기반, 노드·싱글턴 의존 없음 | 자세·피로·루트 로드 작성 |
+| 루트 데이터 | 08의 Resource 제안 대신 JSON(`game/data/routes/`)으로 시작. 헤드리스 도구·diff 검토가 쉬움. 에디터 저작 도구가 필요해지면 Resource 변환 재검토 | R01 v2 |
 | 정적 도구 | `tools/r01_static_check.py`는 임시 계산 도구. 1B 검증기가 생기면 대체 | 저장소에 포함 |
+
+## 1B 진행 기록
+
+2026-10-30. 아래는 헤드리스 시뮬레이션 결과이며 실기기 플레이 검증이 아니다.
+
+| 항목 | 상태 | 검증 범위 |
+| --- | --- | --- |
+| `Tuning`, `PoseSolver`, `BodyState`, `Fatigue` | 작성 | 04의 도달·관절·지지·비용·27후보 탐색·골반 보정·피로표. 몸통 충돌 미구현(평면 벽 전제) |
+| `RouteDef` | 작성 | JSON 로드, 09 불변 조건 일부(슬롯 키 유일, 허용 팔다리, 정상 2슬롯, 플랫폼 2발 슬롯, 참조 존재) |
+| `RouteBot` + `tools/route_check.gd` | 작성 | 의도 경로와 좌우 순서 교체 경로를 고정 틱으로 재생. 말단 이동 시간(2.5m/s) 반영 |
+| 테스트 11개 | 통과 | 도달 범위, 19 시작 자세 산술, DT16, 지지 조건, 30초 정적 수렴(PH02 성격), 속도 상한, 피로표, R01 저작 검사·양쪽 순서 완등·발 없이 완등 불가 |
+| R01 | content_version 2 | v1은 검증기에서 마지막 정상 잡기 실패. G01 Y 3.00→2.80, 시작 골반 0.95→0.83로 수정 후 양쪽 순서 시뮬레이션 완등 약 13.3초. 07/16/19 반영 |
+
+Python 간이 계산(`tools/r01_static_check.py`)은 손을 떼는 즉시 잡는다고 가정해 낙관적이었다. 이후 기준은 GDScript 검증기다.
+
+실행 방법:
+
+```
+godot --headless --path game --script res://tests/run_tests.gd
+godot --headless --path game --script res://tools/route_check.gd -- R01
+```
+
+다음 1B 작업: GripSystem(후보·동시 잡기 거래·거부 사유), 고정 틱 Session/RuleSystem(Grace 9틱·Falling·정상 36틱·이벤트 확정·롤백), DT01~DT15 테스트화.
