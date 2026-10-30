@@ -102,3 +102,15 @@ godot --headless --path game --script res://tools/route_check.gd -- R01
 | 시안 캡처 | `docs/wireframes/play_3d_first_pass.png`(맥 렌더) | 기기 화면 아님 |
 
 REF01과의 남은 차이: 실제 리깅 캐릭터와 의상, 손으로 그린 듯한 선 질감, 홀드 형태 다양성, 빛줄기·창 같은 장면 연출, 원근 구도. 기기 성능(FPS·발열)은 측정하지 않았다.
+
+### CH01 캐릭터 1차 (2026-10-31)
+
+| 항목 | 내용 | 상태 |
+| --- | --- | --- |
+| 제작 도구 | Blender 5.2.3 + blender-mcp 애드온(로컬 9876 포트). `tools/blender_send.py`로 스크립트 실행 | 설치 |
+| 생성 스크립트 | `art_source/character/build_climber.py`: 04의 뼈 길이·관절 위치로 뼈 17개, Skin 모디파이어 단일 메시(삼각형 약 3,000), 의상 구역 머티리얼 M_* | 재실행 가능 |
+| 디테일 | 청록 상의, 반바지, 붕대 종아리, 신발, 배낭·어깨끈, 반다나·매듭 | 1차 |
+| 엔진 연결 | `game/art/characters/climber.glb`, play_3d가 IK 관절 위치로 뼈 전역 포즈 설정. 머티리얼 이름별 툰 셰이더 | 작성 |
+| 미검증 | 손가락·얼굴 없음, 뼈 비틀림(roll) 미처리, 가중치 자동 생성 품질, 기기 성능 | 다음 |
+
+캡처: `docs/wireframes/play_3d_ch01.png`(맥 렌더).

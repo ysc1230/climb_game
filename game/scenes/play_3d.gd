@@ -22,7 +22,8 @@ var logic  # PlayTest 노드
 var toon_shader := preload("res://art/shaders/toon.gdshader")
 var outline_shader := preload("res://art/shaders/outline.gdshader")
 var camera: Camera3D
-var parts := {}       # 이름 -> MeshInstance3D
+var parts := {}       # 이름 -> MeshInstance3D (모델이 없을 때의 대체 캡슐)
+var skeleton: Skeleton3D
 var candidate_ring: MeshInstance3D
 var rng := RandomNumberGenerator.new()
 
@@ -34,7 +35,8 @@ func _ready() -> void:
 	_build_environment()
 	_build_wall()
 	_build_holds()
-	_build_character()
+	if not _build_model():
+		_build_character()
 	candidate_ring = _mesh(_torus(0.10, 0.012), _unshaded(TARGET_CREAM), false)
 	add_child(candidate_ring)
 
@@ -268,16 +270,23 @@ func _process(_delta: float) -> void:
 	if logic == null or logic.body == null:
 		return
 	_update_camera()
+	var t := _pose_targets()
+	if skeleton:
+		_pose_model(t)
+	else:
+		_pose_capsules(t)
+	_update_candidate()
+
+
+## 판정 상태에서 표현용 3D 관절 위치를 만든다. 판정 거리는 바꾸지 않는다.
+func _pose_targets() -> Dictionary:
 	var body: BodyState = logic.body
 	var depth := _body_depth()
 	var ang := deg_to_rad(body.angle)
 	var up := Vector3(-sin(ang), cos(ang), 0)
 	var pelvis := Vector3(body.pos.x, body.pos.y, depth)
-	var chest := pelvis + up * 0.50
-	_place_segment(parts.hips, pelvis + up * -0.02, pelvis + up * 0.12, 0.13)
-	_place_segment(parts.torso, pelvis + up * 0.15, chest, 0.15)
-	parts.head.position = pelvis + up * 0.78 + Vector3(0, 0, 0.02)
-	parts.pack.transform = Transform3D(Basis(Vector3.BACK, ang), pelvis + up * 0.36 + Vector3(0, 0, 0.17))
+	var t := {"pelvis": pelvis, "spine": pelvis + up * 0.22, "chest": pelvis + up * 0.44,
+		"neck": pelvis + up * 0.63, "head": pelvis + up * 0.80, "head_top": pelvis + up * 0.94, "up": up}
 	for limb in PoseSolver.LIMBS:
 		var hand := PoseSolver.is_hand(limb)
 		var j2 := PoseSolver.joint_position(body.pos, body.angle, limb)
@@ -291,10 +300,94 @@ func _process(_delta: float) -> void:
 		var side := -1.0 if limb in [&"LH", &"LF"] else 1.0
 		var pole := Vector3(side * (0.6 if hand else 0.9), -0.5 if hand else 0.2, 0.8)
 		var mid := _two_bone(root, end, a, b, pole)
+		var s := "L" if side < 0 else "R"
+		if hand:
+			t["shoulder_" + s] = root
+			t["elbow_" + s] = mid
+			t["wrist_" + s] = end
+			t["hand_" + s] = end + (end - mid).normalized() * 0.09
+		else:
+			t["hip_" + s] = root
+			t["knee_" + s] = mid
+			t["ankle_" + s] = end
+			t["toe_" + s] = end + Vector3(0, -0.04, -0.15)
+	return t
+
+
+func _pose_capsules(t: Dictionary) -> void:
+	var up: Vector3 = t.up
+	_place_segment(parts.hips, t.pelvis + up * -0.02, t.pelvis + up * 0.12, 0.13)
+	_place_segment(parts.torso, t.pelvis + up * 0.15, t.pelvis + up * 0.50, 0.15)
+	parts.head.position = t.head + Vector3(0, 0, 0.02)
+	parts.pack.transform = Transform3D(Basis(Vector3.BACK, deg_to_rad(logic.body.angle)), t.pelvis + up * 0.36 + Vector3(0, 0, 0.17))
+	for limb in PoseSolver.LIMBS:
+		var hand := PoseSolver.is_hand(limb)
+		var s := "L" if limb in [&"LH", &"LF"] else "R"
+		var root: Vector3 = t[("shoulder_" if hand else "hip_") + s]
+		var mid: Vector3 = t[("elbow_" if hand else "knee_") + s]
+		var end: Vector3 = t[("wrist_" if hand else "ankle_") + s]
 		_place_segment(parts[str(limb) + "_upper"], root, mid, 0.055 if hand else 0.075)
 		_place_segment(parts[str(limb) + "_lower"], mid, end, 0.045 if hand else 0.06)
 		parts[str(limb) + "_end"].position = end
-	_update_candidate()
+
+
+## 뼈 이름 -> [시작 관절, 끝 관절]. 부모가 먼저 오도록 정렬.
+const BONE_MAP := [
+	["pelvis", "pelvis", "spine"], ["spine", "spine", "chest"], ["chest", "chest", "neck"],
+	["neck", "neck", "head"], ["head", "head", "head_top"],
+	["upperarm_L", "shoulder_L", "elbow_L"], ["forearm_L", "elbow_L", "wrist_L"], ["hand_L", "wrist_L", "hand_L"],
+	["upperarm_R", "shoulder_R", "elbow_R"], ["forearm_R", "elbow_R", "wrist_R"], ["hand_R", "wrist_R", "hand_R"],
+	["thigh_L", "hip_L", "knee_L"], ["shin_L", "knee_L", "ankle_L"], ["foot_L", "ankle_L", "toe_L"],
+	["thigh_R", "hip_R", "knee_R"], ["shin_R", "knee_R", "ankle_R"], ["foot_R", "ankle_R", "toe_R"],
+]
+var _rest_dirs := {}
+
+
+func _pose_model(t: Dictionary) -> void:
+	var inv := skeleton.global_transform.affine_inverse()
+	for entry in BONE_MAP:
+		var idx := skeleton.find_bone(entry[0])
+		if idx < 0:
+			continue
+		var rest := skeleton.get_bone_global_rest(idx)
+		var from_p: Vector3 = inv * (t[entry[1]] as Vector3)
+		var to_p: Vector3 = inv * (t[entry[2]] as Vector3)
+		var new_dir := (to_p - from_p).normalized()
+		var rest_dir: Vector3 = _rest_dirs[entry[0]]
+		var q := Quaternion(rest_dir, new_dir) if rest_dir.dot(new_dir) > -0.999 else Quaternion(rest.basis.x.normalized(), PI)
+		skeleton.set_bone_global_pose(idx, Transform3D(Basis(q) * rest.basis, from_p))
+
+
+func _build_model() -> bool:
+	if not ResourceLoader.exists("res://art/characters/climber.glb"):
+		return false
+	var model: Node3D = load("res://art/characters/climber.glb").instantiate()
+	add_child(model)
+	skeleton = model.find_children("*", "Skeleton3D", true, false)[0] if model.find_children("*", "Skeleton3D", true, false).size() > 0 else null
+	if skeleton == null:
+		model.queue_free()
+		return false
+	# 휴지 자세의 뼈 방향: 다음 관절(자식 뼈) 원점 방향, 말단은 뼈 Y축
+	for entry in BONE_MAP:
+		var idx := skeleton.find_bone(entry[0])
+		if idx < 0:
+			continue
+		var rest := skeleton.get_bone_global_rest(idx)
+		var dir := rest.basis.y.normalized()
+		for c in skeleton.get_bone_children(idx):
+			dir = (skeleton.get_bone_global_rest(c).origin - rest.origin).normalized()
+			break
+		_rest_dirs[entry[0]] = dir
+	var colors := {"M_shirt": CLOTH_TEAL, "M_skin": SKIN, "M_shorts": Color("6e5a48"), "M_bandage": CLOTH_IVORY,
+		"M_shoe": Color("7e4a3e"), "M_hair": Color("3b2e26"), "M_pack": Color("6b5240"), "M_bandana": HOLD_RUST}
+	for mi in model.find_children("*", "MeshInstance3D", true, false):
+		for i in mi.mesh.get_surface_count():
+			var m: Material = mi.mesh.surface_get_material(i)
+			var c: Color = colors.get(m.resource_name if m else "", CLOTH_TEAL)
+			var toon := _toon(c, c.darkened(0.45))
+			toon.next_pass.set_shader_parameter("width", 0.012)
+			mi.set_surface_override_material(i, toon)
+	return true
 
 
 func _update_camera() -> void:
