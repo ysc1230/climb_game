@@ -30,6 +30,8 @@ var ui_k := 1.0
 var px_per_m := 100.0
 var wall_origin := Vector2.ZERO  # 월드 (0, cam_y)가 놓일 화면 위치
 var log_lines: PackedStringArray = []
+## false이면 벽·홀드·인형을 그리지 않고 패드·HUD만 그린다(3D 표현 계층이 월드를 그림).
+var draw_world := true
 
 
 func _ready() -> void:
@@ -194,7 +196,7 @@ func _notification(what: int) -> void:
 
 
 func _pause() -> void:
-	if paused:
+	if paused or OS.get_cmdline_user_args().has("--no-auto-pause"):
 		return
 	_apply(router.cancel_all())
 	paused = true
@@ -315,6 +317,10 @@ func w2s(p: Vector2) -> Vector2:
 
 func _draw() -> void:
 	var size := get_viewport_rect().size
+	if not draw_world:
+		_draw_pads(size)
+		_draw_hud(size)
+		return
 	draw_rect(Rect2(Vector2.ZERO, size), Color("2b2622"))
 	var tl := w2s(Vector2(-PLAY_W / 2, cam_y + PLAY_H / 2))
 	draw_rect(Rect2(tl, Vector2(PLAY_W, PLAY_H) * px_per_m), Color("8a5a40"))
