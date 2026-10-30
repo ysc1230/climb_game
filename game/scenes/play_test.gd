@@ -138,7 +138,7 @@ func _apply(cmds: Array) -> void:
 				l.state = "Dragging"
 				l.req = l.pos
 			"move":
-				l.req = _clamp_to_reach(c.limb, l.req + c.delta)
+				l.req = _clamp_to_reach(c.limb, l.req, l.req + c.delta)
 			"release":
 				_try_grab(c.limb)
 			"cancel":
@@ -148,11 +148,9 @@ func _apply(cmds: Array) -> void:
 					l.state = "Free"
 
 
-func _clamp_to_reach(limb: StringName, p: Vector2) -> Vector2:
-	var j := PoseSolver.joint_position(body.pos, body.angle, limb)
-	var r := PoseSolver.reach_of(limb)
-	var v := p - j
-	return j + v.limit_length(r.y)
+## v0.5: 최대 반경만이 아니라 최소 거리·방향 영역을 연속적으로 적용(docs/04 H02/H03/H06).
+func _clamp_to_reach(limb: StringName, previous: Vector2, p: Vector2) -> Vector2:
+	return PoseSolver.clamp_endpoint(body.pos, body.angle, limb, previous, p)
 
 
 func _candidate(limb: StringName) -> String:
@@ -221,7 +219,8 @@ func _physics_process(_delta: float) -> void:
 	var attached := _attached()
 	var hands := int(attached.has(&"LH")) + int(attached.has(&"RH"))
 	var platform := _on_platform(attached)
-	if hands > 0 or platform:
+	# v0.5: 붙어 있어도 하중 자격이 없는 손(어깨보다 0.10m 넘게 낮음)은 지지로 세지 않는다
+	if PoseSolver.eligible_hands(body.pos, body.angle, attached) > 0 or platform:
 		unsupported = 0
 		PoseSolver.step_body(body, attached, feet)
 		feet = PoseSolver.supporting_feet(body.pos, body.angle, attached, feet)
@@ -253,10 +252,10 @@ func _move_endpoints() -> void:
 		var target: Vector2 = l.req
 		if l.state == "Free":
 			var side := -1.0 if limb in [&"LH", &"LF"] else 1.0
-			target = body.pos + (Vector2(0.30 * side, 0.18) if PoseSolver.is_hand(limb) else Vector2(0.25 * side, -0.70))
-		target = _clamp_to_reach(limb, target)
-		l.pos = l.pos.move_toward(target, 2.5 * Tuning.DT)
-		l.pos = _clamp_to_reach(limb, l.pos)
+			target = body.pos + (Vector2(0.35 * side, 0.18) if PoseSolver.is_hand(limb) else Vector2(0.25 * side, -0.70))
+		var prev: Vector2 = l.pos
+		target = _clamp_to_reach(limb, prev, target)
+		l.pos = _clamp_to_reach(limb, prev, l.pos.move_toward(target, 2.5 * Tuning.DT))
 
 
 func _on_platform(attached: Dictionary) -> bool:

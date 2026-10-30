@@ -37,22 +37,112 @@ static func limb_distance(pelvis: Vector2, angle_deg: float, limb: StringName, s
 	return joint_position(pelvis, angle_deg, limb).distance_to(slot)
 
 
-static func can_reach(pelvis: Vector2, angle_deg: float, limb: StringName, slot: Vector2) -> bool:
-	var d := limb_distance(pelvis, angle_deg, limb, slot)
+static func side_sign(limb: StringName) -> float:
+	return -1.0 if (limb == LH or limb == LF) else 1.0
+
+
+## 몸통 roll을 제거한 관절→말단 방향각(도). 0 = 손은 위, 발은 아래. 양수 = 몸 바깥쪽.
+static func limb_angle(pelvis: Vector2, angle_deg: float, limb: StringName, point: Vector2) -> float:
+	var v := (point - joint_position(pelvis, angle_deg, limb)).rotated(-deg_to_rad(angle_deg))
+	var s := side_sign(limb)
+	if is_hand(limb):
+		return rad_to_deg(atan2(s * v.x, v.y))
+	return rad_to_deg(atan2(s * v.x, -v.y))
+
+
+static func dir_range(limb: StringName) -> Vector2:
+	return Tuning.HAND_DIR_RANGE_DEG if is_hand(limb) else Tuning.FOOT_DIR_RANGE_DEG
+
+
+static func direction_ok(pelvis: Vector2, angle_deg: float, limb: StringName, point: Vector2) -> bool:
+	var a := limb_angle(pelvis, angle_deg, limb, point)
+	var r := dir_range(limb)
+	return a >= r.x - 0.001 and a <= r.y + 0.001
+
+
+## 깊이 차(골반 Z − 말단 Z)가 dz일 때의 벽면 2D 거리 범위.
+static func planar_range(limb: StringName, dz_min: float, dz_max: float) -> Vector2:
 	var r := reach_of(limb)
-	return d >= r.x - Tuning.DISTANCE_EPSILON and d <= r.y + Tuning.DISTANCE_EPSILON
+	var far := sqrt(maxf(r.y * r.y - dz_min * dz_min, 0.0))
+	var near := sqrt(maxf(r.x * r.x - dz_max * dz_max, 0.0))
+	return Vector2(near, far)
 
 
-## 고정된 모든 접점의 길이·관절 조건과 몸통 회전 제한.
+## 접점 말단의 깊이 차 범위(골반 깊이 범위 − 접촉면 깊이).
+static func contact_dz_range() -> Vector2:
+	return Tuning.PELVIS_DEPTH_RANGE - Vector2.ONE * Tuning.CONTACT_DEPTH
+
+
+## 한 접점 슬롯이 현재 골반·회전에서 방향·3D 거리 조건을 만족하는지(골반 깊이 범위 중 어딘가에서).
+static func can_reach(pelvis: Vector2, angle_deg: float, limb: StringName, slot: Vector2) -> bool:
+	if not direction_ok(pelvis, angle_deg, limb, slot):
+		return false
+	var dz := contact_dz_range()
+	var pr := planar_range(limb, dz.x, dz.y)
+	var d := limb_distance(pelvis, angle_deg, limb, slot)
+	return d >= pr.x - Tuning.DISTANCE_EPSILON and d <= pr.y + Tuning.DISTANCE_EPSILON
+
+
+## 고정된 모든 접점이 함께 만족하는 골반 깊이(Z). 없으면 NAN.
+## 선호 깊이에 가장 가까운 값을 고른다. 판정과 표현이 같은 값을 쓴다.
+static func body_depth(pelvis: Vector2, angle_deg: float, attached: Dictionary) -> float:
+	var lo := Tuning.PELVIS_DEPTH_RANGE.x
+	var hi := Tuning.PELVIS_DEPTH_RANGE.y
+	for limb in attached:
+		var d := limb_distance(pelvis, angle_deg, limb, attached[limb])
+		var r := reach_of(limb)
+		if d > r.y + Tuning.DISTANCE_EPSILON:
+			return NAN
+		hi = minf(hi, Tuning.CONTACT_DEPTH + sqrt(maxf(r.y * r.y - d * d, 0.0)))
+		lo = maxf(lo, Tuning.CONTACT_DEPTH + sqrt(maxf(r.x * r.x - d * d, 0.0)))
+	if lo > hi + Tuning.DISTANCE_EPSILON:
+		return NAN
+	return clampf(Tuning.PELVIS_DEPTH_PREFERRED, lo, hi)
+
+
+## 고정된 모든 접점의 방향·3D 길이·관절 조건과 몸통 회전 제한(H01~H04 중 구현분).
 static func is_valid(pelvis: Vector2, angle_deg: float, attached: Dictionary) -> bool:
 	if not (is_finite(pelvis.x) and is_finite(pelvis.y) and is_finite(angle_deg)):
 		return false
 	if absf(angle_deg) > Tuning.BODY_ANGLE_LIMIT_DEG + Tuning.DISTANCE_EPSILON:
 		return false
 	for limb in attached:
-		if not can_reach(pelvis, angle_deg, limb, attached[limb]):
+		if not direction_ok(pelvis, angle_deg, limb, attached[limb]):
 			return false
-	return true
+	return not is_nan(body_depth(pelvis, angle_deg, attached))
+
+
+## 자유·드래그 말단 제한(H02/H03/H06). 요청 위치를 허용 부채꼴 안으로 연속적으로 제한한다.
+## 각도는 직전 위치에서 이어서 풀어(unwrap) 금지 영역을 가로질러 반대편 경계로 점프하지 않는다.
+static func clamp_endpoint(pelvis: Vector2, angle_deg: float, limb: StringName, previous: Vector2, requested: Vector2) -> Vector2:
+	var joint := joint_position(pelvis, angle_deg, limb)
+	var rng := dir_range(limb)
+	var prev_a := clampf(limb_angle(pelvis, angle_deg, limb, previous), rng.x, rng.y)
+	var v := requested - joint
+	var target_a := prev_a
+	if v.length() > 0.001:
+		target_a = clampf(prev_a + wrapf(limb_angle(pelvis, angle_deg, limb, requested) - prev_a, -180.0, 180.0), rng.x, rng.y)
+	var lift := Tuning.CONTACT_DEPTH + Tuning.FREE_ENDPOINT_LIFT
+	var pr := planar_range(limb, Tuning.PELVIS_DEPTH_PREFERRED - lift, Tuning.PELVIS_DEPTH_PREFERRED - lift)
+	var r := clampf(v.length(), maxf(pr.x, 0.02), pr.y)
+	var s := side_sign(limb)
+	var a := deg_to_rad(target_a)
+	var local := Vector2(s * sin(a), cos(a)) if is_hand(limb) else Vector2(s * sin(a), -cos(a))
+	return joint + (local * r).rotated(deg_to_rad(angle_deg))
+
+
+## 손 접점의 하중 자격: 일반 pull 슬롯이 어깨보다 0.10m 넘게 낮으면 자격 없음.
+static func hand_load_eligible(pelvis: Vector2, angle_deg: float, limb: StringName, slot: Vector2) -> bool:
+	return slot.y >= joint_position(pelvis, angle_deg, limb).y - Tuning.HAND_LOAD_MAX_BELOW_SHOULDER
+
+
+## 하중 자격이 있는 붙은 손의 수.
+static func eligible_hands(pelvis: Vector2, angle_deg: float, attached: Dictionary) -> int:
+	var n := 0
+	for limb in [LH, RH]:
+		if attached.has(limb) and hand_load_eligible(pelvis, angle_deg, limb, attached[limb]):
+			n += 1
+	return n
 
 
 ## 발 지지 판정. was_supporting이면 종료 히스테리시스를 적용한다.

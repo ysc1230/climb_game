@@ -116,7 +116,7 @@ func _on_platform() -> bool:
 func _tick() -> bool:
 	ticks += 1
 	var platform := _on_platform()
-	if _hands_attached() == 0 and not platform:
+	if PoseSolver.eligible_hands(body.pos, body.angle, attached) == 0 and not platform:
 		failure = "지지 상실: 손 0개, 플랫폼 지지 없음"
 		log.append(failure)
 		return false

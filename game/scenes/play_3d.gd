@@ -13,8 +13,7 @@ const CLOTH_IVORY := Color("c7b79b")
 const TARGET_CREAM := Color("f1d59a")
 const SKIN := Color("b98a6a")
 
-const PELVIS_DEPTH := 0.28   # 골반이 벽에서 떨어진 기본 거리
-const CONTACT_DEPTH := 0.07  # 손발 접점(홀드 표면) 깊이
+const CONTACT_DEPTH := Tuning.CONTACT_DEPTH
 const PLAY_H := 3.8
 const PLAY_W := 3.4
 
@@ -241,36 +240,11 @@ func _place_segment(part: MeshInstance3D, a: Vector3, b: Vector3, radius: float)
 	part.transform = Transform3D(Basis(x, y * s, z), (a + b) * 0.5)
 
 
-## 판정 거리를 바꾸지 않으면서 3D 팔다리 길이에 맞도록 골반 깊이를 줄인다(docs/23 항목 4).
-func _body_depth() -> float:
-	var depth := PELVIS_DEPTH
-	for limb in PoseSolver.LIMBS:
-		var j := PoseSolver.joint_position(logic.body.pos, logic.body.angle, limb)
-		var e: Vector2 = logic.limbs[limb].pos
-		var full := (Tuning.ARM_UPPER + Tuning.ARM_LOWER) if PoseSolver.is_hand(limb) else (Tuning.LEG_UPPER + Tuning.LEG_LOWER)
-		var d2 := j.distance_squared_to(e)
-		var max_dz := sqrt(maxf(full * full * 0.985 - d2, 0.0))
-		depth = minf(depth, CONTACT_DEPTH + max_dz)
-	return maxf(depth, CONTACT_DEPTH + 0.02)
-
-
-## 3D 두 뼈 IK. 관절은 벽 바깥(+Z)과 몸 바깥쪽으로 꺾는다.
-func _two_bone(root: Vector3, end: Vector3, a: float, b: float, pole: Vector3) -> Vector3:
-	var v := end - root
-	var d := clampf(v.length(), absf(a - b) + 0.001, a + b - 0.001)
-	var dir := v.normalized() if v.length() > 0.0001 else Vector3.DOWN
-	var x := (a * a - b * b + d * d) / (2.0 * d)
-	var h := sqrt(maxf(a * a - x * x, 0.0))
-	var bend := (pole - dir * pole.dot(dir))
-	bend = bend.normalized() if bend.length() > 0.0001 else Vector3.BACK
-	return root + dir * x + bend * h
-
-
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if logic == null or logic.body == null:
 		return
 	_update_camera()
-	var t := _pose_targets()
+	var t := _pose_targets(delta)
 	if skeleton:
 		_pose_model(t)
 	else:
@@ -278,29 +252,35 @@ func _process(_delta: float) -> void:
 	_update_candidate()
 
 
-## 판정 상태에서 표현용 3D 관절 위치를 만든다. 판정 거리는 바꾸지 않는다.
-func _pose_targets() -> Dictionary:
+var _bends := {}  # limb -> 직전 굽힘 축(연속성)
+
+
+## 판정 상태 → 표현용 3D 관절 위치. 골반 깊이는 판정과 같은 PoseSolver.body_depth(docs/04 §1).
+func _pose_targets(delta: float) -> Dictionary:
 	var body: BodyState = logic.body
-	var depth := _body_depth()
+	var depth := PoseSolver.body_depth(body.pos, body.angle, logic._attached())
+	if is_nan(depth):
+		depth = Tuning.PELVIS_DEPTH_PREFERRED
 	var ang := deg_to_rad(body.angle)
 	var up := Vector3(-sin(ang), cos(ang), 0)
 	var pelvis := Vector3(body.pos.x, body.pos.y, depth)
 	var t := {"pelvis": pelvis, "spine": pelvis + up * 0.22, "chest": pelvis + up * 0.44,
 		"neck": pelvis + up * 0.63, "head": pelvis + up * 0.80, "head_top": pelvis + up * 0.94, "up": up}
+	var max_step := LimbIK.PRESENTATION_JOINT_SPEED_DEG * delta
 	for limb in PoseSolver.LIMBS:
 		var hand := PoseSolver.is_hand(limb)
 		var j2 := PoseSolver.joint_position(body.pos, body.angle, limb)
-		var root := Vector3(j2.x, j2.y, depth + (0.02 if hand else 0.0))
+		var root := Vector3(j2.x, j2.y, depth)
 		var e2: Vector2 = logic.limbs[limb].pos
 		var state: String = logic.limbs[limb].state
-		var end_z := CONTACT_DEPTH if state in ["Attached", "Armed"] else CONTACT_DEPTH + 0.12
+		var end_z := Tuning.CONTACT_DEPTH if state in ["Attached", "Armed"] else Tuning.CONTACT_DEPTH + Tuning.FREE_ENDPOINT_LIFT
 		var end := Vector3(e2.x, e2.y, end_z)
 		var a := Tuning.ARM_UPPER if hand else Tuning.LEG_UPPER
 		var b := Tuning.ARM_LOWER if hand else Tuning.LEG_LOWER
-		var side := -1.0 if limb in [&"LH", &"LF"] else 1.0
-		var pole := Vector3(side * (0.6 if hand else 0.9), -0.5 if hand else 0.2, 0.8)
-		var mid := _two_bone(root, end, a, b, pole)
-		var s := "L" if side < 0 else "R"
+		var ik := LimbIK.solve(root, end, a, b, LimbIK.default_pole(limb), _bends.get(limb, Vector3.ZERO), max_step)
+		_bends[limb] = ik.bend
+		var mid: Vector3 = ik.mid
+		var s := "L" if PoseSolver.side_sign(limb) < 0 else "R"
 		if hand:
 			t["shoulder_" + s] = root
 			t["elbow_" + s] = mid
@@ -310,7 +290,7 @@ func _pose_targets() -> Dictionary:
 			t["hip_" + s] = root
 			t["knee_" + s] = mid
 			t["ankle_" + s] = end
-			t["toe_" + s] = end + Vector3(0, -0.04, -0.15)
+			t["toe_" + s] = end + Vector3(0, -0.05, -0.15)
 	return t
 
 
@@ -331,31 +311,27 @@ func _pose_capsules(t: Dictionary) -> void:
 		parts[str(limb) + "_end"].position = end
 
 
-## 뼈 이름 -> [시작 관절, 끝 관절]. 부모가 먼저 오도록 정렬.
-const BONE_MAP := [
-	["pelvis", "pelvis", "spine"], ["spine", "spine", "chest"], ["chest", "chest", "neck"],
-	["neck", "neck", "head"], ["head", "head", "head_top"],
-	["upperarm_L", "shoulder_L", "elbow_L"], ["forearm_L", "elbow_L", "wrist_L"], ["hand_L", "wrist_L", "hand_L"],
-	["upperarm_R", "shoulder_R", "elbow_R"], ["forearm_R", "elbow_R", "wrist_R"], ["hand_R", "wrist_R", "hand_R"],
-	["thigh_L", "hip_L", "knee_L"], ["shin_L", "knee_L", "ankle_L"], ["foot_L", "ankle_L", "toe_L"],
-	["thigh_R", "hip_R", "knee_R"], ["shin_R", "knee_R", "ankle_R"], ["foot_R", "ankle_R", "toe_R"],
-]
-var _rest_dirs := {}
+## 관절 키 -> 그 관절에서 시작하는 뼈(휴지 위치 조회용)
+const JOINT_BONE := {"pelvis": "pelvis", "spine": "spine", "chest": "chest", "neck": "neck", "head": "head",
+	"shoulder_L": "upperarm_L", "elbow_L": "forearm_L", "wrist_L": "hand_L",
+	"shoulder_R": "upperarm_R", "elbow_R": "forearm_R", "wrist_R": "hand_R",
+	"hip_L": "thigh_L", "knee_L": "shin_L", "ankle_L": "foot_L",
+	"hip_R": "thigh_R", "knee_R": "shin_R", "ankle_R": "foot_R"}
+var rig := RigPose.new()
 
 
+## RigPose(docs/04 §8)가 만든 연속 프레임을 그대로 적용한다. 180° 대체 회전 없음.
 func _pose_model(t: Dictionary) -> void:
 	var inv := skeleton.global_transform.affine_inverse()
-	for entry in BONE_MAP:
+	var local := {}
+	for key in t:
+		if t[key] is Vector3 and key != "up":
+			local[key] = inv * (t[key] as Vector3)
+	var frames := rig.solve(local, logic.body.angle)
+	for entry in RigPose.BONES:
 		var idx := skeleton.find_bone(entry[0])
-		if idx < 0:
-			continue
-		var rest := skeleton.get_bone_global_rest(idx)
-		var from_p: Vector3 = inv * (t[entry[1]] as Vector3)
-		var to_p: Vector3 = inv * (t[entry[2]] as Vector3)
-		var new_dir := (to_p - from_p).normalized()
-		var rest_dir: Vector3 = _rest_dirs[entry[0]]
-		var q := Quaternion(rest_dir, new_dir) if rest_dir.dot(new_dir) > -0.999 else Quaternion(rest.basis.x.normalized(), PI)
-		skeleton.set_bone_global_pose(idx, Transform3D(Basis(q) * rest.basis, from_p))
+		if idx >= 0 and frames.has(entry[0]):
+			skeleton.set_bone_global_pose(idx, frames[entry[0]])
 
 
 func _build_model() -> bool:
@@ -363,21 +339,26 @@ func _build_model() -> bool:
 		return false
 	var model: Node3D = load("res://art/characters/climber.glb").instantiate()
 	add_child(model)
-	skeleton = model.find_children("*", "Skeleton3D", true, false)[0] if model.find_children("*", "Skeleton3D", true, false).size() > 0 else null
+	var found := model.find_children("*", "Skeleton3D", true, false)
+	skeleton = found[0] if found.size() > 0 else null
 	if skeleton == null:
 		model.queue_free()
 		return false
-	# 휴지 자세의 뼈 방향: 다음 관절(자식 뼈) 원점 방향, 말단은 뼈 Y축
-	for entry in BONE_MAP:
+	# 휴지 관절 위치는 관절 키로 명시한다(자식 뼈 열거 순서에 의존하지 않음, docs/04 §8.2)
+	var rest_poses := {}
+	var rest_joints := {}
+	for entry in RigPose.BONES:
 		var idx := skeleton.find_bone(entry[0])
-		if idx < 0:
-			continue
-		var rest := skeleton.get_bone_global_rest(idx)
-		var dir := rest.basis.y.normalized()
-		for c in skeleton.get_bone_children(idx):
-			dir = (skeleton.get_bone_global_rest(c).origin - rest.origin).normalized()
-			break
-		_rest_dirs[entry[0]] = dir
+		if idx >= 0:
+			rest_poses[entry[0]] = skeleton.get_bone_global_rest(idx)
+	for key in JOINT_BONE:
+		if rest_poses.has(JOINT_BONE[key]):
+			rest_joints[key] = (rest_poses[JOINT_BONE[key]] as Transform3D).origin
+	rest_joints["head_top"] = rest_joints["head"] + Vector3(0, 0.14, 0)
+	for s in ["L", "R"]:
+		rest_joints["hand_" + s] = rest_joints["wrist_" + s] + (rest_joints["wrist_" + s] - rest_joints["elbow_" + s]).normalized() * 0.09
+		rest_joints["toe_" + s] = rest_joints["ankle_" + s] + Vector3(0, -0.05, -0.15)
+	rig.setup(rest_poses, rest_joints)
 	var colors := {"M_shirt": CLOTH_TEAL, "M_skin": SKIN, "M_shorts": Color("6e5a48"), "M_bandage": CLOTH_IVORY,
 		"M_shoe": Color("7e4a3e"), "M_hair": Color("3b2e26"), "M_pack": Color("6b5240"), "M_bandana": HOLD_RUST}
 	for mi in model.find_children("*", "MeshInstance3D", true, false):

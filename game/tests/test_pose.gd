@@ -23,10 +23,16 @@ func test_doc19_start_pose_arithmetic() -> void:
 	runner.check(PoseSolver.is_foot_supporting(p, 0, PoseSolver.LF, Vector2(-0.30, 0.10)), "시작 발은 지지 발")
 
 
-func test_dt16_leg_shorter_than_knee_limit_rejected() -> void:
-	# 고관절 (-0.14,0)에서 0.28m 아래 발: 명목 최소 0.25는 넘지만 무릎 145° 제한으로 거부
-	var attached := {PoseSolver.LF: Vector2(-0.14, -0.28)}
-	runner.check(not PoseSolver.is_valid(Vector2.ZERO, 0, attached), "0.28m 다리는 무효여야 함")
+func test_dt16_v05_common_depth_required() -> void:
+	# v0.5: 거리는 실제 3D. 벽면 0.28m 다리는 골반이 벽에서 떨어지면 무릎 한계(0.303m)를 만족한다.
+	var leg_only := {PoseSolver.LF: Vector2(-0.14, -0.28)}
+	runner.check(PoseSolver.is_valid(Vector2.ZERO, 0, leg_only), "벽면 0.28m 다리는 3D로 성립")
+	var depth := PoseSolver.body_depth(Vector2.ZERO, 0, leg_only)
+	runner.check(Vector3(0, 0.28, depth - Tuning.CONTACT_DEPTH).length() >= Tuning.leg_range().x - 0.0001, "선택 깊이에서 3D 다리 길이 ≥ 최소")
+	# 먼 손(얕은 골반 필요)과 가까운 발(깊은 골반 필요)은 공통 깊이가 없어 거부
+	var conflict := {PoseSolver.LF: Vector2(-0.14, -0.10), PoseSolver.LH: Vector2(-0.20, 0.55 + 0.76)}
+	runner.check(is_nan(PoseSolver.body_depth(Vector2.ZERO, 0, conflict)), "공통 깊이 없음")
+	runner.check(not PoseSolver.is_valid(Vector2.ZERO, 0, conflict), "충돌하는 두 팔다리는 무효")
 
 
 func test_foot_above_hip_is_not_support() -> void:

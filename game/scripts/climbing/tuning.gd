@@ -53,6 +53,20 @@ const FOOT_SUPPORT_MIN_HEIGHT := 0.05
 const SUPPORT_EXIT_ANGLE := 5.0
 const SUPPORT_EXIT_HEIGHT := 0.01
 
+# v0.5 방향 영역(docs/04 §3). 몸통 roll을 제거한 관절→말단 벡터 v, s=왼쪽 -1·오른쪽 +1
+# 손: atan2(s·v.x, v.y), 발: atan2(s·v.x, -v.y). 양수 = 몸 바깥쪽.
+const HAND_DIR_RANGE_DEG := Vector2(-100.0, 170.0)
+const FOOT_DIR_RANGE_DEG := Vector2(-60.0, 110.0)
+
+# v0.5 깊이(docs/04 §3). 판정은 실제 3D 관절→말단 거리.
+const PELVIS_DEPTH_RANGE := Vector2(0.20, 0.42)
+const PELVIS_DEPTH_PREFERRED := 0.28
+const CONTACT_DEPTH := 0.07       # 홀드 접촉면의 Z
+const FREE_ENDPOINT_LIFT := 0.12  # 자유 말단은 벽에서 이만큼 더 떨어짐
+
+# v0.5 하중 자격(docs/04 §4): 손 접점이 어깨보다 이 값 이상 낮으면 하중을 받지 못함
+const HAND_LOAD_MAX_BELOW_SHOULDER := 0.10
+
 # 잡기
 const HAND_CANDIDATE_RADIUS := 0.12
 const FOOT_CANDIDATE_RADIUS := 0.10
