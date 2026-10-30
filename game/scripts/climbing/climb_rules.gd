@@ -28,6 +28,8 @@ var phase := Phase.STABLE
 var last := {}            # 마지막 확정 힘 계산 결과
 var fatigue_disabled := false
 var slipped: Array[StringName] = []
+var moves := MoveClassifier.new()   # 무브 라벨·무브별 선호 거리(docs/25)
+var flag_ready: Array[StringName] = []  # 지금 놓으면 균형 발(Free/Flag)로 남는 드래그 발
 
 # accept 콜백용 틱 문맥
 var _ctx_attached := {}
@@ -90,8 +92,16 @@ func evaluate(pelvis: Vector2, angle_deg: float, attached: Dictionary, endpoints
 ## 한 틱. attached: limb→접점 위치, endpoints: 자유 말단 위치, platform: 플랫폼 지지 성립,
 ## moving: 활성 이동 목표(드래그 중 말단)가 있는지. 반환: "" | "NO_SUPPORT" | "BALANCE_LOST" | "UNRESOLVED".
 ## slipped에 피로 0으로 미끄러진 손을 담는다(호출 측이 접점을 해제).
-func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform: bool, moving: bool) -> String:
+## intents: limb → 활성(드래그) 말단의 요청 목표. hints: limb → 호출 측이 아는 무브 단서(HandMatch/FootSwap).
+## flag_probe: 잡을 후보가 없는 드래그 발 목록. 균형 발 조건을 통과하면 flag_ready에 담는다(25 MV06).
+func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform: bool, moving: bool, intents: Dictionary = {}, hints: Dictionary = {}, flag_probe: Array = []) -> String:
 	slipped.clear()
+	_update_flags(body, attached, endpoints, flag_probe)
+	var all_hints := hints.duplicate()
+	for foot in flag_ready:
+		if intents.has(foot) and not all_hints.has(foot):
+			all_hints[foot] = MoveClassifier.FLAG
+	moves.update(body.pos, body.angle, attached, intents, endpoints, all_hints)
 	var has_hand := PoseSolver.eligible_hands(body.pos, body.angle, attached) > 0
 	var result: Dictionary
 	if has_hand or platform:
@@ -102,13 +112,13 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 		_ctx_prev_feasible = last.get("status", -1) == SupportSolver.Status.FEASIBLE
 		_ctx_prev_residual = last.get("residual", INF)
 		var lateral := NAN
-		var weight := Tuning.W_LATERAL
+		var weight := 0.0
 		if phase == Phase.REBALANCING:
 			# 무게중심이 지지점 평균 X 아래로 오도록 골반 목표를 옮긴다(몸이 손 아래로 정렬)
 			var com_offset: float = (last.get("com", body.pos) as Vector2).x - body.pos.x
 			lateral = _support_center_x(body.pos, body.angle, attached) - com_offset
 			weight = REBALANCE_LATERAL_WEIGHT
-		PoseSolver.move_body(body, _target_for(body, attached, lateral, weight), attached, Tuning.DT, Callable(self, "_accept"))
+		PoseSolver.move_body(body, _target_for(body, attached, intents, lateral, weight), attached, Tuning.DT, Callable(self, "_accept"))
 		feet_eligible = PoseSolver.supporting_feet(body.pos, body.angle, attached, feet_eligible)
 		result = _evaluate_cached(body.pos, body.angle)
 		if result.status == SupportSolver.Status.UNRESOLVED:
@@ -191,11 +201,11 @@ func _evaluate_cached(p: Vector2, a: float) -> Dictionary:
 
 ## 목표 자세 재사용: 접점·지지 발·정렬 목표가 같고 탐색 시작점이 직전 탐색과 거의 같으면 그대로 쓴다.
 ## find_target은 시작점 근방의 국소 탐색이라 시작점이 3mm·0.3° 안이면 같은 수렴 목표로 본다.
-func _target_for(body: BodyState, attached: Dictionary, lateral: float, weight: float) -> Vector3:
-	var sig := [_signature(attached), feet_eligible.duplicate(), lateral, weight]
+func _target_for(body: BodyState, attached: Dictionary, intents: Dictionary, lateral: float, weight: float) -> Vector3:
+	var sig := [_signature(attached), feet_eligible.duplicate(), lateral, weight, _signature(intents), moves.profile.duplicate()]
 	if sig == _target_sig and body.pos.distance_to(_target_from_pos) < 0.003 and absf(body.angle - _target_from_angle) < 0.3:
 		return _target
-	_target = PoseSolver.find_target(body.pos, body.angle, attached, feet_eligible, lateral, weight)
+	_target = PoseSolver.find_target(body.pos, body.angle, attached, feet_eligible, moves.profile, intents, lateral, weight)
 	_target_sig = sig
 	_target_from_pos = body.pos
 	_target_from_angle = body.angle
@@ -217,6 +227,33 @@ func _support_center_x(pelvis: Vector2, angle_deg: float, attached: Dictionary) 
 	for c in cs:
 		sx += c.pos.x
 	return sx / cs.size()
+
+
+## 25 MV06: 잡을 후보가 없는 드래그 발을 현재 위치에 두는 것이 휴식 위치에 두는 것보다
+## 균형 비용(손 하중 Σ2u², 불균형이면 잔차²×10)을 0.02 이상 줄이면 균형 발 후보.
+func _update_flags(body: BodyState, attached: Dictionary, endpoints: Dictionary, probe: Array) -> void:
+	flag_ready.clear()
+	if probe.is_empty() or PoseSolver.eligible_hands(body.pos, body.angle, attached) == 0:
+		return
+	for foot in probe:
+		if not endpoints.has(foot):
+			continue
+		var here := evaluate(body.pos, body.angle, attached, endpoints, false)
+		var rest_eps := endpoints.duplicate()
+		rest_eps[foot] = PoseSolver.clamp_endpoint(body.pos, body.angle, foot, endpoints[foot], body.pos + Vector2(0.25 * PoseSolver.side_sign(foot), -0.70))
+		var rest := evaluate(body.pos, body.angle, attached, rest_eps, false)
+		if balance_cost(rest) - balance_cost(here) >= Tuning.FLAG_COST_IMPROVEMENT:
+			flag_ready.append(foot)
+
+
+static func balance_cost(r: Dictionary) -> float:
+	if r.get("status", -1) != SupportSolver.Status.FEASIBLE:
+		return 10.0 * pow(r.get("residual", 1.0), 2) + 4.0
+	var c := 0.0
+	for limb in r.u:
+		if PoseSolver.is_hand(limb):
+			c += SupportSolver.LOAD_COST_HAND * pow(r.u[limb], 2)
+	return c
 
 
 func _phase_of(r: Dictionary) -> Phase:

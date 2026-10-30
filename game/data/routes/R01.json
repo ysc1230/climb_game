@@ -1,8 +1,8 @@
 {
   "route_id": "R01",
-  "content_version": 2,
+  "content_version": 3,
   "validation_status": "Draft",
-  "note": "v2: G01 Y 3.00→2.80, 시작 골반 0.95→0.83(비용 최소 자세). route_check 양쪽 순서 통과(docs/23).",
+  "note": "v3: 시작 골반 0.83→0.744(tuning 3 무브 Rest 프로필의 수렴 자세). v2: G01 Y 3.00→2.80. route_check 양쪽 순서 통과(docs/23).",
   "bounds": {"x_min": -1.5, "x_max": 1.5, "y_min": 0.0, "y_max": 4.0},
   "fail_line_y": -0.5,
   "holds": [
@@ -23,7 +23,7 @@
       {"slot_id": "goal_right", "pos": [0.22, 2.80], "allowed": ["LH", "RH"]}]}
   ],
   "platforms": [{"platform_id": "P00", "top_y": 0.10, "x_range": [-0.65, 0.65], "foot_slot_keys": ["R01/F01/foot_1", "R01/F02/foot_1"]}],
-  "start_pose": {"pelvis": [0.0, 0.83], "angle": 0.0,
+  "start_pose": {"pelvis": [0.0, 0.744], "angle": 0.0,
     "slots": {"LH": "R01/H01/hand_1", "RH": "R01/H02/hand_1", "LF": "R01/F01/foot_1", "RF": "R01/F02/foot_1"}},
   "goal_slots": ["R01/G01/goal_left", "R01/G01/goal_right"],
   "time_medal_seconds": 40,

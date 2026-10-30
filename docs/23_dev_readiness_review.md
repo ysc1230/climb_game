@@ -177,3 +177,34 @@ REF01과의 남은 차이: 실제 리깅 캐릭터와 의상, 손으로 그린 �
 
 - 한 손·발 없음에서 무게중심이 손 아래에서 어긋난 정도별 측정: 0.05m 이내는 몸 정렬로 회복, 0.08m 이상은 18틱 안에 잔차 0.02 이하로 못 줄여 BALANCE_LOST. 골반 gain/속도 제한으로 0.3초에 이동·정착할 수 있는 거리가 작기 때문. 실제로는 재잡기로 해결해야 한다. G2에서 18틱 예산·모멘트 허용치·Rebalancing 중 골반 gain을 함께 평가.
 - 미구현: 무브 단계·무브별 선호 거리·손 하중의 목표 비용(04 §5), yaw/pitch, 몸·사지 충돌·경로 sweep, 거부 사유 문구(25), 플랫폼·CP와 새 지지 계산의 결합 검증.
+
+## v0.5 무브·피드백 구현 (2026-10-31, 25 구현 순서 4 일부)
+
+| 항목 | 구현 | 위치 |
+| --- | --- | --- |
+| 목표 자세 비용 | 04 §5: 조작 목표 오차×1.0 + 무브별 선호 거리×0.5 + 몸통 각도×0.2 + 직전 자세 변화×0.1. v0.4의 고정 팔 0.52m·좌우 정렬 항 폐기. 탐색 각도 간격 3° | `PoseSolver._candidate_cost` |
+| 구현 편차 | 손 하중 u² 대신 하중 발 X 범위 대체 항, 선호 자세는 붙은 모든 팔다리, 의도 목표의 공통 깊이 충돌 항, 활성 구성 변경 시 즉시 라벨 전환(04에 기록) | 위와 같음, `MoveClassifier` |
+| 무브 판별 | 25 판별 경계: HandMatch/FootSwap(단서), CrossReach, HighStep(고관절−0.20), Flag, LockOff(먼 위 목표면 붙은 손 0.42), Reach/Traverse/DownClimb, StandUp(올린 발이 굽어 있으면, 골반을 그 발 위로), Rest. 선호 거리 팔 0.70/0.60/0.42, 다리 0.78/0.86 | `scripts/climbing/move_classifier.gd` |
+| 의도(Shift) | 드래그 중 말단의 요청 목표를 몸통 탐색에 전달 → 남은 접점을 유지하며 골반이 그쪽으로 이동 | `ClimbRules.tick(intents)` |
+| Flag(MV06) | 후보 없는 드래그 발이 휴식 위치 대비 균형 비용(손 Σ2u², 불균형이면 잔차²×10+4)을 0.02 이상 줄이면 "놓으면 균형 발" 예고, release 시 Free/Flag로 위치 유지(접점·지지 아님) | `ClimbRules._update_flags`, `play_test.gd` |
+| 잡기·거부 사유 | GripCheck: 실제 말단 기준 후보(히스테리시스 0.03m), 사유 TYPE_MISMATCH/OCCUPIED/JOINT_LIMIT/NEED_WEIGHT_SHIFT/OUT_OF_REACH/POSE_CONFLICT/NOT_ARRIVED, 25·05 문구. 드래그 중 막히면 20틱 쿨다운으로 1회 안내 | `scripts/climbing/grip_check.gd` |
+| 피드백 | HUD 무브 이름·균형 발 예고, 3D 즉시 도달 부채꼴(방향 범위×최대 거리), 균형 발 마름모 | `play_test.gd`, `play_3d.gd` |
+| 콘텐츠 | R01 content_version 3: 시작 골반 0.83→0.744(tuning 3의 수렴 자세). `Tuning.TUNING_VERSION = 3` | `data/routes/R01.json` |
+
+| 검사(헤드리스) | 결과 |
+| --- | --- |
+| `test_moves.gd` MC06·T02-C: 낮은 발로 H05 불가(사유 OUT_OF_REACH/NEED_WEIGHT_SHIFT) → 두 발을 F03/F04로(첫 발 HighStep) → 골반 0.15m 이상 상승 → 의도 목표로 H05 도달 | 통과 |
+| 의도 목표가 골반을 그쪽으로 이동 | 통과 |
+| MC10/MC11 라벨(CrossReach, HandMatch, FootSwap), 6틱 전환 확인 | 통과 |
+| MC08 Flag: 지지선 안쪽 자유 발은 후보·라벨 Flag, 바깥쪽은 아님 | 통과 |
+| 거부 사유(종류·점유)와 문구 | 통과 |
+| 전체 | 43개 통과 |
+| R01 v3 route_check(tuning 3) | 양쪽 순서 완등 약 26.7초, 전 구간 Stable, 손 최대 사용률 0.30. 무브 순서: 손 LockOff×4, 발 Reach×4, Reach, HandMatch |
+| 틱 비용(맥) | 평균 1.45ms |
+
+발견과 판단:
+
+- 처음 v0.5 비용(선호 자세를 지지 발에만 적용)에서는 높은 발판에 발을 올리면 골반이 오히려 0.14m 내려갔다. 고관절이 발 아래로 내려가면 그 발이 지지에서 빠져 다리 비용이 사라지고 팔 선호(0.70m)만 남기 때문이다. 붙은 모든 팔다리에 선호 자세를 적용해 해소했다.
+- 손 하중 항이 없으면 높은 발로 일어설 때 골반이 그 발에서 멀어지는 쪽으로 밀렸다(측정 x=+0.38). 하중 발 대체 항(StandUp은 올린 발 위)으로 Rockover 방향을 바로잡았다.
+- 벽면 내 지지 근사에서는 Flag의 효과가 작다. 같은 쪽 손·발 지지에서 몸이 0.2m 이상 벗어나야 문턱(0.02)을 넘는다.
+- 미구현: SideOn/DropKnee(yaw/pitch), 점선 도달 영역(체중 이동 후 도달), 몸·사지 충돌·경로 sweep, 손 하중 u² 항의 정식 구현, 튜토리얼(T01~T03) 저작.

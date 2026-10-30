@@ -65,7 +65,7 @@ func _reset(reason: String) -> void:
 	for limb in PoseSolver.LIMBS:
 		var key: String = route.start_slots[limb]
 		var p := route.slot_pos(key)
-		limbs[limb] = {"state": "Attached", "key": key, "pos": p, "req": p}
+		limbs[limb] = {"state": "Attached", "key": key, "pos": p, "req": p, "cand": "", "flag": p}
 	rules.reset(body, _attached(), {}, false)
 	goal_ticks = 0
 	falling = false
@@ -92,11 +92,13 @@ func _attached() -> Dictionary:
 	return d
 
 
-func _occupied(key: String, except: StringName) -> bool:
+## 슬롯 키 → 점유 중인 팔다리
+func _occupied_map() -> Dictionary:
+	var d := {}
 	for limb in limbs:
-		if limb != except and limbs[limb].key == key and limbs[limb].state in ["Attached", "Armed"]:
-			return true
-	return false
+		if limbs[limb].state in ["Attached", "Armed"]:
+			d[limbs[limb].key] = limb
+	return d
 
 
 # ---------- 입력 ----------
@@ -150,31 +152,28 @@ func _clamp_to_reach(limb: StringName, previous: Vector2, p: Vector2) -> Vector2
 	return PoseSolver.clamp_endpoint(body.pos, body.angle, limb, previous, p)
 
 
+## 실제 말단 기준 잡기 후보(GripCheck, 히스테리시스는 직전에 보여준 후보 기준).
 func _candidate(limb: StringName) -> String:
 	var l: Dictionary = limbs[limb]
-	var radius := Tuning.HAND_CANDIDATE_RADIUS if PoseSolver.is_hand(limb) else Tuning.FOOT_CANDIDATE_RADIUS
-	var best := ""
-	var best_d := INF
-	for key in route.slots:
-		if not route.slots[key].allowed.has(limb) or _occupied(key, limb):
-			continue
-		var sp := route.slot_pos(key)
-		var d: float = l.pos.distance_to(sp)
-		if d > radius or d >= best_d:
-			continue
-		var with_new := _attached()
-		with_new[limb] = sp
-		if PoseSolver.is_valid(body.pos, body.angle, with_new):
-			best = key
-			best_d = d
-	return best
+	return GripCheck.candidate(route.slots, limb, l.pos, body.pos, body.angle, _attached(), _occupied_map(), l.cand)
 
 
 func _try_grab(limb: StringName) -> void:
 	var l: Dictionary = limbs[limb]
 	var key := _candidate(limb)
+	l.cand = ""
 	if key.is_empty():
-		l.state = "Free"
+		var reason := GripCheck.reject_reason(route.slots, limb, l.pos, l.req, body.pos, body.angle, _attached(), _occupied_map(), rules.feet_eligible)
+		var text := GripCheck.message(reason, limb)
+		if not text.is_empty():
+			_flash(text)
+		# 균형 발 예고가 있었고 놓는 순간에도 조건을 통과하면 그 위치를 유지(25 MV06)
+		if not PoseSolver.is_hand(limb) and rules.flag_ready.has(limb):
+			l.state = "Flag"
+			l.flag = l.pos
+			_flash("균형 발로 두었어요")
+		else:
+			l.state = "Free"
 		return
 	l.state = "Attached"
 	l.key = key
@@ -216,11 +215,33 @@ func _physics_process(_delta: float) -> void:
 	var attached := _attached()
 	var endpoints := {}
 	var moving := false
+	var intents := {}
+	var hints := {}
+	var flag_probe := []
+	var occupied := _occupied_map()
 	for limb in limbs:
-		if not attached.has(limb):
-			endpoints[limb] = limbs[limb].pos
-			moving = moving or limbs[limb].state == "Dragging"
-	var outcome := rules.tick(body, attached, endpoints, _on_platform(attached), moving)
+		var l: Dictionary = limbs[limb]
+		if attached.has(limb):
+			continue
+		endpoints[limb] = l.pos
+		if l.state != "Dragging":
+			continue
+		moving = true
+		intents[limb] = l.req
+		l.cand = _candidate(limb)
+		var aim := GripCheck.aimed_slot(route.slots, l.req)
+		if PoseSolver.is_hand(limb):
+			var other := &"RH" if limb == &"LH" else &"LH"
+			var other_key: String = limbs[other].key
+			if not aim.is_empty() and occupied.has(other_key) and other_key.get_base_dir() == aim.get_base_dir() and aim != other_key:
+				hints[limb] = MoveClassifier.HAND_MATCH
+		else:
+			if not aim.is_empty() and occupied.has(aim) and occupied[aim] != limb and not PoseSolver.is_hand(occupied[aim]):
+				hints[limb] = MoveClassifier.FOOT_SWAP
+			if l.cand.is_empty():
+				flag_probe.append(limb)
+	var outcome := rules.tick(body, attached, endpoints, _on_platform(attached), moving, intents, hints, flag_probe)
+	_drag_hints(attached, occupied)
 	for hand in rules.slipped:
 		limbs[hand].state = "Free"
 		_flash("손이 미끄러졌어요")
@@ -253,12 +274,36 @@ func _move_endpoints() -> void:
 			l.pos = route.slot_pos(l.key)
 			continue
 		var target: Vector2 = l.req
-		if l.state == "Free":
+		if l.state == "Flag":
+			target = l.flag
+		elif l.state == "Free":
 			var side := -1.0 if limb in [&"LH", &"LF"] else 1.0
 			target = body.pos + (Vector2(0.35 * side, 0.18) if PoseSolver.is_hand(limb) else Vector2(0.25 * side, -0.70))
 		var prev: Vector2 = l.pos
 		target = _clamp_to_reach(limb, prev, target)
 		l.pos = _clamp_to_reach(limb, prev, l.pos.move_toward(target, 2.5 * Tuning.DT))
+
+
+var _hint_cooldown := 0
+var _last_hint := &""
+
+
+## 드래그 중 경계에 막혀 후보가 없을 때 이유를 한 번 안내(반복 쿨다운 20틱, docs/05)
+func _drag_hints(attached: Dictionary, occupied: Dictionary) -> void:
+	_hint_cooldown = maxi(_hint_cooldown - 1, 0)
+	if _hint_cooldown > 0:
+		return
+	for limb in limbs:
+		var l: Dictionary = limbs[limb]
+		if l.state != "Dragging" or not l.cand.is_empty():
+			continue
+		var reason := GripCheck.reject_reason(route.slots, limb, l.pos, l.req, body.pos, body.angle, attached, occupied, rules.feet_eligible)
+		if reason in [GripCheck.JOINT_LIMIT, GripCheck.NEED_WEIGHT_SHIFT, GripCheck.OUT_OF_REACH, GripCheck.OCCUPIED, GripCheck.TYPE_MISMATCH] and reason != _last_hint:
+			_flash(GripCheck.message(reason, limb))
+			_last_hint = reason
+			_hint_cooldown = 20
+			return
+	_last_hint = &""
 
 
 func _on_platform(attached: Dictionary) -> bool:
@@ -336,7 +381,7 @@ func _draw() -> void:
 		draw_arc(w2s(sp), 0.07 * px_per_m, 0, TAU, 20, Color("302820"), 2.0)
 	for limb in limbs:
 		if limbs[limb].state == "Dragging":
-			var c := _candidate(limb)
+			var c: String = limbs[limb].cand
 			if not c.is_empty():
 				draw_arc(w2s(route.slot_pos(c)), 0.11 * px_per_m, 0, TAU, 24, Color("fff2c8"), 3.0)
 			var j := PoseSolver.joint_position(body.pos, body.angle, limb)
@@ -406,7 +451,10 @@ func _draw_hud(size: Vector2) -> void:
 	var status := "지지: %s" % names[ph]
 	var hu: Dictionary = rules.last.get("u", {})
 	status += " · 손 하중 L%d%% R%d%%" % [roundi(hu.get(&"LH", 0.0) * 100), roundi(hu.get(&"RH", 0.0) * 100)]
-	draw_rect(Rect2(Vector2(size.x * 0.25 - 6 * ui_k, 50 * ui_k), Vector2(430 * ui_k, 26 * ui_k)), Color(0.16, 0.18, 0.17, 0.6))
+	draw_rect(Rect2(Vector2(size.x * 0.25 - 6 * ui_k, 50 * ui_k), Vector2(size.x * 0.5 + 12 * ui_k, 26 * ui_k)), Color(0.16, 0.18, 0.17, 0.6))
+	status += " · 무브: %s" % rules.moves.korean()
+	if not rules.flag_ready.is_empty():
+		status += " · 놓으면 균형 발"
 	draw_string(font, Vector2(size.x * 0.25, 70 * ui_k), status, HORIZONTAL_ALIGNMENT_LEFT, -1, int(21 * ui_k), colors[ph])
 	if ph == ClimbRules.Phase.REBALANCING or ph == ClimbRules.Phase.GRACE:
 		var budget := ClimbRules.IMBALANCE_BUDGET_TICKS if ph == ClimbRules.Phase.REBALANCING else Tuning.UNSUPPORTED_GRACE_TICKS

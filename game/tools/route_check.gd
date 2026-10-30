@@ -15,7 +15,7 @@ func _init() -> void:
 
 func _check(id: String) -> bool:
 	var route := RouteDef.load_json("res://data/routes/%s.json" % id)
-	print("== %s (content_version %d, %s)" % [id, route.content_version, route.validation_status])
+	print("== %s (content_version %d, tuning_version %d, %s)" % [id, route.content_version, Tuning.TUNING_VERSION, route.validation_status])
 	if not route.errors.is_empty():
 		for e in route.errors:
 			print("  [저작 오류] ", e)

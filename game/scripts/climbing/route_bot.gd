@@ -18,6 +18,9 @@ var attached_keys := {}   # limb -> slot key
 var rules := ClimbRules.new()   # 게임과 같은 지지·피로·유예 규칙
 var endpoints := {}             # 떼어 낸 말단의 현재 위치(무게중심 계산용)
 var moving := false
+var intents := {}               # 이동 중 말단의 요청 목표(몸통이 그쪽으로 옮겨감, docs/25 Shift)
+var hints := {}
+var move_labels: PackedStringArray = []
 var ticks := 0
 var phase_ticks := {"Stable": 0, "Strained": 0, "Rebalancing": 0, "Grace": 0}
 var max_hand_u := 0.0
@@ -73,6 +76,12 @@ func _move(limb: StringName, key: String) -> bool:
 	attached_keys.erase(limb)
 	endpoints[limb] = from
 	moving = true
+	intents[limb] = target
+	hints.clear()
+	if PoseSolver.is_hand(limb):
+		var other := PoseSolver.RH if limb == PoseSolver.LH else PoseSolver.LH
+		if attached_keys.has(other) and String(attached_keys[other]).get_base_dir() == key.get_base_dir():
+			hints[limb] = MoveClassifier.HAND_MATCH
 	var travel := int(ceil(from.distance_to(target) / ENDPOINT_FOLLOW_SPEED * Tuning.TICK_HZ))
 	for wait in MAX_WAIT_TICKS + 1:
 		endpoints[limb] = PoseSolver.clamp_endpoint(body.pos, body.angle, limb, endpoints[limb], (endpoints[limb] as Vector2).move_toward(target, ENDPOINT_FOLLOW_SPEED * Tuning.DT))
@@ -84,6 +93,9 @@ func _move(limb: StringName, key: String) -> bool:
 				attached_keys[limb] = key
 				endpoints.erase(limb)
 				moving = false
+				move_labels.append("%s:%s" % [limb, rules.moves.label])
+				intents.clear()
+				hints.clear()
 				_settle()
 				log.append("%s→%s 성공 (뗀 뒤 %d틱) 골반=(%.3f, %.3f) θ=%.1f° %s 하중발=%s 손피로 L%.0f R%.0f" % [limb, key, wait, body.pos.x, body.pos.y, body.angle, rules.phase_name(), rules.loaded_feet, rules.stamina[PoseSolver.LH], rules.stamina[PoseSolver.RH]])
 				return true
@@ -119,7 +131,7 @@ func _on_platform() -> bool:
 
 func _tick() -> bool:
 	ticks += 1
-	var outcome := rules.tick(body, attached, endpoints, _on_platform(), moving)
+	var outcome := rules.tick(body, attached, endpoints, _on_platform(), moving, intents, hints)
 	phase_ticks[rules.phase_name()] += 1
 	for hand in [PoseSolver.LH, PoseSolver.RH]:
 		max_hand_u = maxf(max_hand_u, rules.last.get("u", {}).get(hand, 0.0))
@@ -154,3 +166,4 @@ func _check_goal() -> void:
 		log.append(failure)
 		return
 	log.append("완등: %d틱(%.2f초), 최저 손 피로 %.0f, 최대 손 사용률 %.2f, 상태 틱 %s" % [ticks, ticks / float(Tuning.TICK_HZ), min_stamina, max_hand_u, phase_ticks])
+	log.append("무브: %s" % ", ".join(move_labels))

@@ -169,33 +169,25 @@ static func supporting_feet(pelvis: Vector2, angle_deg: float, attached: Diction
 	return result
 
 
-## 목표 자세 비용. feet는 이번 탐색 동안 고정한 지지 발 집합.
-## lateral_target이 NAN이면 접점 X 평균으로 정렬(W_LATERAL), 아니면 그 X로 lateral_weight만큼 끈다(Rebalancing).
-static func cost(pelvis: Vector2, angle_deg: float, attached: Dictionary, feet: Array, lateral_target: float = NAN, lateral_weight: float = Tuning.W_LATERAL) -> float:
-	var total := 0.0
-	var sum_x := 0.0
-	for limb in attached:
-		var slot: Vector2 = attached[limb]
-		sum_x += slot.x
-		var d := limb_distance(pelvis, angle_deg, limb, slot)
-		if is_hand(limb):
-			total += Tuning.W_HAND * pow((d - Tuning.PREF_ARM) / Tuning.ARM_REACH_NOMINAL.y, 2)
-		elif feet.has(limb):
-			total += Tuning.W_FOOT * pow((d - Tuning.PREF_LEG) / Tuning.LEG_REACH_NOMINAL.y, 2)
-	total += Tuning.W_ANGLE * pow(angle_deg / Tuning.BODY_ANGLE_LIMIT_DEG, 2)
-	if not is_nan(lateral_target):
-		total += lateral_weight * pow(pelvis.x - lateral_target, 2)
-	elif attached.size() > 0:
-		total += lateral_weight * pow(pelvis.x - sum_x / attached.size(), 2)
-	return total
+## v0.5 목표 자세 비용(docs/04 §5). profile: limb → 선호 거리(무브별), intents: limb → 활성 말단의 요청 목표,
+## start: 직전 확정 자세 Vector3(x, y, angle). 무효 자세는 INF. lateral_target은 Rebalancing 전용 보조 항(구현 확장).
+## 손 하중 u² 항은 후보마다 힘 계산이 필요해 미적용(docs/23).
+static func cost(pelvis: Vector2, angle_deg: float, attached: Dictionary, feet: Array, profile: Dictionary = {}, intents: Dictionary = {}, start: Vector3 = Vector3(NAN, NAN, NAN), lateral_target: float = NAN, lateral_weight: float = 0.0) -> float:
+	var st := start if not is_nan(start.x) else Vector3(pelvis.x, pelvis.y, angle_deg)
+	return _candidate_cost(pelvis, angle_deg, _search_context(attached, feet, profile, intents, st, lateral_target, lateral_weight))
+
+
+## 무브 프로필이 없을 때의 기본 선호 거리(Rest: 팔 0.70, 다리 0.86).
+static func default_pref(limb: StringName) -> float:
+	return Tuning.PREF_ARM_REST if is_hand(limb) else Tuning.PREF_LEG_STAND
 
 
 ## 27후보 근방 탐색. 반환값 Vector3(x, y, angle)은 목표 자세이며 즉시 이동 위치가 아니다.
-static func find_target(pelvis: Vector2, angle_deg: float, attached: Dictionary, feet: Array, lateral_target: float = NAN, lateral_weight: float = Tuning.W_LATERAL) -> Vector3:
+static func find_target(pelvis: Vector2, angle_deg: float, attached: Dictionary, feet: Array, profile: Dictionary = {}, intents: Dictionary = {}, lateral_target: float = NAN, lateral_weight: float = 0.0) -> Vector3:
 	var best := Vector3(pelvis.x, pelvis.y, angle_deg)
 	if attached.is_empty():
 		return best
-	var ctx := _search_context(attached, feet, lateral_target, lateral_weight)
+	var ctx := _search_context(attached, feet, profile, intents, best, lateral_target, lateral_weight)
 	var best_cost := _candidate_cost(pelvis, angle_deg, ctx)
 	var pos_step := Tuning.SEARCH_POS_STEP
 	var ang_step := Tuning.SEARCH_ANGLE_STEP
@@ -224,24 +216,51 @@ static func find_target(pelvis: Vector2, angle_deg: float, attached: Dictionary,
 	return best
 
 
-## 탐색 동안 고정되는 접점 정보(사전 계산). _candidate_cost가 is_valid + cost와 같은 결과를 낸다.
-static func _search_context(attached: Dictionary, feet: Array, lateral_target: float, lateral_weight: float) -> Dictionary:
+## 탐색 동안 고정되는 접점·의도 정보(사전 계산). _candidate_cost는 is_valid 실패 시 INF.
+static func _search_context(attached: Dictionary, feet: Array, profile: Dictionary, intents: Dictionary, start: Vector3, lateral_target: float, lateral_weight: float) -> Dictionary:
 	var offsets: Array[Vector2] = []
 	var slots: Array[Vector2] = []
 	var kinds: Array[int] = []  # 0 손, 1 지지 발, 2 비지지 발
 	var signs: Array[float] = []
-	var sum_x := 0.0
+	var prefs: Array[float] = []
+	var maxes: Array[float] = []
 	for limb in attached:
 		offsets.append(joint_offset(limb))
 		slots.append(attached[limb])
 		kinds.append(0 if is_hand(limb) else (1 if feet.has(limb) else 2))
 		signs.append(side_sign(limb))
-		sum_x += (attached[limb] as Vector2).x
-	var lat := lateral_target if not is_nan(lateral_target) else sum_x / attached.size()
-	return {"offsets": offsets, "slots": slots, "kinds": kinds, "signs": signs, "lat": lat, "lat_w": lateral_weight}
+		prefs.append(float(profile.get(limb, default_pref(limb))))
+		maxes.append(reach_of(limb).y)
+	# 활성 말단 의도: 관절에서 요청 목표까지가 현재 3D 도달 가능 2D 범위를 벗어난 만큼을 오차로
+	var i_offsets: Array[Vector2] = []
+	var i_targets: Array[Vector2] = []
+	var i_ranges: Array[Vector2] = []
+	var i_lengths: Array[float] = []
+	for limb in intents:
+		i_offsets.append(joint_offset(limb))
+		i_targets.append(intents[limb])
+		var dz := Tuning.PELVIS_DEPTH_PREFERRED - Tuning.CONTACT_DEPTH
+		i_ranges.append(planar_range(limb, dz, dz))
+		i_lengths.append(reach_of(limb).y)
+	# 하중 대체 항의 지지 X 범위: StandUp이면 올린 발, 아니면 지지 발들의 X 범위
+	var load_lo := INF
+	var load_hi := -INF
+	var stand_x: float = profile.get(&"_stand_x", NAN)
+	if not is_nan(stand_x):
+		load_lo = stand_x
+		load_hi = stand_x
+	else:
+		for i in slots.size():
+			if kinds[i] == 1:
+				load_lo = minf(load_lo, slots[i].x - Tuning.LOAD_PROXY_MARGIN)
+				load_hi = maxf(load_hi, slots[i].x + Tuning.LOAD_PROXY_MARGIN)
+	return {"offsets": offsets, "slots": slots, "kinds": kinds, "signs": signs, "prefs": prefs, "maxes": maxes,
+		"i_offsets": i_offsets, "i_targets": i_targets, "i_ranges": i_ranges, "i_lengths": i_lengths,
+		"load_lo": load_lo, "load_hi": load_hi,
+		"start": start, "lat": lateral_target, "lat_w": lateral_weight}
 
 
-## 후보 자세의 비용. 무효(is_valid 실패)면 INF. 관절 위치를 한 번만 계산한다.
+## 후보 자세의 비용. 무효면 INF. 관절 위치를 한 번만 계산한다.
 static func _candidate_cost(p: Vector2, a: float, ctx: Dictionary) -> float:
 	if not (is_finite(p.x) and is_finite(p.y) and is_finite(a)) or absf(a) > Tuning.BODY_ANGLE_LIMIT_DEG + Tuning.DISTANCE_EPSILON:
 		return INF
@@ -250,11 +269,13 @@ static func _candidate_cost(p: Vector2, a: float, ctx: Dictionary) -> float:
 	var sn := sin(rad)
 	var lo := Tuning.PELVIS_DEPTH_RANGE.x
 	var hi := Tuning.PELVIS_DEPTH_RANGE.y
-	var total := 0.0
+	var pref_cost := 0.0
 	var offsets: Array[Vector2] = ctx.offsets
 	var slots: Array[Vector2] = ctx.slots
 	var kinds: Array[int] = ctx.kinds
 	var signs: Array[float] = ctx.signs
+	var prefs: Array[float] = ctx.prefs
+	var maxes: Array[float] = ctx.maxes
 	for i in offsets.size():
 		var o := offsets[i]
 		var joint := p + Vector2(o.x * cs - o.y * sn, o.x * sn + o.y * cs)
@@ -271,24 +292,56 @@ static func _candidate_cost(p: Vector2, a: float, ctx: Dictionary) -> float:
 			return INF
 		hi = minf(hi, Tuning.CONTACT_DEPTH + sqrt(maxf(r.y * r.y - d * d, 0.0)))
 		lo = maxf(lo, Tuning.CONTACT_DEPTH + sqrt(maxf(r.x * r.x - d * d, 0.0)))
-		if hand:
-			var e := (d - Tuning.PREF_ARM) / Tuning.ARM_REACH_NOMINAL.y
-			total += Tuning.W_HAND * e * e
-		elif kinds[i] == 1:
-			var e := (d - Tuning.PREF_LEG) / Tuning.LEG_REACH_NOMINAL.y
-			total += Tuning.W_FOOT * e * e
+		# 선호 자세는 붙은 모든 팔다리에 적용한다. 지지에서 빠진 높은 발도 포함해야
+		# 고관절을 발 아래로 내려 다리 비용을 없애는 거짓 해(골반 하강)가 생기지 않는다(docs/23).
+		var e := (d - prefs[i]) / maxes[i]
+		pref_cost += e * e
 	if lo > hi + Tuning.DISTANCE_EPSILON:
 		return INF
-	total += Tuning.W_ANGLE * pow(a / Tuning.BODY_ANGLE_LIMIT_DEG, 2)
-	total += float(ctx.lat_w) * pow(p.x - float(ctx.lat), 2)
+	var intent_cost := 0.0
+	var i_offsets: Array[Vector2] = ctx.i_offsets
+	var i_targets: Array[Vector2] = ctx.i_targets
+	var i_ranges: Array[Vector2] = ctx.i_ranges
+	var i_lengths: Array[float] = ctx.i_lengths
+	var ilo := lo
+	var ihi := hi
+	for i in i_offsets.size():
+		var o := i_offsets[i]
+		var joint := p + Vector2(o.x * cs - o.y * sn, o.x * sn + o.y * cs)
+		var d := (i_targets[i] - joint).length()
+		var miss := maxf(d - i_ranges[i].y, i_ranges[i].x - d)
+		if miss > 0.0:
+			var e := miss / i_lengths[i]
+			intent_cost += e * e
+		# 요청 목표를 접점으로 더했을 때 필요한 골반 깊이(공통 깊이 충돌 유도)
+		var lr := i_lengths[i]
+		var rmin := (_arm if i_lengths[i] < 0.9 else _leg).x
+		ihi = minf(ihi, Tuning.CONTACT_DEPTH + sqrt(maxf(lr * lr - d * d, 0.0)))
+		ilo = maxf(ilo, Tuning.CONTACT_DEPTH + sqrt(maxf(rmin * rmin - d * d, 0.0)))
+	if ilo > ihi:
+		var c := (ilo - ihi) / Tuning.CHANGE_POS_SCALE
+		intent_cost += c * c
+	var load_cost := 0.0
+	if float(ctx.load_lo) <= float(ctx.load_hi):
+		var gap := maxf(float(ctx.load_lo) - p.x, p.x - float(ctx.load_hi))
+		if gap > 0.0:
+			load_cost = pow(gap / Tuning.LOAD_PROXY_SCALE, 2)
+	var start: Vector3 = ctx.start
+	var dp := Vector2(p.x - start.x, p.y - start.y).length() / Tuning.CHANGE_POS_SCALE
+	var da := (a - start.z) / Tuning.CHANGE_ANGLE_SCALE
+	var total := Tuning.W_INTENT * intent_cost + Tuning.W_PREF_V05 * pref_cost + Tuning.W_LOAD_PROXY * load_cost
+	total += Tuning.W_ANGLE_V05 * pow(a / Tuning.BODY_ANGLE_LIMIT_DEG, 2)
+	total += Tuning.W_CHANGE * (dp * dp + da * da)
+	if not is_nan(float(ctx.lat)) and float(ctx.lat_w) > 0.0:
+		total += float(ctx.lat_w) * pow(p.x - float(ctx.lat), 2)
 	return total
 
 
 ## 지지 중 한 틱의 골반 보정 운동. body는 {pos, vel, angle, ang_vel}을 갖는 BodyState.
 ## 제약을 깨는 이동은 1, 1/2 … 1/32, 0배로 줄여 고른다.
 ## accept(pos, angle) -> bool이 주어지면 그 검사(예: 힘 균형)도 통과한 첫 배율을 쓴다. 0배(정지)는 항상 허용.
-static func step_body(body: BodyState, attached: Dictionary, feet: Array, dt: float = Tuning.DT, accept: Callable = Callable(), lateral_target: float = NAN, lateral_weight: float = Tuning.W_LATERAL) -> void:
-	move_body(body, find_target(body.pos, body.angle, attached, feet, lateral_target, lateral_weight), attached, dt, accept)
+static func step_body(body: BodyState, attached: Dictionary, feet: Array, dt: float = Tuning.DT, accept: Callable = Callable(), profile: Dictionary = {}, intents: Dictionary = {}) -> void:
+	move_body(body, find_target(body.pos, body.angle, attached, feet, profile, intents), attached, dt, accept)
 
 
 ## 주어진 목표 자세로 한 틱 이동(속도·가속도 제한, 제약 위반 시 배율 축소).

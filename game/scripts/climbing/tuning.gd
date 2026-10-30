@@ -3,6 +3,10 @@ extends RefCounted
 ## docs/04 초기 조정표의 판정 수치. 04와 값이 달라지면 04를 같은 변경에서 고친다.
 ## 모든 값은 조정용 초깃값이며 검증된 값이 아니다.
 
+## 조정 버전(docs/09 tuning_version). 판정 수치·규칙이 바뀌면 올린다.
+## 1: v0.4 거리 기반, 2: v0.5 방향·3D 거리·지지 하중, 3: v0.5 무브별 선호·의도 비용
+const TUNING_VERSION := 3
+
 const TICK_HZ := 60
 const DT := 1.0 / TICK_HZ
 
@@ -27,9 +31,31 @@ const W_FOOT := 1.25
 const W_ANGLE := 0.20
 const W_LATERAL := 0.10
 
+# v0.5 목표 자세 비용(docs/04 §5). 손 하중 u² 항은 후보마다 힘 계산이 필요해 미적용(docs/23).
+const W_INTENT := 1.0       # 활성 말단의 조작 목표 오차
+const W_PREF_V05 := 0.5     # 무브별 선호 팔다리 거리
+const W_ANGLE_V05 := 0.2    # 몸통 각도 여유
+const W_CHANGE := 0.1       # 직전 자세와의 변화
+const CHANGE_POS_SCALE := 0.30
+const CHANGE_ANGLE_SCALE := 15.0
+const PREF_ARM_REST := 0.70
+const PREF_ARM_REACH := 0.60
+const PREF_ARM_LOCKOFF := 0.42
+const PREF_LEG_DEFAULT := 0.78
+const PREF_LEG_STAND := 0.86
+# 손 하중 u² 항의 저비용 대체(구현 편차, docs/23): 골반이 하중 발 X 범위(StandUp이면 올린 발) 위에 있도록
+const W_LOAD_PROXY := 1.0
+const LOAD_PROXY_SCALE := 0.30
+const LOAD_PROXY_MARGIN := 0.05
+
+# 무브 판별(docs/04 §5 표)
+const HIGH_STEP_BELOW_HIP := 0.20
+const FLAG_COST_IMPROVEMENT := 0.02
+const MOVE_SWITCH_CONFIRM_TICKS := 6
+
 # 목표 탐색
 const SEARCH_POS_STEP := 0.04
-const SEARCH_ANGLE_STEP := 4.0
+const SEARCH_ANGLE_STEP := 3.0
 const SEARCH_ROUNDS := 8
 const SEARCH_POS_EXTENT := 0.30
 const SEARCH_ANGLE_EXTENT := 15.0
@@ -70,6 +96,7 @@ const HAND_LOAD_MAX_BELOW_SHOULDER := 0.10
 # 잡기
 const HAND_CANDIDATE_RADIUS := 0.12
 const FOOT_CANDIDATE_RADIUS := 0.10
+const CANDIDATE_HYSTERESIS := 0.03
 const ATTACHED_POSITION_TOLERANCE := 0.02
 
 # 규칙
