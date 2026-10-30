@@ -4,6 +4,8 @@ config_version=5
 [application]
 
 config/name="Climb Game"
+config/icon="res://icon.svg"
+run/main_scene="res://scenes/play_test.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
 
 [display]
@@ -11,6 +13,7 @@ config/features=PackedStringArray("4.7", "Mobile")
 window/size/viewport_width=1600
 window/size/viewport_height=900
 window/handheld/orientation=0
+window/stretch/mode="disabled"
 
 [input_devices]
 
@@ -23,3 +26,4 @@ common/physics_ticks_per_second=60
 [rendering]
 
 renderer/rendering_method="mobile"
+textures/vram_compression/import_etc2_astc=true
