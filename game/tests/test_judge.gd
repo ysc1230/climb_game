@@ -139,8 +139,12 @@ func test_match_needs_room() -> void:
 	runner.check(lq >= 0.85 and rq >= 0.85, "두 손 품질 ≥ 0.85: LH %.3f RH %.3f" % [lq, rq])
 	var iv_l := HoldArea.hand_interval(r.route.slots[key], r.limbs[&"LH"].grab)
 	var iv_r := HoldArea.hand_interval(r.route.slots[key], r.limbs[&"RH"].grab)
-	runner.check(not GripCheck._overlaps(iv_l, iv_r), "구간 안 겹침 %s %s" % [iv_l, iv_r])
+	runner.check(not GripCheck.overlaps(iv_l, iv_r), "구간 안 겹침 %s %s" % [iv_l, iv_r])
 	runner.check(r.technique_log.any(func(e): return e.type == TechniqueRunner.SUCCEEDED and e.id == &"T_MATCH"), "성공 기록: %s" % [r.technique_log])
+	var again := TechniqueJudge.hold_targets(ClimbSnapshot.from_session(r), &"T_MATCH", &"left").map(func(t): return t.key)
+	runner.check(not again.has(key), "이미 같은 홀드면 매치 후보 아님: %s" % [again])
+	var cr := TechniqueJudge.check_hold(ClimbSnapshot.from_session(r), &"T_MATCH", &"left", key, r.route.slot_pos(key))
+	runner.check(not cr.ok and cr.reason == TechniqueJudge.NO_HOLD, "이미 있는 홀드 탭 거부: %s" % [cr])
 
 
 ## TA05: 홀드 끝(t = 0.9, q = 0.19)을 잡은 손은 록오프 불가 GRIP_TOO_POOR.
@@ -197,15 +201,41 @@ func test_same_snapshot_same_result() -> void:
 		runner.check(ta == tb, "같은 홀드 후보 %s: %s vs %s" % [side, ta, tb])
 
 
-## 27 §7.1 비용: 기술 버튼 1회(쪽별 판단) 평균 ≤ 30ms.
+## 판정 7: 사이드풀의 힘 축은 몸→홀드(바깥), 개스턴은 홀드→몸(안쪽). 시작 골반 기준으로 부호 확인.
+func test_tx_tech_axes_match_modes() -> void:
+	var r := _tx()
+	var px := r.start_pelvis.x
+	var seen := {}
+	for key in r.slots:
+		var slot: Dictionary = r.slots[key]
+		var dx: float = slot.pos.x - px
+		for gm in slot.grip_modes:
+			if gm.mode == &"sidepull":
+				seen[gm.mode] = true
+				runner.check(signf(gm.axis.x) == signf(dx), "%s 사이드풀 축 %s는 바깥(홀드 x−골반 x %.2f)" % [key, gm.axis, dx])
+			elif gm.mode == &"gaston":
+				seen[gm.mode] = true
+				runner.check(signf(gm.axis.x) == -signf(dx), "%s 개스턴 축 %s는 안쪽(홀드 x−골반 x %.2f)" % [key, gm.axis, dx])
+	runner.check(seen.has(&"sidepull") and seen.has(&"gaston"), "두 방식 모두 검사됨")
+
+
+## 27 §7.1 비용: 기술 버튼 1회(쪽별 판단) 평균 ≤ 30ms(지원 기술만), 쪽 선택 뒤 hold_targets ≤ 30ms.
 func test_judge_cost() -> void:
 	var snap := ClimbSnapshot.from_session(_session(_tx()))
 	var ids := _phase1_ids()
+	runner.check(ids.size() == 16, "1차 기술 16개 (%d)" % ids.size())
+	var supported := ids.filter(func(id): return TechniqueJudge.SUPPORTED.has(id))
 	var t0 := Time.get_ticks_usec()
-	for id in ids:
+	for id in supported:
 		TechniqueJudge.judge(snap, id)
 	var total := (Time.get_ticks_usec() - t0) / 1000.0
-	var avg := total / ids.size()
-	print("    판단 비용: 1차 %d개 총 %.2fms, 평균 %.2fms" % [ids.size(), total, avg])
-	runner.check(ids.size() == 16, "1차 기술 16개 (%d)" % ids.size())
+	var avg := total / supported.size()
+	print("    판단 비용: 지원 기술 %d개 총 %.2fms, 평균 %.2fms" % [supported.size(), total, avg])
 	runner.check(avg <= 30.0, "평균 ≤ 30ms (%.2f)" % avg)
+	for id in TechniqueJudge.MOVE_TECHS:
+		for side in PHASE1_SIDES:
+			var t1 := Time.get_ticks_usec()
+			var n := TechniqueJudge.hold_targets(snap, id, side).size()
+			var ms := (Time.get_ticks_usec() - t1) / 1000.0
+			print("    hold_targets %s/%s: %.2fms (후보 %d)" % [id, side, ms, n])
+			runner.check(ms <= 30.0, "hold_targets %s/%s ≤ 30ms (%.2f)" % [id, side, ms])

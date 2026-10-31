@@ -31,13 +31,13 @@ static func radius_of(limb: StringName) -> float:
 
 
 ## 구간 겹침(맞닿음은 겹침이 아님).
-static func _overlaps(a: Vector2, b: Vector2) -> bool:
+static func overlaps(a: Vector2, b: Vector2) -> bool:
 	return a.x < b.y - 0.0001 and b.x < a.y - 0.0001
 
 
 ## 이 슬롯에서 limb이 쓸 수 있는 접점. 영역에 투영하고, 손은 점유 구간과 겹치면 가장 가까운 빈 구간으로 옮긴다.
 ## 반환 {point, quality} 또는 {}(빈 자리 없음). max_dist: 말단에서 접점까지 허용 거리(INF면 제한 없음).
-static func _contact_point(slot: Dictionary, limb: StringName, endpoint: Vector2, entries: Array, max_dist: float) -> Dictionary:
+static func contact_point(slot: Dictionary, limb: StringName, endpoint: Vector2, entries: Array, max_dist: float) -> Dictionary:
 	if not PoseSolver.is_hand(limb):
 		for e in entries:
 			if e.limb != limb:
@@ -66,7 +66,7 @@ static func _contact_point(slot: Dictionary, limb: StringName, endpoint: Vector2
 		var iv := Vector2(s - HoldArea.HAND_INTERVAL_HALF, s + HoldArea.HAND_INTERVAL_HALF)
 		var free := true
 		for o in others:
-			if _overlaps(iv, o):
+			if overlaps(iv, o):
 				free = false
 				break
 		if not free:
@@ -93,7 +93,7 @@ static func candidate(slots: Dictionary, limb: StringName, endpoint: Vector2, pe
 		var slot: Dictionary = slots[key]
 		if not slot.allowed.has(limb):
 			continue
-		var c := _contact_point(slot, limb, endpoint, occupied.get(key, []), radius)
+		var c := contact_point(slot, limb, endpoint, occupied.get(key, []), radius)
 		if c.is_empty():
 			continue
 		var with_new := attached.duplicate()
@@ -148,7 +148,7 @@ static func reject_reason(slots: Dictionary, limb: StringName, endpoint: Vector2
 		return NO_TARGET
 	if not slots[key].allowed.has(limb):
 		return TYPE_MISMATCH
-	var found := _contact_point(slots[key], limb, endpoint, occupied.get(key, []), INF)
+	var found := contact_point(slots[key], limb, endpoint, occupied.get(key, []), INF)
 	if found.is_empty():
 		return OCCUPIED
 	var sp: Vector2 = found.point

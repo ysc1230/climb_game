@@ -58,8 +58,8 @@ const MIN_GRIP_QUALITY := 0.5        # 27 §8.1: q < 0.5면 록오프·사이드
 const LOCK_OFF_MIN_STAMINA := 30.0   # 27 §7.1 7단계
 const LOCK_OFF_PREF := Tuning.PREF_ARM_LOCKOFF
 const GASTON_SHOULDER_BAND := 0.30   # 개스턴: 홀드가 어깨 높이 ±0.30m (구현 해석)
-const HIGH_FOOT_BELOW_HIP := 0.55
-const SHIFT_SEARCHES := 3            # 체중 이동 후 도달 판정의 목표 탐색 반복(각 ±0.30m)    # 언더클링의 "높은 발": 하중 발 Y ≥ 고관절 Y − 0.55 (25 StandUp의 높은 발 기준)
+const HIGH_FOOT_BELOW_HIP := 0.55    # 언더클링의 "높은 발": 하중 발 Y ≥ 고관절 Y − 0.55 (25 StandUp의 높은 발 기준)
+const SHIFT_SEARCHES := 3            # 체중 이동 후 도달 판정의 목표 탐색 반복(각 ±0.30m)
 
 static var _defs := {}
 
@@ -275,7 +275,8 @@ static func slot_filter(snap: ClimbSnapshot, tech_id: StringName, limb: StringNa
 			# 반대 손 X를 넘는 홀드(LH는 RH보다 오른쪽)
 			return snap.attached.has(other) and (p.x - (snap.attached[other] as Vector2).x) * PoseSolver.side_sign(other) > 0.0
 		T_MATCH, T_FOOT_SWAP:
-			return snap.attached.has(other) and key == snap.keys[other]
+			# 반대 손발의 홀드. 이 손발이 이미 그 홀드에 있으면 후보가 아니다
+			return snap.attached.has(other) and key == snap.keys[other] and not (snap.attached.has(limb) and snap.keys[limb] == key)
 		T_HIGH_STEP:
 			return p.y >= PoseSolver.joint_position(b.pos, b.angle, limb, b.yaw).y - Tuning.HIGH_STEP_BELOW_HIP
 		T_SIDEPULL:
@@ -333,7 +334,7 @@ static func point_for(snap: ClimbSnapshot, tech_id: StringName, limb: StringName
 	if tech_id == T_FOOT_SWAP:
 		var pf := HoldArea.project_foot(slot, snap.attached[other_of(limb)])
 		return {"point": pf.point, "quality": pf.quality}
-	return GripCheck._contact_point(slot, limb, aim, snap.occupied.get(key, []), INF)
+	return GripCheck.contact_point(slot, limb, aim, snap.occupied.get(key, []), INF)
 
 
 ## 4단계 가벼운 검사: 기술 조건·빈 자리가 있고 관절에서 도달+체중 이동 범위 안인 홀드가 하나라도 있는가.

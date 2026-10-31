@@ -48,7 +48,7 @@ func test_pad_grab_shifts_off_occupied_interval() -> void:
 	var s: float = cand.point.x - c.x
 	runner.check(absf(s) >= 0.08 - 0.001, "중심에서 떨어짐 %f" % s)
 	var iv := HoldArea.hand_interval(r.slots[key], cand.point)
-	runner.check(not GripCheck._overlaps(iv, Vector2(-0.04, 0.04)), "구간 안 겹침 %s" % iv)
+	runner.check(not GripCheck.overlaps(iv, Vector2(-0.04, 0.04)), "구간 안 겹침 %s" % iv)
 
 
 func test_narrow_hold_rejects_second_hand() -> void:
@@ -73,7 +73,7 @@ func test_big_hold_match_by_pad() -> void:
 	if cand.is_empty():
 		return
 	var iv := HoldArea.hand_interval(r.slots[R01_H03], cand.point)
-	runner.check(not GripCheck._overlaps(iv, Vector2(-0.08, 0.0)), "RH 구간 안 겹침 %s" % iv)
+	runner.check(not GripCheck.overlaps(iv, Vector2(-0.08, 0.0)), "RH 구간 안 겹침 %s" % iv)
 	runner.check(cand.quality >= 0.85, "RH 품질 %f" % cand.quality)
 	var lq: float = HoldArea.project_hand(r.slots[R01_H03], lh).quality
 	runner.check(lq >= 0.85, "LH 품질 %f" % lq)

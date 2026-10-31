@@ -235,3 +235,68 @@ func test_foot_swap() -> void:
 			bad = r
 			break
 	runner.check(bad == "" and s.rules.phase in [ClimbRules.Phase.STABLE, ClimbRules.Phase.STRAINED], "균형 유지 (%s, %s)" % [bad, s.rules.phase_name()])
+
+
+## 체중 이동 후 도달(27 §11): 지금 자세로는 닿지 않는 홀드도 Shift로 90틱 안에 붙는다.
+func test_needs_shift_succeeds() -> void:
+	var s := _session(_r01())
+	var key := "R01/H02/hand_1"
+	var c := TechniqueJudge.check_hold(ClimbSnapshot.from_session(s), &"T_MATCH", &"left", key, s.route.slot_pos(key))
+	runner.check(c.ok and c.needs_shift, "전제: 체중 이동 후 도달 %s" % [c])
+	var p0 := s.body.pos
+	var a0 := s.body.angle
+	runner.check(s.runner.start(s, &"T_MATCH", &"left", key, s.route.slot_pos(key)) == &"", "시작")
+	var ticks := 0
+	while not s.runner.active.is_empty() and ticks < 200:
+		s.step()
+		ticks += 1
+	runner.check(ticks <= TechniqueRunner.MOVE_BUDGET_TICKS + 1, "90틱 안에 끝 (%d)" % ticks)
+	runner.check(_last_event(s).get("type") == TechniqueRunner.SUCCEEDED, "성공: %s" % [_last_event(s)])
+	runner.check(s.limbs[&"LH"].state == "Attached" and s.limbs[&"LH"].key == key, "LH 붙음")
+	var moved := s.body.pos.distance_to(p0) > 0.01 or absf(s.body.angle - a0) > 1.0
+	runner.check(moved, "몸통이 옮겨짐 (Δpos %s, Δangle %.2f)" % [s.body.pos - p0, s.body.angle - a0])
+	runner.check(not PoseSolver.can_reach(p0, a0, &"LH", s.limbs[&"LH"].grab, 0.0) or not PoseSolver.is_valid(p0, a0, s.attached(), 0.0), "시작 자세로는 그 접점 불가(체중 이동이 필요했음)")
+
+
+## 닿지 않는 채로 90틱이 지나면 failed NEED_WEIGHT_SHIFT, 손발은 Free, override 해제.
+## 판단 뒤 상태가 달라진 경우를 만들려고 실행이 시작된 뒤 목표점을 닿지 않는 곳으로 바꾼다.
+func test_needs_shift_unreachable_fails() -> void:
+	var s := _session(_r01())
+	var key := "R01/H02/hand_1"
+	runner.check(s.runner.start(s, &"T_MATCH", &"left", key, s.route.slot_pos(key)) == &"", "시작")
+	s.step()
+	runner.check(_last_event(s).get("type") == TechniqueRunner.STARTED and s.runner.active.needs_shift, "전제: started, needs_shift")
+	s.runner.active.point = Vector2(1.6, 2.9)  # 몸을 옮겨도 닿지 않는 지점
+	s.rules.fatigue_multiplier = {&"RH": 1.5}    # 끝날 때 해제되는지 보려는 표시
+	var ticks := 0
+	var fell := ""
+	while not s.runner.active.is_empty() and ticks < 200:
+		var r := s.step()
+		if r.begins_with("fall"):
+			fell = r
+			break
+		ticks += 1
+	var ev := _last_event(s)
+	runner.check(fell == "", "추락 없음 (%s)" % fell)
+	runner.check(ev.get("type") == TechniqueRunner.FAILED and ev.get("reason") == TechniqueJudge.NEED_WEIGHT_SHIFT, "failed NEED_WEIGHT_SHIFT: %s" % [ev])
+	runner.check(ticks <= TechniqueRunner.MOVE_BUDGET_TICKS + 1, "90틱 예산 (%d)" % ticks)
+	runner.check(s.limbs[&"LH"].state == "Free", "LH Free (%s)" % s.limbs[&"LH"].state)
+	runner.check(s.rules.profile_override.is_empty() and s.rules.fatigue_multiplier.is_empty(), "override·피로 배율 해제")
+	runner.check(s.messages.has("먼저 체중을 옮겨야 해요"), "이유 문구 안내")
+
+
+## 방식이 여럿인 홀드(M01: pull, sidepull)에서 T_SIDEPULL은 첫 방식이 아니라 sidepull로 잡는다.
+func test_sidepull_uses_mode_not_first() -> void:
+	var r := _tx()
+	var key := "TX_TECH/M01/hand_1"
+	runner.check(r.slots[key].grip_modes[0].mode == &"pull", "전제: 첫 방식 pull")
+	for k in ["TX_TECH/S01/hand_1", "TX_TECH/S02/hand_1", "TX_TECH/K01/hand_1", "TX_TECH/U01/hand_1"]:
+		r.slots[k].pos = FAR
+	var s := _session(r)
+	var sh := PoseSolver.joint_position(s.body.pos, s.body.angle, &"LH", s.body.yaw)
+	r.slots[key].pos = sh + Vector2(-0.35, 0.40)
+	runner.check(s.runner.start(s, &"T_SIDEPULL", &"left", key, r.slots[key].pos) == &"", "사이드풀 시작")
+	var out := _run(s)
+	runner.check(out == "" and s.limbs[&"LH"].key == key and s.limbs[&"LH"].state == "Attached", "붙음 (%s %s)" % [out, s.limbs[&"LH"].key])
+	var ci: ContactInfo = s.rules.contact_meta.get(&"LH")
+	runner.check(ci != null and ci.mode == &"sidepull" and ci.axis == Vector2(-1, 0), "방식 sidepull·축 (%s)" % [[ci.mode, ci.axis] if ci else null])
