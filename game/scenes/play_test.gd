@@ -65,7 +65,7 @@ func _reset(reason: String) -> void:
 	for limb in PoseSolver.LIMBS:
 		var key: String = route.start_slots[limb]
 		var p := route.slot_pos(key)
-		limbs[limb] = {"state": "Attached", "key": key, "pos": p, "req": p, "cand": "", "flag": p}
+		limbs[limb] = {"state": "Attached", "key": key, "pos": p, "grab": p, "req": p, "cand": {}, "flag": p}
 	rules.reset(body, _attached(), {}, false)
 	goal_ticks = 0
 	falling = false
@@ -88,16 +88,22 @@ func _attached() -> Dictionary:
 	var d := {}
 	for limb in limbs:
 		if limbs[limb].state == "Attached" or limbs[limb].state == "Armed":
-			d[limb] = route.slot_pos(limbs[limb].key)
+			d[limb] = limbs[limb].grab
 	return d
 
 
-## 슬롯 키 → 점유 중인 팔다리
+## 슬롯 키 → [{limb, interval}] (손은 접촉 구간, 발은 ZERO)
 func _occupied_map() -> Dictionary:
 	var d := {}
 	for limb in limbs:
-		if limbs[limb].state in ["Attached", "Armed"]:
-			d[limbs[limb].key] = limb
+		var l: Dictionary = limbs[limb]
+		if l.state in ["Attached", "Armed"]:
+			var iv := Vector2.ZERO
+			if PoseSolver.is_hand(limb):
+				iv = HoldArea.hand_interval(route.slots[l.key], l.grab)
+			if not d.has(l.key):
+				d[l.key] = []
+			d[l.key].append({"limb": limb, "interval": iv})
 	return d
 
 
@@ -153,16 +159,16 @@ func _clamp_to_reach(limb: StringName, previous: Vector2, p: Vector2) -> Vector2
 
 
 ## 실제 말단 기준 잡기 후보(GripCheck, 히스테리시스는 직전에 보여준 후보 기준).
-func _candidate(limb: StringName) -> String:
+func _candidate(limb: StringName) -> Dictionary:
 	var l: Dictionary = limbs[limb]
-	return GripCheck.candidate(route.slots, limb, l.pos, body.pos, body.angle, _attached(), _occupied_map(), l.cand)
+	return GripCheck.candidate(route.slots, limb, l.pos, body.pos, body.angle, _attached(), _occupied_map(), l.cand.get("key", ""))
 
 
 func _try_grab(limb: StringName) -> void:
 	var l: Dictionary = limbs[limb]
-	var key := _candidate(limb)
-	l.cand = ""
-	if key.is_empty():
+	var cand := _candidate(limb)
+	l.cand = {}
+	if cand.is_empty():
 		var reason := GripCheck.reject_reason(route.slots, limb, l.pos, l.req, body.pos, body.angle, _attached(), _occupied_map(), rules.feet_eligible)
 		var text := GripCheck.message(reason, limb)
 		if not text.is_empty():
@@ -176,8 +182,10 @@ func _try_grab(limb: StringName) -> void:
 			l.state = "Free"
 		return
 	l.state = "Attached"
-	l.key = key
-	l.pos = route.slot_pos(key)
+	l.key = cand.key
+	l.grab = cand.point
+	l.pos = cand.point
+	l.contact = GripCheck.contact_for(cand.key, route.slots, limb, cand.point)
 	if OS.has_feature("mobile"):
 		Input.vibrate_handheld(20)
 
@@ -233,10 +241,10 @@ func _physics_process(_delta: float) -> void:
 		if PoseSolver.is_hand(limb):
 			var other := &"RH" if limb == &"LH" else &"LH"
 			var other_key: String = limbs[other].key
-			if not aim.is_empty() and occupied.has(other_key) and other_key.get_base_dir() == aim.get_base_dir() and aim != other_key:
+			if not aim.is_empty() and occupied.has(other_key) and other_key.get_base_dir() == aim.get_base_dir():
 				hints[limb] = MoveClassifier.HAND_MATCH
 		else:
-			if not aim.is_empty() and occupied.has(aim) and occupied[aim] != limb and not PoseSolver.is_hand(occupied[aim]):
+			if not aim.is_empty() and occupied.has(aim) and occupied[aim][0].limb != limb and not PoseSolver.is_hand(occupied[aim][0].limb):
 				hints[limb] = MoveClassifier.FOOT_SWAP
 			if l.cand.is_empty():
 				flag_probe.append(limb)
@@ -271,7 +279,7 @@ func _move_endpoints() -> void:
 	for limb in limbs:
 		var l: Dictionary = limbs[limb]
 		if l.state in ["Attached", "Armed"]:
-			l.pos = route.slot_pos(l.key)
+			l.pos = l.grab
 			continue
 		var target: Vector2 = l.req
 		if l.state == "Flag":
@@ -381,9 +389,9 @@ func _draw() -> void:
 		draw_arc(w2s(sp), 0.07 * px_per_m, 0, TAU, 20, Color("302820"), 2.0)
 	for limb in limbs:
 		if limbs[limb].state == "Dragging":
-			var c: String = limbs[limb].cand
+			var c: Dictionary = limbs[limb].cand
 			if not c.is_empty():
-				draw_arc(w2s(route.slot_pos(c)), 0.11 * px_per_m, 0, TAU, 24, Color("fff2c8"), 3.0)
+				draw_arc(w2s(c.point), 0.11 * px_per_m, 0, TAU, 24, Color("fff2c8"), 3.0)
 			var j := PoseSolver.joint_position(body.pos, body.angle, limb)
 			draw_arc(w2s(j), PoseSolver.reach_of(limb).y * px_per_m, 0, TAU, 64, Color(1, 1, 1, 0.15), 1.5)
 	_draw_body()

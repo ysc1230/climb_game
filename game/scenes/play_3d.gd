@@ -483,9 +483,9 @@ func _update_candidate() -> void:
 	candidate_ring.visible = false
 	for limb in logic.limbs:
 		if logic.limbs[limb].state == "Dragging":
-			var key: String = logic.limbs[limb].cand
-			if not key.is_empty():
-				var p: Vector2 = logic.route.slot_pos(key)
+			var cand: Dictionary = logic.limbs[limb].cand
+			if not cand.is_empty():
+				var p: Vector2 = cand.point
 				candidate_ring.position = Vector3(p.x, p.y, CONTACT_DEPTH + 0.03)
 				candidate_ring.rotation_degrees = Vector3(90, 0, 0)
 				candidate_ring.visible = true

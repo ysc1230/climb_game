@@ -30,31 +30,97 @@ static func radius_of(limb: StringName) -> float:
 	return Tuning.HAND_CANDIDATE_RADIUS if PoseSolver.is_hand(limb) else Tuning.FOOT_CANDIDATE_RADIUS
 
 
-## 실제 말단 기준 잡기 후보. occupied: 슬롯 키 → 점유 limb. previous: 직전에 보여준 후보(히스테리시스 0.03m).
-static func candidate(slots: Dictionary, limb: StringName, endpoint: Vector2, pelvis: Vector2, angle_deg: float, attached: Dictionary, occupied: Dictionary, previous: String = "") -> String:
-	var radius := radius_of(limb)
-	var best := ""
+## 구간 겹침(맞닿음은 겹침이 아님).
+static func _overlaps(a: Vector2, b: Vector2) -> bool:
+	return a.x < b.y - 0.0001 and b.x < a.y - 0.0001
+
+
+## 이 슬롯에서 limb이 쓸 수 있는 접점. 영역에 투영하고, 손은 점유 구간과 겹치면 가장 가까운 빈 구간으로 옮긴다.
+## 반환 {point, quality} 또는 {}(빈 자리 없음). max_dist: 말단에서 접점까지 허용 거리(INF면 제한 없음).
+static func _contact_point(slot: Dictionary, limb: StringName, endpoint: Vector2, entries: Array, max_dist: float) -> Dictionary:
+	if not PoseSolver.is_hand(limb):
+		for e in entries:
+			if e.limb != limb:
+				return {}
+		var pf := HoldArea.project_foot(slot, endpoint)
+		if endpoint.distance_to(pf.point) > max_dist:
+			return {}
+		return {"point": pf.point, "quality": pf.quality}
+	var area: Dictionary = slot.hand_area
+	var hw: float = area.half_width
+	var base := HoldArea.project_hand(slot, endpoint)
+	var s0: float = (base.point - slot.pos).dot(area.dir)
+	var others: Array = []
+	for e in entries:
+		if e.limb != limb:
+			others.append(e.interval)
+	var options: Array = [s0]
+	for iv in others:
+		options.append(iv.y + HoldArea.HAND_INTERVAL_HALF)
+		options.append(iv.x - HoldArea.HAND_INTERVAL_HALF)
+	var best := {}
 	var best_d := INF
+	for s in options:
+		if absf(s) > hw + 0.0001:
+			continue
+		var iv := Vector2(s - HoldArea.HAND_INTERVAL_HALF, s + HoldArea.HAND_INTERVAL_HALF)
+		var free := true
+		for o in others:
+			if _overlaps(iv, o):
+				free = false
+				break
+		if not free:
+			continue
+		var p: Vector2 = slot.pos + area.dir * s
+		var d := endpoint.distance_to(p)
+		if d > max_dist or d >= best_d:
+			continue
+		var t := absf(s) / hw
+		best_d = d
+		best = {"point": p, "quality": 1.0 - t * t}
+	return best
+
+
+## 실제 말단 기준 잡기 후보. occupied: 슬롯 키 → [{limb, interval}] (발 interval은 ZERO).
+## previous: 직전에 보여준 후보 키(히스테리시스 0.03m). 반환 {key, point, quality} 또는 {}.
+static func candidate(slots: Dictionary, limb: StringName, endpoint: Vector2, pelvis: Vector2, angle_deg: float, attached: Dictionary, occupied: Dictionary, previous: String = "") -> Dictionary:
+	var radius := radius_of(limb)
+	var best := {}
+	var best_d := INF
+	var prev := {}
 	var prev_d := INF
 	for key in slots:
-		if not slots[key].allowed.has(limb) or (occupied.has(key) and occupied[key] != limb):
+		var slot: Dictionary = slots[key]
+		if not slot.allowed.has(limb):
 			continue
-		var sp: Vector2 = slots[key].pos
-		var d := endpoint.distance_to(sp)
-		if d > radius:
+		var c := _contact_point(slot, limb, endpoint, occupied.get(key, []), radius)
+		if c.is_empty():
 			continue
 		var with_new := attached.duplicate()
-		with_new[limb] = sp
+		with_new[limb] = c.point
 		if not PoseSolver.is_valid(pelvis, angle_deg, with_new):
 			continue
+		var d := endpoint.distance_to(c.point)
+		var found := {"key": key, "point": c.point, "quality": c.quality}
 		if key == previous:
+			prev = found
 			prev_d = d
 		if d < best_d:
-			best = key
+			best = found
 			best_d = d
-	if prev_d < INF and best != previous and best_d > prev_d - Tuning.CANDIDATE_HYSTERESIS:
-		return previous
+	if prev_d < INF and best.key != previous and best_d > prev_d - Tuning.CANDIDATE_HYSTERESIS:
+		return prev
 	return best
+
+
+## 접점 정보(품질·그립 방식). 손은 grip_modes[0], 발은 foot/inside.
+static func contact_for(slot_key: String, slots: Dictionary, limb: StringName, point: Vector2) -> ContactInfo:
+	var slot: Dictionary = slots[slot_key]
+	if PoseSolver.is_hand(limb):
+		var q: float = HoldArea.project_hand(slot, point).quality
+		return ContactInfo.make(slot_key, point, q, slot.grip_modes[0].mode, &"")
+	var qf: float = HoldArea.project_foot(slot, point).quality
+	return ContactInfo.make(slot_key, point, qf, &"foot", &"inside")
 
 
 ## 요청 목표 근처에서 노린 슬롯(종류 무관, 가장 가까운 것).
@@ -78,9 +144,10 @@ static func reject_reason(slots: Dictionary, limb: StringName, endpoint: Vector2
 		return NO_TARGET
 	if not slots[key].allowed.has(limb):
 		return TYPE_MISMATCH
-	if occupied.has(key) and occupied[key] != limb:
+	var found := _contact_point(slots[key], limb, endpoint, occupied.get(key, []), INF)
+	if found.is_empty():
 		return OCCUPIED
-	var sp: Vector2 = slots[key].pos
+	var sp: Vector2 = found.point
 	var with_new := attached.duplicate()
 	with_new[limb] = sp
 	if not PoseSolver.direction_ok(pelvis, angle_deg, limb, sp):
