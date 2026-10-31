@@ -145,10 +145,15 @@ static func solve(contacts: Array, com: Vector2) -> Dictionary:
 	return result
 
 
+## barn door가 적용되지 않는 결과.
+static func barn_door_none() -> Dictionary:
+	return {"applies": false, "tau": 0.0, "capacity": 0.0, "exceeded": false}
+
+
 ## barn door 근사: 하중 접점들이 한 수직선에 몰렸을 때 무게중심이 그 선에서 벗어난 거리 τ가
 ## 접점이 버티는 용량을 넘으면 exceeded. meta: limb → ContactInfo (없으면 손 q=1, 발 inside).
 static func barn_door(contacts: Array, loads: Dictionary, com: Vector2, meta: Dictionary) -> Dictionary:
-	var out := {"applies": false, "tau": 0.0, "capacity": 0.0, "exceeded": false}
+	var out := barn_door_none()
 	var min_x := INF
 	var max_x := -INF
 	var sum_x := 0.0

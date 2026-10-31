@@ -54,3 +54,74 @@ func test_wide_contacts_no_barn_door() -> void:
 	rules.reset(body, START, {}, false)
 	runner.check(not rules.last.barn.applies, "R01 시작 자세는 적용 안 됨")
 	runner.check(rules.imbalance_cause == &"", "cause 비어 있음")
+
+
+const FREE := {PoseSolver.RF: Vector2(0.20, 0.30), PoseSolver.RH: Vector2(0.20, 1.60)}
+
+
+func _excess(rules: ClimbRules) -> float:
+	return rules.last.barn.tau - rules.last.barn.capacity
+
+
+## 안정 자세에서 barn door를 만드는 후보는 _accept가 거부하고, 틱을 돌려도 barn door가 생기지 않는다.
+func test_accept_rejects_move_creating_barn_door() -> void:
+	var rules := ClimbRules.new()
+	var body := BodyState.new(Vector2(-0.30, 1.0))
+	rules.reset(body, LINE, FREE, false)
+	for i in 30:
+		rules.tick(body, LINE, FREE, false, false)
+	runner.check(rules.phase == ClimbRules.Phase.STABLE and rules.imbalance_cause == &"", "전제: 안정 %s/%s" % [rules.phase_name(), rules.imbalance_cause])
+	runner.check(not rules.last.barn.exceeded, "전제: barn door 아님")
+	runner.check(rules._ctx_prev_feasible and not rules._ctx_prev_barn, "전제: 직전 안정")
+	runner.check(not rules._accept(Vector2(0.20, 1.0), 0.0), "barn door를 만드는 후보 거부")
+	runner.check(rules._accept(body.pos, body.angle), "현재 자세는 허용")
+	var start_x := body.pos.x
+	for i in 20:
+		rules.tick(body, LINE, FREE, false, false)
+		runner.check(rules.imbalance_cause != &"BARN_DOOR", "틱 %d barn door 없음" % i)
+	runner.check(absf(body.pos.x - start_x) < 0.15, "몸이 선에서 멀어지지 않음: %.3f → %.3f" % [start_x, body.pos.x])
+
+
+## barn door 재균형: 초과분이 늘지 않고, 몸이 선 쪽으로 가서 용량 안이 되면 원인이 비워진다.
+func test_barn_rebalance_recovers_and_clears_cause() -> void:
+	var rules := ClimbRules.new()
+	var body := BodyState.new(Vector2(-0.30, 1.0))
+	rules.reset(body, LINE, FREE, false)
+	runner.check(rules.imbalance_cause == &"BARN_DOOR", "시작 원인 BARN_DOOR")
+	var prev := _excess(rules)
+	for i in 30:
+		var out := rules.tick(body, LINE, FREE, false, false)
+		runner.check(out.is_empty(), "틱 %d 실패 없음: %s" % [i, out])
+		var ex := _excess(rules)
+		runner.check(ex <= prev + ClimbRules.ACCEPT_EPSILON + 1e-6, "틱 %d 초과분 비증가 %.4f ≤ %.4f" % [i, ex, prev])
+		prev = ex
+	runner.check(rules.phase == ClimbRules.Phase.STABLE and rules.imbalance_cause == &"", "회복 뒤 안정·원인 비움: %s/%s" % [rules.phase_name(), rules.imbalance_cause])
+
+
+## 18틱 안에 고치지 못하면 BALANCE_LOST이고 원인은 BARN_DOOR로 남는다.
+func test_barn_unrecoverable_balance_lost() -> void:
+	var rules := ClimbRules.new()
+	var body := BodyState.new(PELVIS)
+	rules.reset(body, LINE, FREE, false)
+	var prev := _excess(rules)
+	var lost := ""
+	var ticks := 0
+	while lost.is_empty() and ticks < 40:
+		lost = rules.tick(body, LINE, FREE, false, false)
+		ticks += 1
+		var ex := _excess(rules)
+		runner.check(ex <= prev + ClimbRules.ACCEPT_EPSILON + 1e-6, "틱 %d 초과분 비증가" % ticks)
+		prev = ex
+	runner.check(lost == "BALANCE_LOST" and ticks == ClimbRules.IMBALANCE_BUDGET_TICKS, "%d틱에 %s" % [ticks, lost])
+	runner.check(rules.imbalance_cause == &"BARN_DOOR", "원인 BARN_DOOR: %s" % rules.imbalance_cause)
+
+
+func test_cause_cleared_on_grace() -> void:
+	var rules := ClimbRules.new()
+	var body := BodyState.new(PELVIS)
+	rules.reset(body, LINE, FREE, false)
+	runner.check(rules.imbalance_cause == &"BARN_DOOR", "전제: BARN_DOOR")
+	var feet_only := {PoseSolver.LF: LINE[PoseSolver.LF]}
+	rules.tick(body, feet_only, FREE, false, false)
+	runner.check(rules.phase == ClimbRules.Phase.GRACE, "손 없으면 Grace: %s" % rules.phase_name())
+	runner.check(rules.imbalance_cause == &"", "Grace 진입 시 원인 비움: %s" % rules.imbalance_cause)

@@ -121,7 +121,7 @@ func evaluate(pelvis: Vector2, angle_deg: float, attached: Dictionary, endpoints
 	var contacts := contacts_for(pelvis, angle_deg, attached, feet, yaw_deg)
 	var r := SupportSolver.solve(contacts, com)
 	r["com"] = com
-	r["barn"] = SupportSolver.barn_door(contacts, r.loads, com, contact_meta) if r.status == SupportSolver.Status.FEASIBLE else {"applies": false, "tau": 0.0, "capacity": 0.0, "exceeded": false}
+	r["barn"] = SupportSolver.barn_door(contacts, r.loads, com, contact_meta) if r.status == SupportSolver.Status.FEASIBLE else SupportSolver.barn_door_none()
 	return r
 
 
@@ -316,7 +316,9 @@ static func _barn_excess(r: Dictionary) -> float:
 ## 결과로 phase와 불균형 원인을 정한다. 힘 해가 있어도 barn door 초과면 REBALANCING.
 func _apply_phase(r: Dictionary) -> void:
 	phase = _phase_of(r)
-	if r.status != SupportSolver.Status.FEASIBLE:
+	if r.status == SupportSolver.Status.UNRESOLVED:
+		imbalance_cause = &""
+	elif r.status != SupportSolver.Status.FEASIBLE:
 		imbalance_cause = &"FORCE"
 	elif _barn_exceeded(r):
 		imbalance_cause = &"BARN_DOOR"
