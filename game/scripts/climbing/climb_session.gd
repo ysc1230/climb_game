@@ -21,6 +21,8 @@ var runner := TechniqueRunner.new()  # 기술 실행기(docs/27). 한 번에 하
 ## 확정된 틱의 기술 이벤트 {tick, type, id, side, key, quality, reason}(09 v0.6, 능력치에 쓰지 않음). 최근 200개.
 var technique_log: Array = []
 var tick_count := 0
+## 기술 고르는 중(docs/27 §6, 15 v0.6 TechniqueSelect). true인 동안 step()은 아무것도 바꾸지 않는다.
+var selecting := false
 const TECHNIQUE_LOG_MAX := 200
 const DEADPOINT_TICKS := 9              # 04 §10.5: 0.15초 안에 잡기 판정
 const DEADPOINT_SPEED := 5.0            # 말단 따라가기 속도(2.5) × 2
@@ -94,6 +96,33 @@ func is_dragging() -> bool:
 		if limbs[limb].state == "Dragging":
 			return true
 	return false
+
+
+# ---------- 기술 선택(시간 정지) ----------
+
+## 선택을 연다. 드래그 중인 손발이 있거나 추락 중이면 false.
+## 눌러 둔 채(Armed) 손발은 Attached로 돌린다. 패드 터치 정리(router.cancel_all)는 호출 측이 한다.
+func open_select() -> bool:
+	if falling or is_dragging():
+		return false
+	for limb in limbs:
+		if limbs[limb].state == "Armed":
+			limbs[limb].state = "Attached"
+	selecting = true
+	return true
+
+
+func close_select() -> void:
+	selecting = false
+
+
+## 선택 중 고른 기술을 시작한다. 판단은 지금 스냅숏으로 다시 한다(선택 중 상태 불변).
+## 성공하면 &""를 돌려주고 같은 틱부터 시간이 다시 흐른다. 실패하면 이유 ID이며 선택은 유지된다.
+func choose(tech_id: StringName, side: StringName, key: String = "", point: Vector2 = Vector2.INF) -> StringName:
+	var reason := runner.start(self, tech_id, side, key, point)
+	if reason == &"":
+		selecting = false
+	return reason
 
 
 # ---------- 입력 ----------
@@ -264,6 +293,8 @@ func grab(limb: StringName, key: String, point: Vector2, contact: ContactInfo) -
 
 ## 고정 틱 1회. 반환: "" / "fall:<이유>" / "clear" / "unresolved" / "respawn"(추락 연출이 끝나 다시 시작).
 func step() -> String:
+	if selecting:
+		return ""  # 기술 고르는 중: 틱·피로·카운터·몸통·말단 모두 멈춘다
 	tick_count += 1
 	if falling:
 		return _fall_tick()
