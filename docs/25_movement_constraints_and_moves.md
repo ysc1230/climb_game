@@ -92,10 +92,10 @@ HighStep 문턱 0.20m, Flag 개선 최소 비용 0.02, 무브 전환 6틱은 04�
 
 | 동작 | 제외 이유와 후속 조건 |
 | --- | --- |
-| Dyno·점프·공중 재잡기 | 현재는 준정적 지지와 실패 후 재잡기 금지 모델. 별도의 도약·탄도·포착 규칙 필요 |
-| Heel hook·Toe hook | 발의 당김·걸기·해제 하중을 지원하는 별도 접촉 유형 필요 |
+| Dyno·점프·공중 재잡기 | 두 손이 모두 떨어지는 비행은 계속 제외. **한 손 데드포인트는 v0.6에서 범위로 옮김**([27](27_technique_actions_design.md), [04 §10.5](04_pose_and_physics.md)) |
+| Heel hook·Toe hook | 발의 당김·걸기·해제 하중을 지원하는 별도 접촉 유형 필요. v0.6 2차 범위(27) |
 | Mantle·팔로 아래를 눌러 올라서기 | 일반 pull 손 슬롯과 힘 방향이 다름. 압축 손·플랫폼 전환 설계 필요 |
-| Smear·벽을 밟는 마찰 지지 | 홀드 밖 접촉과 마찰 판정이 아직 없음. Flag를 smear로 가장하지 않음 |
+| Smear·벽을 밟는 마찰 지지 | 홀드 밖 접촉과 마찰 판정이 아직 없음. Flag를 smear로 가장하지 않음. v0.6 2차 범위(27) |
 | 깊은 백스텝·완전 회전·캠퍼스 다이노 | 현재 관절·깊이·무지지 정책 밖. 캐릭터의 허용 범위만 늘려 추가하지 않음 |
 
 ## 상황별로 기대하는 결과
@@ -194,3 +194,23 @@ HighStep 문턱 0.20m, Flag 개선 최소 비용 0.02, 무브 전환 6틱은 04�
 5. **콘텐츠 재검수:** 새 조정·콘텐츠 버전으로 R01과 튜토리얼부터 확인하고 다음 루트로 확장한다.
 
 이번 산출물은 위 작업을 시작할 수 있는 문서 설계다. 게임 코드·테스트 코드·리그·루트 JSON을 변경하지 않았고, 에디터·시뮬레이터·기기 실행도 하지 않았다.
+
+## v0.6 기술 버튼과의 관계
+
+이 문서의 무브 라벨은 **패드 조작을 해석한 설명**으로 유지한다. [27](27_technique_actions_design.md)의 기술 버튼은 같은 판정 위에서 플레이어가 기술을 **명시적으로 고르는** 입력이다. 버튼이 하드 제약·힘 균형을 완화하지 않으며, 같은 자세는 버튼이든 패드든 같은 판정을 받는다.
+
+| 무브(25) | 기술(27) | 비고 |
+| --- | --- | --- |
+| MV01 Reach / MV04 Traverse | (패드) | 기술 버튼 없음 |
+| MV02 HighStep / MV03 StandUp | T_HIGH_STEP | 버튼은 발 홀드 탭 후 일어서기까지 실행 |
+| MV05 LockOff | T_LOCK_OFF | 버튼은 붙은 손을 지정해 0.42m 선호 |
+| MV06 Flag | T_FLAG, T_FLAG_INSIDE, T_FLAG_OUTSIDE | 버튼은 종류·위치를 명시, barn door 근사로 효과(04 §10.4) |
+| MV07 SideOn / DropKnee | T_OUTSIDE_EDGE, T_DROP_KNEE | **v0.6에서 구현 범위.** 골반 yaw(04 §10.1)는 기술만 목표를 정한다 |
+| MV08 CrossReach | T_CROSS | |
+| MV09 HandMatch | T_MATCH | 슬롯 2개 대신 잡기 영역 폭(0.16m 이상)으로 판단 |
+| MV10 FootSwap | T_FOOT_SWAP | |
+| MV11 Rest | T_REST | |
+| MV12 DownClimb | (패드) | |
+| — | T_INSIDE_EDGE, T_SIDEPULL, T_GASTON, T_UNDERCLING, T_DEADPOINT | v0.6 신규 |
+
+추가 거부 사유(27 §7.3): SUPPORT_NEEDED, NO_HOLD, PIVOT_NOT_ALLOWED, GRIP_TOO_POOR, TOO_TIRED, BARN_DOOR. 기존 우선순위(상태 → 종류·점유 → 거리 → 관절 → 경로 → 접촉 방향 → 하중)에서 SUPPORT_NEEDED는 상태 다음, GRIP_TOO_POOR는 접촉 방향 다음, TOO_TIRED는 마지막이다.

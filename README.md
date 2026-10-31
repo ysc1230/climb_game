@@ -58,6 +58,8 @@ v0.4에서는 사용자 제공 참고 이미지 REF01을 분석하고, 일러스
 | [20. 아트 제작 의뢰서](docs/20_art_production_brief.md) | 납품 묶음, 리그 검토 포즈 20개, 품질 비교·음원 규격 |
 | [21. v0.3 설계 인계](docs/21_design_readiness_v0_3.md) | 문서 완료 범위, 제외 작업, 기준 문서, 미결정 사항 |
 | [22. 참고 분석·아트 방향 v0.4](docs/22_reference_art_direction.md) | REF01 관찰, 팔레트·캐릭터·벽·선 표현, 모바일 적용 기준 |
+| [26. 실내 볼더링 기술 목록](docs/26_climbing_technique_catalog.md) | 포함·제외 기술과 이유 |
+| [27. 기술 버튼 설계](docs/27_technique_actions_design.md) | 기술 버튼·실행 가능 판단·잡은 위치·데드포인트·시간 정지 |
 | [23. 개발 착수 검토](docs/23_dev_readiness_review.md) | R01 정적 계산 결과, 수정 사항, 수정된 개발 순서 |
 | [24. 클라이밍 동작 조사](docs/24_climbing_motion_research.md) | 4개 게임·실제 동작 근거, 현재 코드의 제약과 원인 후보 |
 | [25. 동작 제한·무브 명세](docs/25_movement_constraints_and_moves.md) | 접점별 행동, 12개 무브, UI·레벨·20개 후속 검수 사례 |

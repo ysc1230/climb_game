@@ -183,3 +183,23 @@ selected_color_id는 CH04_01~03 중 해금된 항목만 허용하며 초기값�
 추가 이벤트는 MoveBlocked(말단·사유·tick), BalanceChanged(상태·접점별 하중·tick), FreePurposeChanged(Rest/Flag·tick)다. 모두 15의 최종 틱 확정 뒤에만 전달한다. 균형용 발을 GripAccepted로 통보하지 않는다.
 
 04 변경을 적용할 때 tuning_version을 새로 부여한다. 기존 R01 v2 및 CP는 새 제약에서 다시 검수한 후에만 content_version을 올린다. 이번 문서 작업은 실제 JSON 버전이나 검증 상태를 올리지 않는다. 기존 완료 기록은 보존하고 새 버전과 분리한다. 앱 내 Paused는 pole·무브·깊이·카운터를 정확히 보존하며, 프로세스 재실행은 기존 CP 복구 계약을 유지한다.
+
+## v0.6 기술 데이터
+
+[27](27_technique_actions_design.md)과 [04 §10](04_pose_and_physics.md)의 판정에 필요한 필드다.
+
+| 구조 | 필드 | 계약 |
+| --- | --- | --- |
+| HoldDefinition | hand_area | center(XY), dir(단위), half_width(m). 없으면 손 불가 |
+| HoldDefinition | foot_area | center(XY), up(단위), half_height(m). 없으면 발 불가 |
+| HoldDefinition | grip_modes | [{mode: pull/sidepull/gaston/undercling, force_axis, force_half_angle}] 최소 1개. 첫 항목이 패드 기본 방식 |
+| HoldDefinition | pivot_allowed, hook | 발 회전(드롭니·아웃사이드 엣지), 힐·토훅(2차) 허용 |
+| ContactState | grip_point, grip_quality, grip_mode, foot_edge | 잡은 위치, 품질 0~1, 방식, 발 모서리(inside/outside/toe/heel/smear) |
+| BodyState | yaw, yaw_vel | 골반 yaw(도), 속도 |
+| TechniqueState | technique_id, side, step, target_hold, started_tick | 실행 중 기술. 하나만 |
+| SessionTransient | technique_select_open | TechniqueSelect 여부(영구 저장 안 함) |
+
+- 기존 점 슬롯은 hand_area/foot_area의 center로 옮기고 반폭 기본값(손 0.08m, 발 반높이 0.04m)을 쓴다. 변환한 루트는 content_version을 올린다.
+- 기술 이벤트: TechniqueStarted/Succeeded/Cancelled/Failed(기술 ID, 쪽, 홀드, 잡은 위치 품질, 실패 이유, tick). 진단·튜토리얼 판정용이며 능력치·보상에 쓰지 않는다.
+- `game/data/techniques.json`: 기술 정의(id, name_ko, phase, body_parts, sides, flow, purpose_tags, purpose_ko, when_ko, how_ko, mistakes). 판단 로직은 코드, 설명은 데이터. 표시 문구 변경은 content_version과 무관하다.
+- 공중 자세·실행 중 기술은 영구 저장하지 않는다. 앱 재실행 복구는 기존 CP 정책을 따른다.
