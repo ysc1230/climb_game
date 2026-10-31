@@ -54,6 +54,9 @@
 | ArmedAttached | 선택되었지만 기존 접점 유지 | 데드존 넘음 → Dragging / 정상 종료 → Attached |
 | Dragging | 접점 해제, 말단 목표를 조작 | 정상 종료·후보 유효 → Attached / 실패 → Free |
 | Free | 잡지 않은 손발 | 패드 누름 → Dragging |
+| Deadpoint | 데드포인트로 날아가는 손(최대 0.15초, 입력 무시) | 받기 성공 → Attached / 실패 → 추락 |
+
+release 명령에는 `speed`(m/s)가 실린다. 놓기 직전 0.1초 구간에 들어온 drag 이동량(월드)의 경로 길이 합을 0.1로 나눈 값이다(끝점 변위가 아니다). 04 §10.5의 데드포인트는 speed ≥ 1.0m/s일 때만 시도한다. 끌고 있지 않은 손발(Attached·Armed·Deadpoint)에 오는 release는 잡기를 만들지 않는다.
 
 슬롯 후보는 Dragging의 부가 표시다. 후보 표시만으로 Attached가 되지 않는다. 다른 손발의 이동으로 후보가 무효화되면 놓는 순간 잡기를 거부한다.
 

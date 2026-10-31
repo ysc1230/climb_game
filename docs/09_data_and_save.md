@@ -18,7 +18,7 @@
 | content_version | 양의 정수 | 배치 변경 식별 |
 | title_key / description_key | 번역 키 | UI 텍스트 |
 | theme_id | 존재하는 테마 ID | 에셋 참조 |
-| bounds / fail_line_y | 평면 영역/높이 | 실패선은 시작 바닥보다 아래. 실제 실패는 선 통과/연출 상한 중 먼저 충족한 조건 |
+| bounds / fail_line_y | 평면 영역/높이 | 실패선은 시작 바닥보다 아래. 실제 실패는 선 통과/연출 상한 중 먼저 충족한 조건. 로더는 `fail_line_y`를 읽고 없으면 −0.5를 쓴다 |
 | start_pose | 골반·회전·초기 슬롯 4개 | 검증된 시작 상태 |
 | holds | HoldInstance 목록 | 잡을 지점 |
 | platforms | 바닥 지지 영역 목록 | 서기·휴식 |
@@ -69,7 +69,7 @@
 | --- | --- | --- |
 | PointerBinding | input_generation, touch_id, gesture_id, limb_id, origin, scale_at_down | 터치 생존 기간만 유지 |
 | LimbIntent | selected, requested_target, presented_candidate_id, release_requested, sequence | 틱/제스처 경계에서 소비 |
-| LimbState | limb_id, attachment_state, slot_key, actual_endpoint(XYZ), free_purpose, free_target | 게임 상태의 단일 권한. free_purpose=Rest/Flag |
+| LimbState | limb_id, attachment_state, slot_key, actual_endpoint(XYZ), free_purpose, free_target | 게임 상태의 단일 권한. free_purpose=Rest/Flag. attachment_state에는 데드포인트 비행 중인 손의 `Deadpoint`(최대 9틱, 입력 무시)가 있다. 끝나면 Attached(성공) 또는 Free(실패·추락) |
 | HandState | stamina, warning_active | 손에만 존재, 0~100 |
 | BodyState | pelvis_position(XYZ), body_roll, pelvis_yaw/pitch, chest_yaw/pitch, velocity, angular_velocities | 04의 절대·상대 회전·깊이·속도 제한 |
 | SupportState | eligible_limb_ids, loaded_foot_ids, platform_id, forces, load_ratios, force_residual, moment_residual | Attached/Eligible/Loaded 분리, 04의 힘 해와 허용 오차 |

@@ -40,7 +40,7 @@ var _stand_foot: StringName = &""
 
 
 ## intents: limb → 요청 목표, endpoints: limb → 현재 말단(자유·드래그), hints: limb → HAND_MATCH/FOOT_SWAP/FLAG
-func update(pelvis: Vector2, angle_deg: float, attached: Dictionary, intents: Dictionary, endpoints: Dictionary, hints: Dictionary) -> void:
+func update(pelvis: Vector2, angle_deg: float, attached: Dictionary, intents: Dictionary, endpoints: Dictionary, hints: Dictionary, yaw_deg: float = 0.0) -> void:
 	for limb in _origins.keys():
 		if not intents.has(limb):
 			_origins.erase(limb)
@@ -62,10 +62,10 @@ func update(pelvis: Vector2, angle_deg: float, attached: Dictionary, intents: Di
 				lbl = CROSS_REACH
 			else:
 				lbl = _direction_label(disp)
-				if lbl == REACH and attached.has(other) and disp.y > 0.0 and not PoseSolver.can_reach(pelvis, angle_deg, limb, target):
+				if lbl == REACH and attached.has(other) and disp.y > 0.0 and not PoseSolver.can_reach(pelvis, angle_deg, limb, target, yaw_deg):
 					lock_off_hand = other
 		else:
-			var hip := PoseSolver.joint_position(pelvis, angle_deg, limb)
+			var hip := PoseSolver.joint_position(pelvis, angle_deg, limb, yaw_deg)
 			if target.y >= hip.y - Tuning.HIGH_STEP_BELOW_HIP:
 				lbl = HIGH_STEP
 			else:
@@ -77,7 +77,7 @@ func update(pelvis: Vector2, angle_deg: float, attached: Dictionary, intents: Di
 		if lock_off_hand != &"" and PRIORITY.find(LOCK_OFF) < PRIORITY.find(candidate):
 			candidate = LOCK_OFF
 	else:
-		_stand_foot = _standing_up(pelvis, angle_deg, attached)
+		_stand_foot = _standing_up(pelvis, angle_deg, attached, yaw_deg)
 		if _stand_foot != &"":
 			candidate = STAND_UP
 	# 전환 확인
@@ -122,13 +122,13 @@ func _best(labels: Array) -> StringName:
 
 
 ## 높게 둔 발이 아직 굽어 있어(고관절 거리 < 0.72m) 체중을 실어 일어설 여지가 있으면 그 발(가장 굽은 발)
-func _standing_up(pelvis: Vector2, angle_deg: float, attached: Dictionary) -> StringName:
+func _standing_up(pelvis: Vector2, angle_deg: float, attached: Dictionary, yaw_deg: float = 0.0) -> StringName:
 	var best: StringName = &""
 	var best_d := STAND_UP_LEG_BELOW
 	for foot in [PoseSolver.LF, PoseSolver.RF]:
 		if not attached.has(foot):
 			continue
-		var hip := PoseSolver.joint_position(pelvis, angle_deg, foot)
+		var hip := PoseSolver.joint_position(pelvis, angle_deg, foot, yaw_deg)
 		var slot: Vector2 = attached[foot]
 		var d := hip.distance_to(slot)
 		if slot.y >= hip.y - 0.55 and d < best_d:

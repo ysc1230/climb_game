@@ -61,11 +61,12 @@ static func arc(a: Vector3, b: Vector3) -> Dictionary:
 	return {"q": Quaternion(a, b).normalized(), "ok": true}
 
 
-## joints: 관절 키 -> 위치(같은 좌표계), roll_deg: 몸통 벽면 roll.
+## joints: 관절 키 -> 위치(같은 좌표계), roll_deg: 몸통 벽면 roll, yaw_deg: 골반 yaw(Y축, ψ>0 = 오른쪽이 벽 쪽).
+## 합성 순서는 벽 기준 yaw → roll(04 §3)이라 몸통 기준 프레임은 roll × yaw이다.
 ## 반환: 뼈 -> Transform3D(그 좌표계의 전역 프레임).
-func solve(joints: Dictionary, roll_deg: float) -> Dictionary:
+func solve(joints: Dictionary, roll_deg: float, yaw_deg: float = 0.0) -> Dictionary:
 	var out := {}
-	var roll := Basis(Vector3.BACK, deg_to_rad(roll_deg))
+	var roll := Basis(Vector3.BACK, deg_to_rad(roll_deg)) * Basis(Vector3.UP, deg_to_rad(yaw_deg))
 	for entry in BONES:
 		var name: String = entry[0]
 		if not rest_basis.has(name):

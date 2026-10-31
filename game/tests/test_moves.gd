@@ -136,7 +136,11 @@ func test_reject_reasons() -> void:
 	var body := BodyState.new(r.start_pelvis)
 	var att := START.duplicate()
 	att.erase(&"LH")
-	var occ := {"R01/H02/hand_1": &"RH", "R01/F01/foot_1": &"LF", "R01/F02/foot_1": &"RF"}
+	r.slots["R01/H02/hand_1"].hand_area.half_width = 0.04  # 좁은 홀드: 한 손만
+	var occ := {
+		"R01/H02/hand_1": [{"limb": &"RH", "interval": Vector2(-0.04, 0.04)}],
+		"R01/F01/foot_1": [{"limb": &"LF", "interval": Vector2.ZERO}],
+		"R01/F02/foot_1": [{"limb": &"RF", "interval": Vector2.ZERO}]}
 	var f01 := r.slot_pos("R01/F01/foot_1")
 	runner.check(GripCheck.reject_reason(r.slots, &"LH", f01, f01, body.pos, 0, att, occ, [&"LF", &"RF"]) == GripCheck.TYPE_MISMATCH, "손이 발판을 노림")
 	var h02 := r.slot_pos("R01/H02/hand_1")

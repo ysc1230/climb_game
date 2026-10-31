@@ -2,6 +2,7 @@ class_name InputRouter
 extends RefCounted
 ## docs/03 입력 소유권 계약. 터치 이벤트를 팔다리 명령으로 바꾼다. 노드에 의존하지 않는다.
 ## 명령: {type: "arm"|"detach"|"move"|"release"|"cancel", limb, delta(Vector2, 월드 m)}
+## - release에는 speed(m/s, 월드): 놓기 직전 0.1초 동안의 손가락 이동 경로 길이 / 0.1 (데드포인트 입력, docs/04 §10.5)
 ## - 패드 안에서 시작한 터치만 배정, 같은 패드의 두 번째 터치·중앙 시작 터치는 무시
 ## - 터치 종료까지 소유권 유지(패드 밖으로 나가도), 데드존은 시작점부터의 직선 거리
 ## - 취소(cancel_all)는 정상 release로 전달하지 않는다
@@ -12,6 +13,7 @@ var sensitivity := 1.0
 var generation := 0
 var _bindings := {}     # touch index -> {limb, origin, last, dragging, pad_px}
 var _gesture_seq := 0
+const SPEED_WINDOW := 0.1  # 속도를 재는 구간(초)
 
 
 func set_pad(limb: StringName, center: Vector2, diameter_px: float) -> void:
@@ -48,11 +50,12 @@ func touch_down(index: int, pos: Vector2, attached_now: bool) -> Array:
 	if limb == &"" or _limb_bound(limb):
 		return []
 	_gesture_seq += 1
-	_bindings[index] = {"limb": limb, "origin": pos, "last": pos, "dragging": not attached_now, "pad_px": pads[limb].radius * 2.0, "gesture": _gesture_seq}
+	_bindings[index] = {"limb": limb, "origin": pos, "last": pos, "dragging": not attached_now, "moves": [], "pad_px": pads[limb].radius * 2.0, "gesture": _gesture_seq}
 	return [{"type": "arm" if attached_now else "detach", "limb": limb}]
 
 
-func touch_drag(index: int, pos: Vector2) -> Array:
+## time_s: 이벤트 시각(초). 생략하면 엔진 시계를 쓴다(시험은 직접 넣는다).
+func touch_drag(index: int, pos: Vector2, time_s: float = -1.0) -> Array:
 	if not _bindings.has(index):
 		return []
 	var b: Dictionary = _bindings[index]
@@ -69,16 +72,33 @@ func touch_drag(index: int, pos: Vector2) -> Array:
 	else:
 		screen_delta = pos - b.last
 	b.last = pos
-	out.append({"type": "move", "limb": b.limb, "delta": to_world(screen_delta, b.pad_px)})
+	var world_delta := to_world(screen_delta, b.pad_px)
+	var now := _now(time_s)
+	b.moves.append({"t": now, "len": world_delta.length()})
+	while b.moves.size() > 0 and b.moves[0].t < now - 1.0:
+		b.moves.pop_front()
+	out.append({"type": "move", "limb": b.limb, "delta": world_delta})
 	return out
 
 
-func touch_up(index: int) -> Array:
+func touch_up(index: int, time_s: float = -1.0) -> Array:
 	if not _bindings.has(index):
 		return []
 	var b: Dictionary = _bindings[index]
 	_bindings.erase(index)
-	return [{"type": "release" if b.dragging else "disarm", "limb": b.limb}]
+	if not b.dragging:
+		return [{"type": "disarm", "limb": b.limb}]
+	var now := _now(time_s)
+	# 속도 = 놓기 직전 0.1초 구간에 들어온 drag 이동량(월드)의 경로 길이 합 / 0.1 (끝점 변위가 아니라 경로 길이)
+	var path := 0.0
+	for m in b.moves:
+		if m.t >= now - SPEED_WINDOW:
+			path += m.len
+	return [{"type": "release", "limb": b.limb, "speed": path / SPEED_WINDOW}]
+
+
+func _now(time_s: float) -> float:
+	return time_s if time_s >= 0.0 else Time.get_ticks_msec() * 0.001
 
 
 ## 시스템 중단·창 전환. 모든 소유권을 지우고 세대를 올린다.

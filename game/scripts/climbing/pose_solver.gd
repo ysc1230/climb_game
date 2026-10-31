@@ -18,23 +18,30 @@ static func is_hand(limb: StringName) -> bool:
 	return limb == LH or limb == RH
 
 
-static func joint_offset(limb: StringName) -> Vector2:
+## 골반 로컬 관절 오프셋. yaw는 좌우 간격(X)만 cos ψ로 줄인다(04 §10.1).
+static func joint_offset(limb: StringName, yaw_deg: float = 0.0) -> Vector2:
 	var side := -1.0 if (limb == LH or limb == LF) else 1.0
 	var base := Tuning.SHOULDER_OFFSET if is_hand(limb) else Tuning.HIP_OFFSET
-	return Vector2(base.x * side, base.y)
+	return Vector2(base.x * side * cos(deg_to_rad(yaw_deg)), base.y)
+
+
+## 골반 깊이 대비 관절 깊이 차(04 §10.1). ψ>0이면 오른쪽 관절이 벽에 가깝다(깊이 작음).
+static func joint_depth_offset(limb: StringName, yaw_deg: float = 0.0) -> float:
+	var k := Tuning.SHOULDER_YAW_DEPTH if is_hand(limb) else Tuning.HIP_YAW_DEPTH
+	return -side_sign(limb) * k * sin(deg_to_rad(yaw_deg))
 
 
 ## 골반 위치·회전에서 어깨/고관절의 월드 위치.
-static func joint_position(pelvis: Vector2, angle_deg: float, limb: StringName) -> Vector2:
-	return pelvis + joint_offset(limb).rotated(deg_to_rad(angle_deg))
+static func joint_position(pelvis: Vector2, angle_deg: float, limb: StringName, yaw_deg: float = 0.0) -> Vector2:
+	return pelvis + joint_offset(limb, yaw_deg).rotated(deg_to_rad(angle_deg))
 
 
 static func reach_of(limb: StringName) -> Vector2:
 	return _arm if is_hand(limb) else _leg
 
 
-static func limb_distance(pelvis: Vector2, angle_deg: float, limb: StringName, slot: Vector2) -> float:
-	return joint_position(pelvis, angle_deg, limb).distance_to(slot)
+static func limb_distance(pelvis: Vector2, angle_deg: float, limb: StringName, slot: Vector2, yaw_deg: float = 0.0) -> float:
+	return joint_position(pelvis, angle_deg, limb, yaw_deg).distance_to(slot)
 
 
 static func side_sign(limb: StringName) -> float:
@@ -42,8 +49,9 @@ static func side_sign(limb: StringName) -> float:
 
 
 ## 몸통 roll을 제거한 관절→말단 방향각(도). 0 = 손은 위, 발은 아래. 양수 = 몸 바깥쪽.
-static func limb_angle(pelvis: Vector2, angle_deg: float, limb: StringName, point: Vector2) -> float:
-	var v := (point - joint_position(pelvis, angle_deg, limb)).rotated(-deg_to_rad(angle_deg))
+## 방향 범위 규칙 자체는 yaw와 무관하다(04 §10.1). yaw_deg는 관절의 실제 위치(좌우 간격)에만 쓴다.
+static func limb_angle(pelvis: Vector2, angle_deg: float, limb: StringName, point: Vector2, yaw_deg: float = 0.0) -> float:
+	var v := (point - joint_position(pelvis, angle_deg, limb, yaw_deg)).rotated(-deg_to_rad(angle_deg))
 	var s := side_sign(limb)
 	if is_hand(limb):
 		return rad_to_deg(atan2(s * v.x, v.y))
@@ -54,8 +62,8 @@ static func dir_range(limb: StringName) -> Vector2:
 	return Tuning.HAND_DIR_RANGE_DEG if is_hand(limb) else Tuning.FOOT_DIR_RANGE_DEG
 
 
-static func direction_ok(pelvis: Vector2, angle_deg: float, limb: StringName, point: Vector2) -> bool:
-	var a := limb_angle(pelvis, angle_deg, limb, point)
+static func direction_ok(pelvis: Vector2, angle_deg: float, limb: StringName, point: Vector2, yaw_deg: float = 0.0) -> bool:
+	var a := limb_angle(pelvis, angle_deg, limb, point, yaw_deg)
 	var r := dir_range(limb)
 	return a >= r.x - 0.001 and a <= r.y + 0.001
 
@@ -74,56 +82,61 @@ static func contact_dz_range() -> Vector2:
 
 
 ## 한 접점 슬롯이 현재 골반·회전에서 방향·3D 거리 조건을 만족하는지(골반 깊이 범위 중 어딘가에서).
-static func can_reach(pelvis: Vector2, angle_deg: float, limb: StringName, slot: Vector2) -> bool:
-	if not direction_ok(pelvis, angle_deg, limb, slot):
+static func can_reach(pelvis: Vector2, angle_deg: float, limb: StringName, slot: Vector2, yaw_deg: float = 0.0) -> bool:
+	if not direction_ok(pelvis, angle_deg, limb, slot, yaw_deg):
 		return false
-	var dz := contact_dz_range()
+	var dz := contact_dz_range() + Vector2.ONE * joint_depth_offset(limb, yaw_deg)
 	var pr := planar_range(limb, dz.x, dz.y)
-	var d := limb_distance(pelvis, angle_deg, limb, slot)
+	var d := limb_distance(pelvis, angle_deg, limb, slot, yaw_deg)
 	return d >= pr.x - Tuning.DISTANCE_EPSILON and d <= pr.y + Tuning.DISTANCE_EPSILON
 
 
 ## 고정된 모든 접점이 함께 만족하는 골반 깊이(Z). 없으면 NAN.
 ## 선호 깊이에 가장 가까운 값을 고른다. 판정과 표현이 같은 값을 쓴다.
-static func body_depth(pelvis: Vector2, angle_deg: float, attached: Dictionary) -> float:
+static func body_depth(pelvis: Vector2, angle_deg: float, attached: Dictionary, yaw_deg: float = 0.0) -> float:
 	var lo := Tuning.PELVIS_DEPTH_RANGE.x
 	var hi := Tuning.PELVIS_DEPTH_RANGE.y
 	for limb in attached:
-		var d := limb_distance(pelvis, angle_deg, limb, attached[limb])
+		var d := limb_distance(pelvis, angle_deg, limb, attached[limb], yaw_deg)
 		var r := reach_of(limb)
 		if d > r.y + Tuning.DISTANCE_EPSILON:
 			return NAN
-		hi = minf(hi, Tuning.CONTACT_DEPTH + sqrt(maxf(r.y * r.y - d * d, 0.0)))
-		lo = maxf(lo, Tuning.CONTACT_DEPTH + sqrt(maxf(r.x * r.x - d * d, 0.0)))
+		# 관절 깊이 = 골반 깊이 + 관절 깊이 오프셋이므로 요구 골반 깊이에서 오프셋을 뺀다
+		var off := joint_depth_offset(limb, yaw_deg)
+		hi = minf(hi, Tuning.CONTACT_DEPTH + sqrt(maxf(r.y * r.y - d * d, 0.0)) - off)
+		lo = maxf(lo, Tuning.CONTACT_DEPTH + sqrt(maxf(r.x * r.x - d * d, 0.0)) - off)
 	if lo > hi + Tuning.DISTANCE_EPSILON:
 		return NAN
 	return clampf(Tuning.PELVIS_DEPTH_PREFERRED, lo, hi)
 
 
 ## 고정된 모든 접점의 방향·3D 길이·관절 조건과 몸통 회전 제한(H01~H04 중 구현분).
-static func is_valid(pelvis: Vector2, angle_deg: float, attached: Dictionary) -> bool:
-	if not (is_finite(pelvis.x) and is_finite(pelvis.y) and is_finite(angle_deg)):
+static func is_valid(pelvis: Vector2, angle_deg: float, attached: Dictionary, yaw_deg: float = 0.0) -> bool:
+	if not (is_finite(pelvis.x) and is_finite(pelvis.y) and is_finite(angle_deg) and is_finite(yaw_deg)):
+		return false
+	if absf(yaw_deg) > Tuning.PELVIS_YAW_LIMIT_DEG + Tuning.DISTANCE_EPSILON:
 		return false
 	if absf(angle_deg) > Tuning.BODY_ANGLE_LIMIT_DEG + Tuning.DISTANCE_EPSILON:
 		return false
 	for limb in attached:
-		if not direction_ok(pelvis, angle_deg, limb, attached[limb]):
+		if not direction_ok(pelvis, angle_deg, limb, attached[limb], yaw_deg):
 			return false
-	return not is_nan(body_depth(pelvis, angle_deg, attached))
+	return not is_nan(body_depth(pelvis, angle_deg, attached, yaw_deg))
 
 
 ## 자유·드래그 말단 제한(H02/H03/H06). 요청 위치를 허용 부채꼴 안으로 연속적으로 제한한다.
 ## 각도는 직전 위치에서 이어서 풀어(unwrap) 금지 영역을 가로질러 반대편 경계로 점프하지 않는다.
-static func clamp_endpoint(pelvis: Vector2, angle_deg: float, limb: StringName, previous: Vector2, requested: Vector2) -> Vector2:
-	var joint := joint_position(pelvis, angle_deg, limb)
+static func clamp_endpoint(pelvis: Vector2, angle_deg: float, limb: StringName, previous: Vector2, requested: Vector2, yaw_deg: float = 0.0) -> Vector2:
+	var joint := joint_position(pelvis, angle_deg, limb, yaw_deg)
 	var rng := dir_range(limb)
-	var prev_a := clampf(limb_angle(pelvis, angle_deg, limb, previous), rng.x, rng.y)
+	var prev_a := clampf(limb_angle(pelvis, angle_deg, limb, previous, yaw_deg), rng.x, rng.y)
 	var v := requested - joint
 	var target_a := prev_a
 	if v.length() > 0.001:
-		target_a = clampf(prev_a + wrapf(limb_angle(pelvis, angle_deg, limb, requested) - prev_a, -180.0, 180.0), rng.x, rng.y)
+		target_a = clampf(prev_a + wrapf(limb_angle(pelvis, angle_deg, limb, requested, yaw_deg) - prev_a, -180.0, 180.0), rng.x, rng.y)
 	var lift := Tuning.CONTACT_DEPTH + Tuning.FREE_ENDPOINT_LIFT
-	var pr := planar_range(limb, Tuning.PELVIS_DEPTH_PREFERRED - lift, Tuning.PELVIS_DEPTH_PREFERRED - lift)
+	var free_dz := Tuning.PELVIS_DEPTH_PREFERRED - lift + joint_depth_offset(limb, yaw_deg)
+	var pr := planar_range(limb, free_dz, free_dz)
 	var r := clampf(v.length(), maxf(pr.x, 0.02), pr.y)
 	var s := side_sign(limb)
 	var a := deg_to_rad(target_a)
@@ -131,25 +144,37 @@ static func clamp_endpoint(pelvis: Vector2, angle_deg: float, limb: StringName, 
 	return joint + (local * r).rotated(deg_to_rad(angle_deg))
 
 
-## 손 접점의 하중 자격: 일반 pull 슬롯이 어깨보다 0.10m 넘게 낮으면 자격 없음.
-static func hand_load_eligible(pelvis: Vector2, angle_deg: float, limb: StringName, slot: Vector2) -> bool:
-	return slot.y >= joint_position(pelvis, angle_deg, limb).y - Tuning.HAND_LOAD_MAX_BELOW_SHOULDER
+## 손 접점의 하중 자격: pull 슬롯이 어깨보다 0.10m 넘게 낮으면 자격 없음.
+## 그 외 방식은 항상 true(언더클링의 하중 받는 발 조건은 ClimbRules가 본다).
+static func hand_load_eligible(pelvis: Vector2, angle_deg: float, limb: StringName, slot: Vector2, mode: StringName = &"pull", yaw_deg: float = 0.0) -> bool:
+	if mode != &"pull":
+		return true
+	return slot.y >= joint_position(pelvis, angle_deg, limb, yaw_deg).y - Tuning.HAND_LOAD_MAX_BELOW_SHOULDER
+
+
+## 손 한 개가 지지(하중)에 들어가는지. 언더클링은 하중 받는 발이 1개 이상 있어야 한다(docs/04 §10).
+static func hand_counts_for_support(pelvis: Vector2, angle_deg: float, limb: StringName, slot: Vector2, mode: StringName, loaded_feet: Array, yaw_deg: float = 0.0) -> bool:
+	if not hand_load_eligible(pelvis, angle_deg, limb, slot, mode, yaw_deg):
+		return false
+	return mode != &"undercling" or not loaded_feet.is_empty()
 
 
 ## 하중 자격이 있는 붙은 손의 수.
-static func eligible_hands(pelvis: Vector2, angle_deg: float, attached: Dictionary) -> int:
+## meta: limb -> ContactInfo (없으면 pull).
+static func eligible_hands(pelvis: Vector2, angle_deg: float, attached: Dictionary, meta: Dictionary = {}, loaded_feet: Array = [], yaw_deg: float = 0.0) -> int:
 	var n := 0
 	for limb in [LH, RH]:
-		if attached.has(limb) and hand_load_eligible(pelvis, angle_deg, limb, attached[limb]):
+		var mode: StringName = meta[limb].mode if meta.has(limb) else &"pull"
+		if attached.has(limb) and hand_counts_for_support(pelvis, angle_deg, limb, attached[limb], mode, loaded_feet, yaw_deg):
 			n += 1
 	return n
 
 
 ## 발 지지 판정. was_supporting이면 종료 히스테리시스를 적용한다.
-static func is_foot_supporting(pelvis: Vector2, angle_deg: float, limb: StringName, slot: Vector2, was_supporting: bool = false) -> bool:
-	if not can_reach(pelvis, angle_deg, limb, slot):
+static func is_foot_supporting(pelvis: Vector2, angle_deg: float, limb: StringName, slot: Vector2, was_supporting: bool = false, yaw_deg: float = 0.0) -> bool:
+	if not can_reach(pelvis, angle_deg, limb, slot, yaw_deg):
 		return false
-	var to_hip := joint_position(pelvis, angle_deg, limb) - slot
+	var to_hip := joint_position(pelvis, angle_deg, limb, yaw_deg) - slot
 	var length := to_hip.length()
 	if length <= 0.0:
 		return false
@@ -161,10 +186,10 @@ static func is_foot_supporting(pelvis: Vector2, angle_deg: float, limb: StringNa
 
 
 ## 현재 자세에서 지지 중인 발 집합(이전 집합으로 히스테리시스 적용).
-static func supporting_feet(pelvis: Vector2, angle_deg: float, attached: Dictionary, previous: Array = []) -> Array[StringName]:
+static func supporting_feet(pelvis: Vector2, angle_deg: float, attached: Dictionary, previous: Array = [], yaw_deg: float = 0.0) -> Array[StringName]:
 	var result: Array[StringName] = []
 	for limb in [LF, RF]:
-		if attached.has(limb) and is_foot_supporting(pelvis, angle_deg, limb, attached[limb], previous.has(limb)):
+		if attached.has(limb) and is_foot_supporting(pelvis, angle_deg, limb, attached[limb], previous.has(limb), yaw_deg):
 			result.append(limb)
 	return result
 
@@ -172,9 +197,9 @@ static func supporting_feet(pelvis: Vector2, angle_deg: float, attached: Diction
 ## v0.5 목표 자세 비용(docs/04 §5). profile: limb → 선호 거리(무브별), intents: limb → 활성 말단의 요청 목표,
 ## start: 직전 확정 자세 Vector3(x, y, angle). 무효 자세는 INF. lateral_target은 Rebalancing 전용 보조 항(구현 확장).
 ## 손 하중 u² 항은 후보마다 힘 계산이 필요해 미적용(docs/23).
-static func cost(pelvis: Vector2, angle_deg: float, attached: Dictionary, feet: Array, profile: Dictionary = {}, intents: Dictionary = {}, start: Vector3 = Vector3(NAN, NAN, NAN), lateral_target: float = NAN, lateral_weight: float = 0.0) -> float:
+static func cost(pelvis: Vector2, angle_deg: float, attached: Dictionary, feet: Array, profile: Dictionary = {}, intents: Dictionary = {}, start: Vector3 = Vector3(NAN, NAN, NAN), lateral_target: float = NAN, lateral_weight: float = 0.0, yaw_deg: float = 0.0) -> float:
 	var st := start if not is_nan(start.x) else Vector3(pelvis.x, pelvis.y, angle_deg)
-	return _candidate_cost(pelvis, angle_deg, _search_context(attached, feet, profile, intents, st, lateral_target, lateral_weight))
+	return _candidate_cost(pelvis, angle_deg, _search_context(attached, feet, profile, intents, st, lateral_target, lateral_weight, yaw_deg))
 
 
 ## 무브 프로필이 없을 때의 기본 선호 거리(Rest: 팔 0.70, 다리 0.86).
@@ -183,11 +208,11 @@ static func default_pref(limb: StringName) -> float:
 
 
 ## 27후보 근방 탐색. 반환값 Vector3(x, y, angle)은 목표 자세이며 즉시 이동 위치가 아니다.
-static func find_target(pelvis: Vector2, angle_deg: float, attached: Dictionary, feet: Array, profile: Dictionary = {}, intents: Dictionary = {}, lateral_target: float = NAN, lateral_weight: float = 0.0) -> Vector3:
+static func find_target(pelvis: Vector2, angle_deg: float, attached: Dictionary, feet: Array, profile: Dictionary = {}, intents: Dictionary = {}, lateral_target: float = NAN, lateral_weight: float = 0.0, yaw_deg: float = 0.0) -> Vector3:
 	var best := Vector3(pelvis.x, pelvis.y, angle_deg)
 	if attached.is_empty():
 		return best
-	var ctx := _search_context(attached, feet, profile, intents, best, lateral_target, lateral_weight)
+	var ctx := _search_context(attached, feet, profile, intents, best, lateral_target, lateral_weight, yaw_deg)
 	var best_cost := _candidate_cost(pelvis, angle_deg, ctx)
 	var pos_step := Tuning.SEARCH_POS_STEP
 	var ang_step := Tuning.SEARCH_ANGLE_STEP
@@ -217,15 +242,17 @@ static func find_target(pelvis: Vector2, angle_deg: float, attached: Dictionary,
 
 
 ## 탐색 동안 고정되는 접점·의도 정보(사전 계산). _candidate_cost는 is_valid 실패 시 INF.
-static func _search_context(attached: Dictionary, feet: Array, profile: Dictionary, intents: Dictionary, start: Vector3, lateral_target: float, lateral_weight: float) -> Dictionary:
+static func _search_context(attached: Dictionary, feet: Array, profile: Dictionary, intents: Dictionary, start: Vector3, lateral_target: float, lateral_weight: float, yaw_deg: float = 0.0) -> Dictionary:
 	var offsets: Array[Vector2] = []
+	var doffs: Array[float] = []  # 관절 깊이 오프셋(yaw)
 	var slots: Array[Vector2] = []
 	var kinds: Array[int] = []  # 0 손, 1 지지 발, 2 비지지 발
 	var signs: Array[float] = []
 	var prefs: Array[float] = []
 	var maxes: Array[float] = []
 	for limb in attached:
-		offsets.append(joint_offset(limb))
+		offsets.append(joint_offset(limb, yaw_deg))
+		doffs.append(joint_depth_offset(limb, yaw_deg))
 		slots.append(attached[limb])
 		kinds.append(0 if is_hand(limb) else (1 if feet.has(limb) else 2))
 		signs.append(side_sign(limb))
@@ -233,13 +260,15 @@ static func _search_context(attached: Dictionary, feet: Array, profile: Dictiona
 		maxes.append(reach_of(limb).y)
 	# 활성 말단 의도: 관절에서 요청 목표까지가 현재 3D 도달 가능 2D 범위를 벗어난 만큼을 오차로
 	var i_offsets: Array[Vector2] = []
+	var i_doffs: Array[float] = []
 	var i_targets: Array[Vector2] = []
 	var i_ranges: Array[Vector2] = []
 	var i_lengths: Array[float] = []
 	for limb in intents:
-		i_offsets.append(joint_offset(limb))
+		i_offsets.append(joint_offset(limb, yaw_deg))
+		i_doffs.append(joint_depth_offset(limb, yaw_deg))
 		i_targets.append(intents[limb])
-		var dz := Tuning.PELVIS_DEPTH_PREFERRED - Tuning.CONTACT_DEPTH
+		var dz := Tuning.PELVIS_DEPTH_PREFERRED - Tuning.CONTACT_DEPTH + i_doffs[-1]
 		i_ranges.append(planar_range(limb, dz, dz))
 		i_lengths.append(reach_of(limb).y)
 	# 하중 대체 항의 지지 X 범위: StandUp이면 올린 발, 아니면 지지 발들의 X 범위
@@ -254,7 +283,7 @@ static func _search_context(attached: Dictionary, feet: Array, profile: Dictiona
 			if kinds[i] == 1:
 				load_lo = minf(load_lo, slots[i].x - Tuning.LOAD_PROXY_MARGIN)
 				load_hi = maxf(load_hi, slots[i].x + Tuning.LOAD_PROXY_MARGIN)
-	return {"offsets": offsets, "slots": slots, "kinds": kinds, "signs": signs, "prefs": prefs, "maxes": maxes,
+	return {"offsets": offsets, "doffs": doffs, "i_doffs": i_doffs, "slots": slots, "kinds": kinds, "signs": signs, "prefs": prefs, "maxes": maxes,
 		"i_offsets": i_offsets, "i_targets": i_targets, "i_ranges": i_ranges, "i_lengths": i_lengths,
 		"load_lo": load_lo, "load_hi": load_hi,
 		"start": start, "lat": lateral_target, "lat_w": lateral_weight}
@@ -271,6 +300,7 @@ static func _candidate_cost(p: Vector2, a: float, ctx: Dictionary) -> float:
 	var hi := Tuning.PELVIS_DEPTH_RANGE.y
 	var pref_cost := 0.0
 	var offsets: Array[Vector2] = ctx.offsets
+	var doffs: Array[float] = ctx.doffs
 	var slots: Array[Vector2] = ctx.slots
 	var kinds: Array[int] = ctx.kinds
 	var signs: Array[float] = ctx.signs
@@ -290,8 +320,8 @@ static func _candidate_cost(p: Vector2, a: float, ctx: Dictionary) -> float:
 		var r := _arm if hand else _leg
 		if d > r.y + Tuning.DISTANCE_EPSILON:
 			return INF
-		hi = minf(hi, Tuning.CONTACT_DEPTH + sqrt(maxf(r.y * r.y - d * d, 0.0)))
-		lo = maxf(lo, Tuning.CONTACT_DEPTH + sqrt(maxf(r.x * r.x - d * d, 0.0)))
+		hi = minf(hi, Tuning.CONTACT_DEPTH + sqrt(maxf(r.y * r.y - d * d, 0.0)) - doffs[i])
+		lo = maxf(lo, Tuning.CONTACT_DEPTH + sqrt(maxf(r.x * r.x - d * d, 0.0)) - doffs[i])
 		# 선호 자세는 붙은 모든 팔다리에 적용한다. 지지에서 빠진 높은 발도 포함해야
 		# 고관절을 발 아래로 내려 다리 비용을 없애는 거짓 해(골반 하강)가 생기지 않는다(docs/23).
 		var e := (d - prefs[i]) / maxes[i]
@@ -300,6 +330,7 @@ static func _candidate_cost(p: Vector2, a: float, ctx: Dictionary) -> float:
 		return INF
 	var intent_cost := 0.0
 	var i_offsets: Array[Vector2] = ctx.i_offsets
+	var i_doffs: Array[float] = ctx.i_doffs
 	var i_targets: Array[Vector2] = ctx.i_targets
 	var i_ranges: Array[Vector2] = ctx.i_ranges
 	var i_lengths: Array[float] = ctx.i_lengths
@@ -316,8 +347,8 @@ static func _candidate_cost(p: Vector2, a: float, ctx: Dictionary) -> float:
 		# 요청 목표를 접점으로 더했을 때 필요한 골반 깊이(공통 깊이 충돌 유도)
 		var lr := i_lengths[i]
 		var rmin := (_arm if i_lengths[i] < 0.9 else _leg).x
-		ihi = minf(ihi, Tuning.CONTACT_DEPTH + sqrt(maxf(lr * lr - d * d, 0.0)))
-		ilo = maxf(ilo, Tuning.CONTACT_DEPTH + sqrt(maxf(rmin * rmin - d * d, 0.0)))
+		ihi = minf(ihi, Tuning.CONTACT_DEPTH + sqrt(maxf(lr * lr - d * d, 0.0)) - i_doffs[i])
+		ilo = maxf(ilo, Tuning.CONTACT_DEPTH + sqrt(maxf(rmin * rmin - d * d, 0.0)) - i_doffs[i])
 	if ilo > ihi:
 		var c := (ilo - ihi) / Tuning.CHANGE_POS_SCALE
 		intent_cost += c * c
@@ -341,11 +372,11 @@ static func _candidate_cost(p: Vector2, a: float, ctx: Dictionary) -> float:
 ## 제약을 깨는 이동은 1, 1/2 … 1/32, 0배로 줄여 고른다.
 ## accept(pos, angle) -> bool이 주어지면 그 검사(예: 힘 균형)도 통과한 첫 배율을 쓴다. 0배(정지)는 항상 허용.
 static func step_body(body: BodyState, attached: Dictionary, feet: Array, dt: float = Tuning.DT, accept: Callable = Callable(), profile: Dictionary = {}, intents: Dictionary = {}) -> void:
-	move_body(body, find_target(body.pos, body.angle, attached, feet, profile, intents), attached, dt, accept)
+	move_body(body, find_target(body.pos, body.angle, attached, feet, profile, intents, NAN, 0.0, body.yaw), attached, dt, accept, body.yaw)
 
 
 ## 주어진 목표 자세로 한 틱 이동(속도·가속도 제한, 제약 위반 시 배율 축소).
-static func move_body(body: BodyState, target: Vector3, attached: Dictionary, dt: float = Tuning.DT, accept: Callable = Callable()) -> void:
+static func move_body(body: BodyState, target: Vector3, attached: Dictionary, dt: float = Tuning.DT, accept: Callable = Callable(), yaw_deg: float = 0.0) -> void:
 	var accel := (Vector2(target.x, target.y) - body.pos) * Tuning.ROOT_POS_GAIN - body.vel * Tuning.ROOT_POS_DAMPING
 	accel = accel.limit_length(Tuning.ROOT_ACCEL_LIMIT)
 	var vel := (body.vel + accel * dt).limit_length(Tuning.ROOT_SPEED_LIMIT)
@@ -357,10 +388,34 @@ static func move_body(body: BodyState, target: Vector3, attached: Dictionary, dt
 	for scale in [1.0, 0.5, 0.25, 0.125, 0.0625, 0.03125]:
 		var p: Vector2 = body.pos + move * scale
 		var a: float = body.angle + turn * scale
-		if is_valid(p, a, attached) and (not accept.is_valid() or accept.call(p, a)):
+		if is_valid(p, a, attached, yaw_deg) and (not accept.is_valid() or accept.call(p, a)):
 			chosen = scale
 			break
 	body.pos += move * chosen
 	body.angle += turn * chosen
 	body.vel = move * chosen / dt
 	body.ang_vel = turn * chosen / dt
+
+
+## 골반 yaw 한 틱 적분(04 §10.1). 목표(NAN이면 0)를 ±40°로 제한하고 90°/s·360°/s² 안에서 따라간다.
+## 다음 yaw로 is_valid가 실패하면 yaw 변화를 0으로 한다(그 각도에서 멈춤). body.pos/angle은 이미 확정된 값이다.
+static func step_yaw(body: BodyState, yaw_target: float, attached: Dictionary, dt: float = Tuning.DT) -> void:
+	var goal := 0.0 if is_nan(yaw_target) else clampf(yaw_target, -Tuning.PELVIS_YAW_LIMIT_DEG, Tuning.PELVIS_YAW_LIMIT_DEG)
+	var err := goal - body.yaw
+	var max_dv := Tuning.ROOT_ANGULAR_ACCEL * dt
+	# 목표 직전에 멈추도록 하는 감속 곡선: 남은 거리에서 멈출 수 있는 최대 속도
+	var v_des := signf(err) * minf(sqrt(2.0 * Tuning.ROOT_ANGULAR_ACCEL * absf(err)), Tuning.ROOT_ANGULAR_SPEED)
+	var vel := body.yaw_vel + clampf(v_des - body.yaw_vel, -max_dv, max_dv)
+	var next := body.yaw + vel * dt
+	# 목표에 닿거나 지나치면, 혹은 충분히 가깝고 느리면 목표에 정지
+	if (err >= 0.0 and next >= goal) or (err <= 0.0 and next <= goal) or (absf(goal - next) < 0.02 and absf(vel) <= max_dv):
+		next = goal
+	next = clampf(next, -Tuning.PELVIS_YAW_LIMIT_DEG, Tuning.PELVIS_YAW_LIMIT_DEG)
+	if is_equal_approx(next, body.yaw):
+		body.yaw_vel = 0.0
+		return
+	if not is_valid(body.pos, body.angle, attached, next):
+		body.yaw_vel = 0.0
+		return
+	body.yaw_vel = (next - body.yaw) / dt
+	body.yaw = next

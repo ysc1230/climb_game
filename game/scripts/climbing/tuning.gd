@@ -4,8 +4,8 @@ extends RefCounted
 ## 모든 값은 조정용 초깃값이며 검증된 값이 아니다.
 
 ## 조정 버전(docs/09 tuning_version). 판정 수치·규칙이 바뀌면 올린다.
-## 1: v0.4 거리 기반, 2: v0.5 방향·3D 거리·지지 하중, 3: v0.5 무브별 선호·의도 비용
-const TUNING_VERSION := 3
+## 1: v0.4 거리 기반, 2: v0.5 방향·3D 거리·지지 하중, 3: v0.5 무브별 선호·의도 비용, 4: v0.6 접점 품질·그립 방식
+const TUNING_VERSION := 4
 
 const TICK_HZ := 60
 const DT := 1.0 / TICK_HZ
@@ -22,6 +22,9 @@ const LEG_REACH_NOMINAL := Vector2(0.25, 1.00)
 const ELBOW_BEND_DEG := Vector2(5.0, 155.0)
 const KNEE_BEND_DEG := Vector2(5.0, 145.0)
 const BODY_ANGLE_LIMIT_DEG := 25.0
+const PELVIS_YAW_LIMIT_DEG := 40.0   # 04 §3, §10.1
+const SHOULDER_YAW_DEPTH := 0.18     # 04 §10.1 어깨 깊이 계수
+const HIP_YAW_DEPTH := 0.14          # 04 §10.1 고관절 깊이 계수
 
 # 목표 자세 비용
 const PREF_ARM := 0.52

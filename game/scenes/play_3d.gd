@@ -34,6 +34,8 @@ func _ready() -> void:
 	rng.seed = 1230
 	logic = $UI/PlayTest
 	logic.draw_world = false
+	logic.w2s_fn = world_to_screen
+	logic.s2w_fn = screen_to_wall
 	_build_environment()
 	_build_wall()
 	_build_holds()
@@ -268,7 +270,7 @@ func _place_segment(part: MeshInstance3D, a: Vector3, b: Vector3, radius: float)
 
 
 func _process(delta: float) -> void:
-	if logic == null or logic.body == null:
+	if logic == null or logic.session == null:
 		return
 	_update_camera()
 	var t := _pose_targets(delta)
@@ -286,8 +288,8 @@ var _bends := {}  # limb -> 직전 굽힘 축(연속성)
 
 ## 판정 상태 → 표현용 3D 관절 위치. 골반 깊이는 판정과 같은 PoseSolver.body_depth(docs/04 §1).
 func _pose_targets(delta: float) -> Dictionary:
-	var body: BodyState = logic.body
-	var depth := PoseSolver.body_depth(body.pos, body.angle, logic._attached())
+	var body: BodyState = logic.session.body
+	var depth := PoseSolver.body_depth(body.pos, body.angle, logic.session.attached(), body.yaw)
 	if is_nan(depth):
 		depth = Tuning.PELVIS_DEPTH_PREFERRED
 	var ang := deg_to_rad(body.angle)
@@ -298,10 +300,10 @@ func _pose_targets(delta: float) -> Dictionary:
 	var max_step := LimbIK.PRESENTATION_JOINT_SPEED_DEG * delta
 	for limb in PoseSolver.LIMBS:
 		var hand := PoseSolver.is_hand(limb)
-		var j2 := PoseSolver.joint_position(body.pos, body.angle, limb)
-		var root := Vector3(j2.x, j2.y, depth)
-		var e2: Vector2 = logic.limbs[limb].pos
-		var state: String = logic.limbs[limb].state
+		var j2 := PoseSolver.joint_position(body.pos, body.angle, limb, body.yaw)
+		var root := Vector3(j2.x, j2.y, depth + PoseSolver.joint_depth_offset(limb, body.yaw))
+		var e2: Vector2 = logic.session.limbs[limb].pos
+		var state: String = logic.session.limbs[limb].state
 		var end_z := Tuning.CONTACT_DEPTH if state in ["Attached", "Armed"] else Tuning.CONTACT_DEPTH + Tuning.FREE_ENDPOINT_LIFT
 		var end := Vector3(e2.x, e2.y, end_z)
 		var a := Tuning.ARM_UPPER if hand else Tuning.LEG_UPPER
@@ -328,7 +330,7 @@ func _pose_capsules(t: Dictionary) -> void:
 	_place_segment(parts.hips, t.pelvis + up * -0.02, t.pelvis + up * 0.12, 0.13)
 	_place_segment(parts.torso, t.pelvis + up * 0.15, t.pelvis + up * 0.50, 0.15)
 	parts.head.position = t.head + Vector3(0, 0, 0.02)
-	parts.pack.transform = Transform3D(Basis(Vector3.BACK, deg_to_rad(logic.body.angle)), t.pelvis + up * 0.36 + Vector3(0, 0, 0.17))
+	parts.pack.transform = Transform3D(Basis(Vector3.BACK, deg_to_rad(logic.session.body.angle)), t.pelvis + up * 0.36 + Vector3(0, 0, 0.17))
 	for limb in PoseSolver.LIMBS:
 		var hand := PoseSolver.is_hand(limb)
 		var s := "L" if limb in [&"LH", &"LF"] else "R"
@@ -356,7 +358,7 @@ func _pose_model(t: Dictionary) -> void:
 	for key in t:
 		if t[key] is Vector3 and key != "up":
 			local[key] = inv * (t[key] as Vector3)
-	var frames := rig.solve(local, logic.body.angle)
+	var frames := rig.solve(local, logic.session.body.angle, logic.session.body.yaw)
 	for entry in RigPose.BONES:
 		var idx := skeleton.find_bone(entry[0])
 		if idx >= 0 and frames.has(entry[0]):
@@ -411,6 +413,21 @@ func _update_camera() -> void:
 	camera.rotation = Vector3.ZERO
 
 
+## 벽 접촉 평면(z = CONTACT_DEPTH)의 월드 좌표 → 화면 픽셀. 기술 UI의 홀드 강조·탭 변환용.
+func world_to_screen(p: Vector2) -> Vector2:
+	return camera.unproject_position(Vector3(p.x, p.y, CONTACT_DEPTH))
+
+
+## 화면 픽셀 → 카메라 광선과 z = CONTACT_DEPTH 평면의 교점(벽 좌표).
+func screen_to_wall(s: Vector2) -> Vector2:
+	var o := camera.project_ray_origin(s)
+	var n := camera.project_ray_normal(s)
+	if absf(n.z) < 0.0001:
+		return Vector2(o.x, o.y)
+	var t := (CONTACT_DEPTH - o.z) / n.z
+	return Vector2(o.x + n.x * t, o.y + n.y * t)
+
+
 ## 발 아래 작은 삼각형(꼭짓점 위). hollow=true이면 테두리만.
 func _tri_mesh(hollow: bool) -> ArrayMesh:
 	var st := SurfaceTool.new()
@@ -441,14 +458,15 @@ func _diamond_mesh() -> ArrayMesh:
 func _update_reach() -> void:
 	var im := reach_lines.mesh as ImmediateMesh
 	im.clear_surfaces()
-	var body: BodyState = logic.body
-	for limb in logic.limbs:
-		if logic.limbs[limb].state != "Dragging":
+	var body: BodyState = logic.session.body
+	for limb in logic.session.limbs:
+		if logic.session.limbs[limb].state != "Dragging":
 			continue
-		var joint := PoseSolver.joint_position(body.pos, body.angle, limb)
+		var joint := PoseSolver.joint_position(body.pos, body.angle, limb, body.yaw)
 		var rng := PoseSolver.dir_range(limb)
 		var lift := Tuning.CONTACT_DEPTH + Tuning.FREE_ENDPOINT_LIFT
-		var pr := PoseSolver.planar_range(limb, Tuning.PELVIS_DEPTH_PREFERRED - lift, Tuning.PELVIS_DEPTH_PREFERRED - lift)
+		var free_dz := Tuning.PELVIS_DEPTH_PREFERRED - lift + PoseSolver.joint_depth_offset(limb, body.yaw)
+		var pr := PoseSolver.planar_range(limb, free_dz, free_dz)
 		var s := PoseSolver.side_sign(limb)
 		var hand := PoseSolver.is_hand(limb)
 		var z := Tuning.CONTACT_DEPTH + 0.03
@@ -466,26 +484,26 @@ func _update_reach() -> void:
 
 func _update_foot_marks() -> void:
 	for foot in foot_marks:
-		var l: Dictionary = logic.limbs[foot]
+		var l: Dictionary = logic.session.limbs[foot]
 		var attached: bool = l.state in ["Attached", "Armed"]
-		var loaded: bool = logic.rules.loaded_feet.has(foot)
+		var loaded: bool = logic.session.rules.loaded_feet.has(foot)
 		var p: Vector2 = l.pos
 		for m in foot_marks[foot]:
 			m.position = Vector3(p.x, p.y - 0.09, Tuning.CONTACT_DEPTH)
 		foot_marks[foot][0].visible = attached and loaded
 		foot_marks[foot][1].visible = attached and not loaded
-		var flag: bool = l.state == "Flag" or (l.state == "Dragging" and logic.rules.flag_ready.has(foot))
+		var flag: bool = l.state == "Flag" or (l.state == "Dragging" and logic.session.rules.flag_ready.has(foot))
 		flag_marks[foot].visible = flag
-		flag_marks[foot].position = Vector3(p.x, p.y + 0.12, Tuning.CONTACT_DEPTH + 0.12)
+		flag_marks[foot].position = Vector3(p.x, p.y + 0.12, Tuning.CONTACT_DEPTH + 0.12 + (float(l.flag_depth) if l.state == "Flag" else 0.0))
 
 
 func _update_candidate() -> void:
 	candidate_ring.visible = false
-	for limb in logic.limbs:
-		if logic.limbs[limb].state == "Dragging":
-			var key: String = logic.limbs[limb].cand
-			if not key.is_empty():
-				var p: Vector2 = logic.route.slot_pos(key)
+	for limb in logic.session.limbs:
+		if logic.session.limbs[limb].state == "Dragging":
+			var cand: Dictionary = logic.session.limbs[limb].cand
+			if not cand.is_empty():
+				var p: Vector2 = cand.point
 				candidate_ring.position = Vector3(p.x, p.y, CONTACT_DEPTH + 0.03)
 				candidate_ring.rotation_degrees = Vector3(90, 0, 0)
 				candidate_ring.visible = true

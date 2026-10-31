@@ -8,22 +8,14 @@ const DEADZONE_MM := 2.5  # docs/23 제안 시작값. 04의 10논리단위와 �
 const PLAY_W := 3.4
 const PLAY_H := 3.8
 
+var session: ClimbSession
 var route: RouteDef
 var router := InputRouter.new()
-var body: BodyState
-var limbs := {}  # limb -> {state, key, pos(실제 말단), req(요청 목표)}
-var rules := ClimbRules.new()  # 지지·피로·유예 규칙(RouteBot과 공유, docs/04 §4·§7)
-var goal_ticks := 0
-var last_phase := -1
-var falling := false
-var fall_ticks := 0
 var paused := false
 var prepare_left := 0.0
 var message := ""
 var message_ticks := 0
 var cam_y := 1.9
-var clears := 0
-var falls := 0
 var font: Font
 var ui_k := 1.0
 var px_per_m := 100.0
@@ -31,6 +23,27 @@ var wall_origin := Vector2.ZERO  # 월드 (0, cam_y)가 놓일 화면 위치
 var log_lines: PackedStringArray = []
 ## false이면 벽·홀드·인형을 그리지 않고 패드·HUD만 그린다(3D 표현 계층이 월드를 그림).
 var draw_world := true
+## 월드(m) ↔ 화면(px) 변환. play_3d가 카메라 투영으로 덮어쓴다. 비면 2D 변환을 쓴다.
+var w2s_fn := Callable()
+var s2w_fn := Callable()
+
+# ---------- 기술 선택 UI 상태(docs/27 §6, 05 v0.6) ----------
+enum UI { NONE, PANEL, SIDE, HOLD }
+const TABS := [[&"foot", "발"], [&"hand", "손"], [&"body", "몸"]]
+const CHECK_INTERVAL := 0.2  # 패널 흐림 검사 주기(초)
+const HOLD_PICK_RADIUS := 0.12  # 탭이 홀드 영역에서 이만큼 안이면 그 홀드를 누른 것(m)
+const STAGE_TEXT := {&"check": "준비 중", &"move": "옮기는 중", &"stand_up": "일어서는 중", &"hold": "버티는 중", &"yaw": "자세를 유지하는 중", &"deadpoint": "뻗는 중"}
+var ui_mode := UI.NONE
+var tab := &"foot"
+var sel_tech := &""
+var sel_side := &""
+var side_judge := {}       # side -> {available, reason, text} (쪽 선택 단계)
+var hold_targets: Array = []
+var dim := {}              # tech_id -> true(지금 안 될 것 같음)
+var preview := {}          # 홀드 탭 미리보기 {key, ok, point, quality, text}
+var _hold_index := -2      # 홀드 미리보기를 누르고 있는 터치(-2 없음)
+var _check_timer := 0.0
+var _techs := TechniqueJudge.defs()
 
 
 func _ready() -> void:
@@ -38,9 +51,10 @@ func _ready() -> void:
 	sf.font_names = PackedStringArray(["Noto Sans CJK KR", "Noto Sans KR", "Apple SD Gothic Neo", "sans-serif"])
 	font = sf
 	route = RouteDef.load_json("res://data/routes/R01.json")
+	session = ClimbSession.new(route)
 	get_viewport().size_changed.connect(_layout)
 	_layout()
-	_reset("시작")
+	_after_reset("시작")
 
 
 func _layout() -> void:
@@ -59,17 +73,15 @@ func _layout() -> void:
 
 
 func _reset(reason: String) -> void:
+	session.reset()
+	_after_reset(reason)
+
+
+## 세션이 다시 시작된 뒤 표시 쪽 정리(입력 초기화·카메라·문구).
+func _after_reset(reason: String) -> void:
+	_close_ui()
 	router.cancel_all()
-	body = BodyState.new(route.start_pelvis, route.start_angle)
-	limbs.clear()
-	for limb in PoseSolver.LIMBS:
-		var key: String = route.start_slots[limb]
-		var p := route.slot_pos(key)
-		limbs[limb] = {"state": "Attached", "key": key, "pos": p, "req": p, "cand": "", "flag": p}
-	rules.reset(body, _attached(), {}, false)
-	goal_ticks = 0
-	falling = false
-	cam_y = body.pos.y + 0.12 * PLAY_H
+	cam_y = session.body.pos.y + 0.12 * PLAY_H
 	_flash(reason)
 
 
@@ -84,23 +96,6 @@ func _log(text: String) -> void:
 		log_lines.remove_at(0)
 
 
-func _attached() -> Dictionary:
-	var d := {}
-	for limb in limbs:
-		if limbs[limb].state == "Attached" or limbs[limb].state == "Armed":
-			d[limb] = route.slot_pos(limbs[limb].key)
-	return d
-
-
-## 슬롯 키 → 점유 중인 팔다리
-func _occupied_map() -> Dictionary:
-	var d := {}
-	for limb in limbs:
-		if limbs[limb].state in ["Attached", "Armed"]:
-			d[limbs[limb].key] = limb
-	return d
-
-
 # ---------- 입력 ----------
 
 func _input(event: InputEvent) -> void:
@@ -112,74 +107,43 @@ func _input(event: InputEvent) -> void:
 			if not event.pressed and prepare_left <= 0.0:
 				prepare_left = 3.0
 			return
-		if falling:
+		if session.falling:
+			return
+		if _ui_event(event.index, event.position, event.pressed):
 			return
 		if event.pressed:
 			var limb := router._pad_at(event.position)
-			var attached_now: bool = limb != &"" and limbs[limb].state == "Attached"
+			var attached_now: bool = limb != &"" and session.limbs[limb].state == "Attached"
 			_apply(router.touch_down(event.index, event.position, attached_now))
 		else:
 			_apply(router.touch_up(event.index))
-	elif event is InputEventScreenDrag and not paused and not falling:
+	elif event is InputEventScreenDrag and not paused and not session.falling:
+		if session.selecting:
+			_ui_drag(event.index, event.position)
+			return
 		_apply(router.touch_drag(event.index, event.position))
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not paused and not session.falling:
+		_ui_event(-1, event.position, event.pressed)  # 데스크톱 시험: 마우스는 기술 UI만
+	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0 and session.selecting:
+		_ui_drag(-1, event.position)
 
 
 func _apply(cmds: Array) -> void:
+	var was_dragging := {}
 	for c in cmds:
-		var l: Dictionary = limbs[c.limb]
-		match c.type:
-			"arm":
-				l.state = "Armed"
-			"disarm":
-				if l.state == "Armed":
-					l.state = "Attached"
-			"detach":
-				l.state = "Dragging"
-				l.req = l.pos
-			"move":
-				l.req = _clamp_to_reach(c.limb, l.req, l.req + c.delta)
-			"release":
-				_try_grab(c.limb)
-			"cancel":
-				if l.state == "Armed":
-					l.state = "Attached"
-				elif l.state == "Dragging":
-					l.state = "Free"
+		was_dragging[c.limb] = session.limbs[c.limb].state == "Dragging"
+	session.apply_input(cmds)
+	for c in cmds:
+		if c.type == "release" and was_dragging[c.limb] and session.limbs[c.limb].state == "Attached" and OS.has_feature("mobile"):
+			Input.vibrate_handheld(20)
+	_take_messages()
 
 
-## v0.5: 최대 반경만이 아니라 최소 거리·방향 영역을 연속적으로 적용(docs/04 H02/H03/H06).
-func _clamp_to_reach(limb: StringName, previous: Vector2, p: Vector2) -> Vector2:
-	return PoseSolver.clamp_endpoint(body.pos, body.angle, limb, previous, p)
-
-
-## 실제 말단 기준 잡기 후보(GripCheck, 히스테리시스는 직전에 보여준 후보 기준).
-func _candidate(limb: StringName) -> String:
-	var l: Dictionary = limbs[limb]
-	return GripCheck.candidate(route.slots, limb, l.pos, body.pos, body.angle, _attached(), _occupied_map(), l.cand)
-
-
-func _try_grab(limb: StringName) -> void:
-	var l: Dictionary = limbs[limb]
-	var key := _candidate(limb)
-	l.cand = ""
-	if key.is_empty():
-		var reason := GripCheck.reject_reason(route.slots, limb, l.pos, l.req, body.pos, body.angle, _attached(), _occupied_map(), rules.feet_eligible)
-		var text := GripCheck.message(reason, limb)
-		if not text.is_empty():
-			_flash(text)
-		# 균형 발 예고가 있었고 놓는 순간에도 조건을 통과하면 그 위치를 유지(25 MV06)
-		if not PoseSolver.is_hand(limb) and rules.flag_ready.has(limb):
-			l.state = "Flag"
-			l.flag = l.pos
-			_flash("균형 발로 두었어요")
-		else:
-			l.state = "Free"
-		return
-	l.state = "Attached"
-	l.key = key
-	l.pos = route.slot_pos(key)
-	if OS.has_feature("mobile"):
-		Input.vibrate_handheld(20)
+## 세션이 쌓은 안내 문구를 화면 문구로 옮기고 비운다.
+func _take_messages() -> void:
+	for m in session.messages:
+		_flash(m)
+	session.messages.clear()
 
 
 # ---------- 고정 틱 ----------
@@ -192,6 +156,7 @@ func _notification(what: int) -> void:
 func _pause() -> void:
 	if paused or OS.get_cmdline_user_args().has("--no-auto-pause"):
 		return
+	_close_ui()
 	_apply(router.cancel_all())
 	paused = true
 	prepare_left = 0.0
@@ -200,6 +165,10 @@ func _pause() -> void:
 func _physics_process(_delta: float) -> void:
 	if message_ticks > 0:
 		message_ticks -= 1
+	if ui_mode == UI.PANEL:
+		_check_timer -= _delta
+		if _check_timer <= 0.0:
+			_refresh_dim()
 	if paused:
 		if prepare_left > 0.0:
 			prepare_left -= _delta
@@ -207,158 +176,61 @@ func _physics_process(_delta: float) -> void:
 				paused = false
 		queue_redraw()
 		return
-	if falling:
-		_fall_tick()
-		queue_redraw()
-		return
-	_move_endpoints()
-	var attached := _attached()
-	var endpoints := {}
-	var moving := false
-	var intents := {}
-	var hints := {}
-	var flag_probe := []
-	var occupied := _occupied_map()
-	for limb in limbs:
-		var l: Dictionary = limbs[limb]
-		if attached.has(limb):
-			continue
-		endpoints[limb] = l.pos
-		if l.state != "Dragging":
-			continue
-		moving = true
-		intents[limb] = l.req
-		l.cand = _candidate(limb)
-		var aim := GripCheck.aimed_slot(route.slots, l.req)
-		if PoseSolver.is_hand(limb):
-			var other := &"RH" if limb == &"LH" else &"LH"
-			var other_key: String = limbs[other].key
-			if not aim.is_empty() and occupied.has(other_key) and other_key.get_base_dir() == aim.get_base_dir() and aim != other_key:
-				hints[limb] = MoveClassifier.HAND_MATCH
-		else:
-			if not aim.is_empty() and occupied.has(aim) and occupied[aim] != limb and not PoseSolver.is_hand(occupied[aim]):
-				hints[limb] = MoveClassifier.FOOT_SWAP
-			if l.cand.is_empty():
-				flag_probe.append(limb)
-	var outcome := rules.tick(body, attached, endpoints, _on_platform(attached), moving, intents, hints, flag_probe)
-	_drag_hints(attached, occupied)
-	for hand in rules.slipped:
-		limbs[hand].state = "Free"
-		_flash("손이 미끄러졌어요")
-	if rules.phase != last_phase:
-		if rules.phase == ClimbRules.Phase.REBALANCING:
-			_flash("균형이 무너지고 있어요")
-		elif rules.phase == ClimbRules.Phase.STRAINED and last_phase == ClimbRules.Phase.STABLE:
-			_flash("남은 손발로 버티기 힘들어요")
-		last_phase = rules.phase
-	match outcome:
-		"NO_SUPPORT":
-			_start_fall("지지를 잃었어요")
+	var result := session.step()
+	_take_messages()
+	match result:
+		"fall:NO_SUPPORT":
+			_apply(router.cancel_all())
+			_flash("지지를 잃었어요")
+			queue_redraw()
 			return
-		"BALANCE_LOST":
-			_start_fall("균형을 잃었어요")
+		"fall:BALANCE_LOST", "fall:DEADPOINT_MISS":
+			_apply(router.cancel_all())
+			_flash("균형을 잃었어요")
+			queue_redraw()
 			return
-		"UNRESOLVED":
+		"unresolved":
 			_log("힘 계산 실패: 일시정지")
 			_pause()
 			return
-	_goal_tick()
-	_camera_tick()
+		"respawn":
+			_after_reset("떨어졌어요. 처음부터")
+			queue_redraw()
+			return
+		"clear":
+			_log("완등 %d회" % session.clears)
+			_after_reset("완등! 다시 시작해요")
+	if session.falling:
+		queue_redraw()
+		return
+	if not session.selecting:
+		_camera_tick()  # 고르는 중에는 카메라도 멈춘다
 	queue_redraw()
 
 
-func _move_endpoints() -> void:
-	for limb in limbs:
-		var l: Dictionary = limbs[limb]
-		if l.state in ["Attached", "Armed"]:
-			l.pos = route.slot_pos(l.key)
-			continue
-		var target: Vector2 = l.req
-		if l.state == "Flag":
-			target = l.flag
-		elif l.state == "Free":
-			var side := -1.0 if limb in [&"LH", &"LF"] else 1.0
-			target = body.pos + (Vector2(0.35 * side, 0.18) if PoseSolver.is_hand(limb) else Vector2(0.25 * side, -0.70))
-		var prev: Vector2 = l.pos
-		target = _clamp_to_reach(limb, prev, target)
-		l.pos = _clamp_to_reach(limb, prev, l.pos.move_toward(target, 2.5 * Tuning.DT))
-
-
-var _hint_cooldown := 0
-var _last_hint := &""
-
-
-## 드래그 중 경계에 막혀 후보가 없을 때 이유를 한 번 안내(반복 쿨다운 20틱, docs/05)
-func _drag_hints(attached: Dictionary, occupied: Dictionary) -> void:
-	_hint_cooldown = maxi(_hint_cooldown - 1, 0)
-	if _hint_cooldown > 0:
-		return
-	for limb in limbs:
-		var l: Dictionary = limbs[limb]
-		if l.state != "Dragging" or not l.cand.is_empty():
-			continue
-		var reason := GripCheck.reject_reason(route.slots, limb, l.pos, l.req, body.pos, body.angle, attached, occupied, rules.feet_eligible)
-		if reason in [GripCheck.JOINT_LIMIT, GripCheck.NEED_WEIGHT_SHIFT, GripCheck.OUT_OF_REACH, GripCheck.OCCUPIED, GripCheck.TYPE_MISMATCH] and reason != _last_hint:
-			_flash(GripCheck.message(reason, limb))
-			_last_hint = reason
-			_hint_cooldown = 20
-			return
-	_last_hint = &""
-
-
-func _on_platform(attached: Dictionary) -> bool:
-	if not (attached.has(&"LF") and attached.has(&"RF")) or rules.feet_eligible.size() < 2:
-		return false
-	for p in route.platforms:
-		if p.foot_slot_keys.has(limbs[&"LF"].key) and p.foot_slot_keys.has(limbs[&"RF"].key):
-			var a: Vector2 = attached[&"LF"]
-			var b: Vector2 = attached[&"RF"]
-			return body.pos.x >= minf(a.x, b.x) - 0.10 and body.pos.x <= maxf(a.x, b.x) + 0.10
-	return false
-
-
-func _goal_tick() -> void:
-	var held := 0
-	for limb in [&"LH", &"RH"]:
-		if limbs[limb].state in ["Attached", "Armed"] and route.goal_slots.has(limbs[limb].key):
-			held += 1
-	goal_ticks = goal_ticks + 1 if held == 2 and rules.balance_confirmed() else 0  # 균형 확인 뒤에만(docs/15)
-	if goal_ticks >= Tuning.GOAL_DWELL_TICKS:
-		clears += 1
-		_log("완등 %d회" % clears)
-		_reset("완등! 다시 시작해요")
-
-
-func _start_fall(reason: String) -> void:
-	falls += 1
-	falling = true
-	fall_ticks = 0
-	_apply(router.cancel_all())
-	for limb in limbs:
-		limbs[limb].state = "Free"
-	_flash(reason)
-
-
-func _fall_tick() -> void:
-	fall_ticks += 1
-	body.vel.y -= 9.8 * Tuning.DT
-	body.pos += body.vel * Tuning.DT
-	for limb in limbs:
-		limbs[limb].pos += body.vel * Tuning.DT
-	if fall_ticks >= 60 or body.pos.y < route.fail_line_y:
-		_reset("떨어졌어요. 처음부터")
-
-
 func _camera_tick() -> void:
-	var screen_frac := 0.5 - (body.pos.y - cam_y) * px_per_m / get_viewport_rect().size.y
+	var screen_frac := 0.5 - (session.body.pos.y - cam_y) * px_per_m / get_viewport_rect().size.y
 	if screen_frac < 0.50 or screen_frac > 0.68:
-		var goal := body.pos.y + 0.12 * PLAY_H
+		var goal := session.body.pos.y + 0.12 * PLAY_H
 		cam_y += clampf((goal - cam_y) * 8.0 * Tuning.DT, -2.0 * Tuning.DT, 2.0 * Tuning.DT)
 
 
 # ---------- 그리기 ----------
 
 func w2s(p: Vector2) -> Vector2:
+	if w2s_fn.is_valid():
+		return w2s_fn.call(p)
+	return _w2s_2d(p)
+
+
+func s2w(s: Vector2) -> Vector2:
+	if s2w_fn.is_valid():
+		return s2w_fn.call(s)
+	var q := (s - wall_origin) / px_per_m
+	return Vector2(q.x, cam_y - q.y)
+
+
+func _w2s_2d(p: Vector2) -> Vector2:
 	return wall_origin + Vector2(p.x, cam_y - p.y) * px_per_m
 
 
@@ -379,12 +251,12 @@ func _draw() -> void:
 		var col := Color("f1d59a") if is_goal else (Color("c97a5c") if is_hand_slot else Color("7d7f5c"))
 		draw_circle(w2s(sp), 0.07 * px_per_m, col)
 		draw_arc(w2s(sp), 0.07 * px_per_m, 0, TAU, 20, Color("302820"), 2.0)
-	for limb in limbs:
-		if limbs[limb].state == "Dragging":
-			var c: String = limbs[limb].cand
+	for limb in session.limbs:
+		if session.limbs[limb].state == "Dragging":
+			var c: Dictionary = session.limbs[limb].cand
 			if not c.is_empty():
-				draw_arc(w2s(route.slot_pos(c)), 0.11 * px_per_m, 0, TAU, 24, Color("fff2c8"), 3.0)
-			var j := PoseSolver.joint_position(body.pos, body.angle, limb)
+				draw_arc(w2s(c.point), 0.11 * px_per_m, 0, TAU, 24, Color("fff2c8"), 3.0)
+			var j := PoseSolver.joint_position(session.body.pos, session.body.angle, limb, session.body.yaw)
 			draw_arc(w2s(j), PoseSolver.reach_of(limb).y * px_per_m, 0, TAU, 64, Color(1, 1, 1, 0.15), 1.5)
 	_draw_body()
 	_draw_pads(size)
@@ -392,14 +264,14 @@ func _draw() -> void:
 
 
 func _draw_body() -> void:
-	var pel := w2s(body.pos)
-	var neck := w2s(body.pos + Vector2(0, 0.62).rotated(deg_to_rad(body.angle)))
+	var pel := w2s(session.body.pos)
+	var neck := w2s(session.body.pos + Vector2(0, 0.62).rotated(deg_to_rad(session.body.angle)))
 	var ink := Color("302820")
 	draw_line(pel, neck, Color("4f6a68"), 0.22 * px_per_m)
-	draw_circle(w2s(body.pos + Vector2(0, 0.78).rotated(deg_to_rad(body.angle))), 0.12 * px_per_m, Color("c7b79b"))
-	for limb in limbs:
-		var j := PoseSolver.joint_position(body.pos, body.angle, limb)
-		var e: Vector2 = limbs[limb].pos
+	draw_circle(w2s(session.body.pos + Vector2(0, 0.78).rotated(deg_to_rad(session.body.angle))), 0.12 * px_per_m, Color("c7b79b"))
+	for limb in session.limbs:
+		var j := PoseSolver.joint_position(session.body.pos, session.body.angle, limb, session.body.yaw)
+		var e: Vector2 = session.limbs[limb].pos
 		var hand := PoseSolver.is_hand(limb)
 		var a := Tuning.ARM_UPPER if hand else Tuning.LEG_UPPER
 		var b := Tuning.ARM_LOWER if hand else Tuning.LEG_LOWER
@@ -408,7 +280,7 @@ func _draw_body() -> void:
 		var col: Color = LIMB_COLORS[limb]
 		draw_line(w2s(j), w2s(mid), col, 0.07 * px_per_m)
 		draw_line(w2s(mid), w2s(e), col, 0.06 * px_per_m)
-		var state: String = limbs[limb].state
+		var state: String = session.limbs[limb].state
 		var tip := Color.WHITE if state == "Dragging" else (ink if state in ["Attached", "Armed"] else Color("aaaaaa"))
 		draw_circle(w2s(e), 0.045 * px_per_m, tip)
 
@@ -436,29 +308,29 @@ func _draw_pads(size: Vector2) -> void:
 		var label := "%s %s" % [limb, "손" if PoseSolver.is_hand(limb) else "발"]
 		draw_string(font, p.center + Vector2(-p.radius, 8), label, HORIZONTAL_ALIGNMENT_CENTER, p.radius * 2, int(26 * ui_k), Color.WHITE)
 		if PoseSolver.is_hand(limb):
-			var s: float = rules.stamina[limb]
+			var s: float = session.rules.stamina[limb]
 			draw_arc(p.center, p.radius + 8 * ui_k, -PI / 2, -PI / 2 + TAU * s / 100.0, 48, Color("f1d59a") if s > 25 else Color("ff5a4a"), 6.0 * ui_k)
 
 
 func _draw_hud(size: Vector2) -> void:
 	var fs := int(22 * ui_k)
-	var height := maxf(body.pos.y - route.start_pelvis.y, 0.0)
-	draw_string(font, Vector2(size.x * 0.25, 40 * ui_k), "R01 시험 빌드 · 높이 %.1fm · 완등 %d · 추락 %d" % [height, clears, falls], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
+	var height := maxf(session.body.pos.y - route.start_pelvis.y, 0.0)
+	draw_string(font, Vector2(size.x * 0.25, 40 * ui_k), "R01 시험 빌드 · 높이 %.1fm · 완등 %d · 추락 %d" % [height, session.clears, session.falls], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
 	# 지지 상태(docs/25 피드백): 색만이 아니라 문구와 막대로 표시
 	var names := ["안정", "부담 큼", "균형 회복 중", "지지 없음"]
 	var colors := [Color("cfe3c8"), Color("f1d59a"), Color("ff8a6a"), Color("ff5a4a")]
-	var ph: int = rules.phase
+	var ph: int = session.rules.phase
 	var status := "지지: %s" % names[ph]
-	var hu: Dictionary = rules.last.get("u", {})
+	var hu: Dictionary = session.rules.last.get("u", {})
 	status += " · 손 하중 L%d%% R%d%%" % [roundi(hu.get(&"LH", 0.0) * 100), roundi(hu.get(&"RH", 0.0) * 100)]
 	draw_rect(Rect2(Vector2(size.x * 0.25 - 6 * ui_k, 50 * ui_k), Vector2(size.x * 0.5 + 12 * ui_k, 26 * ui_k)), Color(0.16, 0.18, 0.17, 0.6))
-	status += " · 무브: %s" % rules.moves.korean()
-	if not rules.flag_ready.is_empty():
+	status += " · 무브: %s" % session.rules.moves.korean()
+	if not session.rules.flag_ready.is_empty():
 		status += " · 놓으면 균형 발"
 	draw_string(font, Vector2(size.x * 0.25, 70 * ui_k), status, HORIZONTAL_ALIGNMENT_LEFT, -1, int(21 * ui_k), colors[ph])
 	if ph == ClimbRules.Phase.REBALANCING or ph == ClimbRules.Phase.GRACE:
 		var budget := ClimbRules.IMBALANCE_BUDGET_TICKS if ph == ClimbRules.Phase.REBALANCING else Tuning.UNSUPPORTED_GRACE_TICKS
-		var used := rules.imbalance_ticks if ph == ClimbRules.Phase.REBALANCING else rules.unsupported_ticks
+		var used := session.rules.imbalance_ticks if ph == ClimbRules.Phase.REBALANCING else session.rules.unsupported_ticks
 		var w := 220.0 * ui_k
 		var left := clampf(1.0 - float(used) / budget, 0.0, 1.0)
 		draw_rect(Rect2(Vector2(size.x * 0.25, 80 * ui_k), Vector2(w, 8 * ui_k)), Color(0, 0, 0, 0.4))
@@ -468,8 +340,389 @@ func _draw_hud(size: Vector2) -> void:
 		draw_string(font, Vector2(size.x * 0.25, y), log_lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, int(15 * ui_k), Color(1, 1, 1, 0.6))
 		y -= 18 * ui_k
 	if message_ticks > 0:
-		draw_string(font, Vector2(0, size.y * 0.18), message, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(34 * ui_k), Color("fff2c8"))
+		draw_string(font, Vector2(0, size.y * (0.30 if session.selecting else 0.18)), message, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(34 * ui_k), Color("fff2c8"))
+	_draw_tech_ui(size)
 	if paused:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.55))
 		var t := "손가락을 편하게 올려주세요 %d" % ceili(prepare_left) if prepare_left > 0.0 else "일시정지 · 화면을 탭하면 3초 뒤 이어서 시작해요"
 		draw_string(font, Vector2(0, size.y * 0.5), t, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(34 * ui_k), Color.WHITE)
+
+
+# ---------- 기술 선택 UI (docs/27 §6, 05 v0.6, 18 v0.6) ----------
+
+func _close_ui() -> void:
+	if session != null and session.selecting:
+		session.close_select()
+	ui_mode = UI.NONE
+	hold_targets = []
+	preview = {}
+	_hold_index = -2
+
+
+func _cancel_select(with_message: bool) -> void:
+	_close_ui()
+	if with_message:
+		_flash("기술을 취소했어요")
+
+
+func _view_size() -> Vector2:
+	return get_viewport_rect().size
+
+
+func _btn_rect(size: Vector2) -> Rect2:
+	var w := 240.0 * ui_k
+	return Rect2(Vector2(size.x * 0.5 - w * 0.5, 94.0 * ui_k), Vector2(w, 44.0 * ui_k))
+
+
+func _panel_rect(size: Vector2) -> Rect2:
+	var b := _btn_rect(size)
+	return Rect2(Vector2(size.x * 0.5 - 400.0 * ui_k, b.end.y + 8.0 * ui_k), Vector2(800.0 * ui_k, 64.0 * ui_k + 2.0 * 64.0 * ui_k + 12.0 * ui_k))
+
+
+func _tab_rect(size: Vector2, i: int) -> Rect2:
+	var p := _panel_rect(size)
+	return Rect2(p.position + Vector2((12.0 + i * 140.0) * ui_k, 10.0 * ui_k), Vector2(130.0, 44.0) * ui_k)
+
+
+func _entry_rect(size: Vector2, i: int) -> Rect2:
+	var p := _panel_rect(size)
+	var cw := (776.0 - 24.0) / 4.0
+	return Rect2(p.position + Vector2((12.0 + (i % 4) * (cw + 8.0)) * ui_k, (64.0 + (i / 4) * 64.0) * ui_k), Vector2(cw, 56.0) * ui_k)
+
+
+## 쪽 버튼: 왼쪽은 LH·LF 패드 사이, 오른쪽은 RH·RF 패드 사이.
+func _side_rect(side: StringName) -> Rect2:
+	var a: Vector2 = router.pads[&"LH" if side == &"left" else &"RH"].center
+	var b: Vector2 = router.pads[&"LF" if side == &"left" else &"RF"].center
+	var sz := Vector2(150.0, 76.0) * ui_k
+	return Rect2((a + b) * 0.5 - sz * 0.5, sz)
+
+
+## 이 탭의 1단계 기술 id 목록(JSON 순서).
+func _tab_techs(t: StringName) -> Array:
+	var out := []
+	for id in _techs:
+		if _techs[id].phase == 1 and _techs[id].group == t:
+			out.append(id)
+	return out
+
+
+## 가벼운 검사(0.2초마다): 두 쪽 다 안 되면 흐리게. 흐려도 누를 수는 있다.
+func _refresh_dim() -> void:
+	_check_timer = CHECK_INTERVAL
+	var snap := ClimbSnapshot.from_session(session)
+	for id in _tab_techs(tab):
+		var j := TechniqueJudge.light_judge(snap, id)
+		dim[id] = not j.values().any(func(r): return r.available)
+
+
+## 기술 UI 입력. 선택 중이면 항상 받아 쓴다(패드 입력 없음). 쓴 입력이면 true.
+func _ui_event(index: int, pos: Vector2, pressed: bool) -> bool:
+	var size := _view_size()
+	var btn := _btn_rect(size)
+	if not session.selecting:
+		if pressed and btn.has_point(pos):
+			if session.cancel_technique():  # 실행 중이면 버튼은 "풀기"
+				_flash("기술을 취소했어요")
+			else:
+				_open_select()
+			return true
+		return false
+	if pressed and btn.has_point(pos):
+		_cancel_select(ui_mode != UI.PANEL)  # 같은 버튼: 닫기(시간 재개)
+		return true
+	if ui_mode == UI.HOLD:
+		if pressed:
+			_hold_index = index
+			_hold_preview(pos)
+		elif index == _hold_index:
+			_hold_index = -2
+			_hold_commit(pos)
+		return true
+	if not pressed:
+		return true
+	if router._pad_at(pos) != &"":
+		return true  # 패드는 선택 중 입력을 받지 않는다
+	match ui_mode:
+		UI.PANEL:
+			_panel_tap(size, pos)
+		UI.SIDE:
+			_side_tap(pos)
+	return true
+
+
+func _ui_drag(index: int, pos: Vector2) -> void:
+	if ui_mode == UI.HOLD and index == _hold_index:
+		_hold_preview(pos)
+
+
+func _open_select() -> void:
+	if session.is_dragging() or not session.runner.active.is_empty() or session.falling or not session.deadpoint.is_empty():
+		return
+	if session.open_select():
+		_apply(router.cancel_all())  # 입력 세대 증가, 눌러 둔 터치 정리
+		ui_mode = UI.PANEL
+		_refresh_dim()
+
+
+func _panel_tap(size: Vector2, pos: Vector2) -> void:
+	for i in TABS.size():
+		if _tab_rect(size, i).has_point(pos):
+			tab = TABS[i][0]
+			_refresh_dim()
+			return
+	var ids := _tab_techs(tab)
+	for i in ids.size():
+		if _entry_rect(size, i).has_point(pos):
+			_pick_tech(ids[i])
+			return
+	if not _panel_rect(size).has_point(pos):
+		_cancel_select(false)  # 빈 벽 탭: 닫기
+
+
+func _pick_tech(id: StringName) -> void:
+	sel_tech = id
+	side_judge = TechniqueJudge.judge(ClimbSnapshot.from_session(session), id)
+	if side_judge.has(&"none"):
+		_start_technique(&"none", "", Vector2.INF)  # 좌우 없는 기술(휴식)은 바로 실행
+		return
+	ui_mode = UI.SIDE
+
+
+func _side_tap(pos: Vector2) -> void:
+	for side in [&"left", &"right"]:
+		if not _side_rect(side).has_point(pos):
+			continue
+		if not side_judge.has(side):
+			continue
+		var j: Dictionary = side_judge[side]
+		if not j.available:
+			_flash(j.text if not j.text.is_empty() else String(j.reason))  # 불가능: 이유 한 줄
+			return
+		if TechniqueJudge.uses_hold(sel_tech):
+			sel_side = side
+			hold_targets = TechniqueJudge.hold_targets(ClimbSnapshot.from_session(session), sel_tech, side)
+			preview = {}
+			ui_mode = UI.HOLD
+		else:
+			_start_technique(side, "", Vector2.INF)
+		return
+	_cancel_select(true)  # 빈 벽 탭: 취소
+
+
+func _start_technique(side: StringName, key: String, point: Vector2) -> void:
+	var r := session.choose(sel_tech, side, key, point)
+	if r != &"":
+		var text := TechniqueJudge.text_for(r)
+		_flash(text if not text.is_empty() else String(r))
+		return
+	_close_ui()
+
+
+## 탭 위치에서 가장 가까운 홀드 슬롯 키(영역 선분까지 거리 HOLD_PICK_RADIUS 이내). 없으면 "".
+func _slot_at(p: Vector2) -> String:
+	var best := ""
+	var best_d := HOLD_PICK_RADIUS
+	var limb := TechniqueJudge.limb_for(sel_tech, sel_side)
+	for key in route.slots:
+		var seg := _area_segment(route.slots[key], PoseSolver.is_hand(limb))
+		var d := _dist_to_segment(p, seg[0], seg[1])
+		if d < best_d or (is_equal_approx(d, best_d) and best == ""):
+			best = key
+			best_d = d
+	return best
+
+
+## 홀드의 잡기/디딤 영역 선분 [a, b]. 손 기술은 hand_area, 발 기술은 foot_area(없으면 한 점).
+func _area_segment(slot: Dictionary, hand: bool) -> Array:
+	if hand and slot.has("hand_area"):
+		return [slot.pos - slot.hand_area.dir * slot.hand_area.half_width, slot.pos + slot.hand_area.dir * slot.hand_area.half_width]
+	if not hand and slot.has("foot_area"):
+		return [slot.pos - slot.foot_area.up * slot.foot_area.half_height, slot.pos + slot.foot_area.up * slot.foot_area.half_height]
+	return [slot.pos, slot.pos]
+
+
+func _dist_to_segment(p: Vector2, a: Vector2, b: Vector2) -> float:
+	var ab := b - a
+	var t := 0.0 if ab.length_squared() < 0.000001 else clampf((p - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
+	return p.distance_to(a + ab * t)
+
+
+func _hold_preview(pos: Vector2) -> void:
+	var p := s2w(pos)
+	var key := _slot_at(p)
+	if key.is_empty():
+		preview = {}
+		return
+	var c := TechniqueJudge.check_hold(ClimbSnapshot.from_session(session), sel_tech, sel_side, key, p)
+	preview = {"key": key, "ok": c.ok, "point": c.point if c.ok else p, "quality": c.quality, "text": c.text}
+
+
+func _hold_commit(pos: Vector2) -> void:
+	var p := s2w(pos)
+	preview = {}
+	var key := _slot_at(p)
+	if key.is_empty():
+		_cancel_select(true)  # 빈 벽 탭: 취소
+		return
+	var c := TechniqueJudge.check_hold(ClimbSnapshot.from_session(session), sel_tech, sel_side, key, p)
+	if not c.ok:
+		_flash(c.text if not c.text.is_empty() else String(c.reason))  # 후보가 아닌 홀드: 이유
+		return
+	_start_technique(sel_side, key, p)
+
+
+func _quality_label(q: float) -> String:
+	return "잘 잡음" if q >= 0.85 else ("보통" if q >= 0.5 else "끝을 잡음")
+
+
+func _quality_color(q: float) -> Color:
+	return Color("b8e0a0") if q >= 0.85 else (Color("f1d59a") if q >= 0.5 else Color("ff9a6a"))
+
+
+## 색과 함께 모양으로도 구분: 좋음 = 동그라미, 보통 = 마름모, 끝 = 삼각형.
+func _draw_quality_glyph(c: Vector2, q: float, r: float) -> void:
+	var col := _quality_color(q)
+	var ink := Color("302820")
+	var pts := PackedVector2Array()
+	if q >= 0.85:
+		draw_circle(c, r, col)
+		draw_arc(c, r, 0, TAU, 20, ink, 2.0)
+		return
+	if q >= 0.5:
+		pts = PackedVector2Array([c + Vector2(0, -r), c + Vector2(r, 0), c + Vector2(0, r), c + Vector2(-r, 0)])
+	else:
+		pts = PackedVector2Array([c + Vector2(0, -r), c + Vector2(r, r), c + Vector2(-r, r)])
+	draw_colored_polygon(pts, col)
+	pts.append(pts[0])
+	draw_polyline(pts, ink, 2.0)
+
+
+func _draw_lock(c: Vector2, k: float, col: Color) -> void:
+	draw_arc(c + Vector2(0, -4 * k), 5 * k, PI, TAU, 10, col, 2.0 * k)
+	draw_rect(Rect2(c + Vector2(-7, -4) * k, Vector2(14, 11) * k), col)
+
+
+func _draw_button(r: Rect2, text: String, fs: int, fill: Color, text_col: Color, outline: Color = Color(1, 1, 1, 0.5)) -> void:
+	draw_rect(r, fill)
+	draw_rect(r, outline, false, 2.0)
+	draw_string(font, Vector2(r.position.x, r.position.y + r.size.y * 0.5 + fs * 0.35), text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, fs, text_col)
+
+
+func _screen_r(p: Vector2, meters: float) -> float:
+	return w2s(p).distance_to(w2s(p + Vector2(meters, 0)))
+
+
+func _draw_tech_ui(size: Vector2) -> void:
+	var k := ui_k
+	var btn := _btn_rect(size)
+	var running: Dictionary = session.runner.active
+	var disabled := (session.is_dragging() or session.falling) and running.is_empty()
+	var label := "기술"
+	if not running.is_empty():
+		var stage: String = STAGE_TEXT.get(running.step, "")
+		label = "풀기 · %s" % _techs[running.id].name_ko  # 실행 중 같은 버튼은 풀기(27 §6 5)
+		if not stage.is_empty():
+			label += " · " + stage
+	var open := session.selecting
+	_draw_button(btn, label, int(20 * k), Color("f1d59a", 0.9) if open else Color(0.1, 0.1, 0.1, 0.6 if not disabled else 0.35),
+		Color("302820") if open else Color(1, 1, 1, 0.45 if disabled else 1.0))
+	if session.is_dragging() and running.is_empty():
+		_draw_lock(btn.position + Vector2(btn.size.x - 20 * k, btn.size.y * 0.5), k, Color(1, 1, 1, 0.5))
+	if not open:
+		if session.deadpoint_window() and not session.falling and running.is_empty():
+			draw_string(font, Vector2(btn.position.x - 60 * k, btn.end.y + 24 * k), "지금 뻗으면 탄력으로 잡을 수 있어요", HORIZONTAL_ALIGNMENT_CENTER, btn.size.x + 120 * k, int(18 * k), Color("a8d8d0"))
+		return
+	draw_string(font, Vector2(btn.end.x + 14 * k, btn.position.y + btn.size.y * 0.5 + 8 * k), "고르는 중 · 시간 멈춤", HORIZONTAL_ALIGNMENT_LEFT, -1, int(24 * k), Color("fff2c8"))
+	match ui_mode:
+		UI.PANEL:
+			_draw_panel(size)
+		UI.SIDE:
+			_draw_prompt(btn, "%s · 쪽을 골라 주세요" % _techs[sel_tech].name_ko)
+			for side in [&"left", &"right"]:
+				if side_judge.has(side):
+					_draw_side_button(side)
+		UI.HOLD:
+			_draw_prompt(btn, "%s · 쓸 홀드를 눌러 주세요" % _techs[sel_tech].name_ko)
+			_draw_hold_select(size)
+
+
+func _draw_prompt(btn: Rect2, text: String) -> void:
+	draw_string(font, Vector2(btn.position.x - 160 * ui_k, btn.end.y + 30 * ui_k), text, HORIZONTAL_ALIGNMENT_CENTER, btn.size.x + 320 * ui_k, int(24 * ui_k), Color.WHITE)
+
+
+func _draw_panel(size: Vector2) -> void:
+	var k := ui_k
+	draw_rect(_panel_rect(size), Color(0.08, 0.07, 0.06, 0.7))
+	for i in TABS.size():
+		var on: bool = TABS[i][0] == tab
+		_draw_button(_tab_rect(size, i), TABS[i][1], int(22 * k), Color("f1d59a", 0.9) if on else Color(0.2, 0.2, 0.2, 0.7), Color("302820") if on else Color.WHITE)
+	var ids := _tab_techs(tab)
+	for i in ids.size():
+		var r := _entry_rect(size, i)
+		var is_dim: bool = dim.get(ids[i], false)
+		_draw_button(r, _techs[ids[i]].name_ko, int(19 * k), Color(0.18, 0.2, 0.2, 0.35 if is_dim else 0.9), Color(1, 1, 1, 0.5 if is_dim else 1.0), Color(1, 1, 1, 0.25 if is_dim else 0.6))
+		if is_dim:
+			_draw_lock(r.position + Vector2(r.size.x - 14 * k, 14 * k), k * 0.8, Color(1, 1, 1, 0.6))  # 색 말고 아이콘으로도 표시
+
+
+func _draw_side_button(side: StringName) -> void:
+	var k := ui_k
+	var r := _side_rect(side)
+	var j: Dictionary = side_judge[side]
+	var ok: bool = j.available
+	_draw_button(r, "왼쪽" if side == &"left" else "오른쪽", int(26 * k), Color("4fa3d9" if side == &"left" else "e08a3c", 0.9 if ok else 0.25),
+		Color(1, 1, 1, 1.0 if ok else 0.5), Color(1, 1, 1, 0.9 if ok else 0.3))
+	if not ok:
+		_draw_lock(r.position + Vector2(r.size.x * 0.5, r.size.y - 16 * k), k, Color(1, 1, 1, 0.75))
+
+
+func _draw_dashed_circle(c: Vector2, r: float, col: Color, width: float) -> void:
+	var n := 12
+	for i in n:
+		var a0 := TAU * i / n
+		draw_arc(c, r, a0, a0 + TAU / n * 0.55, 6, col, width)
+
+
+func _draw_hold_select(size: Vector2) -> void:
+	var k := ui_k
+	var hand := PoseSolver.is_hand(TechniqueJudge.limb_for(sel_tech, sel_side))
+	var solid := Color("fff2c8")
+	var shift := Color("a8d8d0")
+	for t in hold_targets:
+		var slot: Dictionary = route.slots[t.key]
+		var col := shift if t.needs_shift else solid
+		var c := w2s(slot.pos)
+		var rr := _screen_r(slot.pos, 0.11)
+		var ink := Color(0.19, 0.16, 0.13, 0.85)  # 밝은 벽에서도 보이게 어두운 밑선을 깐다
+		draw_arc(c, rr, 0, TAU, 28, ink, 7.0 * k)
+		if t.needs_shift:
+			_draw_dashed_circle(c, rr, col, 4.0 * k)  # 점선 = 체중을 옮긴 뒤 도달
+		else:
+			draw_arc(c, rr, 0, TAU, 28, col, 4.0 * k)  # 실선 = 지금 바로
+		var seg := _area_segment(slot, hand)
+		var a := w2s(seg[0])
+		var b := w2s(seg[1])
+		if hand:
+			draw_line(a, b, ink, 9.0 * k)
+			draw_line(a, b, Color(col, 0.95), 5.0 * k)  # 잡기 영역 선분
+			for e in [a, b]:
+				draw_circle(e, 4.0 * k, col)
+		else:
+			var n := (b - a).orthogonal().normalized() * _screen_r(slot.pos, 0.05)  # 디딤 면
+			draw_colored_polygon(PackedVector2Array([a + n, b + n, b - n, a - n]), Color(col, 0.45))
+			draw_polyline(PackedVector2Array([a + n, b + n, b - n, a - n, a + n]), ink, 5.0 * k)
+			draw_polyline(PackedVector2Array([a + n, b + n, b - n, a - n, a + n]), col, 2.5 * k)
+	draw_string(font, Vector2(0, size.y - 52 * k), "실선 = 바로 가능 · 점선 = 몸을 옮겨야 닿아요", HORIZONTAL_ALIGNMENT_CENTER, size.x, int(18 * k), Color(1, 1, 1, 0.8))
+	if preview.is_empty():
+		return
+	var pc := w2s(preview.point)
+	if preview.ok:
+		_draw_quality_glyph(pc, preview.quality, 11.0 * k)
+		var qp := pc + Vector2(-70 * k, -20 * k)
+		draw_string_outline(font, qp, _quality_label(preview.quality), HORIZONTAL_ALIGNMENT_CENTER, 140 * k, int(20 * k), 6, Color("302820"))
+		draw_string(font, qp, _quality_label(preview.quality), HORIZONTAL_ALIGNMENT_CENTER, 140 * k, int(20 * k), _quality_color(preview.quality))
+	else:
+		draw_line(pc + Vector2(-8, -8) * k, pc + Vector2(8, 8) * k, Color("ff8a6a"), 3.0 * k)
+		draw_line(pc + Vector2(-8, 8) * k, pc + Vector2(8, -8) * k, Color("ff8a6a"), 3.0 * k)
+		draw_string(font, pc + Vector2(-140 * k, -20 * k), preview.text, HORIZONTAL_ALIGNMENT_CENTER, 280 * k, int(18 * k), Color("ff8a6a"))

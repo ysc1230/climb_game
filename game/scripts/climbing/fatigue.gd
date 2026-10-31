@@ -10,8 +10,8 @@ const WARNING_EXIT := 35.0
 
 ## docs/04 §7 붙은 손의 변화율(초당). 위에서부터 첫 조건을 적용한다.
 ## rebalancing: 회복 없음 -30, 배율 없음. rest_ok: SupportedStable·정지가 6틱 유지됨.
-## 음수 변화율에는 max(1, 0.5+u) 배율(하중 큰 손이 더 빨리 지침).
-static func attached_hand_rate(rebalancing: bool, on_platform: bool, rest_ok: bool, loaded_feet: int, attached_hands: int, hand_u: float, hands_low_load: bool) -> float:
+## 음수 변화율에는 max(1, 0.5+u) 배율(하중 큰 손이 더 빨리 지침)과 접점 품질 배율 1+0.5(1−q).
+static func attached_hand_rate(rebalancing: bool, on_platform: bool, rest_ok: bool, loaded_feet: int, attached_hands: int, hand_u: float, hands_low_load: bool, quality: float = 1.0) -> float:
 	if rebalancing:
 		return -30.0
 	if on_platform and rest_ok:
@@ -25,7 +25,7 @@ static func attached_hand_rate(rebalancing: bool, on_platform: bool, rest_ok: bo
 		base = -3.0 if attached_hands >= 2 else -8.0
 	else:
 		base = -15.0 if attached_hands >= 2 else -30.0
-	return base * maxf(1.0, 0.5 + hand_u)
+	return base * maxf(1.0, 0.5 + hand_u) * (1.0 + 0.5 * (1.0 - quality))
 
 
 ## 보조 모드의 피로 끄기는 감소만 0으로 바꾼다.
