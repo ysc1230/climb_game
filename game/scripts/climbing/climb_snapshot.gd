@@ -21,6 +21,7 @@ var profile := {}            # 지금의 목표 탐색 선호 거리(무브 프�
 var executing := false       # 기술 실행 중
 var dragging := false        # 패드로 끄는 손발이 있음
 var falling := false
+var plan_cache := {}         # 플래그 위치 탐색 결과 캐시(같은 스냅숏에서 judge와 start가 다시 계산하지 않게)
 
 
 static func from_session(s: ClimbSession) -> ClimbSnapshot:

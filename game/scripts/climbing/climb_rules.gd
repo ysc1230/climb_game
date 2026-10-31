@@ -88,7 +88,7 @@ func _step_yaw(body: BodyState, attached: Dictionary, endpoints: Dictionary, pla
 	if absf(probe.yaw) > absf(body.yaw) + 1e-9:
 		var feet := PoseSolver.supporting_feet(body.pos, body.angle, attached, feet_eligible, probe.yaw)
 		var r := evaluate(body.pos, body.angle, attached, endpoints, platform, feet, probe.yaw)
-		if r.status != SupportSolver.Status.FEASIBLE or _barn_exceeded(r):
+		if r.status != SupportSolver.Status.FEASIBLE or barn_exceeded(r):
 			body.yaw_vel = 0.0
 			return
 	body.yaw = probe.yaw
@@ -171,7 +171,7 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 		_ctx_yaw = body.yaw
 		_ctx_prev_feasible = last.get("status", -1) == SupportSolver.Status.FEASIBLE
 		_ctx_prev_residual = last.get("residual", INF)
-		_ctx_prev_barn = _barn_exceeded(last)
+		_ctx_prev_barn = barn_exceeded(last)
 		_ctx_prev_barn_excess = _barn_excess(last)
 		var lateral := NAN
 		var weight := 0.0
@@ -258,9 +258,9 @@ func _accept(p: Vector2, a: float) -> bool:
 		if r.status != SupportSolver.Status.FEASIBLE:
 			return false
 		if not _ctx_prev_barn:
-			return not _barn_exceeded(r)  # 안정이던 자세는 barn door를 만드는 이동 불가
+			return not barn_exceeded(r)  # 안정이던 자세는 barn door를 만드는 이동 불가
 		# barn door 재균형 중: 초과분(τ−용량)이 늘지 않는 이동만
-		return not _barn_exceeded(r) or _barn_excess(r) <= _ctx_prev_barn_excess + ACCEPT_EPSILON
+		return not barn_exceeded(r) or _barn_excess(r) <= _ctx_prev_barn_excess + ACCEPT_EPSILON
 	return r.status == SupportSolver.Status.FEASIBLE or r.residual <= _ctx_prev_residual + ACCEPT_EPSILON
 
 
@@ -336,7 +336,8 @@ func _update_flags(body: BodyState, attached: Dictionary, endpoints: Dictionary,
 			flag_ready.append(foot)
 
 
-static func _barn_exceeded(r: Dictionary) -> bool:
+## barn door 초과 여부(적용되지 않으면 false).
+static func barn_exceeded(r: Dictionary) -> bool:
 	return r.get("barn", {}).get("exceeded", false)
 
 
@@ -353,7 +354,7 @@ func _apply_phase(r: Dictionary) -> void:
 		imbalance_cause = &""
 	elif r.status != SupportSolver.Status.FEASIBLE:
 		imbalance_cause = &"FORCE"
-	elif _barn_exceeded(r):
+	elif barn_exceeded(r):
 		imbalance_cause = &"BARN_DOOR"
 	else:
 		imbalance_cause = &""
@@ -378,7 +379,7 @@ static func balance_cost(r: Dictionary) -> float:
 
 
 func _phase_of(r: Dictionary) -> Phase:
-	if r.status != SupportSolver.Status.FEASIBLE or _barn_exceeded(r):
+	if r.status != SupportSolver.Status.FEASIBLE or barn_exceeded(r):
 		return Phase.REBALANCING
 	return Phase.STABLE if SupportSolver.max_u(r) <= SupportSolver.STABLE_LOAD_RATIO else Phase.STRAINED
 

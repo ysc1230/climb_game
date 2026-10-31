@@ -511,7 +511,7 @@ func _same_side_session() -> ClimbSession:
 	return s
 
 
-func test_flag_variants_positions() -> void:
+func test_flag_x_side_and_depth_hints() -> void:
 	# 같은 쪽: 지지발(LF) 바깥(오른쪽)으로, 인사이드·아웃사이드 위치는 이 자세에서 불가
 	var s1 := _same_side_session()
 	var snap1 := ClimbSnapshot.from_session(s1)
@@ -536,3 +536,81 @@ func test_flag_variants_positions() -> void:
 		var s3 := _barn_session()
 		runner.check(s3.runner.start(s3, id, &"right") == &"" and _run(s3) == "", "%s 실행" % id)
 		runner.check(is_equal_approx(s3.limbs[&"RF"].flag_depth, TechniqueJudge.flag_depth(id)), "%s limb.flag_depth 기록" % id)
+
+
+## 성능(예산 기술당 30ms): barn door 자세에서 세 플래그의 judge 시간.
+func test_flag_judge_time_budget() -> void:
+	for id in [&"T_FLAG", &"T_FLAG_INSIDE", &"T_FLAG_OUTSIDE"]:
+		var snap := ClimbSnapshot.from_session(_barn_session())  # 새 스냅숏: 캐시 없이 측정
+		var t0 := Time.get_ticks_usec()
+		TechniqueJudge.judge(snap, id)
+		var ms := (Time.get_ticks_usec() - t0) / 1000.0
+		print("    judge %s: %.1f ms" % [id, ms])
+		runner.check(ms <= 30.0, "%s judge %.1f ms <= 30" % [id, ms])
+
+
+## 붙어 있는 발도 떼도 버틸 수 있으면 플래그로 쓸 수 있다(떼기 경로).
+func test_flag_from_attached_foot() -> void:
+	var s := _same_side_session()
+	var rf: Dictionary = s.limbs[&"RF"]
+	var key: String = rf.key
+	rf.state = "Attached"
+	rf.pos = s.route.slot_pos(key)
+	rf.grab = rf.pos
+	rf.req = rf.pos
+	rf.contact = GripCheck.contact_for(key, s.route.slots, &"RF", rf.pos)
+	s.rules.contact_meta = s._contact_meta()
+	s.rules.reset(s.body, s.attached(), {&"RH": s.limbs[&"RH"].pos}, false)
+	var snap := ClimbSnapshot.from_session(s)
+	var j := TechniqueJudge.judge_side(snap, &"T_FLAG", &"right")
+	runner.check(j.available, "붙은 RF에서 같은 쪽 플래그 가능: %s" % [j])
+	if j.available:
+		runner.check(s.runner.start(s, &"T_FLAG", &"right") == &"", "시작(붙은 발)")
+		runner.check(_run(s) == "", "완료")
+		runner.check(s.limbs[&"RF"].state == "Flag", "떼고 Flag: %s" % s.limbs[&"RF"].state)
+		var types: Array = s.technique_log.map(func(e): return e.type)
+		runner.check(types == [TechniqueRunner.STARTED, TechniqueRunner.SUCCEEDED], "이벤트: %s" % [types])
+
+
+## 지지발(반대 발)이 붙어 있고 하중을 받아야 한다.
+func test_flag_needs_loaded_support_foot() -> void:
+	var s := _barn_session()
+	var lf: Dictionary = s.limbs[&"LF"]
+	lf.state = "Free"
+	lf.contact = null
+	s.rules.contact_meta = s._contact_meta()
+	s.rules.reset(s.body, s.attached(), {&"RH": BARN_FREE[&"RH"], &"RF": BARN_FREE[&"RF"], &"LF": lf.pos}, false)
+	var snap := ClimbSnapshot.from_session(s)
+	for id in [&"T_FLAG", &"T_FLAG_INSIDE", &"T_FLAG_OUTSIDE"]:
+		var j := TechniqueJudge.judge_side(snap, id, &"right")
+		runner.check(not j.available and j.reason == TechniqueJudge.LIMB_STATE and j.text != TechniqueJudge.FLAG_NO_GAIN_TEXT, "%s 지지발 없으면 불가: %s" % [id, j])
+
+
+## TA11: 패드 균형 발 예고(rules.flag_ready)와 기술 판단이 같은 비용(flag_cost)을 쓴다.
+## 패드 예고는 지금 발이 있는 자리를, 기술은 최적 자리를 본다. 그래서 (1) 기술이 가능하면 그 최적 자리에 둔 발은 예고가 켜지고,
+## (2) 기술이 불가능한 자세(R01 시작)에서는 예고도 꺼져 있다. 변형은 구분하지 않으므로 "어느 변형이든"과 비교한다.
+func test_flag_pad_readiness_parity() -> void:
+	var s := _barn_session()
+	var snap := ClimbSnapshot.from_session(s)
+	var plan := TechniqueJudge.flag_plan(snap, &"T_FLAG_INSIDE", &"RF")
+	runner.check(not plan.is_empty(), "전제: barn 자세에서 기술 가능")
+	var l: Dictionary = s.limbs[&"RF"]
+	l.state = "Dragging"
+	l.pos = plan.point
+	l.req = plan.point
+	s.rules.contact_meta = s._contact_meta()
+	var probe: Array = [&"RF"]
+	s.rules.tick(s.body, s.attached(), {&"RH": s.limbs[&"RH"].pos, &"RF": plan.point}, false, true, {&"RF": plan.point}, {}, probe)
+	runner.check(s.rules.flag_ready.has(&"RF"), "최적 자리에 둔 발은 패드 예고도 켜짐")
+	var s2 := _session(_r01(), 0)
+	var snap2 := ClimbSnapshot.from_session(s2)
+	var any := false
+	for id in [&"T_FLAG", &"T_FLAG_INSIDE", &"T_FLAG_OUTSIDE"]:
+		for side in [&"left", &"right"]:
+			any = any or TechniqueJudge.judge_side(snap2, id, side).available
+	var l2: Dictionary = s2.limbs[&"RF"]
+	l2.state = "Dragging"
+	l2.contact = null
+	l2.req = l2.pos
+	s2.step()
+	runner.check(not any and not s2.rules.flag_ready.has(&"RF"), "R01 시작: 기술 불가·패드 예고 꺼짐")

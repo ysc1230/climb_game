@@ -67,6 +67,8 @@ const HIGH_FOOT_BELOW_HIP := 0.55    # 언더클링의 "높은 발": 하중 발 
 const DROP_KNEE_YAW := 35.0          # 27 §10: 드롭니 ψ 목표(도). 그 발 쪽 엉덩이를 벽으로: 왼발 ψ<0, 오른발 ψ>0
 const OUTSIDE_EDGE_YAW := 30.0       # 27 §10: 아웃사이드 엣지 ψ 목표(도)
 const FLAG_GRID := 0.05              # 플래그 위치 탐색 격자(m, 04 §10.6)
+const FLAG_COARSE := 3               # 1차 거친 탐색 간격 = FLAG_GRID × 3 (0.15m)
+const FLAG_REFINE_TOP := 3           # 거친 탐색 상위 몇 점 주변을 0.05m로 다듬는가
 const FLAG_NO_GAIN_TEXT := "지금은 균형에 도움이 안 돼요"
 const FLAG_MIN_BELOW_JOINT := 0.10   # 플래그 발은 고관절보다 이만큼 이상 아래(m, 구현 해석)
 ## 변형별 깊이 힌트(m, 표현용; 판정은 평면): 인사이드는 지지발 앞(벽과 몸 사이), 아웃사이드는 뒤
@@ -255,6 +257,16 @@ static func _judge_flag(snap: ClimbSnapshot, tech_id: StringName, foot: StringNa
 ## 영역(지지발 X 기준): 같은 쪽 = 그 발 쪽 바깥, 인사이드·아웃사이드 = 지지발 너머로 교차(평면 판정은 같고 깊이 힌트만 다름).
 ## 반환 {point, cost, gain}
 static func flag_plan(snap: ClimbSnapshot, tech_id: StringName, foot: StringName) -> Dictionary:
+	# 인사이드·아웃사이드는 평면 판정이 같아 한 번만 계산한다
+	var cache_key := [T_FLAG if tech_id == T_FLAG else T_FLAG_INSIDE, foot]
+	if snap.plan_cache.has(cache_key):
+		return snap.plan_cache[cache_key]
+	var plan := _flag_search(snap, tech_id, foot)
+	snap.plan_cache[cache_key] = plan
+	return plan
+
+
+static func _flag_search(snap: ClimbSnapshot, tech_id: StringName, foot: StringName) -> Dictionary:
 	var b := snap.body
 	var att := snap.attached.duplicate()
 	var meta := snap.contact_meta.duplicate()
@@ -277,34 +289,48 @@ static func flag_plan(snap: ClimbSnapshot, tech_id: StringName, foot: StringName
 	var rest := PoseSolver.clamp_endpoint(b.pos, b.angle, foot, cur, b.pos + Vector2(0.25 * s, -0.70), b.yaw)
 	eps[foot] = rest
 	var rest_cost := ClimbRules.flag_cost(rules.evaluate(b.pos, b.angle, att, eps, false, feet, b.yaw))
-	var reach := PoseSolver.reach_of(foot).y
-	var n := int(ceil(reach / FLAG_GRID))
-	var best := {}
-	var best_cost := INF
-	for ix in range(-n, n + 1):
-		for iy in range(-n, 0):
-			var p := joint + Vector2(ix, iy) * FLAG_GRID
-			if p.y > joint.y - FLAG_MIN_BELOW_JOINT:
-				continue
-			var dx := (p.x - sup_x) * s
-			if tech_id == T_FLAG and not (dx >= 0.0 and (p.x - joint.x) * s >= 0.0):
-				continue
-			if tech_id != T_FLAG and dx >= 0.0:
-				continue
-			if PoseSolver.clamp_endpoint(b.pos, b.angle, foot, cur, p, b.yaw).distance_to(p) > 0.01:
-				continue  # 관절 방향·거리 범위 밖
-			eps[foot] = p
-			var r := rules.evaluate(b.pos, b.angle, att, eps, false, feet, b.yaw)
-			if r.status != SupportSolver.Status.FEASIBLE or r.barn.exceeded:
-				continue
-			var c := ClimbRules.flag_cost(r)
-			if c < best_cost - 1e-9:
-				best_cost = c
-				best = {"point": p, "cost": c}
-	if best.is_empty() or rest_cost - best_cost < Tuning.FLAG_COST_IMPROVEMENT:
+	var n := int(ceil(PoseSolver.reach_of(foot).y / FLAG_GRID))
+	var seen := {}
+	var scored: Array = []  # [[cost, ix, iy], ...]
+	# 격자 인덱스 (ix, iy)는 joint 기준. 평가한 점은 seen에 기록해 중복 계산을 막는다
+	var eval_point := func(ix: int, iy: int) -> void:
+		var key := Vector2i(ix, iy)
+		if seen.has(key) or iy >= 0 or absi(ix) > n or iy < -n:
+			return
+		seen[key] = true
+		var p := joint + Vector2(ix, iy) * FLAG_GRID
+		if p.y > joint.y - FLAG_MIN_BELOW_JOINT:
+			return
+		var dx := (p.x - sup_x) * s
+		if tech_id == T_FLAG and not (dx >= 0.0 and (p.x - joint.x) * s >= 0.0):
+			return
+		if tech_id != T_FLAG and dx >= 0.0:
+			return
+		if PoseSolver.clamp_endpoint(b.pos, b.angle, foot, cur, p, b.yaw).distance_to(p) > 0.01:
+			return  # 관절 방향·거리 범위 밖
+		eps[foot] = p
+		var r := rules.evaluate(b.pos, b.angle, att, eps, false, feet, b.yaw)
+		if r.status != SupportSolver.Status.FEASIBLE or ClimbRules.barn_exceeded(r):
+			return
+		scored.append([ClimbRules.flag_cost(r), ix, iy])
+	# 1차: 거친 격자(0.15m)
+	for ix in range(-n, n + 1, FLAG_COARSE):
+		for iy in range(-n, 0, FLAG_COARSE):
+			eval_point.call(ix, iy)
+	if scored.is_empty():
 		return {}
-	best["gain"] = rest_cost - best_cost
-	return best
+	scored.sort_custom(func(x, y): return x[0] < y[0])
+	# 2차: 상위 몇 점 주변을 0.05m 격자로 다듬는다(이웃 ±(FLAG_COARSE-1) 칸)
+	var tops := scored.slice(0, FLAG_REFINE_TOP)
+	for t in tops:
+		for dx in range(-(FLAG_COARSE - 1), FLAG_COARSE):
+			for dy in range(-(FLAG_COARSE - 1), FLAG_COARSE):
+				eval_point.call(t[1] + dx, t[2] + dy)
+	scored.sort_custom(func(x, y): return x[0] < y[0])
+	var best: Array = scored[0]
+	if rest_cost - best[0] < Tuning.FLAG_COST_IMPROVEMENT:
+		return {}
+	return {"point": joint + Vector2(best[1], best[2]) * FLAG_GRID, "cost": best[0], "gain": rest_cost - best[0]}
 
 
 ## 목표 yaw에서 자세가 성립하는가(몸통 위치·각도는 지금 그대로). 성립하면 &"".
@@ -368,7 +394,7 @@ static func support_reason(snap: ClimbSnapshot, pelvis: Vector2, angle: float, y
 	var r := rules.evaluate(pelvis, angle, att, eps, false, feet, yaw)
 	if r.status != SupportSolver.Status.FEASIBLE:
 		return SUPPORT_OVERLOAD
-	if r.barn.exceeded:
+	if ClimbRules.barn_exceeded(r):
 		return BARN_DOOR
 	return &""
 
