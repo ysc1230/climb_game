@@ -117,6 +117,6 @@ GeometryChecked는 완성된 배치의 모든 시작/CP·경로 자세에 대한
 - **발 디딤 면:** 위쪽 면의 중심과 위 방향. 반높이는 외형의 디딤 면 높이의 절반.
 - **잡기 방식:** 모서리가 아래를 향하면 undercling, 수직 모서리면 sidepull/gaston. 한 홀드에 여러 방식을 둘 수 있으며 첫 항목이 패드 기본이다. 방식마다 force_axis는 모서리가 버티는 방향이다.
 - **발 회전:** 평평한 발판·볼륨은 pivot_allowed=true, 아주 작은 칩·뾰족한 발판은 false.
-- **변환:** 기존 R01의 손홀드는 hand_area 반폭 0.08m·grip_modes=[pull], 발판은 foot_area 반높이 0.04m·pivot_allowed=true로 바꾸고 content_version을 올린다. 정상 G01은 반폭 0.30m 선분 하나로 두 손을 받는다(goal_left/right를 선분 구간으로 대체).
+- **변환:** 기존 R01의 손홀드는 hand_area 반폭 0.08m·grip_modes=[pull], 발판은 foot_area 반높이 0.04m·pivot_allowed=true로 바꾸고 content_version을 올린다. 정상 G01은 기존처럼 goal_left/goal_right 두 슬롯을 유지하고 각 슬롯에 반폭 0.08m 손 잡기 영역을 준다(설계자 판단: 완등 판정 변경 최소화). 새 필드가 없는 기존 슬롯은 9장 기본값으로 읽히므로 R01 JSON은 그대로 두고 tuning_version만 올린다.
 - **테스트 전용 루트:** 판단기 검수용으로 `TX_TECH`(사이드풀·개스턴·언더클링 홀드, 좁은/넓은 홀드, pivot 금지 발판, 같은 쪽 손·발만 닿는 구간)를 만든다. 일반 진행에는 나오지 않는다.
 - **기술 의도 경로:** 의도 경로 각 행에 사용할 기술 ID(선택)를 적는다. 기술 없이도 같은 홀드를 패드로 갈 수 있는지 여부를 함께 기록한다.
