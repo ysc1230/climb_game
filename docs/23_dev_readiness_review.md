@@ -208,3 +208,58 @@ REF01과의 남은 차이: 실제 리깅 캐릭터와 의상, 손으로 그린 �
 - 손 하중 항이 없으면 높은 발로 일어설 때 골반이 그 발에서 멀어지는 쪽으로 밀렸다(측정 x=+0.38). 하중 발 대체 항(StandUp은 올린 발 위)으로 Rockover 방향을 바로잡았다.
 - 벽면 내 지지 근사에서는 Flag의 효과가 작다. 같은 쪽 손·발 지지에서 몸이 0.2m 이상 벗어나야 문턱(0.02)을 넘는다.
 - 미구현: SideOn/DropKnee(yaw/pitch), 점선 도달 영역(체중 이동 후 도달), 몸·사지 충돌·경로 sweep, 손 하중 u² 항의 정식 구현, 튜토리얼(T01~T03) 저작.
+
+## v0.6 기술 버튼 구현 (2026-11-01)
+
+설계는 27, 수치는 04 §10. 계획 `docs/superpowers/plans/2026-10-31-technique-buttons.md`의 Task 1~10을 구현했다.
+
+| Task | 구현 | 위치 |
+| --- | --- | --- |
+| 1 | 홀드 영역(HoldArea) 투영·구간, R01 홀드 반폭 0.12m 확대(합손), 슬롯 grip_modes/축 데이터 | `hold_area.gd`, `data/routes/R01.json` |
+| 2 | 접점 정보(ContactInfo: 방식·모서리·품질), 영역 기반 후보 탐색, 손 겹침 허용 구간 | `grip_check.gd`, `play_test.gd` |
+| 3 | 그립 방식별 지지력(품질 비례 용량, 사이드풀·언더클링·가스톤 힘 축), `contact_meta` | `climb_rules.gd`, `support_solver.gd` |
+| 4 | `ClimbSession`: 입력 적용·접점 메타·낙하/리스폰·지지 검사를 UI에서 분리 | `climb_session.gd` |
+| 5 | 몸통 yaw 자유도(±40°), `yaw_target`, 관절 한계·리그 반영 | `pose_solver.gd`, `climb_rules.gd`, 리그 |
+| 6 | 배드 도어(barn door) 회전 토크 판정, `imbalance_cause` | `climb_rules.gd` |
+| 7 | 기술 정의 데이터와 로더(TechniqueDefs, 단계·실수·body_parts) | `data/techniques/*`, `technique_defs.gd` |
+| 8a | 판단기: 매치, 풋스왑, 하이스텝, 사이드풀, 언더클링, 가스톤, 크로스 | `technique_judge.gd` |
+| 8b | 드롭니, 아웃사이드/인사이드 엣지(yaw 기술), 한 번에 하나(Ruling 9) | `technique_judge.gd`, `technique_runner.gd` |
+| 8c | 플래그(안/밖) 판단과 다리 깊이, 균형 비용에 배드 도어 토크 감소 반영 | `technique_judge.gd` |
+| 9 | 데드포인트: 윈도(0.20 m/s), 패드 데드포인트, 잡기 가능성, 낙하 `DEADPOINT_MISS` | `climb_session.gd`, `technique_runner.gd`, `input_router.gd` |
+| 10 | 기술 선택 UI(open/close_select), 단계 문구, 하이라이트, 비활성 사유 | `play_test.gd` |
+
+판단(Ruling)과 틀렸을 때의 비용:
+
+| # | 판단 | 틀렸을 때 비용 |
+| --- | --- | --- |
+| 1 | T2 투영 품질 테스트 기대값을 반폭 0.12 기준 1−(0.05/0.12)²로 | 테스트 기대값만 수정 |
+| 2 | 작업 중 main push·release 안 함, finishing에서 사용자 선택 | APK 배포가 늦어짐 |
+| 3 | 플래그 테스트는 flag로 τ가 용량 아래로 내려가는 배드 도어 자세(골반 x=−0.30) 사용 | 플래그가 설계보다 약해 보임(G2 튜닝 문제) |
+| 4 | body_parts 어휘에 torso+hand, foot+torso 추가 | 메타데이터 라벨만 변경 |
+| 5 | 기술별 NO_HOLD/JOINT_LIMIT 문구(튜토리얼 설명)와 UI 사유 문구(27 §7.3)를 분리 | 문구 출처 두 곳 동기화 필요 |
+| 6 | 매치는 이미 잡은 손을 같은 홀드 중심±0.04로 옮겨 두 손 품질 ≥0.85 | 자동 손 미끄러짐 한 번 추가 |
+| 7 | 사이드풀 힘 축은 몸→홀드(바깥), 가스톤은 홀드 반대(안쪽) | 데이터 수정 |
+| 8 | 크로스 경로의 몸통 충돌 검사 보류(몸통 충돌 모델·04 H05 미구현) | 팔이 몸통을 통과해 보일 수 있음 |
+| 9 | yaw 기술(드롭니·아웃사이드) 유지 중 다른 기술 버튼은 WRONG_PHASE, 패드는 사용 가능 | 드롭니+버튼 데드포인트/크로스 연계 불가(패드는 가능) |
+| 10 | 데드포인트 윈도 문턱 0.25→0.20 m/s(자연 일어서기 최대 0.2441, 04 §10.5 초기 가설), 04/27 갱신, 자연 플레이 테스트 추가 | 데드포인트가 약간 쉬움 |
+| 11 | 잡기 가능성은 모든 접점 최대 하중을 /1.3("순간 하중 1.3배" 해석) | 잡기가 약간 어려움 |
+| 12 | 패드 데드포인트는 뗄 때 속도 ≥1.0 m/s이고 목표 방향 일치할 때만, 아니면 일반 Free | 느리게 의도한 도약은 데드포인트 안 됨 |
+
+| 검사(헤드리스, 맥) | 결과 |
+| --- | --- |
+| 전체 테스트 | 141개 중 0개 실패 |
+| R01 route_check (content_version 4) | 의도 경로·좌우 순서 교체 모두 통과, 완등 1596틱(26.60초), 최대 손 사용률 u 0.30, 최저 손 피로 96, 전 구간 Stable |
+| TX_TECH route_check | 의도 경로 없음(intended_moves 비어 있음, 기술 시험용 벽이라 완등 경로 미저작) |
+| 틱 비용(R01 의도 경로 1613틱 재생) | 평균 1.55ms/틱 (v0.5 1.45ms) |
+| 판단기 비용(test_judge, 지원 기술 16개 TX_TECH) | 총 약 102ms, 기술당 평균 약 6.4ms (최대 hold_targets T_CROSS/right 9.0ms) |
+| 플래그 판단 | T_FLAG 4.8ms, T_FLAG_INSIDE 5.9ms, T_FLAG_OUTSIDE 5.9ms |
+
+판단기는 버튼을 누를 때 한 번 호출되므로 틱 루프 비용에는 포함되지 않는다.
+
+미구현:
+
+- 2차 기술: 힐훅, 토훅, 스미어링.
+- 기술 튜토리얼과 기술별 문제(루트) 저작.
+- 크로스 시 몸통 충돌(경로 body-collision 검사, Ruling 8).
+- 실기기(안드로이드) 검증: 기술 선택 UI 터치 조작, 패드 데드포인트 속도 감각, 틱·판단기 비용.
+- 이월된 minor(progress 기록): 판단기 DEADPOINT_* 상수의 Tuning 이전, play_test.gd 분량(약 600줄) tech_ui 분리, 비활성 상태 기술 탭 피드백 등.
