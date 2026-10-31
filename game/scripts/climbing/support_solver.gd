@@ -44,9 +44,14 @@ static func com_proxy(pelvis: Vector2, angle_deg: float, endpoints: Dictionary) 
 
 static func contact(limb: StringName, pos: Vector2) -> Dictionary:
 	var hand := PoseSolver.is_hand(limb)
-	return {"limb": limb, "pos": pos, "axis": Vector2(0, 1),
-		"half_angle": HAND_HALF_ANGLE if hand else FOOT_HALF_ANGLE,
-		"max_load": HAND_MAX_LOAD if hand else FOOT_MAX_LOAD}
+	return contact_with(limb, pos, Vector2(0, 1),
+		HAND_HALF_ANGLE if hand else FOOT_HALF_ANGLE,
+		HAND_MAX_LOAD if hand else FOOT_MAX_LOAD)
+
+
+## 방식·품질을 반영한 접점(docs/04 §10): 힘 축·반각·최대 하중을 직접 지정한다.
+static func contact_with(limb: StringName, pos: Vector2, axis: Vector2, half_angle: float, max_load: float) -> Dictionary:
+	return {"limb": limb, "pos": pos, "axis": axis, "half_angle": half_angle, "max_load": max_load}
 
 
 ## contacts: contact() 배열. 반환:

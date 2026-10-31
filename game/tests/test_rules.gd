@@ -93,3 +93,39 @@ func test_slipped_hand_is_reported() -> void:
 	rules.stamina[&"LH"] = 0.01
 	rules.tick(body, {&"LH": START[&"LH"]}, {}, false, false)  # 한 손만: 무거운 하중으로 소진
 	runner.check(rules.slipped.has(&"LH"), "피로 0 손은 slipped")
+
+
+func _meta(q: float, mode: StringName = &"pull") -> ContactInfo:
+	return ContactInfo.make("k", Vector2.ZERO, q, mode, &"")
+
+
+func test_low_quality_tires_faster() -> void:
+	var drops := []
+	for q in [1.0, 0.25]:
+		var rules := ClimbRules.new()
+		var body := BodyState.new(Vector2(0, 0.83))
+		rules.contact_meta = {&"LH": _meta(q)}
+		rules.reset(body, START, {}, false)
+		rules.stamina[&"LH"] = 50.0
+		rules.tick(body, START, {}, false, false)
+		drops.append(50.0 - rules.stamina[&"LH"])
+	runner.check(drops[0] > 0.0, "q=1 손은 감소 %.4f" % drops[0])
+	var ratio: float = drops[1] / drops[0]
+	runner.check(absf(ratio - (1.0 + 0.5 * 0.75)) < 0.014, "q=0.25 감소 비율 %.3f ≈ 1.375" % ratio)
+
+
+func test_undercling_below_shoulder_eligible_with_loaded_foot() -> void:
+	var rules := ClimbRules.new()
+	var shoulder := PoseSolver.joint_position(Vector2(0, 0.83), 0, PoseSolver.LH)
+	var att := {&"LH": shoulder + Vector2(0.0, -0.3), &"LF": Vector2(-0.2, 0.1)}
+	rules.contact_meta = {&"LH": _meta(1.0, &"undercling")}
+	var feet: Array = [&"LF"]
+	rules.loaded_feet = [&"LF"]
+	var with_foot := rules.contacts_for(Vector2(0, 0.83), 0, att, feet)
+	runner.check(with_foot.any(func(c): return c.limb == &"LH"), "하중 발 1개면 언더클링 손 포함")
+	rules.loaded_feet = []
+	var without := rules.contacts_for(Vector2(0, 0.83), 0, att, feet)
+	runner.check(not without.any(func(c): return c.limb == &"LH"), "하중 발 0이면 제외")
+	rules.contact_meta = {}
+	rules.loaded_feet = [&"LF"]
+	runner.check(not rules.contacts_for(Vector2(0, 0.83), 0, att, feet).any(func(c): return c.limb == &"LH"), "pull이면 어깨 아래 손은 제외")

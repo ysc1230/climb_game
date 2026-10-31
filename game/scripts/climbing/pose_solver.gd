@@ -131,16 +131,21 @@ static func clamp_endpoint(pelvis: Vector2, angle_deg: float, limb: StringName, 
 	return joint + (local * r).rotated(deg_to_rad(angle_deg))
 
 
-## 손 접점의 하중 자격: 일반 pull 슬롯이 어깨보다 0.10m 넘게 낮으면 자격 없음.
-static func hand_load_eligible(pelvis: Vector2, angle_deg: float, limb: StringName, slot: Vector2) -> bool:
+## 손 접점의 하중 자격: pull 슬롯이 어깨보다 0.10m 넘게 낮으면 자격 없음.
+## 그 외 방식은 항상 true(언더클링의 하중 받는 발 조건은 ClimbRules가 본다).
+static func hand_load_eligible(pelvis: Vector2, angle_deg: float, limb: StringName, slot: Vector2, mode: StringName = &"pull") -> bool:
+	if mode != &"pull":
+		return true
 	return slot.y >= joint_position(pelvis, angle_deg, limb).y - Tuning.HAND_LOAD_MAX_BELOW_SHOULDER
 
 
 ## 하중 자격이 있는 붙은 손의 수.
-static func eligible_hands(pelvis: Vector2, angle_deg: float, attached: Dictionary) -> int:
+## meta: limb -> ContactInfo (없으면 pull).
+static func eligible_hands(pelvis: Vector2, angle_deg: float, attached: Dictionary, meta: Dictionary = {}) -> int:
 	var n := 0
 	for limb in [LH, RH]:
-		if attached.has(limb) and hand_load_eligible(pelvis, angle_deg, limb, attached[limb]):
+		var mode: StringName = meta[limb].mode if meta.has(limb) else &"pull"
+		if attached.has(limb) and hand_load_eligible(pelvis, angle_deg, limb, attached[limb], mode):
 			n += 1
 	return n
 

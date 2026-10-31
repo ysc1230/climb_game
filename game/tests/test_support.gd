@@ -63,3 +63,23 @@ func test_solver_speed() -> void:
 	var per := (Time.get_ticks_usec() - t0) / 100.0
 	print("    SupportSolver 1회 평균 %.0fµs (맥, 헤드리스)" % per)
 	runner.check(per < 3000.0, "1회 %.0fµs" % per)
+
+
+func test_quality_scales_capacity() -> void:
+	# 한 손 바로 아래 매달림: q=1(최대 1.10)은 가능, q=0(최대 0.55)은 불가
+	var good := SupportSolver.contact_with(&"LH", Vector2(0, 2.0), Vector2(0, 1), 65.0, SupportSolver.HAND_MAX_LOAD)
+	var bad := SupportSolver.contact_with(&"LH", Vector2(0, 2.0), Vector2(0, 1), 65.0 * 0.6, SupportSolver.HAND_MAX_LOAD * 0.5)
+	runner.check(SupportSolver.solve([good], Vector2(0, 1.0)).status == SupportSolver.Status.FEASIBLE, "q=1 가능")
+	runner.check(SupportSolver.solve([bad], Vector2(0, 1.0)).status == SupportSolver.Status.INFEASIBLE, "q=0 불가")
+
+
+func test_sidepull_axis_horizontal() -> void:
+	var hand := SupportSolver.contact_with(&"LH", Vector2(-0.4, 1.4), Vector2(-1, 0), 50.0, SupportSolver.HAND_MAX_LOAD)
+	# 발이 멀리 왼쪽에 있어 발만으로는 모멘트가 안 맞고, 사이드풀 손이 왼쪽으로 당겨야 한다
+	var feet := [_c(&"LF", -2.0, 0.1), _c(&"RF", -1.8, 0.1)]
+	var r := SupportSolver.solve([hand] + feet, Vector2(0, 1.0))
+	runner.check(r.status == SupportSolver.Status.FEASIBLE, "사이드풀 해 있음, 잔차 %.4f" % r.residual)
+	runner.check(r.loads[&"LH"] > 0.05, "사이드풀 손이 하중을 받음 %.3f" % r.loads[&"LH"])
+	# 힘은 축 (-1,0) ±50° 안의 조합이라 하중이 있으면 X 성분이 음수(cos50°·load 만큼)
+	var fx: float = r.loads[&"LH"] * -1.0 * cos(deg_to_rad(50.0))
+	runner.check(fx < 0.0 and (hand.axis as Vector2).x < 0.0, "손 힘 X 성분 음수 %.3f" % fx)

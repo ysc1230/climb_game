@@ -118,7 +118,11 @@ static func contact_for(slot_key: String, slots: Dictionary, limb: StringName, p
 	var slot: Dictionary = slots[slot_key]
 	if PoseSolver.is_hand(limb):
 		var q: float = HoldArea.project_hand(slot, point).quality
-		return ContactInfo.make(slot_key, point, q, slot.grip_modes[0].mode, &"")
+		var gm: Dictionary = slot.grip_modes[0]
+		var ci := ContactInfo.make(slot_key, point, q, gm.mode, &"")
+		ci.axis = gm.axis
+		ci.half_angle = gm.half_angle
+		return ci
 	var qf: float = HoldArea.project_foot(slot, point).quality
 	return ContactInfo.make(slot_key, point, qf, &"foot", &"inside")
 

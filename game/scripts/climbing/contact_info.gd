@@ -7,6 +7,8 @@ var point: Vector2 = Vector2.ZERO
 var quality: float = 1.0
 var mode: StringName = &"pull"   # 손: pull/sidepull/gaston/undercling, 발: foot
 var edge: StringName = &""       # 발: inside/outside/toe/drop_knee, 손: 빈 값
+var axis: Vector2 = Vector2(0, 1)  # 손: 그립 방식의 힘 축(grip_modes)
+var half_angle: float = 0.0        # 손: 방식의 반각, 0이면 기본(SupportSolver)
 
 
 static func make(p_key: String, p_point: Vector2, p_quality: float, p_mode: StringName, p_edge: StringName) -> ContactInfo:

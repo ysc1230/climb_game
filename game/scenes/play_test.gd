@@ -65,7 +65,9 @@ func _reset(reason: String) -> void:
 	for limb in PoseSolver.LIMBS:
 		var key: String = route.start_slots[limb]
 		var p := route.slot_pos(key)
-		limbs[limb] = {"state": "Attached", "key": key, "pos": p, "grab": p, "req": p, "cand": {}, "flag": p}
+		limbs[limb] = {"state": "Attached", "key": key, "pos": p, "grab": p, "req": p, "cand": {}, "flag": p,
+			"contact": GripCheck.contact_for(key, route.slots, limb, p)}
+	rules.contact_meta = _contact_meta()
 	rules.reset(body, _attached(), {}, false)
 	goal_ticks = 0
 	falling = false
@@ -89,6 +91,16 @@ func _attached() -> Dictionary:
 	for limb in limbs:
 		if limbs[limb].state == "Attached" or limbs[limb].state == "Armed":
 			d[limb] = limbs[limb].grab
+	return d
+
+
+## 붙은 팔다리의 접점 정보 (limb → ContactInfo). 뗀 팔다리는 포함하지 않는다.
+func _contact_meta() -> Dictionary:
+	var d := {}
+	for limb in limbs:
+		var l: Dictionary = limbs[limb]
+		if l.state in ["Attached", "Armed"] and l.get("contact") != null:
+			d[limb] = l.contact
 	return d
 
 
@@ -141,6 +153,7 @@ func _apply(cmds: Array) -> void:
 					l.state = "Attached"
 			"detach":
 				l.state = "Dragging"
+				l.contact = null
 				l.req = l.pos
 			"move":
 				l.req = _clamp_to_reach(c.limb, l.req, l.req + c.delta)
@@ -248,10 +261,12 @@ func _physics_process(_delta: float) -> void:
 				hints[limb] = MoveClassifier.FOOT_SWAP
 			if l.cand.is_empty():
 				flag_probe.append(limb)
+	rules.contact_meta = _contact_meta()
 	var outcome := rules.tick(body, attached, endpoints, _on_platform(attached), moving, intents, hints, flag_probe)
 	_drag_hints(attached, occupied)
 	for hand in rules.slipped:
 		limbs[hand].state = "Free"
+		limbs[hand].contact = null
 		_flash("손이 미끄러졌어요")
 	if rules.phase != last_phase:
 		if rules.phase == ClimbRules.Phase.REBALANCING:

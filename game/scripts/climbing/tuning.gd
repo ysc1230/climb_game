@@ -4,8 +4,8 @@ extends RefCounted
 ## 모든 값은 조정용 초깃값이며 검증된 값이 아니다.
 
 ## 조정 버전(docs/09 tuning_version). 판정 수치·규칙이 바뀌면 올린다.
-## 1: v0.4 거리 기반, 2: v0.5 방향·3D 거리·지지 하중, 3: v0.5 무브별 선호·의도 비용
-const TUNING_VERSION := 3
+## 1: v0.4 거리 기반, 2: v0.5 방향·3D 거리·지지 하중, 3: v0.5 무브별 선호·의도 비용, 4: v0.6 접점 품질·그립 방식
+const TUNING_VERSION := 4
 
 const TICK_HZ := 60
 const DT := 1.0 / TICK_HZ

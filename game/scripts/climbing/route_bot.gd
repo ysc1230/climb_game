@@ -60,6 +60,7 @@ func _play(moves: Array) -> void:
 	for limb in route.start_slots:
 		attached_keys[limb] = route.start_slots[limb]
 		attached[limb] = route.slot_pos(route.start_slots[limb])
+		_set_meta(limb, route.start_slots[limb])
 	rules.reset(body, attached, endpoints, _on_platform())
 	_settle()
 	log.append("시작 안정 자세 골반=(%.3f, %.3f) θ=%.1f° (저작값 %.3f, %.3f)" % [body.pos.x, body.pos.y, body.angle, route.start_pelvis.x, route.start_pelvis.y])
@@ -74,6 +75,7 @@ func _move(limb: StringName, key: String) -> bool:
 	var from: Vector2 = attached[limb]
 	attached.erase(limb)
 	attached_keys.erase(limb)
+	rules.contact_meta.erase(limb)
 	endpoints[limb] = from
 	moving = true
 	intents[limb] = target
@@ -91,6 +93,7 @@ func _move(limb: StringName, key: String) -> bool:
 			if PoseSolver.can_reach(body.pos, body.angle, limb, target) and PoseSolver.is_valid(body.pos, body.angle, with_new):
 				attached = with_new
 				attached_keys[limb] = key
+				_set_meta(limb, key)
 				endpoints.erase(limb)
 				moving = false
 				move_labels.append("%s:%s" % [limb, rules.moves.label])
@@ -105,6 +108,11 @@ func _move(limb: StringName, key: String) -> bool:
 	failure = "%s→%s 잡기 불가: %d틱 기다려도 거리 %.3fm (허용 %.3f~%.3f), 골반=(%.3f, %.3f)" % [limb, key, MAX_WAIT_TICKS, d, PoseSolver.reach_of(limb).x, PoseSolver.reach_of(limb).y, body.pos.x, body.pos.y]
 	log.append(failure)
 	return false
+
+
+## 슬롯 중심에서 잡은 접점 정보(품질 1.0, 첫 그립 방식)를 rules에 넣는다.
+func _set_meta(limb: StringName, key: String) -> void:
+	rules.contact_meta[limb] = GripCheck.contact_for(key, route.slots, limb, route.slot_pos(key))
 
 
 func _settle() -> void:

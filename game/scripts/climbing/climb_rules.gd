@@ -29,6 +29,7 @@ var last := {}            # 마지막 확정 힘 계산 결과
 var fatigue_disabled := false
 var slipped: Array[StringName] = []
 var moves := MoveClassifier.new()   # 무브 라벨·무브별 선호 거리(docs/25)
+var contact_meta := {}    # limb → ContactInfo (접점 품질·방식, 없으면 pull·q=1)
 var flag_ready: Array[StringName] = []  # 지금 놓으면 균형 발(Free/Flag)로 남는 드래그 발
 
 # accept 콜백용 틱 문맥
@@ -72,11 +73,46 @@ func contacts_for(pelvis: Vector2, angle_deg: float, attached: Dictionary, feet:
 		if not attached.has(limb):
 			continue
 		if PoseSolver.is_hand(limb):
-			if PoseSolver.hand_load_eligible(pelvis, angle_deg, limb, attached[limb]):
-				out.append(SupportSolver.contact(limb, attached[limb]))
+			if _hand_eligible(pelvis, angle_deg, limb, attached[limb]):
+				out.append(_contact_of(limb, attached[limb]))
 		elif feet.has(limb):
-			out.append(SupportSolver.contact(limb, attached[limb]))
+			out.append(_contact_of(limb, attached[limb]))
 	return out
+
+
+func _mode_of(limb: StringName) -> StringName:
+	return contact_meta[limb].mode if contact_meta.has(limb) else &"pull"
+
+
+func _quality_of(limb: StringName) -> float:
+	return contact_meta[limb].quality if contact_meta.has(limb) else 1.0
+
+
+## 손 하중 자격. 언더클링은 하중 받는 발이 1개 이상 있어야 한다(docs/04 §10).
+func _hand_eligible(pelvis: Vector2, angle_deg: float, limb: StringName, slot: Vector2) -> bool:
+	var mode := _mode_of(limb)
+	if not PoseSolver.hand_load_eligible(pelvis, angle_deg, limb, slot, mode):
+		return false
+	return mode != &"undercling" or not loaded_feet.is_empty()
+
+
+func _eligible_hand_count(pelvis: Vector2, angle_deg: float, attached: Dictionary) -> int:
+	var n := 0
+	for limb in [PoseSolver.LH, PoseSolver.RH]:
+		if attached.has(limb) and _hand_eligible(pelvis, angle_deg, limb, attached[limb]):
+			n += 1
+	return n
+
+
+## 품질·방식을 반영한 접점: 최대 하중 × (0.5+0.5q), 반각 × (0.6+0.4q).
+func _contact_of(limb: StringName, pos: Vector2) -> Dictionary:
+	var base := SupportSolver.contact(limb, pos)
+	if not contact_meta.has(limb):
+		return base
+	var info: ContactInfo = contact_meta[limb]
+	var q := info.quality
+	var half: float = info.half_angle if info.half_angle > 0.0 else base.half_angle
+	return SupportSolver.contact_with(limb, pos, info.axis, half * (0.6 + 0.4 * q), base.max_load * (0.5 + 0.5 * q))
 
 
 func evaluate(pelvis: Vector2, angle_deg: float, attached: Dictionary, endpoints: Dictionary, _platform: bool, feet: Array = feet_eligible) -> Dictionary:
@@ -102,7 +138,7 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 		if intents.has(foot) and not all_hints.has(foot):
 			all_hints[foot] = MoveClassifier.FLAG
 	moves.update(body.pos, body.angle, attached, intents, endpoints, all_hints)
-	var has_hand := PoseSolver.eligible_hands(body.pos, body.angle, attached) > 0
+	var has_hand := _eligible_hand_count(body.pos, body.angle, attached) > 0
 	var result: Dictionary
 	if has_hand or platform:
 		unsupported_ticks = 0
@@ -143,7 +179,7 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 	for hand in [PoseSolver.LH, PoseSolver.RH]:
 		var rate := Fatigue.FREE_HAND_RATE
 		if attached.has(hand):
-			rate = Fatigue.attached_hand_rate(phase == Phase.REBALANCING, platform, rest_ok, loaded_feet.size(), hands_attached, result.u.get(hand, 0.0), low_load)
+			rate = Fatigue.attached_hand_rate(phase == Phase.REBALANCING, platform, rest_ok, loaded_feet.size(), hands_attached, result.u.get(hand, 0.0), low_load, _quality_of(hand))
 		stamina[hand] = Fatigue.apply(stamina[hand], rate, Tuning.DT, fatigue_disabled)
 		if attached.has(hand) and stamina[hand] <= 0.0:
 			slipped.append(hand)
@@ -152,7 +188,7 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 		var remain := attached.duplicate()
 		for hand in slipped:
 			remain.erase(hand)
-		if PoseSolver.eligible_hands(body.pos, body.angle, remain) == 0 and not platform:
+		if _eligible_hand_count(body.pos, body.angle, remain) == 0 and not platform:
 			if phase != Phase.GRACE:
 				unsupported_ticks += 1
 			phase = Phase.GRACE
@@ -192,7 +228,7 @@ func _accept(p: Vector2, a: float) -> bool:
 ## 같은 자세·접점·자유 말단·지지 발 후보에 대한 힘 계산은 다시 풀지 않는다(결과 동일).
 func _evaluate_cached(p: Vector2, a: float) -> Dictionary:
 	var feet := PoseSolver.supporting_feet(p, a, _ctx_attached, feet_eligible)
-	var key := [p, a, _signature(_ctx_attached), _signature(_ctx_endpoints), feet]
+	var key := [p, a, _signature(_ctx_attached), _signature(_ctx_endpoints), feet, _meta_signature(), loaded_feet.duplicate()]
 	if key != _eval_sig:
 		_eval = evaluate(p, a, _ctx_attached, _ctx_endpoints, _ctx_platform, feet)
 		_eval_sig = key
@@ -202,7 +238,7 @@ func _evaluate_cached(p: Vector2, a: float) -> Dictionary:
 ## 목표 자세 재사용: 접점·지지 발·정렬 목표가 같고 탐색 시작점이 직전 탐색과 거의 같으면 그대로 쓴다.
 ## find_target은 시작점 근방의 국소 탐색이라 시작점이 3mm·0.3° 안이면 같은 수렴 목표로 본다.
 func _target_for(body: BodyState, attached: Dictionary, intents: Dictionary, lateral: float, weight: float) -> Vector3:
-	var sig := [_signature(attached), feet_eligible.duplicate(), lateral, weight, _signature(intents), moves.profile.duplicate()]
+	var sig := [_signature(attached), _meta_signature(), feet_eligible.duplicate(), lateral, weight, _signature(intents), moves.profile.duplicate()]
 	if sig == _target_sig and body.pos.distance_to(_target_from_pos) < 0.003 and absf(body.angle - _target_from_angle) < 0.3:
 		return _target
 	_target = PoseSolver.find_target(body.pos, body.angle, attached, feet_eligible, moves.profile, intents, lateral, weight)
@@ -210,6 +246,13 @@ func _target_for(body: BodyState, attached: Dictionary, intents: Dictionary, lat
 	_target_from_pos = body.pos
 	_target_from_angle = body.angle
 	return _target
+
+
+func _meta_signature() -> Array:
+	var out := []
+	for limb in PoseSolver.LIMBS:
+		out.append([_quality_of(limb), _mode_of(limb)])
+	return out
 
 
 static func _signature(d: Dictionary) -> Array:
@@ -233,7 +276,7 @@ func _support_center_x(pelvis: Vector2, angle_deg: float, attached: Dictionary) 
 ## 균형 비용(손 하중 Σ2u², 불균형이면 잔차²×10)을 0.02 이상 줄이면 균형 발 후보.
 func _update_flags(body: BodyState, attached: Dictionary, endpoints: Dictionary, probe: Array) -> void:
 	flag_ready.clear()
-	if probe.is_empty() or PoseSolver.eligible_hands(body.pos, body.angle, attached) == 0:
+	if probe.is_empty() or _eligible_hand_count(body.pos, body.angle, attached) == 0:
 		return
 	for foot in probe:
 		if not endpoints.has(foot):
