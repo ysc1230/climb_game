@@ -149,7 +149,8 @@ func _attach(limb: StringName, key: String, point: Vector2, contact: ContactInfo
 	l.contact = contact
 
 
-## 검증 후 붙인다(기술 실행기용). 슬롯이 없거나 몸통 기준 도달 불가면 false.
+## 검증 후 붙인다(기술 실행기용). 검증은 슬롯 존재와 PoseSolver.can_reach뿐이다.
+## 종류·점유·영역 판정은 호출 측이 GripCheck로 먼저 해야 한다. 실패하면 false.
 func grab(limb: StringName, key: String, point: Vector2, contact: ContactInfo) -> bool:
 	if not route.slots.has(key) or not PoseSolver.can_reach(body.pos, body.angle, limb, point):
 		return false

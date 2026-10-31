@@ -139,17 +139,21 @@ static func hand_load_eligible(pelvis: Vector2, angle_deg: float, limb: StringNa
 	return slot.y >= joint_position(pelvis, angle_deg, limb).y - Tuning.HAND_LOAD_MAX_BELOW_SHOULDER
 
 
+## 손 한 개가 지지(하중)에 들어가는지. 언더클링은 하중 받는 발이 1개 이상 있어야 한다(docs/04 §10).
+static func hand_counts_for_support(pelvis: Vector2, angle_deg: float, limb: StringName, slot: Vector2, mode: StringName, loaded_feet: Array) -> bool:
+	if not hand_load_eligible(pelvis, angle_deg, limb, slot, mode):
+		return false
+	return mode != &"undercling" or not loaded_feet.is_empty()
+
+
 ## 하중 자격이 있는 붙은 손의 수.
 ## meta: limb -> ContactInfo (없으면 pull).
 static func eligible_hands(pelvis: Vector2, angle_deg: float, attached: Dictionary, meta: Dictionary = {}, loaded_feet: Array = []) -> int:
 	var n := 0
 	for limb in [LH, RH]:
 		var mode: StringName = meta[limb].mode if meta.has(limb) else &"pull"
-		if not attached.has(limb) or not hand_load_eligible(pelvis, angle_deg, limb, attached[limb], mode):
-			continue
-		if mode == &"undercling" and loaded_feet.is_empty():  # 언더클링은 하중 받는 발이 있어야 한다(docs/04 §10)
-			continue
-		n += 1
+		if attached.has(limb) and hand_counts_for_support(pelvis, angle_deg, limb, attached[limb], mode, loaded_feet):
+			n += 1
 	return n
 
 

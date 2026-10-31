@@ -90,10 +90,7 @@ func _quality_of(limb: StringName) -> float:
 
 ## 손 하중 자격. 언더클링은 하중 받는 발이 1개 이상 있어야 한다(docs/04 §10).
 func _hand_eligible(pelvis: Vector2, angle_deg: float, limb: StringName, slot: Vector2) -> bool:
-	var mode := _mode_of(limb)
-	if not PoseSolver.hand_load_eligible(pelvis, angle_deg, limb, slot, mode):
-		return false
-	return mode != &"undercling" or not loaded_feet.is_empty()
+	return PoseSolver.hand_counts_for_support(pelvis, angle_deg, limb, slot, _mode_of(limb), loaded_feet)
 
 
 func _eligible_hand_count(pelvis: Vector2, angle_deg: float, attached: Dictionary) -> int:

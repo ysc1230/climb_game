@@ -82,7 +82,20 @@ func test_all_hands_off_falls() -> void:
 		if n == 7:  # 허공에서 두 손 모두 놓기
 			s.apply_input([{"type": "release", "limb": &"LH"}, {"type": "release", "limb": &"RH"}])
 	runner.check(result == "fall:NO_SUPPORT", "두 손을 떼면 NO_SUPPORT 추락 (%s, %d틱)" % [result, n])
+	runner.check(n <= Tuning.UNSUPPORTED_GRACE_TICKS, "마지막 지지 손이 떠난 뒤 유예 %d틱 이내 추락 (%d틱)" % [Tuning.UNSUPPORTED_GRACE_TICKS, n])
 	runner.check(s.falling and s.falls == 1, "falling 상태와 falls 증가")
+
+
+func test_grab_validates_reach() -> void:
+	var s := ClimbSession.new(_route())
+	var key: String = s.limbs[&"LH"].key  # 시작 슬롯: 도달 가능
+	s.apply_input([{"type": "detach", "limb": &"LH"}])
+	var far := "R01/G01/goal_left"
+	var contact := GripCheck.contact_for(key, s.route.slots, &"LH", s.route.slot_pos(key))
+	runner.check(not s.grab(&"LH", far, s.route.slot_pos(far), contact), "닿지 않는 슬롯은 false")
+	runner.check(s.limbs[&"LH"].state == "Dragging", "실패하면 상태 유지")
+	runner.check(s.grab(&"LH", key, s.route.slot_pos(key), contact), "닿는 슬롯은 true")
+	runner.check(s.limbs[&"LH"].state == "Attached" and s.limbs[&"LH"].key == key, "붙고 키 갱신")
 
 
 func test_goal_clears() -> void:
