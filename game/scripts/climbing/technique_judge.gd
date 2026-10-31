@@ -4,7 +4,7 @@ extends RefCounted
 ## 판단 순서(27 §7.1): 1 게임 상태 → 2 손발 상태 → 3 떼기 판단 → 4 홀드 → 5 관절·몸통 → 6 균형·하중 → 7 피로.
 ## 쪽 판단(judge)은 홀드 후보 목록을 계산하지 않는다(27 §11). 4단계는 거리·종류·점유만 보는 가벼운 존재 검사이고,
 ## 홀드별 관절·체중 이동·힘 균형(5·6단계)은 쪽을 고른 뒤 hold_targets/check_hold가 계산한다.
-## 이번 단계(8a) 구현: 위치형 기술. 그 외 1·2차 기술은 MOVE_NOT_SUPPORTED로 막아 둔다(8b·8c에서 교체).
+## 구현: 위치형 기술(8a), yaw형 기술 드롭니·아웃사이드 엣지(8b). 그 외 1·2차 기술은 MOVE_NOT_SUPPORTED로 막아 둔다(8c에서 교체).
 
 const WRONG_PHASE := &"WRONG_PHASE"
 const LIMB_STATE := &"LIMB_STATE"
@@ -46,10 +46,12 @@ const T_GASTON := &"T_GASTON"
 const T_UNDERCLING := &"T_UNDERCLING"
 const T_REST := &"T_REST"
 const T_LOCK_OFF := &"T_LOCK_OFF"
+const T_OUTSIDE_EDGE := &"T_OUTSIDE_EDGE"
+const T_DROP_KNEE := &"T_DROP_KNEE"
 
 ## 손발을 홀드로 옮기는 기술(hold_tap). 실행기는 Dragging 경로로 옮긴 뒤 붙인다.
-const MOVE_TECHS: Array[StringName] = [T_INSIDE_EDGE, T_HIGH_STEP, T_CROSS, T_MATCH, T_FOOT_SWAP, T_SIDEPULL, T_GASTON, T_UNDERCLING]
-const SUPPORTED: Array[StringName] = [T_INSIDE_EDGE, T_HIGH_STEP, T_CROSS, T_MATCH, T_FOOT_SWAP, T_SIDEPULL, T_GASTON, T_UNDERCLING, T_REST, T_LOCK_OFF]
+const MOVE_TECHS: Array[StringName] = [T_INSIDE_EDGE, T_HIGH_STEP, T_CROSS, T_MATCH, T_FOOT_SWAP, T_SIDEPULL, T_GASTON, T_UNDERCLING, T_OUTSIDE_EDGE]
+const SUPPORTED: Array[StringName] = [T_INSIDE_EDGE, T_HIGH_STEP, T_CROSS, T_MATCH, T_FOOT_SWAP, T_SIDEPULL, T_GASTON, T_UNDERCLING, T_REST, T_LOCK_OFF, T_OUTSIDE_EDGE, T_DROP_KNEE]
 const HAND_TECHS: Array[StringName] = [T_CROSS, T_MATCH, T_SIDEPULL, T_GASTON, T_UNDERCLING, T_LOCK_OFF, &"T_DEADPOINT"]
 ## 잡기 방식을 정하는 기술. 그 외 손 기술은 패드와 같이 홀드의 첫 grip_mode를 쓴다(27 §11).
 const MODE_OF := {T_SIDEPULL: &"sidepull", T_GASTON: &"gaston", T_UNDERCLING: &"undercling"}
@@ -59,6 +61,8 @@ const LOCK_OFF_MIN_STAMINA := 30.0   # 27 §7.1 7단계
 const LOCK_OFF_PREF := Tuning.PREF_ARM_LOCKOFF
 const GASTON_SHOULDER_BAND := 0.30   # 개스턴: 홀드가 어깨 높이 ±0.30m (구현 해석)
 const HIGH_FOOT_BELOW_HIP := 0.55    # 언더클링의 "높은 발": 하중 발 Y ≥ 고관절 Y − 0.55 (25 StandUp의 높은 발 기준)
+const DROP_KNEE_YAW := 35.0          # 27 §10: 드롭니 ψ 목표(도). 그 발 쪽 엉덩이를 벽으로: 왼발 ψ<0, 오른발 ψ>0
+const OUTSIDE_EDGE_YAW := 30.0       # 27 §10: 아웃사이드 엣지 ψ 목표(도)
 const SHIFT_SEARCHES := 3            # 체중 이동 후 도달 판정의 목표 탐색 반복(각 ±0.30m)
 
 static var _defs := {}
@@ -88,6 +92,16 @@ static func limb_for(tech_id: StringName, side: StringName) -> StringName:
 	if HAND_TECHS.has(tech_id):
 		return PoseSolver.LH if left else PoseSolver.RH
 	return PoseSolver.LF if left else PoseSolver.RF
+
+
+## 이 yaw 기술(드롭니·아웃사이드 엣지)의 ψ 목표(도). 그 발 쪽 엉덩이를 벽으로(왼발 ψ<0, 오른발 ψ>0). yaw형이 아니면 NAN.
+static func yaw_for(tech_id: StringName, limb: StringName) -> float:
+	var mag := DROP_KNEE_YAW if tech_id == T_DROP_KNEE else (OUTSIDE_EDGE_YAW if tech_id == T_OUTSIDE_EDGE else NAN)
+	return mag * PoseSolver.side_sign(limb)
+
+
+static func is_yaw_tech(tech_id: StringName) -> bool:
+	return tech_id == T_DROP_KNEE or tech_id == T_OUTSIDE_EDGE
 
 
 static func other_of(limb: StringName) -> StringName:
@@ -125,6 +139,8 @@ static func judge_side(snap: ClimbSnapshot, tech_id: StringName, side: StringNam
 			_judge_rest(snap, acc)
 		T_LOCK_OFF:
 			_judge_lock_off(snap, limb, acc)
+		T_DROP_KNEE:
+			_judge_drop_knee(snap, limb, acc)
 		_:
 			_judge_move(snap, tech_id, limb, acc)
 	return _result(acc)
@@ -175,12 +191,59 @@ static func _judge_lock_off(snap: ClimbSnapshot, hand: StringName, acc: Array) -
 		_add(acc, TOO_TIRED)
 
 
+## 드롭니(27 §10): 그 발이 붙어 있고 하중, 발판 pivot_allowed, 다른 발 하중, 손 ≥ 1, 그 발이 고관절보다 바깥·아래,
+## ψ=±35°에서 관절·방향·깊이·힘 균형 성립(그 발 edge = drop_knee).
+static func _judge_drop_knee(snap: ClimbSnapshot, foot: StringName, acc: Array) -> void:
+	var b := snap.body
+	if not (snap.attached.has(foot) and snap.loaded_feet.has(foot)):
+		_add(acc, LIMB_STATE, "%s로 발판을 딛고 체중을 받고 있어야 해요" % limb_name(foot))
+		return
+	if not snap.loaded_feet.has(other_of(foot)):
+		_add(acc, LIMB_STATE, "다른 발도 발판을 딛고 체중을 받고 있어야 해요")
+	if PoseSolver.eligible_hands(b.pos, b.angle, snap.attached, snap.contact_meta, snap.loaded_feet, b.yaw) < 1:
+		_add(acc, LIMB_STATE, "손으로 홀드를 잡고 있어야 해요")
+	var hip := PoseSolver.joint_position(b.pos, b.angle, foot, b.yaw)
+	var fp: Vector2 = snap.attached[foot]
+	if not ((fp.x - hip.x) * PoseSolver.side_sign(foot) > 0.0 and fp.y < hip.y):
+		_add(acc, LIMB_STATE, "발이 엉덩이보다 바깥쪽 아래에 있어야 해요")
+	var slot: Dictionary = snap.route.slots.get(snap.keys[foot], {})
+	if not slot.get("pivot_allowed", true):
+		_add(acc, PIVOT_NOT_ALLOWED)
+		return
+	var r := yaw_pose_reason(snap, snap.attached, snap.contact_meta, foot, &"drop_knee", yaw_for(T_DROP_KNEE, foot))
+	if r != &"":
+		_add(acc, r)
+
+
+## 목표 yaw에서 자세가 성립하는가(몸통 위치·각도는 지금 그대로). 성립하면 &"".
+## 관절 방향·길이·깊이 실패는 JOINT_LIMIT, 몸통 회전 한계는 BODY_ORIENTATION_LIMIT, 힘 균형·barn door는 SUPPORT_OVERLOAD/BARN_DOOR.
+## foot의 접점 edge를 edge로 바꿔 계산한다(barn door 용량).
+static func yaw_pose_reason(snap: ClimbSnapshot, att: Dictionary, meta: Dictionary, foot: StringName, edge: StringName, yaw: float, pelvis: Vector2 = Vector2.INF, angle: float = NAN) -> StringName:
+	var b := snap.body
+	var p := b.pos if not pelvis.is_finite() else pelvis
+	var a := b.angle if is_nan(angle) else angle
+	if absf(yaw) > Tuning.PELVIS_YAW_LIMIT_DEG:
+		return BODY_ORIENTATION_LIMIT
+	if not PoseSolver.is_valid(p, a, att, yaw):
+		return JOINT_LIMIT
+	var m := meta.duplicate()
+	if m.has(foot):
+		var c := ClimbSnapshot.copy_contact(m[foot])
+		c.edge = edge
+		m[foot] = c
+	return support_reason(snap, p, a, yaw, att, _free_endpoints(snap, att), m, snap.loaded_feet)
+
+
 ## 손발을 홀드로 옮기는 기술: 3 떼기 판단 → 4 홀드 존재(가벼운 검사).
 ## 크로스·매치·풋스왑의 "반대 손발이 붙어 있음"은 홀드 기준(반대 손 X, 반대 손발의 홀드)이라 4단계 조건으로 본다
 ## (TA02: 마지막 손을 떼는 크로스는 SUPPORT_NEEDED가 첫 이유).
 static func _judge_move(snap: ClimbSnapshot, tech_id: StringName, limb: StringName, acc: Array) -> void:
 	if snap.attached.has(limb) and not release_ok(snap, [limb]):
 		_add(acc, SUPPORT_NEEDED)
+	if tech_id == T_OUTSIDE_EDGE:
+		var b := snap.body
+		if PoseSolver.eligible_hands(b.pos, b.angle, snap.attached, snap.contact_meta, snap.loaded_feet, b.yaw) < 1:
+			_add(acc, LIMB_STATE, "손으로 홀드를 잡고 있어야 해요")
 	if not _any_hold_cheap(snap, tech_id, limb):
 		_add(acc, NO_HOLD)
 
@@ -249,7 +312,8 @@ static func mode_entry(slot: Dictionary, mode: StringName) -> Dictionary:
 static func contact_for(route: RouteDef, tech_id: StringName, limb: StringName, key: String, point: Vector2) -> ContactInfo:
 	var slot: Dictionary = route.slots[key]
 	if not PoseSolver.is_hand(limb):
-		return ContactInfo.make(key, point, HoldArea.project_foot(slot, point).quality, &"foot", &"inside")
+		var edge := &"outside" if tech_id == T_OUTSIDE_EDGE else &"inside"
+		return ContactInfo.make(key, point, HoldArea.project_foot(slot, point).quality, &"foot", edge)
 	var gm := mode_entry(slot, MODE_OF[tech_id]) if MODE_OF.has(tech_id) else {}
 	if gm.is_empty():
 		gm = slot.grip_modes[0]
@@ -270,6 +334,8 @@ static func slot_filter(snap: ClimbSnapshot, tech_id: StringName, limb: StringNa
 	var b := snap.body
 	var other := other_of(limb)
 	var p: Vector2 = slot.pos
+	if tech_id == T_OUTSIDE_EDGE and not slot.pivot_allowed:
+		return false
 	match tech_id:
 		T_CROSS:
 			# 반대 손 X를 넘는 홀드(LH는 RH보다 오른쪽)
@@ -378,7 +444,7 @@ static func evaluate_target(snap: ClimbSnapshot, tech_id: StringName, limb: Stri
 				oc.point = lay.other_point
 				oc.quality = lay.other_quality
 				meta[other] = oc
-	var yaw := 0.0 if tech_id == T_INSIDE_EDGE else b.yaw  # 인사이드 엣지는 엉덩이 정면(ψ→0)
+	var yaw := 0.0 if (tech_id == T_INSIDE_EDGE or tech_id == T_OUTSIDE_EDGE) else b.yaw  # 엣지 기술은 발을 놓는 동안 엉덩이 정면(ψ→0)
 	var p := b.pos
 	var a := b.angle
 	var shift := false
@@ -407,6 +473,9 @@ static func evaluate_target(snap: ClimbSnapshot, tech_id: StringName, limb: Stri
 	meta[limb] = contact_for(snap.route, tech_id, limb, key, point)
 	var eps := _free_endpoints(snap, with_new)
 	var r := support_reason(snap, p, a, yaw, with_new, eps, meta, loaded, {limb: key})
+	if r == &"" and tech_id == T_OUTSIDE_EDGE:
+		# 발을 놓은 뒤 엉덩이를 ψ=±30°로 돌린 자세도 성립해야 한다(27 §10)
+		r = yaw_pose_reason(snap, with_new, meta, limb, &"outside", yaw_for(tech_id, limb), p, a)
 	return {"ok": r == &"", "reason": r, "needs_shift": shift, "pose": Vector3(p.x, p.y, a)}
 
 
@@ -445,6 +514,8 @@ static func check_hold(snap: ClimbSnapshot, tech_id: StringName, side: StringNam
 	var slot: Dictionary = snap.route.slots[key]
 	if not slot.allowed.has(limb):
 		return fail.call(GripCheck.TYPE_MISMATCH)
+	if tech_id == T_OUTSIDE_EDGE and not slot.pivot_allowed:
+		return fail.call(PIVOT_NOT_ALLOWED)
 	if not slot_filter(snap, tech_id, limb, key):
 		return fail.call(NO_HOLD)
 	var aim: Vector2 = point if is_finite(point.x) and is_finite(point.y) else slot.pos

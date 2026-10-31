@@ -32,6 +32,7 @@ var slipped: Array[StringName] = []
 var moves := MoveClassifier.new()   # 무브 라벨·무브별 선호 거리(docs/25)
 var contact_meta := {}    # limb → ContactInfo (접점 품질·방식, 없으면 pull·q=1)
 var yaw_target := NAN     # 도. NAN이면 0으로 복귀(04 §10.1, 기술만 설정)
+var yaw_guard := false   # yaw 기술 실행 중: yaw를 키우는 한 걸음이 힘 균형(FEASIBLE)·barn door를 깨면 그 걸음을 멈춘다
 var flag_ready: Array[StringName] = []  # 지금 놓으면 균형 발(Free/Flag)로 남는 드래그 발
 var profile_override := {}  # limb → 선호 거리. 기술 실행 중 무브 프로필 위에 덮어씀(docs/27 §10, 비면 영향 없음)
 var fatigue_multiplier := {}  # 손 → 피로(음수 변화율) 배율. 록오프 중 그 손 ×1.5(docs/27 §10)
@@ -74,6 +75,26 @@ func phase_name() -> String:
 
 
 ## 하중을 받을 자격이 있는 접점 목록. 손: 하중 자격, 발: 지지 원뿔(플랫폼 발 포함).
+## yaw 한 틱. is_valid 게이트는 PoseSolver.step_yaw가 맡고, yaw 기술 실행 중에는 |yaw|를 키우는 걸음에 한해
+## 다음 yaw의 힘 해가 FEASIBLE이 아니거나 barn door 초과면 이전 yaw를 유지한다(복귀 방향은 막지 않는다).
+func _step_yaw(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform: bool) -> void:
+	if not yaw_guard:
+		PoseSolver.step_yaw(body, yaw_target, attached)
+		return
+	var probe := BodyState.new(body.pos, body.angle)
+	probe.yaw = body.yaw
+	probe.yaw_vel = body.yaw_vel
+	PoseSolver.step_yaw(probe, yaw_target, attached)
+	if absf(probe.yaw) > absf(body.yaw) + 1e-9:
+		var feet := PoseSolver.supporting_feet(body.pos, body.angle, attached, feet_eligible, probe.yaw)
+		var r := evaluate(body.pos, body.angle, attached, endpoints, platform, feet, probe.yaw)
+		if r.status != SupportSolver.Status.FEASIBLE or _barn_exceeded(r):
+			body.yaw_vel = 0.0
+			return
+	body.yaw = probe.yaw
+	body.yaw_vel = probe.yaw_vel
+
+
 func contacts_for(pelvis: Vector2, angle_deg: float, attached: Dictionary, feet: Array, yaw_deg: float = 0.0) -> Array:
 	var out := []
 	for limb in PoseSolver.LIMBS:
@@ -161,7 +182,7 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 			weight = REBALANCE_LATERAL_WEIGHT
 		PoseSolver.move_body(body, _target_for(body, attached, intents, lateral, weight), attached, Tuning.DT, Callable(self, "_accept"), body.yaw)
 		# yaw는 몸통 이동 뒤에 적분한다(탐색 변수가 아님). 이후 평가는 새 yaw를 쓴다.
-		PoseSolver.step_yaw(body, yaw_target, attached)
+		_step_yaw(body, attached, endpoints, platform)
 		_ctx_yaw = body.yaw
 		feet_eligible = PoseSolver.supporting_feet(body.pos, body.angle, attached, feet_eligible, body.yaw)
 		result = _evaluate_cached(body.pos, body.angle)
@@ -173,7 +194,7 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 		result = {"status": SupportSolver.Status.INFEASIBLE, "loads": {}, "u": {}, "residual": INF}
 		phase = Phase.GRACE
 		imbalance_cause = &""
-		PoseSolver.step_yaw(body, yaw_target, attached)
+		_step_yaw(body, attached, endpoints, platform)
 	loaded_feet = _loaded_from(result, loaded_feet)
 	last = result
 	# 피로(docs/04 §7)

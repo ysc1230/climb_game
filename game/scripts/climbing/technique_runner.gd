@@ -18,7 +18,7 @@ const STAND_STOP_SPEED := 0.03     # 골반 속도가 이보다 작으면 "이�
 const LOCK_OFF_FATIGUE := 1.5
 
 ## {id, side, limb, key, point, step, ticks, ...}. 비면 실행 없음.
-## step: check(첫 틱 재검사) → move(손발 이동) → stand_up(하이스텝) / hold(록오프·휴식)
+## step: check(첫 틱 재검사) → move(손발 이동) → stand_up(하이스텝) / hold(록오프·휴식) / yaw(드롭니·아웃사이드 엣지: 취소될 때까지 ψ 유지)
 var active := {}
 var _events: Array = []
 
@@ -72,6 +72,8 @@ func tick(session: ClimbSession) -> Dictionary:
 				_tick_stand(session)
 			&"hold":
 				_tick_hold(session)
+			&"yaw":
+				_tick_yaw(session)
 	return _events.pop_front() if not _events.is_empty() else {}
 
 
@@ -115,8 +117,13 @@ func _check_and_begin(session: ClimbSession) -> void:
 			rules.fatigue_multiplier = {a.limb: LOCK_OFF_FATIGUE}
 			a.other_released = not session.attached().has(TechniqueJudge.other_of(a.limb))
 			a.step = &"hold"
+		TechniqueJudge.T_DROP_KNEE:
+			# 이미 딛은 발: 접점 edge를 drop_knee로, ψ 목표를 그 발 쪽 엉덩이를 벽으로(27 §10)
+			var c: ContactInfo = session.limbs[a.limb].contact
+			c.edge = &"drop_knee"
+			_begin_yaw(session)
 		_:
-			if a.id in [TechniqueJudge.T_INSIDE_EDGE, TechniqueJudge.T_HIGH_STEP]:
+			if a.id in [TechniqueJudge.T_INSIDE_EDGE, TechniqueJudge.T_HIGH_STEP, TechniqueJudge.T_OUTSIDE_EDGE]:
 				rules.yaw_target = NAN  # 엉덩이 정면으로
 			var l: Dictionary = session.limbs[a.limb]
 			l.state = "Dragging"
@@ -140,7 +147,9 @@ func _tick_move(session: ClimbSession) -> void:
 	var progressed: bool = d < float(a.last_d) - 0.0005
 	a.last_d = d
 	if d <= GripCheck.radius_of(a.limb) and (d <= ARRIVE_EPSILON or not progressed) and _attach(session):
-		if a.id == TechniqueJudge.T_HIGH_STEP:
+		if a.id == TechniqueJudge.T_OUTSIDE_EDGE:
+			_begin_yaw(session)  # 발이 붙은 뒤 ψ 목표(접점 edge는 contact_for가 outside로 기록)
+		elif a.id == TechniqueJudge.T_HIGH_STEP:
 			# 일어서기: 골반을 올린 발 위로, 다리 선호 0.86
 			session.rules.profile_override = {a.limb: Tuning.PREF_LEG_STAND, TechniqueJudge.other_of(a.limb): Tuning.PREF_LEG_STAND, &"_stand_x": (a.point as Vector2).x}
 			a.step = &"stand_up"
@@ -151,6 +160,23 @@ func _tick_move(session: ClimbSession) -> void:
 	if a.ticks >= MOVE_BUDGET_TICKS:
 		l.state = "Free"
 		_end(session, FAILED, TechniqueJudge.NEED_WEIGHT_SHIFT if a.needs_shift else TechniqueJudge.JOINT_LIMIT)
+
+
+## yaw 단계 시작: ψ 목표를 정하고 힘 균형 게이트를 켠다. 기술은 취소될 때까지 유지된다.
+func _begin_yaw(session: ClimbSession) -> void:
+	var a := active
+	session.rules.yaw_target = TechniqueJudge.yaw_for(a.id, a.limb)
+	session.rules.yaw_guard = true
+	a.step = &"yaw"
+	a.ticks = 0
+
+
+## yaw 유지: 다른 패드 조작에는 영향받지 않는다. 그 발이 붙어 있지 않게 되면(슬립·떼기) 중립으로 복귀하며 취소.
+func _tick_yaw(session: ClimbSession) -> void:
+	var a := active
+	a.ticks += 1
+	if not session.attached().has(a.limb):
+		_end(session, CANCELLED, &"cancelled")
 
 
 ## 도착한 손발을 붙인다. 풋스왑은 같은 틱에 반대 발을 떼고, 매치는 잡던 손을 반대쪽 절반으로 옮겨 잡는다.
@@ -220,4 +246,11 @@ func _end(session: ClimbSession, type: StringName, reason: StringName) -> void:
 	_push(session, type, reason)
 	session.rules.profile_override = {}
 	session.rules.fatigue_multiplier = {}
+	if TechniqueJudge.is_yaw_tech(active.id):
+		# ψ 복귀(목표 NAN), 아직 딛고 있다면 접점 edge를 inside로 되돌린다
+		session.rules.yaw_target = NAN
+		session.rules.yaw_guard = false
+		var c = session.limbs[active.limb].contact
+		if c != null and (c.edge == &"drop_knee" or c.edge == &"outside"):
+			c.edge = &"inside"
 	active = {}

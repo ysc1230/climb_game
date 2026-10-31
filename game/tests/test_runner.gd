@@ -300,3 +300,142 @@ func test_sidepull_uses_mode_not_first() -> void:
 	runner.check(out == "" and s.limbs[&"LH"].key == key and s.limbs[&"LH"].state == "Attached", "붙음 (%s %s)" % [out, s.limbs[&"LH"].key])
 	var ci: ContactInfo = s.rules.contact_meta.get(&"LH")
 	runner.check(ci != null and ci.mode == &"sidepull" and ci.axis == Vector2(-1, 0), "방식 sidepull·축 (%s)" % [[ci.mode, ci.axis] if ci else null])
+
+
+# ---------- 8b: yaw형 기술(드롭니·아웃사이드 엣지) ----------
+
+## 같은 쪽 손의 벽면 최대 도달 거리(04 §10.1: 엉덩이가 벽 쪽이면 늘어남).
+func _far_reach(limb: StringName, yaw: float) -> float:
+	var dz := PoseSolver.contact_dz_range() + Vector2.ONE * PoseSolver.joint_depth_offset(limb, yaw)
+	return PoseSolver.planar_range(limb, dz.x, dz.y).y
+
+
+func _run_ticks(s: ClimbSession, n: int) -> String:
+	for i in n:
+		var r := s.step()
+		if r.begins_with("fall"):
+			return r
+	return ""
+
+
+## TA01: 두 손·두 발, 왼발 발판 pivot true·오른발 false → 왼쪽만 가능.
+func test_drop_knee_left_only() -> void:
+	var r := _r01()
+	r.slots["R01/F02/foot_1"].pivot_allowed = false
+	var s := _session(r)
+	var j := TechniqueJudge.judge(ClimbSnapshot.from_session(s), &"T_DROP_KNEE")
+	runner.check(j[&"left"].available, "왼쪽 가능: %s" % [j[&"left"]])
+	runner.check(not j[&"right"].available and j[&"right"].reason == TechniqueJudge.PIVOT_NOT_ALLOWED, "오른쪽 PIVOT_NOT_ALLOWED: %s" % [j[&"right"]])
+	runner.check(j[&"right"].text == "이 발판에서는 발을 돌릴 수 없어요", "문구")
+
+
+func test_drop_knee_turns_hip() -> void:
+	var s := _session(_r01())
+	var reach0 := _far_reach(&"LH", 0.0)
+	runner.check(s.runner.start(s, &"T_DROP_KNEE", &"left") == &"", "시작")
+	var fell := _run_ticks(s, 90)
+	runner.check(fell == "", "추락 없음 (%s)" % fell)
+	runner.check(absf(s.body.yaw + 35.0) <= 1.0, "yaw → -35 (%.2f)" % s.body.yaw)
+	runner.check(s.rules.contact_meta[&"LF"].edge == &"drop_knee", "LF edge drop_knee")
+	runner.check(s.limbs[&"LF"].state == "Attached" and not s.runner.active.is_empty(), "발 유지·기술 유지")
+	runner.check(_far_reach(&"LH", s.body.yaw) > reach0 + 0.003, "같은 쪽 LH 도달 증가 (%.4f → %.4f)" % [reach0, _far_reach(&"LH", s.body.yaw)])
+	runner.check(PoseSolver.is_valid(s.body.pos, s.body.angle, s.attached(), s.body.yaw), "자세 유효")
+	runner.check(s.rules.phase == ClimbRules.Phase.STABLE, "안정 (%s)" % s.rules.phase)
+
+
+func test_outside_edge_sets_yaw() -> void:
+	var s := _session(_r01())
+	var key := "R01/F04/foot_1"
+	var c := TechniqueJudge.check_hold(ClimbSnapshot.from_session(s), &"T_OUTSIDE_EDGE", &"right", key, s.route.slot_pos(key))
+	runner.check(c.ok, "전제: 후보 가능 %s" % [c])
+	runner.check(s.runner.start(s, &"T_OUTSIDE_EDGE", &"right", key, s.route.slot_pos(key)) == &"", "시작")
+	var out := _run_ticks(s, 150)
+	runner.check(out == "", "추락 없음 (%s)" % out)
+	runner.check(s.limbs[&"RF"].state == "Attached" and s.limbs[&"RF"].key == key, "RF 붙음")
+	runner.check(absf(s.body.yaw - 30.0) <= 1.0, "yaw → +30 (%.2f)" % s.body.yaw)
+	runner.check(s.rules.contact_meta[&"RF"].edge == &"outside", "RF edge outside")
+	# pivot 불가 발판은 PIVOT_NOT_ALLOWED
+	var r := _r01()
+	r.slots[key].pivot_allowed = false
+	var s2 := _session(r)
+	runner.check(s2.runner.start(s2, &"T_OUTSIDE_EDGE", &"right", key, r.slot_pos(key)) == TechniqueJudge.PIVOT_NOT_ALLOWED, "pivot 불가 → PIVOT_NOT_ALLOWED")
+
+
+## Review Focus 3: 드롭니 중 다른 패드를 써도 유지, 그 발 패드를 누르면 취소·복귀.
+func test_drop_knee_survives_other_pad_moves() -> void:
+	var s := _session(_r01())
+	runner.check(s.runner.start(s, &"T_DROP_KNEE", &"left") == &"", "시작")
+	_run_ticks(s, 90)
+	runner.check(absf(s.body.yaw + 35.0) <= 1.0, "전제: yaw -35")
+	# LH를 떼서 다른 홀드(H03)로 옮겨 잡는다
+	s.apply_input([{"type": "arm", "limb": &"LH"}, {"type": "detach", "limb": &"LH"}])
+	var target := s.route.slot_pos("R01/H03/hand_1")
+	for i in 120:
+		var d: Vector2 = target - s.limbs[&"LH"].req
+		s.apply_input([{"type": "move", "limb": &"LH", "delta": d.limit_length(0.02)}])
+		var r := s.step()
+		runner.check(not r.begins_with("fall"), "추락 없음 (%d %s)" % [i, r])
+		runner.check(PoseSolver.is_valid(s.body.pos, s.body.angle, s.attached(), s.body.yaw), "is_valid 유지 (%d)" % i)
+		if r.begins_with("fall"):
+			return
+		if d.length() < 0.02:
+			break
+	# 체중 이동이 필요한 거리라 끄는 채로 기다린다(의도 비용으로 몸이 따라 움직임). 그동안에도 yaw·유효성 유지
+	for i in 90:
+		var r := s.step()
+		runner.check(not r.begins_with("fall") and PoseSolver.is_valid(s.body.pos, s.body.angle, s.attached(), s.body.yaw), "기다리는 중 유효 (%d %s)" % [i, r])
+		if r.begins_with("fall"):
+			return
+	s.apply_input([{"type": "release", "limb": &"LH"}])
+	_run_ticks(s, 30)
+	runner.check(s.limbs[&"LH"].state == "Attached" and s.limbs[&"LH"].key == "R01/H03/hand_1", "LH가 H03에 붙음 (%s %s)" % [s.limbs[&"LH"].state, s.limbs[&"LH"].key])
+	runner.check(not s.runner.active.is_empty(), "드롭니 유지")
+	runner.check(absf(s.body.yaw + 35.0) <= 1.5, "yaw 유지 (%.2f)" % s.body.yaw)
+	s.apply_input([{"type": "arm", "limb": &"LF"}])
+	s.step()
+	runner.check(_last_event(s).get("type") == TechniqueRunner.CANCELLED, "cancelled: %s" % [_last_event(s)])
+	runner.check(s.runner.active.is_empty() and is_nan(s.rules.yaw_target), "active 비움·yaw_target NAN")
+	s.apply_input([{"type": "disarm", "limb": &"LF"}])
+	_run_ticks(s, 60)
+	runner.check(absf(s.body.yaw) < 0.5, "0으로 복귀 (%.2f)" % s.body.yaw)
+
+
+## evaluate가 yaw > 10°에서 INFEASIBLE을 돌려주는 시험용 규칙(힘 균형 게이트 확인용).
+class GatedRules extends ClimbRules:
+	var barn_over := false
+
+	func evaluate(pelvis: Vector2, angle_deg: float, attached: Dictionary, endpoints: Dictionary, platform: bool, feet: Array = feet_eligible, yaw_deg: float = 0.0) -> Dictionary:
+		var r := super.evaluate(pelvis, angle_deg, attached, endpoints, platform, feet, yaw_deg)
+		if absf(yaw_deg) > 10.0:
+			if barn_over:
+				r.barn = {"exceeded": true, "tau": 1.0, "capacity": 0.0}
+			else:
+				r.status = SupportSolver.Status.INFEASIBLE
+		return r
+
+
+## 힘 균형 게이트(Task 5 리뷰): yaw 기술 중 다음 yaw가 FEASIBLE이 아니거나 barn door 초과면 yaw 진행을 멈춘다.
+## 복귀(|yaw| 감소)는 막지 않고, 가드가 꺼져 있으면 기존 동작.
+func test_yaw_guard_stops_when_support_infeasible() -> void:
+	var s := _session(_r01())
+	for barn in [false, true]:
+		var rules := GatedRules.new()
+		rules.barn_over = barn
+		var body := BodyState.new(s.body.pos, s.body.angle)
+		var att := s.attached()
+		var eps := {}
+		rules.yaw_target = 35.0
+		rules.yaw_guard = true
+		for i in 120:
+			rules._step_yaw(body, att, eps, false)
+		runner.check(body.yaw > 5.0 and body.yaw <= 10.0 + 1.0, "barn=%s 가드가 10° 근처에서 멈춤 (%.2f)" % [barn, body.yaw])
+		runner.check(body.yaw_vel == 0.0, "yaw 속도 0")
+		rules.yaw_target = NAN
+		for i in 120:
+			rules._step_yaw(body, att, eps, false)
+		runner.check(absf(body.yaw) < 0.001, "복귀는 막지 않음 (%.3f)" % body.yaw)
+		rules.yaw_guard = false
+		rules.yaw_target = 35.0
+		for i in 120:
+			rules._step_yaw(body, att, eps, false)
+		runner.check(absf(body.yaw - 35.0) < 0.001, "가드 꺼지면 목표까지 (%.3f)" % body.yaw)
