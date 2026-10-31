@@ -70,6 +70,7 @@
   - `HoldArea.project_hand(slot: Dictionary, point: Vector2) -> Dictionary` → `{point: Vector2, t: float, quality: float}`(선분에 클램프한 투영점, t = |오프셋|/반폭 ∈ [0,1], q = 1 − t²)
   - `HoldArea.project_foot(slot: Dictionary, point: Vector2) -> Dictionary` → `{point, v, quality}`(디딤 면 위로 클램프, v ∈ [−1,1], v ≥ −0.2면 1, 아래로 선형 감소해 v = −1에서 0.5)
   - `HoldArea.hand_interval(slot: Dictionary, point: Vector2) -> Vector2`(선분 좌표 [s−0.04, s+0.04], s는 중심 기준 부호 있는 거리)
+  - R01 content_version 4: 손홀드 H01~H06에 `"hand_area": {"dir": [1, 0], "half_width": 0.12}` 명시(큰 홀드, 19 v0.6).
 
 - [ ] **Step 1: 실패하는 테스트 작성** `tests/test_hold_area.gd`
   - `test_defaults_filled`: R01의 `R01/H01/hand_1`은 hand_area.half_width == 0.08, grip_modes[0].mode == &"pull", axis == Vector2(0,1), half_angle == 65; `R01/F01/foot_1`은 foot_area.half_height == 0.04, pivot_allowed == true, hand_area 없음.
@@ -77,6 +78,7 @@
   - `test_foot_quality_top_mid_same_bottom_worse`: v = +1 → 1.0, v = 0 → 1.0, v = −0.2 → 1.0, v = −1 → 0.5, v = −0.6 → 0.75.
   - `test_tx_tech_loads`: `TX_TECH.json` 로드 오류 0개, sidepull·gaston·undercling 모드 슬롯 각 1개 이상, pivot_allowed=false 발판 1개 이상, hand_area 반폭 0.16 이상 홀드 1개와 0.04 홀드 1개.
   - `test_invalid_area_rejected`: half_width ≤ 0 또는 grip_modes 빈 배열이면 `errors` 비어 있지 않음.
+  - `test_r01_holds_are_big`: R01 content_version == 4, `R01/H01/hand_1`~`R01/H06/hand_1`의 half_width == 0.12.
 - [ ] **Step 2: 실패 확인** `godot --headless --script res://tests/run_tests.gd -- test_hold_area.gd` → `test_hold_area.gd (불러오기 실패)` 또는 FAIL
 - [ ] **Step 3: 구현** `route_def.gd`의 `_read`에서 슬롯 JSON의 `hand_area`, `foot_area`, `grip_modes`, `pivot_allowed`, `hook`을 읽고 기본값을 채운다(JSON 키: `"hand_area": {"dir": [x,y], "half_width": w}`, `"foot_area": {"up": [x,y], "half_height": h}`, `"grip_modes": [{"mode": "sidepull", "axis": [x,y], "half_angle": 65}]`). `_validate`에 영역·방식 검사를 추가한다. `hold_area.gd`에 위 세 정적 함수를 둔다. `TX_TECH.json`은 R01 형식(start_pose·goal_slots·intended_moves 포함, intended_moves는 빈 배열 허용)으로 Global Constraints의 조건을 갖춘 홀드 10~14개를 배치한다.
 - [ ] **Step 4: 통과 확인** 같은 명령 → `5개 중 0개 실패`. 전체 테스트와 route_check R01도 통과.
@@ -100,6 +102,8 @@
   - `test_candidate_returns_projected_point`: 손이 R01 H03 중심에서 오른쪽 0.05m, 위 0.03m → point == 중심 + (0.05, 0), quality ≈ 1 − (0.05/0.08)² ± 0.001.
   - `test_pad_grab_shifts_off_occupied_interval`(Review Focus 1): TX_TECH의 반폭 0.16 홀드에 RH가 구간 [−0.04, 0.04] 점유, LH 말단이 중심 → 결과 point가 중심에서 |0.08| 이상 떨어지고 구간이 겹치지 않음.
   - `test_narrow_hold_rejects_second_hand`: 반폭 0.04 홀드를 RH가 점유 → LH 후보 `{}`, reject_reason == OCCUPIED.
+  - `test_big_hold_match_by_pad`(합손, 사용자 요구): R01 H03(반폭 0.12)을 LH가 중심에서 왼쪽 0.04에 잡은 상태에서 RH 말단을 H03 중심에 두고 candidate → 결과 있음, RH 구간이 LH 구간과 겹치지 않음(맞닿음 허용), 두 손 품질 각각 ≥ 0.85.
+  - `test_touching_intervals_allowed`: 반폭 0.08 홀드에서 두 손이 ±0.04 → 구간 [−0.08,0]과 [0,0.08] 모두 허용(경계 맞닿음은 겹침이 아님).
   - `test_foot_single_occupant`: 발 슬롯은 다른 발이 있으면 후보 아님.
 - [ ] **Step 2: 실패 확인** `-- test_grip_areas.gd` → FAIL
 - [ ] **Step 3: 구현** 위 시그니처대로 `grip_check.gd`를 바꾸고, 기존 호출부(`route_bot.gd`, `play_test.gd`의 `_occupied_map`·`_candidate`·`_try_grab`·`limbs[limb].cand`, `play_3d.gd`의 `_update_candidate`(후보 링 위치 = `cand.point`), `test_moves.gd`)를 새 형식으로 고친다. 이 단계에서 attached 위치는 슬롯 중심이 아니라 잡은 점이다.
@@ -241,7 +245,7 @@
   - `test_wrong_phase_when_falling`: falling 세션 → 모든 쪽 WRONG_PHASE.
   - `test_support_needed_when_last_hand`(TA02): LH 하나 + 두 발, T_CROSS left → SUPPORT_NEEDED, 문구 "이 손발을 떼면 버틸 수 없어요".
   - `test_high_step_targets_only_high_holds`(TA03): R01 시작, T_HIGH_STEP left 후보는 Y ≥ 고관절 Y − 0.20인 발판만.
-  - `test_match_needs_room`(TA10): 좁은 홀드는 NO_HOLD 또는 check_hold OCCUPIED, 넓은 홀드는 가능.
+  - `test_match_needs_room`(TA10): 좁은 홀드(반폭 0.04)는 NO_HOLD 또는 check_hold OCCUPIED. R01 큰 홀드(반폭 0.12)는 T_MATCH 가능, 실행 후 두 손 품질 각각 ≥ 0.85.
   - `test_lock_off_blocked_by_edge_grip`(TA05): LH q = 0.19(t = 0.9) → T_LOCK_OFF left GRIP_TOO_POOR.
   - `test_same_snapshot_same_result`(TA11): 패드로 만든 자세와 세션 필드를 직접 설정한 같은 자세의 judge 결과가 같음.
   - `test_judge_cost`: TX_TECH 시작 자세에서 1차 16개 judge 총 시간 출력, 기술 1개 평균 ≤ 30ms(맥).
