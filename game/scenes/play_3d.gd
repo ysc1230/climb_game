@@ -477,7 +477,7 @@ func _update_foot_marks() -> void:
 		foot_marks[foot][1].visible = attached and not loaded
 		var flag: bool = l.state == "Flag" or (l.state == "Dragging" and logic.session.rules.flag_ready.has(foot))
 		flag_marks[foot].visible = flag
-		flag_marks[foot].position = Vector3(p.x, p.y + 0.12, Tuning.CONTACT_DEPTH + 0.12)
+		flag_marks[foot].position = Vector3(p.x, p.y + 0.12, Tuning.CONTACT_DEPTH + 0.12 + (float(l.flag_depth) if l.state == "Flag" else 0.0))
 
 
 func _update_candidate() -> void:

@@ -320,7 +320,7 @@ func _support_center_x(pelvis: Vector2, angle_deg: float, attached: Dictionary, 
 
 
 ## 25 MV06: 잡을 후보가 없는 드래그 발을 현재 위치에 두는 것이 휴식 위치에 두는 것보다
-## 균형 비용(손 하중 Σ2u², 불균형이면 잔차²×10)을 0.02 이상 줄이면 균형 발 후보.
+## 균형 비용(손 하중 Σ2u², 불균형이면 잔차²×10, barn door 초과분×10; flag_cost)을 0.02 이상 줄이면 균형 발 후보.
 func _update_flags(body: BodyState, attached: Dictionary, endpoints: Dictionary, probe: Array) -> void:
 	flag_ready.clear()
 	if probe.is_empty() or _eligible_hand_count(body.pos, body.angle, attached, body.yaw) == 0:
@@ -332,7 +332,7 @@ func _update_flags(body: BodyState, attached: Dictionary, endpoints: Dictionary,
 		var rest_eps := endpoints.duplicate()
 		rest_eps[foot] = PoseSolver.clamp_endpoint(body.pos, body.angle, foot, endpoints[foot], body.pos + Vector2(0.25 * PoseSolver.side_sign(foot), -0.70), body.yaw)
 		var rest := evaluate(body.pos, body.angle, attached, rest_eps, false, feet_eligible, body.yaw)
-		if balance_cost(rest) - balance_cost(here) >= Tuning.FLAG_COST_IMPROVEMENT:
+		if flag_cost(rest) - flag_cost(here) >= Tuning.FLAG_COST_IMPROVEMENT:
 			flag_ready.append(foot)
 
 
@@ -357,6 +357,14 @@ func _apply_phase(r: Dictionary) -> void:
 		imbalance_cause = &"BARN_DOOR"
 	else:
 		imbalance_cause = &""
+
+
+## 플래그 이득 비교용 비용: 균형 비용 + barn door 초과분×10. 패드 균형 발 예고와 플래그 기술 판단이 같이 쓴다(TA11).
+static func flag_cost(r: Dictionary) -> float:
+	var c := balance_cost(r)
+	if r.get("barn", {}).get("applies", false):
+		c += 10.0 * maxf(0.0, r.barn.tau - r.barn.capacity)
+	return c
 
 
 static func balance_cost(r: Dictionary) -> float:

@@ -4,7 +4,7 @@ extends RefCounted
 ## 판단 순서(27 §7.1): 1 게임 상태 → 2 손발 상태 → 3 떼기 판단 → 4 홀드 → 5 관절·몸통 → 6 균형·하중 → 7 피로.
 ## 쪽 판단(judge)은 홀드 후보 목록을 계산하지 않는다(27 §11). 4단계는 거리·종류·점유만 보는 가벼운 존재 검사이고,
 ## 홀드별 관절·체중 이동·힘 균형(5·6단계)은 쪽을 고른 뒤 hold_targets/check_hold가 계산한다.
-## 구현: 위치형 기술(8a), yaw형 기술 드롭니·아웃사이드 엣지(8b). 그 외 1·2차 기술은 MOVE_NOT_SUPPORTED로 막아 둔다(8c에서 교체).
+## 구현: 위치형 기술(8a), yaw형 기술 드롭니·아웃사이드 엣지(8b), 플래그 3종(8c). 그 외 기술은 MOVE_NOT_SUPPORTED로 막아 둔다.
 
 const WRONG_PHASE := &"WRONG_PHASE"
 const LIMB_STATE := &"LIMB_STATE"
@@ -48,10 +48,13 @@ const T_REST := &"T_REST"
 const T_LOCK_OFF := &"T_LOCK_OFF"
 const T_OUTSIDE_EDGE := &"T_OUTSIDE_EDGE"
 const T_DROP_KNEE := &"T_DROP_KNEE"
+const T_FLAG := &"T_FLAG"
+const T_FLAG_INSIDE := &"T_FLAG_INSIDE"
+const T_FLAG_OUTSIDE := &"T_FLAG_OUTSIDE"
 
 ## 손발을 홀드로 옮기는 기술(hold_tap). 실행기는 Dragging 경로로 옮긴 뒤 붙인다.
 const MOVE_TECHS: Array[StringName] = [T_INSIDE_EDGE, T_HIGH_STEP, T_CROSS, T_MATCH, T_FOOT_SWAP, T_SIDEPULL, T_GASTON, T_UNDERCLING, T_OUTSIDE_EDGE]
-const SUPPORTED: Array[StringName] = [T_INSIDE_EDGE, T_HIGH_STEP, T_CROSS, T_MATCH, T_FOOT_SWAP, T_SIDEPULL, T_GASTON, T_UNDERCLING, T_REST, T_LOCK_OFF, T_OUTSIDE_EDGE, T_DROP_KNEE]
+const SUPPORTED: Array[StringName] = [T_INSIDE_EDGE, T_HIGH_STEP, T_CROSS, T_MATCH, T_FOOT_SWAP, T_SIDEPULL, T_GASTON, T_UNDERCLING, T_REST, T_LOCK_OFF, T_OUTSIDE_EDGE, T_DROP_KNEE, T_FLAG, T_FLAG_INSIDE, T_FLAG_OUTSIDE]
 const HAND_TECHS: Array[StringName] = [T_CROSS, T_MATCH, T_SIDEPULL, T_GASTON, T_UNDERCLING, T_LOCK_OFF, &"T_DEADPOINT"]
 ## 잡기 방식을 정하는 기술. 그 외 손 기술은 패드와 같이 홀드의 첫 grip_mode를 쓴다(27 §11).
 const MODE_OF := {T_SIDEPULL: &"sidepull", T_GASTON: &"gaston", T_UNDERCLING: &"undercling"}
@@ -63,6 +66,11 @@ const GASTON_SHOULDER_BAND := 0.30   # 개스턴: 홀드가 어깨 높이 ±0.30
 const HIGH_FOOT_BELOW_HIP := 0.55    # 언더클링의 "높은 발": 하중 발 Y ≥ 고관절 Y − 0.55 (25 StandUp의 높은 발 기준)
 const DROP_KNEE_YAW := 35.0          # 27 §10: 드롭니 ψ 목표(도). 그 발 쪽 엉덩이를 벽으로: 왼발 ψ<0, 오른발 ψ>0
 const OUTSIDE_EDGE_YAW := 30.0       # 27 §10: 아웃사이드 엣지 ψ 목표(도)
+const FLAG_GRID := 0.05              # 플래그 위치 탐색 격자(m, 04 §10.6)
+const FLAG_NO_GAIN_TEXT := "지금은 균형에 도움이 안 돼요"
+const FLAG_MIN_BELOW_JOINT := 0.10   # 플래그 발은 고관절보다 이만큼 이상 아래(m, 구현 해석)
+## 변형별 깊이 힌트(m, 표현용; 판정은 평면): 인사이드는 지지발 앞(벽과 몸 사이), 아웃사이드는 뒤
+const FLAG_DEPTH := {T_FLAG: 0.0, T_FLAG_INSIDE: -0.05, T_FLAG_OUTSIDE: 0.10}
 const SHIFT_SEARCHES := 3            # 체중 이동 후 도달 판정의 목표 탐색 반복(각 ±0.30m)
 
 static var _defs := {}
@@ -98,6 +106,14 @@ static func limb_for(tech_id: StringName, side: StringName) -> StringName:
 static func yaw_for(tech_id: StringName, limb: StringName) -> float:
 	var mag := DROP_KNEE_YAW if tech_id == T_DROP_KNEE else (OUTSIDE_EDGE_YAW if tech_id == T_OUTSIDE_EDGE else NAN)
 	return mag * PoseSolver.side_sign(limb)
+
+
+static func is_flag(tech_id: StringName) -> bool:
+	return FLAG_DEPTH.has(tech_id)
+
+
+static func flag_depth(tech_id: StringName) -> float:
+	return FLAG_DEPTH.get(tech_id, 0.0)
 
 
 static func is_yaw_tech(tech_id: StringName) -> bool:
@@ -141,6 +157,8 @@ static func judge_side(snap: ClimbSnapshot, tech_id: StringName, side: StringNam
 			_judge_lock_off(snap, limb, acc)
 		T_DROP_KNEE:
 			_judge_drop_knee(snap, limb, acc)
+		T_FLAG, T_FLAG_INSIDE, T_FLAG_OUTSIDE:
+			_judge_flag(snap, tech_id, limb, acc)
 		_:
 			_judge_move(snap, tech_id, limb, acc)
 	return _result(acc)
@@ -213,6 +231,80 @@ static func _judge_drop_knee(snap: ClimbSnapshot, foot: StringName, acc: Array) 
 	var r := yaw_pose_reason(snap, snap.attached, snap.contact_meta, foot, &"drop_knee", yaw_for(T_DROP_KNEE, foot))
 	if r != &"":
 		_add(acc, r)
+
+
+## 플래그(27 §10, 04 §10.6): 그 발이 자유이거나 떼도 버틸 수 있고, 하중 손 ≥ 1, 관절 범위 안 격자에서
+## 균형 비용(ClimbRules.flag_cost)이 최소인 위치가 휴식 위치보다 FLAG_COST_IMPROVEMENT 이상 나아야 한다.
+static func _judge_flag(snap: ClimbSnapshot, tech_id: StringName, foot: StringName, acc: Array) -> void:
+	var b := snap.body
+	if snap.attached.has(foot) and not release_ok(snap, [foot]):
+		_add(acc, SUPPORT_NEEDED)
+		return
+	if PoseSolver.eligible_hands(b.pos, b.angle, snap.attached, snap.contact_meta, snap.loaded_feet, b.yaw) < 1:
+		_add(acc, LIMB_STATE, "손으로 홀드를 잡고 있어야 해요")
+		return
+	var other := other_of(foot)
+	if not (snap.attached.has(other) and snap.loaded_feet.has(other)):
+		_add(acc, LIMB_STATE, "다른 발로 발판을 딛고 체중을 받고 있어야 해요")
+		return
+	if flag_plan(snap, tech_id, foot).is_empty():
+		_add(acc, LIMB_STATE, FLAG_NO_GAIN_TEXT)
+
+
+## 이 발을 떼고(또는 자유인 채) 변형 영역의 격자에서 균형 비용이 최소인 플래그 위치. 이득이 없으면 {}.
+## 영역(지지발 X 기준): 같은 쪽 = 그 발 쪽 바깥, 인사이드·아웃사이드 = 지지발 너머로 교차(평면 판정은 같고 깊이 힌트만 다름).
+## 반환 {point, cost, gain}
+static func flag_plan(snap: ClimbSnapshot, tech_id: StringName, foot: StringName) -> Dictionary:
+	var b := snap.body
+	var att := snap.attached.duplicate()
+	var meta := snap.contact_meta.duplicate()
+	var loaded := snap.loaded_feet.duplicate()
+	att.erase(foot)
+	meta.erase(foot)
+	loaded.erase(foot)
+	var s := PoseSolver.side_sign(foot)
+	var sup_x := b.pos.x
+	var other := other_of(foot)
+	if att.has(other):
+		sup_x = (att[other] as Vector2).x
+	var cur: Vector2 = snap.endpoints[foot]
+	var joint := PoseSolver.joint_position(b.pos, b.angle, foot, b.yaw)
+	var rules := ClimbRules.new()
+	rules.contact_meta = meta
+	rules.loaded_feet.assign(loaded)
+	var feet := PoseSolver.supporting_feet(b.pos, b.angle, att, snap.feet_eligible, b.yaw)
+	var eps := _free_endpoints(snap, att)
+	var rest := PoseSolver.clamp_endpoint(b.pos, b.angle, foot, cur, b.pos + Vector2(0.25 * s, -0.70), b.yaw)
+	eps[foot] = rest
+	var rest_cost := ClimbRules.flag_cost(rules.evaluate(b.pos, b.angle, att, eps, false, feet, b.yaw))
+	var reach := PoseSolver.reach_of(foot).y
+	var n := int(ceil(reach / FLAG_GRID))
+	var best := {}
+	var best_cost := INF
+	for ix in range(-n, n + 1):
+		for iy in range(-n, 0):
+			var p := joint + Vector2(ix, iy) * FLAG_GRID
+			if p.y > joint.y - FLAG_MIN_BELOW_JOINT:
+				continue
+			var dx := (p.x - sup_x) * s
+			if tech_id == T_FLAG and not (dx >= 0.0 and (p.x - joint.x) * s >= 0.0):
+				continue
+			if tech_id != T_FLAG and dx >= 0.0:
+				continue
+			if PoseSolver.clamp_endpoint(b.pos, b.angle, foot, cur, p, b.yaw).distance_to(p) > 0.01:
+				continue  # 관절 방향·거리 범위 밖
+			eps[foot] = p
+			var r := rules.evaluate(b.pos, b.angle, att, eps, false, feet, b.yaw)
+			if r.status != SupportSolver.Status.FEASIBLE or r.barn.exceeded:
+				continue
+			var c := ClimbRules.flag_cost(r)
+			if c < best_cost - 1e-9:
+				best_cost = c
+				best = {"point": p, "cost": c}
+	if best.is_empty() or rest_cost - best_cost < Tuning.FLAG_COST_IMPROVEMENT:
+		return {}
+	best["gain"] = rest_cost - best_cost
+	return best
 
 
 ## 목표 yaw에서 자세가 성립하는가(몸통 위치·각도는 지금 그대로). 성립하면 &"".

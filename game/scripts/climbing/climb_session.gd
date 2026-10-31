@@ -7,7 +7,7 @@ extends RefCounted
 var route: RouteDef
 var body: BodyState
 var rules := ClimbRules.new()  # 지지·피로·유예 규칙(RouteBot과 공유, docs/04 §4·§7)
-## limb -> {state, key, pos(실제 말단), grab(잡은 점), req(요청 목표), cand, flag, contact}
+## limb -> {state, key, pos(실제 말단), grab(잡은 점), req(요청 목표), cand, flag, flag_depth(플래그 변형의 깊이 힌트, 표현용), contact}
 var limbs := {}
 var falling := false
 var fall_reason := ""
@@ -38,7 +38,7 @@ func reset() -> void:
 	for limb in PoseSolver.LIMBS:
 		var key: String = route.start_slots[limb]
 		var p := route.slot_pos(key)
-		limbs[limb] = {"state": "Attached", "key": key, "pos": p, "grab": p, "req": p, "cand": {}, "flag": p,
+		limbs[limb] = {"state": "Attached", "key": key, "pos": p, "grab": p, "req": p, "cand": {}, "flag": p, "flag_depth": 0.0,
 			"contact": GripCheck.contact_for(key, route.slots, limb, p)}
 	rules.contact_meta = _contact_meta()
 	rules.reset(body, attached(), {}, false)
@@ -145,6 +145,7 @@ func _try_grab(limb: StringName) -> void:
 		if not PoseSolver.is_hand(limb) and rules.flag_ready.has(limb):
 			l.state = "Flag"
 			l.flag = l.pos
+			l.flag_depth = 0.0
 			messages.append("균형 발로 두었어요")
 		else:
 			l.state = "Free"

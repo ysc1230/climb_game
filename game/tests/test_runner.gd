@@ -439,3 +439,100 @@ func test_yaw_guard_stops_when_support_infeasible() -> void:
 		for i in 120:
 			rules._step_yaw(body, att, eps, false)
 		runner.check(absf(body.yaw - 35.0) < 0.001, "가드 꺼지면 목표까지 (%.3f)" % body.yaw)
+
+
+# ---------- 플래그 3종 (8c) ----------
+
+const BARN_LINE := {&"LH": Vector2(-0.40, 1.75), &"LF": Vector2(-0.38, 0.35)}
+const BARN_FREE := {&"RF": Vector2(0.20, 0.30), &"RH": Vector2(0.20, 1.60)}
+
+
+## Task 6 barn door 자세(test_barn_door.gd): 세로선 LH+LF, 골반 x=-0.30, RH·RF 자유.
+func _barn_session() -> ClimbSession:
+	var s := ClimbSession.new(_r01())
+	for limb in BARN_LINE:
+		var l: Dictionary = s.limbs[limb]
+		l.grab = BARN_LINE[limb]
+		l.pos = BARN_LINE[limb]
+		l.contact.point = BARN_LINE[limb]
+	for limb in BARN_FREE:
+		var l: Dictionary = s.limbs[limb]
+		l.state = "Free"
+		l.contact = null
+		l.pos = BARN_FREE[limb]
+		l.req = BARN_FREE[limb]
+	s.body.pos = Vector2(-0.30, 1.0)
+	s.body.angle = 0.0
+	s.rules.contact_meta = s._contact_meta()
+	s.rules.reset(s.body, s.attached(), BARN_FREE, false)
+	return s
+
+
+func test_flag_needed_and_fixes_barn_door() -> void:
+	var s := _barn_session()
+	runner.check(s.rules.imbalance_cause == &"BARN_DOOR", "전제: barn door 자세 (%s)" % s.rules.imbalance_cause)
+	var snap := ClimbSnapshot.from_session(s)
+	var j := TechniqueJudge.judge(snap, TechniqueJudge.T_FLAG_INSIDE)
+	runner.check(j[&"right"].available, "인사이드 플래그 right 가능: %s" % [j[&"right"]])
+	runner.check(s.runner.start(s, &"T_FLAG_INSIDE", &"right") == &"", "시작")
+	var r := _run(s)
+	runner.check(r == "", "실행 완료 (%s)" % r)
+	var rf: Dictionary = s.limbs[&"RF"]
+	runner.check(rf.state == "Flag", "RF state Flag: %s" % rf.state)
+	runner.check(not s.rules.last.barn.exceeded, "barn door 해소: %s" % [s.rules.last.barn])
+	var types: Array = s.technique_log.map(func(e): return e.type)
+	runner.check(types == [TechniqueRunner.STARTED, TechniqueRunner.SUCCEEDED], "이벤트: %s" % [types])
+
+
+func test_flag_unavailable_when_no_gain() -> void:
+	var s := _session(_r01())
+	var snap := ClimbSnapshot.from_session(s)
+	for id in [&"T_FLAG", &"T_FLAG_INSIDE", &"T_FLAG_OUTSIDE"]:
+		var j := TechniqueJudge.judge(snap, id)
+		for side in [&"left", &"right"]:
+			runner.check(not j[side].available, "%s %s 불가" % [id, side])
+			runner.check(j[side].text == TechniqueJudge.FLAG_NO_GAIN_TEXT, "%s %s 이유 문구: %s" % [id, side, j[side].text])
+
+
+## R01 시작에서 RH·RF를 떼고 골반을 LF 쪽으로 치우친 자세: 같은 쪽 플래그(오른발 바깥)가 이득.
+func _same_side_session() -> ClimbSession:
+	var s := ClimbSession.new(_r01())
+	var fr := {}
+	for limb in [&"RH", &"RF"]:
+		var l: Dictionary = s.limbs[limb]
+		l.state = "Free"
+		l.contact = null
+		l.pos = Vector2(0.3, 0.1) if limb == &"RF" else Vector2(0.4, 1.6)
+		l.req = l.pos
+		fr[limb] = l.pos
+	s.body.pos = Vector2(-0.45, 0.8)
+	s.rules.contact_meta = s._contact_meta()
+	s.rules.reset(s.body, s.attached(), fr, false)
+	return s
+
+
+func test_flag_variants_positions() -> void:
+	# 같은 쪽: 지지발(LF) 바깥(오른쪽)으로, 인사이드·아웃사이드 위치는 이 자세에서 불가
+	var s1 := _same_side_session()
+	var snap1 := ClimbSnapshot.from_session(s1)
+	var sup_x: float = s1.limbs[&"LF"].grab.x
+	var p1 := TechniqueJudge.flag_plan(snap1, &"T_FLAG", &"RF")
+	runner.check(not p1.is_empty() and p1.point.x > sup_x and p1.point.y < s1.body.pos.y, "같은 쪽은 지지발 바깥·아래: %s" % [p1])
+	runner.check(s1.runner.start(s1, &"T_FLAG", &"right") == &"" and _run(s1) == "", "같은 쪽 실행")
+	runner.check(s1.limbs[&"RF"].state == "Flag" and s1.limbs[&"RF"].flag_depth == 0.0, "같은 쪽 Flag, 깊이 0")
+	# 교차 변형: 지지발(LF) 너머. 같은 쪽 영역 판정과 구분된다
+	var s2 := _barn_session()
+	var snap2 := ClimbSnapshot.from_session(s2)
+	var sup2: float = BARN_LINE[&"LF"].x
+	for id in [&"T_FLAG_INSIDE", &"T_FLAG_OUTSIDE"]:
+		var plan := TechniqueJudge.flag_plan(snap2, id, &"RF")
+		runner.check(not plan.is_empty() and plan.point.x < sup2, "%s는 지지발 너머로 교차: %s" % [id, plan])
+	runner.check(TechniqueJudge.flag_plan(snap2, &"T_FLAG", &"RF").is_empty(), "barn door 자세에서 같은 쪽은 이득 없음")
+	var d_in := TechniqueJudge.flag_depth(&"T_FLAG_INSIDE")
+	var d_same := TechniqueJudge.flag_depth(&"T_FLAG")
+	var d_out := TechniqueJudge.flag_depth(&"T_FLAG_OUTSIDE")
+	runner.check(d_in < d_same and d_same < d_out, "깊이 안 < 같은 쪽 < 뒤")
+	for id in [&"T_FLAG_INSIDE", &"T_FLAG_OUTSIDE"]:
+		var s3 := _barn_session()
+		runner.check(s3.runner.start(s3, id, &"right") == &"" and _run(s3) == "", "%s 실행" % id)
+		runner.check(is_equal_approx(s3.limbs[&"RF"].flag_depth, TechniqueJudge.flag_depth(id)), "%s limb.flag_depth 기록" % id)

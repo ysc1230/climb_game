@@ -51,6 +51,11 @@ func start(session: ClimbSession, tech_id: StringName, side: StringName, key: St
 			a.other_point = c.other_point
 		if tech_id in [TechniqueJudge.T_MATCH, TechniqueJudge.T_FOOT_SWAP]:
 			a.limbs.append(TechniqueJudge.other_of(limb))
+	if TechniqueJudge.is_flag(tech_id):
+		var plan := TechniqueJudge.flag_plan(snap, tech_id, limb)
+		if plan.is_empty():
+			return TechniqueJudge.LIMB_STATE
+		a.point = plan.point
 	active = a
 	return &""
 
@@ -146,7 +151,15 @@ func _tick_move(session: ClimbSession) -> void:
 	var d: float = (l.pos as Vector2).distance_to(a.point)
 	var progressed: bool = d < float(a.last_d) - 0.0005
 	a.last_d = d
-	if d <= GripCheck.radius_of(a.limb) and (d <= ARRIVE_EPSILON or not progressed) and _attach(session):
+	if TechniqueJudge.is_flag(a.id):
+		# 플래그: 붙이지 않고 그 자리에 "Flag"로 둔다. 이후 그 발 패드를 누르면 기존 동작으로 끝난다
+		if d <= ARRIVE_EPSILON or (not progressed and d <= GripCheck.radius_of(a.limb)):
+			l.state = "Flag"
+			l.flag = l.pos
+			l.flag_depth = TechniqueJudge.flag_depth(a.id)
+			_end(session, SUCCEEDED, &"")
+			return
+	elif d <= GripCheck.radius_of(a.limb) and (d <= ARRIVE_EPSILON or not progressed) and _attach(session):
 		if a.id == TechniqueJudge.T_OUTSIDE_EDGE:
 			_begin_yaw(session)  # 발이 붙은 뒤 ψ 목표(접점 edge는 contact_for가 outside로 기록)
 		elif a.id == TechniqueJudge.T_HIGH_STEP:
