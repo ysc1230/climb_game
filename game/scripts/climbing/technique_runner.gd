@@ -79,6 +79,8 @@ func tick(session: ClimbSession) -> Dictionary:
 				_tick_hold(session)
 			&"yaw":
 				_tick_yaw(session)
+			&"deadpoint":
+				_tick_deadpoint(session)
 	return _events.pop_front() if not _events.is_empty() else {}
 
 
@@ -86,6 +88,12 @@ func cancel(session: ClimbSession, reason: StringName = &"cancelled") -> void:
 	if active.is_empty():
 		return
 	_end(session, CANCELLED, reason)
+
+
+## 실행 중 기술을 실패로 끝낸다(세션이 판정한 실패 이유를 기록).
+func fail(session: ClimbSession, reason: StringName) -> void:
+	if not active.is_empty():
+		_end(session, FAILED, reason)
 
 
 ## 끝 조건이 "패드 조작"인 기술(휴식)을 정상 종료한다.
@@ -122,6 +130,11 @@ func _check_and_begin(session: ClimbSession) -> void:
 			rules.fatigue_multiplier = {a.limb: LOCK_OFF_FATIGUE}
 			a.other_released = not session.attached().has(TechniqueJudge.other_of(a.limb))
 			a.step = &"hold"
+		TechniqueJudge.T_DEADPOINT:
+			# 손을 떼어 날린다. 이동·받기 판정은 세션이 한다(패드 경로와 같은 로직)
+			session.start_deadpoint(a.limb, a.key, a.point, TechniqueJudge.deadpoint_bonus(snap.body.vel.y, 1.0))
+			a.step = &"deadpoint"
+			a.ticks = 0
 		TechniqueJudge.T_DROP_KNEE:
 			# 이미 딛은 발: 접점 edge를 drop_knee로, ψ 목표를 그 발 쪽 엉덩이를 벽으로(27 §10)
 			var c: ContactInfo = session.limbs[a.limb].contact
@@ -173,6 +186,14 @@ func _tick_move(session: ClimbSession) -> void:
 	if a.ticks >= MOVE_BUDGET_TICKS:
 		l.state = "Free"
 		_end(session, FAILED, TechniqueJudge.NEED_WEIGHT_SHIFT if a.needs_shift else TechniqueJudge.JOINT_LIMIT)
+
+
+## 데드포인트: 세션이 끝낼 때까지 기다린다. 붙었으면 성공(놓친 경우는 세션이 fail로 끝내고 추락한다).
+func _tick_deadpoint(session: ClimbSession) -> void:
+	var a := active
+	a.ticks += 1
+	if session.deadpoint.is_empty():
+		_end(session, SUCCEEDED if session.attached().has(a.limb) else CANCELLED, &"")
 
 
 ## yaw 단계 시작: ψ 목표를 정하고 힘 균형 게이트를 켠다. 기술은 취소될 때까지 유지된다.

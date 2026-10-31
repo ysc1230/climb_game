@@ -70,7 +70,7 @@ func test_wrong_phase_when_falling() -> void:
 
 func test_unsupported_techniques_marked() -> void:
 	var snap := ClimbSnapshot.from_session(_session(_r01()))
-	for id in [&"T_DEADPOINT", &"T_HEEL_HOOK", &"T_SMEAR"]:
+	for id in [&"T_HEEL_HOOK", &"T_SMEAR"]:
 		var j := TechniqueJudge.judge(snap, id)
 		runner.check(not j.left.available and j.left.reason == TechniqueJudge.MOVE_NOT_SUPPORTED, "%s 미지원 표시 %s" % [id, j.left])
 

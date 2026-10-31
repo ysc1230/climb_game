@@ -35,6 +35,7 @@ var yaw_target := NAN     # 도. NAN이면 0으로 복귀(04 §10.1, 기술만 �
 var yaw_guard := false   # yaw 기술 실행 중: yaw를 키우는 한 걸음이 힘 균형(FEASIBLE)·barn door를 깨면 그 걸음을 멈춘다
 var flag_ready: Array[StringName] = []  # 지금 놓으면 균형 발(Free/Flag)로 남는 드래그 발
 var profile_override := {}  # limb → 선호 거리. 기술 실행 중 무브 프로필 위에 덮어씀(docs/27 §10, 비면 영향 없음)
+var load_scale := 1.0  # 접점 최대 하중 배율. 데드포인트 받기는 순간 하중 1.3배를 1/1.3으로 환산해 넣는다(04 §10.5)
 var fatigue_multiplier := {}  # 손 → 피로(음수 변화율) 배율. 록오프 중 그 손 ×1.5(docs/27 §10)
 
 # accept 콜백용 틱 문맥
@@ -129,11 +130,11 @@ func _eligible_hand_count(pelvis: Vector2, angle_deg: float, attached: Dictionar
 func _contact_of(limb: StringName, pos: Vector2) -> Dictionary:
 	var base := SupportSolver.contact(limb, pos)
 	if not contact_meta.has(limb):
-		return base
+		return SupportSolver.contact_with(limb, pos, base.axis, base.half_angle, base.max_load * load_scale)
 	var info: ContactInfo = contact_meta[limb]
 	var q := info.quality
 	var half: float = info.half_angle if info.half_angle > 0.0 else base.half_angle
-	return SupportSolver.contact_with(limb, pos, info.axis, half * (0.6 + 0.4 * q), base.max_load * (0.5 + 0.5 * q))
+	return SupportSolver.contact_with(limb, pos, info.axis, half * (0.6 + 0.4 * q), base.max_load * (0.5 + 0.5 * q) * load_scale)
 
 
 func evaluate(pelvis: Vector2, angle_deg: float, attached: Dictionary, endpoints: Dictionary, _platform: bool, feet: Array = feet_eligible, yaw_deg: float = 0.0) -> Dictionary:

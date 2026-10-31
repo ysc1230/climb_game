@@ -19,6 +19,7 @@ const PIVOT_NOT_ALLOWED := &"PIVOT_NOT_ALLOWED"
 const GRIP_TOO_POOR := &"GRIP_TOO_POOR"
 const TOO_TIRED := &"TOO_TIRED"
 const MOVE_NOT_SUPPORTED := &"MOVE_NOT_SUPPORTED"
+const DEADPOINT_MISS := &"DEADPOINT_MISS"
 
 ## 27 §7.3 문구. LIMB_STATE는 기술별 문구를 따로 만든다. 홀드 탭 거부는 GripCheck 문구도 쓴다.
 const TEXTS := {
@@ -34,6 +35,7 @@ const TEXTS := {
 	GRIP_TOO_POOR: "홀드를 너무 끝에 잡았어요",
 	TOO_TIRED: "팔 힘이 부족해요",
 	MOVE_NOT_SUPPORTED: "아직 준비 중인 기술이에요",
+	DEADPOINT_MISS: "홀드를 놓쳤어요",
 }
 
 const T_INSIDE_EDGE := &"T_INSIDE_EDGE"
@@ -51,11 +53,12 @@ const T_DROP_KNEE := &"T_DROP_KNEE"
 const T_FLAG := &"T_FLAG"
 const T_FLAG_INSIDE := &"T_FLAG_INSIDE"
 const T_FLAG_OUTSIDE := &"T_FLAG_OUTSIDE"
+const T_DEADPOINT := &"T_DEADPOINT"
 
 ## 손발을 홀드로 옮기는 기술(hold_tap). 실행기는 Dragging 경로로 옮긴 뒤 붙인다.
-const MOVE_TECHS: Array[StringName] = [T_INSIDE_EDGE, T_HIGH_STEP, T_CROSS, T_MATCH, T_FOOT_SWAP, T_SIDEPULL, T_GASTON, T_UNDERCLING, T_OUTSIDE_EDGE]
-const SUPPORTED: Array[StringName] = [T_INSIDE_EDGE, T_HIGH_STEP, T_CROSS, T_MATCH, T_FOOT_SWAP, T_SIDEPULL, T_GASTON, T_UNDERCLING, T_REST, T_LOCK_OFF, T_OUTSIDE_EDGE, T_DROP_KNEE, T_FLAG, T_FLAG_INSIDE, T_FLAG_OUTSIDE]
-const HAND_TECHS: Array[StringName] = [T_CROSS, T_MATCH, T_SIDEPULL, T_GASTON, T_UNDERCLING, T_LOCK_OFF, &"T_DEADPOINT"]
+const MOVE_TECHS: Array[StringName] = [T_INSIDE_EDGE, T_HIGH_STEP, T_CROSS, T_MATCH, T_FOOT_SWAP, T_SIDEPULL, T_GASTON, T_UNDERCLING, T_OUTSIDE_EDGE, T_DEADPOINT]
+const SUPPORTED: Array[StringName] = [T_INSIDE_EDGE, T_HIGH_STEP, T_CROSS, T_MATCH, T_FOOT_SWAP, T_SIDEPULL, T_GASTON, T_UNDERCLING, T_REST, T_LOCK_OFF, T_OUTSIDE_EDGE, T_DROP_KNEE, T_FLAG, T_FLAG_INSIDE, T_FLAG_OUTSIDE, T_DEADPOINT]
+const HAND_TECHS: Array[StringName] = [T_CROSS, T_MATCH, T_SIDEPULL, T_GASTON, T_UNDERCLING, T_LOCK_OFF, T_DEADPOINT]
 ## 잡기 방식을 정하는 기술. 그 외 손 기술은 패드와 같이 홀드의 첫 grip_mode를 쓴다(27 §11).
 const MODE_OF := {T_SIDEPULL: &"sidepull", T_GASTON: &"gaston", T_UNDERCLING: &"undercling"}
 
@@ -73,6 +76,13 @@ const FLAG_NO_GAIN_TEXT := "지금은 균형에 도움이 안 돼요"
 const FLAG_MIN_BELOW_JOINT := 0.10   # 플래그 발은 고관절보다 이만큼 이상 아래(m, 구현 해석)
 ## 변형별 깊이 힌트(m, 표현용; 판정은 평면): 인사이드는 지지발 앞(벽과 몸 사이), 아웃사이드는 뒤
 const FLAG_DEPTH := {T_FLAG: 0.0, T_FLAG_INSIDE: -0.05, T_FLAG_OUTSIDE: 0.10}
+const DEADPOINT_RISE_SPEED := 0.25   # 04 §10.5: 골반 위 방향 속도 ≥ 0.25m/s면 창이 열림
+const DEADPOINT_GRACE_TICKS := 15    # 상승이 끝난 뒤 0.25초까지 열림
+const DEADPOINT_MAX_BONUS := 0.15
+const DEADPOINT_MIN_QUALITY := 0.5
+const DEADPOINT_LOAD_FACTOR := 1.3   # 순간 하중 배율(받기 판정은 최대 하중을 1/1.3로 계산)
+const DEADPOINT_AIM_MARGIN := 0.10   # 보너스 범위를 이만큼 넘는 홀드까지는 "던져 보는" 대상(놓치면 추락)
+const DEADPOINT_TEXT_CLOSED := "몸이 올라가는 중에만 쓸 수 있어요"
 const SHIFT_SEARCHES := 3            # 체중 이동 후 도달 판정의 목표 탐색 반복(각 ±0.30m)
 
 static var _defs := {}
@@ -161,6 +171,8 @@ static func judge_side(snap: ClimbSnapshot, tech_id: StringName, side: StringNam
 			_judge_drop_knee(snap, limb, acc)
 		T_FLAG, T_FLAG_INSIDE, T_FLAG_OUTSIDE:
 			_judge_flag(snap, tech_id, limb, acc)
+		T_DEADPOINT:
+			_judge_deadpoint(snap, limb, acc)
 		_:
 			_judge_move(snap, tech_id, limb, acc)
 	return _result(acc)
@@ -209,6 +221,98 @@ static func _judge_lock_off(snap: ClimbSnapshot, hand: StringName, acc: Array) -
 				_add(acc, r)
 	if float(snap.stamina.get(hand, 0.0)) < LOCK_OFF_MIN_STAMINA:
 		_add(acc, TOO_TIRED)
+
+
+## 데드포인트 도달 보너스(04 §10.5): min(0.15, 0.25·v_up + 0.05·드래그 속도). 버튼 흐름은 드래그 속도 대신 1을 넣는다(= 0.05).
+static func deadpoint_bonus(v_up: float, drag_speed: float) -> float:
+	return minf(DEADPOINT_MAX_BONUS, 0.25 * maxf(v_up, 0.0) + 0.05 * maxf(drag_speed, 0.0))
+
+
+## 이 손의 데드포인트 조건 중 창(상승) 외 부분: 반대 손이 붙어 하중 자격이 있고 하중 받는 발 ≥ 1. 만족하면 "".
+static func deadpoint_hand_reason(snap: ClimbSnapshot, hand: StringName) -> String:
+	var b := snap.body
+	var other := other_of(hand)
+	if not (snap.attached.has(other) and PoseSolver.hand_counts_for_support(b.pos, b.angle, other, snap.attached[other], _mode(snap, other), snap.loaded_feet, b.yaw)):
+		return "%s로 홀드를 잡고 체중을 받고 있어야 해요" % limb_name(other)
+	if snap.loaded_feet.is_empty():
+		return "발로 체중을 받치고 있어야 해요"
+	return ""
+
+
+## 정적 도달 한계: can_reach의 먼 쪽 3D 거리 한계(관절~점 거리 기준).
+static func deadpoint_far(hand: StringName, yaw: float) -> float:
+	var dz := PoseSolver.contact_dz_range() + Vector2.ONE * PoseSolver.joint_depth_offset(hand, yaw)
+	return PoseSolver.planar_range(hand, dz.x, dz.y).y
+
+
+## 데드포인트 받기 판정(받는 순간의 자세 그대로). 손 hand는 att에 없어도(떼어진 상태) 있어도 된다.
+## 1 품질 ≥ 0.5  2 방향 영역(완화 없음)  3 거리는 정적 한계 + bonus까지  4 모든 접점이 함께 만족하는 깊이
+## 5 최대 하중 /1.3 힘 균형. 반환 {ok, reason}.
+static func deadpoint_catch(snap: ClimbSnapshot, hand: StringName, key: String, point: Vector2, bonus: float) -> Dictionary:
+	var b := snap.body
+	var slot: Dictionary = snap.route.slots[key]
+	if HoldArea.project_hand(slot, point).quality < DEADPOINT_MIN_QUALITY:
+		return {"ok": false, "reason": GRIP_TOO_POOR}
+	if not PoseSolver.direction_ok(b.pos, b.angle, hand, point, b.yaw):
+		return {"ok": false, "reason": JOINT_LIMIT}
+	var d := PoseSolver.limb_distance(b.pos, b.angle, hand, point, b.yaw)
+	var over := d - deadpoint_far(hand, b.yaw)
+	if over > bonus + Tuning.DISTANCE_EPSILON:
+		return {"ok": false, "reason": GripCheck.OUT_OF_REACH}
+	var remaining := snap.attached.duplicate()
+	var meta := snap.contact_meta.duplicate()
+	var loaded := snap.loaded_feet.duplicate()
+	remaining.erase(hand)
+	meta.erase(hand)
+	loaded.erase(hand)
+	var with_new := remaining.duplicate()
+	with_new[hand] = point
+	# 깊이: 정적 한계를 넘는 만큼(≤ bonus)만 관절 쪽으로 당긴 가상점으로 공통 깊이를 본다(방향은 같다)
+	var virtual := point
+	if over > 0.0:
+		var joint := PoseSolver.joint_position(b.pos, b.angle, hand, b.yaw)
+		virtual = joint + (point - joint) * ((d - over) / d)
+	var vw := remaining.duplicate()
+	vw[hand] = virtual
+	if not PoseSolver.is_valid(b.pos, b.angle, vw, b.yaw):
+		return {"ok": false, "reason": JOINT_LIMIT}
+	meta[hand] = contact_for(snap.route, T_DEADPOINT, hand, key, point)
+	var r := support_reason(snap, b.pos, b.angle, b.yaw, with_new, _free_endpoints(snap, with_new), meta, loaded, {hand: key}, 1.0 / DEADPOINT_LOAD_FACTOR)
+	if r != &"":
+		return {"ok": false, "reason": r}
+	return {"ok": true, "reason": &""}
+
+
+## 데드포인트(27 §8.4): 창이 열려 있고(상승 중), 그 손이 붙어 있고 떼도 버티며, 반대 손·발 조건이 맞고,
+## 보너스 범위 안에 홀드가 하나라도 있어야 한다.
+static func _judge_deadpoint(snap: ClimbSnapshot, hand: StringName, acc: Array) -> void:
+	if not snap.deadpoint_window:
+		_add(acc, LIMB_STATE, DEADPOINT_TEXT_CLOSED)
+		return
+	if not snap.attached.has(hand):
+		_add(acc, LIMB_STATE, "%s이 홀드를 잡고 있어야 해요" % limb_name(hand))
+		return
+	var why := deadpoint_hand_reason(snap, hand)
+	if why != "":
+		_add(acc, LIMB_STATE, why)
+	if not release_ok(snap, [hand]):
+		_add(acc, SUPPORT_NEEDED)
+	if not _any_deadpoint_hold(snap, hand):
+		_add(acc, NO_HOLD)
+
+
+## 보너스(버튼 흐름) 범위 안의 빈 홀드가 하나라도 있는가(가벼운 존재 검사).
+static func _any_deadpoint_hold(snap: ClimbSnapshot, hand: StringName) -> bool:
+	var b := snap.body
+	var joint := PoseSolver.joint_position(b.pos, b.angle, hand, b.yaw)
+	var limit := deadpoint_far(hand, b.yaw) + deadpoint_bonus(b.vel.y, 1.0)
+	for key in snap.route.slots:
+		if not slot_filter(snap, T_DEADPOINT, hand, key):
+			continue
+		var pt := point_for(snap, T_DEADPOINT, hand, key, snap.route.slots[key].pos)
+		if not pt.is_empty() and joint.distance_to(pt.point) <= limit:
+			return true
+	return false
 
 
 ## 드롭니(27 §10): 그 발이 붙어 있고 하중, 발판 pivot_allowed, 다른 발 하중, 손 ≥ 1, 그 발이 고관절보다 바깥·아래,
@@ -383,8 +487,9 @@ static func release_ok(snap: ClimbSnapshot, removed: Array) -> bool:
 
 
 ## 이 자세·접점에서의 지지 이유. 성립하면 &"", 힘 해 없음·지지 자격 없음은 SUPPORT_OVERLOAD, barn door 초과는 BARN_DOOR.
-static func support_reason(snap: ClimbSnapshot, pelvis: Vector2, angle: float, yaw: float, att: Dictionary, eps: Dictionary, meta: Dictionary, loaded: Array, key_over: Dictionary = {}) -> StringName:
+static func support_reason(snap: ClimbSnapshot, pelvis: Vector2, angle: float, yaw: float, att: Dictionary, eps: Dictionary, meta: Dictionary, loaded: Array, key_over: Dictionary = {}, load_scale: float = 1.0) -> StringName:
 	var rules := ClimbRules.new()
+	rules.load_scale = load_scale
 	rules.contact_meta = meta
 	rules.loaded_feet.assign(loaded)
 	var feet := PoseSolver.supporting_feet(pelvis, angle, att, snap.feet_eligible, yaw)
@@ -455,6 +560,9 @@ static func slot_filter(snap: ClimbSnapshot, tech_id: StringName, limb: StringNa
 	if tech_id == T_OUTSIDE_EDGE and not slot.pivot_allowed:
 		return false
 	match tech_id:
+		T_DEADPOINT:
+			# 지금 잡은 홀드로 되돌아가는 데드포인트는 없다
+			return not (snap.attached.has(limb) and snap.keys[limb] == key)
 		T_CROSS:
 			# 반대 손 X를 넘는 홀드(LH는 RH보다 오른쪽)
 			return snap.attached.has(other) and (p.x - (snap.attached[other] as Vector2).x) * PoseSolver.side_sign(other) > 0.0
@@ -539,6 +647,9 @@ static func _any_hold_cheap(snap: ClimbSnapshot, tech_id: StringName, limb: Stri
 ## 반환 {ok, reason, needs_shift, pose: Vector3}
 static func evaluate_target(snap: ClimbSnapshot, tech_id: StringName, limb: StringName, key: String, point: Vector2) -> Dictionary:
 	var b := snap.body
+	if tech_id == T_DEADPOINT:
+		var dp := deadpoint_catch(snap, limb, key, point, deadpoint_bonus(b.vel.y, 1.0))
+		return {"ok": dp.ok, "reason": dp.reason, "needs_shift": false, "pose": Vector3(b.pos.x, b.pos.y, b.angle)}
 	var remaining := snap.attached.duplicate()
 	var meta := snap.contact_meta.duplicate()
 	var loaded := snap.loaded_feet.duplicate()
@@ -617,7 +728,7 @@ static func hold_targets(snap: ClimbSnapshot, tech_id: StringName, side: StringN
 
 
 static func _needs_quality(tech_id: StringName) -> bool:
-	return tech_id in [T_SIDEPULL, T_GASTON]
+	return tech_id in [T_SIDEPULL, T_GASTON, T_DEADPOINT]
 
 
 ## 탭한 홀드·지점 검사. 탭 지점을 영역에 투영(점유 구간 회피)하고 기술별 품질 조건·5·6단계를 본다.

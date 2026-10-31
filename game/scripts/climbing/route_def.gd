@@ -12,6 +12,7 @@ var start_angle := 0.0
 var start_slots := {}    # limb -> slot key
 var goal_slots: Array = []
 var time_medal_seconds := 0.0
+var fail_line_y := -0.5  # 이 아래로 떨어지면 추락 연출 종료
 var intended_moves: Array = []  # [[limb, slot key], ...]
 var errors: PackedStringArray = []
 
@@ -50,6 +51,7 @@ func _read(d: Dictionary) -> void:
 		start_slots[StringName(limb)] = sp.slots[limb]
 	goal_slots = d.get("goal_slots", [])
 	time_medal_seconds = float(d.get("time_medal_seconds", 0.0))
+	fail_line_y = float(d.get("fail_line_y", -0.5))
 	for m in d.get("intended_moves", []):
 		intended_moves.append([StringName(m[0]), m[1]])
 

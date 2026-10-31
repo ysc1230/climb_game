@@ -22,6 +22,12 @@ var runner := TechniqueRunner.new()  # 기술 실행기(docs/27). 한 번에 하
 var technique_log: Array = []
 var tick_count := 0
 const TECHNIQUE_LOG_MAX := 200
+const DEADPOINT_TICKS := 9              # 04 §10.5: 0.15초 안에 잡기 판정
+const DEADPOINT_SPEED := 5.0            # 말단 따라가기 속도(2.5) × 2
+const DEADPOINT_STAMINA_COST := 10.0    # 버틴 손 피로 즉시 −10
+## 실행 중인 데드포인트 {limb, key, point, bonus, ticks}. 비면 없음. 손은 "Deadpoint" 상태로 날아가고 끝나면 붙거나(성공) 추락(실패)한다.
+var deadpoint := {}
+var _last_rise_tick := -1000  # 골반이 DEADPOINT_RISE_SPEED 이상으로 올라간 마지막 틱
 var _hint_cooldown := 0
 var _last_hint := &""
 
@@ -45,6 +51,8 @@ func reset() -> void:
 	goal_ticks = 0
 	falling = false
 	fall_reason = ""
+	deadpoint = {}
+	_last_rise_tick = -1000
 
 
 ## 붙은(Attached/Armed) 팔다리의 잡은 점.
@@ -90,10 +98,22 @@ func is_dragging() -> bool:
 
 # ---------- 입력 ----------
 
-## InputRouter 명령({type, limb, delta})을 적용한다.
+## 데드포인트 창(04 §10.5): 골반이 올라가는 중이거나, 그런 상승이 끝난 뒤 0.25초 이내.
+func deadpoint_window() -> bool:
+	return body.vel.y >= TechniqueJudge.DEADPOINT_RISE_SPEED or tick_count - _last_rise_tick <= TechniqueJudge.DEADPOINT_GRACE_TICKS
+
+
+## 지금 도달 보너스(m). drag_speed: 손가락 속도(m/s, 월드). 버튼 흐름은 1을 넣는다(= 0.05).
+func deadpoint_bonus(drag_speed: float) -> float:
+	return TechniqueJudge.deadpoint_bonus(body.vel.y, drag_speed)
+
+
+## InputRouter 명령({type, limb, delta, speed})을 적용한다.
 func apply_input(cmds: Array) -> void:
 	for c in cmds:
 		var l: Dictionary = limbs[c.limb]
+		if l.state == "Deadpoint":
+			continue  # 날아가는 중인 손은 0.15초 동안 입력을 받지 않는다
 		# 패드 조작과 실행 중 기술(27 §6 5): 휴식은 어떤 패드 조작이든 끝, 그 외는 기술이 쓰는 손발을 누르면 취소
 		if not runner.active.is_empty():
 			if runner.active.id == TechniqueJudge.T_REST:
@@ -113,7 +133,7 @@ func apply_input(cmds: Array) -> void:
 			"move":
 				l.req = _clamp_to_reach(c.limb, l.req, l.req + c.delta)
 			"release":
-				_try_grab(c.limb)
+				_try_grab(c.limb, float(c.get("speed", 0.0)))
 			"cancel":
 				if l.state == "Armed":
 					l.state = "Attached"
@@ -132,11 +152,14 @@ func _candidate(limb: StringName) -> Dictionary:
 	return GripCheck.candidate(route.slots, limb, l.pos, body.pos, body.angle, attached(), occupied(), l.cand.get("key", ""), body.yaw)
 
 
-func _try_grab(limb: StringName) -> void:
+func _try_grab(limb: StringName, speed: float = 0.0) -> void:
 	var l: Dictionary = limbs[limb]
 	var cand := _candidate(limb)
 	l.cand = {}
 	if cand.is_empty():
+		# 정적 후보가 없을 때만 데드포인트(창이 열려 있고 빠르게 놓은 손). 정지 상태의 빠른 드래그는 일반 Free(27 §13 TA04)
+		if PoseSolver.is_hand(limb) and deadpoint_window() and _start_pad_deadpoint(limb, speed):
+			return
 		var reason := GripCheck.reject_reason(route.slots, limb, l.pos, l.req, body.pos, body.angle, attached(), occupied(), rules.feet_eligible, body.yaw)
 		var text := GripCheck.message(reason, limb)
 		if not text.is_empty():
@@ -151,6 +174,67 @@ func _try_grab(limb: StringName) -> void:
 			l.state = "Free"
 		return
 	_attach(limb, cand.key, cand.point, GripCheck.contact_for(cand.key, route.slots, limb, cand.point))
+
+
+## 패드로 놓은 손의 데드포인트 시도. 노린 홀드(요청 목표 근처)가 보너스 범위 + 여유 안에 있으면 던진다.
+## 범위 안/밖과 무관하게 던진 뒤의 성패는 받기 판정이 정한다(놓치면 DEADPOINT_MISS).
+func _start_pad_deadpoint(limb: StringName, speed: float) -> bool:
+	var l: Dictionary = limbs[limb]
+	var snap := ClimbSnapshot.from_session(self)
+	if TechniqueJudge.deadpoint_hand_reason(snap, limb) != "":
+		return false
+	var bonus := deadpoint_bonus(speed)
+	var joint := PoseSolver.joint_position(body.pos, body.angle, limb, body.yaw)
+	var limit := TechniqueJudge.deadpoint_far(limb, body.yaw) + bonus + TechniqueJudge.DEADPOINT_AIM_MARGIN
+	var aim: Vector2 = l.req
+	var occ := occupied()
+	var best := {}
+	var best_d := GripCheck.AIM_RADIUS
+	for key in route.slots:
+		var slot: Dictionary = route.slots[key]
+		if not slot.allowed.has(limb) or not slot.has("hand_area") or aim.distance_to(slot.pos) >= best_d:
+			continue
+		var pt := GripCheck.contact_point(slot, limb, aim, occ.get(key, []), INF)
+		if pt.is_empty() or joint.distance_to(pt.point) > limit:
+			continue
+		best = {"key": key, "point": pt.point}
+		best_d = aim.distance_to(slot.pos)
+	if best.is_empty():
+		return false
+	start_deadpoint(limb, best.key, best.point, bonus)
+	return true
+
+
+## 데드포인트 시작(패드·기술 버튼 공통). 손을 떼어 "Deadpoint" 상태로 두고 목표로 날린다.
+func start_deadpoint(limb: StringName, key: String, point: Vector2, bonus: float) -> void:
+	var l: Dictionary = limbs[limb]
+	l.state = "Deadpoint"
+	l.contact = null
+	l.cand = {}
+	l.req = point
+	deadpoint = {"limb": limb, "key": key, "point": point, "bonus": bonus, "ticks": 0}
+
+
+## 한 틱: 손을 2배 속도로 옮기다 후보 반경에 닿으면(또는 9틱이 지나면) 받기 판정. 놓쳤으면 true.
+func _tick_deadpoint() -> bool:
+	if deadpoint.is_empty():
+		return false
+	var dp := deadpoint
+	var limb: StringName = dp.limb
+	var l: Dictionary = limbs[limb]
+	dp.ticks += 1
+	l.pos = (l.pos as Vector2).move_toward(dp.point, DEADPOINT_SPEED * Tuning.DT)
+	var arrived: bool = (l.pos as Vector2).distance_to(dp.point) <= GripCheck.radius_of(limb)
+	if not arrived and dp.ticks < DEADPOINT_TICKS:
+		return false
+	deadpoint = {}
+	if arrived and TechniqueJudge.deadpoint_catch(ClimbSnapshot.from_session(self), limb, dp.key, dp.point, dp.bonus).ok:
+		_attach(limb, dp.key, dp.point, TechniqueJudge.contact_for(route, TechniqueJudge.T_DEADPOINT, limb, dp.key, dp.point))
+		var holder := TechniqueJudge.other_of(limb)
+		rules.stamina[holder] = maxf(float(rules.stamina[holder]) - DEADPOINT_STAMINA_COST, 0.0)
+		return false
+	l.state = "Free"
+	return true
 
 
 func _attach(limb: StringName, key: String, point: Vector2, contact: ContactInfo) -> void:
@@ -180,6 +264,11 @@ func step() -> String:
 	if falling:
 		return _fall_tick()
 	_log_event(runner.tick(self))
+	if _tick_deadpoint():
+		if not runner.active.is_empty() and runner.active.id == TechniqueJudge.T_DEADPOINT:
+			runner.fail(self, TechniqueJudge.DEADPOINT_MISS)
+		_start_fall("DEADPOINT_MISS")
+		return "fall:DEADPOINT_MISS"
 	_move_endpoints()
 	var att := attached()
 	var endpoints := {}
@@ -211,6 +300,8 @@ func step() -> String:
 				flag_probe.append(limb)
 	rules.contact_meta = _contact_meta()
 	var outcome := rules.tick(body, att, endpoints, on_platform(att), moving, intents, hints, flag_probe)
+	if body.vel.y >= TechniqueJudge.DEADPOINT_RISE_SPEED:
+		_last_rise_tick = tick_count
 	_drag_hints(att, occ)
 	for hand in rules.slipped:
 		limbs[hand].state = "Free"
@@ -237,6 +328,8 @@ func _move_endpoints() -> void:
 		if l.state in ["Attached", "Armed"]:
 			l.pos = l.grab
 			continue
+		if l.state == "Deadpoint":
+			continue  # _tick_deadpoint가 옮긴다
 		var target: Vector2 = l.req
 		if l.state == "Flag":
 			target = l.flag
@@ -294,6 +387,7 @@ func _start_fall(reason: String) -> void:
 	runner.cancel(self, &"fall")
 	_log_event(runner.tick(self))
 	falls += 1
+	deadpoint = {}
 	falling = true
 	fall_reason = reason
 	fall_ticks = 0
