@@ -34,8 +34,8 @@ func _physics_process(_delta: float) -> void:
 		var sk: Skeleton3D = scene.skeleton
 		print("skeleton global=", sk.global_transform if sk else "none")
 	if frame % 20 == 0 and frame > 20:
-		var l: Dictionary = logic.limbs[&"LH"]
-		print("f%d LH state=%s angle=%.1f phase=%s u=%s loaded=%s" % [frame, l.state, PoseSolver.limb_angle(logic.body.pos, logic.body.angle, &"LH", l.pos), logic.rules.phase_name(), logic.rules.last.get("u", {}), logic.rules.loaded_feet])
+		var l: Dictionary = logic.session.limbs[&"LH"]
+		print("f%d LH state=%s angle=%.1f phase=%s u=%s loaded=%s" % [frame, l.state, PoseSolver.limb_angle(logic.session.body.pos, logic.session.body.angle, &"LH", l.pos), logic.session.rules.phase_name(), logic.session.rules.last.get("u", {}), logic.session.rules.loaded_feet])
 		if frame == 60:
 			var fm = scene.foot_marks[&"LF"]
 			print("  LF mark visible filled=%s hollow=%s pos=%s" % [fm[0].visible, fm[1].visible, fm[0].global_position])

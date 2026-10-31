@@ -97,11 +97,7 @@ func _hand_eligible(pelvis: Vector2, angle_deg: float, limb: StringName, slot: V
 
 
 func _eligible_hand_count(pelvis: Vector2, angle_deg: float, attached: Dictionary) -> int:
-	var n := 0
-	for limb in [PoseSolver.LH, PoseSolver.RH]:
-		if attached.has(limb) and _hand_eligible(pelvis, angle_deg, limb, attached[limb]):
-			n += 1
-	return n
+	return PoseSolver.eligible_hands(pelvis, angle_deg, attached, contact_meta, loaded_feet)
 
 
 ## 품질·방식을 반영한 접점: 최대 하중 × (0.5+0.5q), 반각 × (0.6+0.4q).

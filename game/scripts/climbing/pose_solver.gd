@@ -141,12 +141,15 @@ static func hand_load_eligible(pelvis: Vector2, angle_deg: float, limb: StringNa
 
 ## 하중 자격이 있는 붙은 손의 수.
 ## meta: limb -> ContactInfo (없으면 pull).
-static func eligible_hands(pelvis: Vector2, angle_deg: float, attached: Dictionary, meta: Dictionary = {}) -> int:
+static func eligible_hands(pelvis: Vector2, angle_deg: float, attached: Dictionary, meta: Dictionary = {}, loaded_feet: Array = []) -> int:
 	var n := 0
 	for limb in [LH, RH]:
 		var mode: StringName = meta[limb].mode if meta.has(limb) else &"pull"
-		if attached.has(limb) and hand_load_eligible(pelvis, angle_deg, limb, attached[limb], mode):
-			n += 1
+		if not attached.has(limb) or not hand_load_eligible(pelvis, angle_deg, limb, attached[limb], mode):
+			continue
+		if mode == &"undercling" and loaded_feet.is_empty():  # 언더클링은 하중 받는 발이 있어야 한다(docs/04 §10)
+			continue
+		n += 1
 	return n
 
 
