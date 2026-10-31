@@ -104,12 +104,23 @@ func is_dragging() -> bool:
 ## 선택을 연다. 드래그 중인 손발이 있거나 추락 중이면 false.
 ## 눌러 둔 채(Armed) 손발은 Attached로 돌린다. 패드 터치 정리(router.cancel_all)는 호출 측이 한다.
 func open_select() -> bool:
-	if falling or is_dragging():
+	if falling or is_dragging() or not deadpoint.is_empty():
 		return false
 	for limb in limbs:
 		if limbs[limb].state == "Armed":
 			limbs[limb].state = "Attached"
 	selecting = true
+	return true
+
+
+## 실행 중 기술을 버튼으로 끝낸다("풀기", 27 §6 5, §10 드롭니). 휴식은 정상 종료, 나머지는 취소. 실행 중이 아니면 false.
+func cancel_technique() -> bool:
+	if runner.active.is_empty() or runner.active.step == &"deadpoint":
+		return false  # 날아가는 손은 되돌릴 수 없다
+	if runner.active.id == TechniqueJudge.T_REST:
+		runner.finish(self)
+	else:
+		runner.cancel(self)
 	return true
 
 
@@ -192,6 +203,8 @@ func _try_grab(limb: StringName, speed: float = 0.0) -> void:
 		# 정적 후보가 없을 때만 데드포인트(창이 열려 있고 빠르게 놓은 손). 정지 상태의 빠른 드래그는 일반 Free(27 §13 TA04)
 		if PoseSolver.is_hand(limb) and speed >= TechniqueJudge.DEADPOINT_MIN_SPEED and deadpoint_window() and _start_pad_deadpoint(limb, speed):
 			return
+		if not PoseSolver.is_hand(limb) and _try_pad_foot_swap(limb):
+			return
 		var reason := GripCheck.reject_reason(route.slots, limb, l.pos, l.req, body.pos, body.angle, attached(), occupied(), rules.feet_eligible, body.yaw)
 		var text := GripCheck.message(reason, limb)
 		if not text.is_empty():
@@ -206,6 +219,30 @@ func _try_grab(limb: StringName, speed: float = 0.0) -> void:
 			l.state = "Free"
 		return
 	_attach(limb, cand.key, cand.point, GripCheck.contact_for(cand.key, route.slots, limb, cand.point))
+
+
+## 패드로 끈 발을 반대 발이 딛은 발판에 놓으면 풋스왑(Ruling 14): 기술 버튼과 같은 판단(T_FOOT_SWAP)을 통과하면
+## 들어온 발이 붙고 반대 발은 같은 틱에 풀린다. 못 하면 false(일반 거부 경로로).
+func _try_pad_foot_swap(foot: StringName) -> bool:
+	var l: Dictionary = limbs[foot]
+	var other := TechniqueJudge.other_of(foot)
+	var key := GripCheck.aimed_slot(route.slots, l.req)
+	if key.is_empty() or not attached().has(other) or limbs[other].key != key or not route.slots[key].allowed.has(foot):
+		return false
+	var snap := ClimbSnapshot.from_session(self)
+	if not TechniqueJudge.slot_filter(snap, TechniqueJudge.T_FOOT_SWAP, foot, key):
+		return false
+	var pt := TechniqueJudge.point_for(snap, TechniqueJudge.T_FOOT_SWAP, foot, key, l.req)
+	if pt.is_empty() or (l.pos as Vector2).distance_to(pt.point) > GripCheck.radius_of(foot):
+		return false
+	if not TechniqueJudge.evaluate_target(snap, TechniqueJudge.T_FOOT_SWAP, foot, key, pt.point).ok:
+		return false
+	l.cand = {}
+	_attach(foot, key, pt.point, TechniqueJudge.contact_for(route, TechniqueJudge.T_FOOT_SWAP, foot, key, pt.point))
+	limbs[other].state = "Free"
+	limbs[other].contact = null
+	messages.append("발을 바꿔 딛었어요")
+	return true
 
 
 ## 패드로 놓은 손의 데드포인트 시도. 노린 홀드(요청 목표 근처)가 보너스 범위 + 여유 안에 있으면 던진다.
@@ -265,7 +302,7 @@ func _tick_deadpoint() -> bool:
 	if arrived and TechniqueJudge.deadpoint_catch(ClimbSnapshot.from_session(self), limb, dp.key, dp.point, dp.bonus).ok:
 		_attach(limb, dp.key, dp.point, TechniqueJudge.contact_for(route, TechniqueJudge.T_DEADPOINT, limb, dp.key, dp.point))
 		var holder := TechniqueJudge.other_of(limb)
-		rules.stamina[holder] = maxf(float(rules.stamina[holder]) - DEADPOINT_STAMINA_COST, 0.0)
+		rules.stamina[holder] = Fatigue.apply(float(rules.stamina[holder]), -DEADPOINT_STAMINA_COST, 1.0, rules.fatigue_disabled)  # 보조 모드는 감소 없음
 		return false
 	l.state = "Free"
 	return true

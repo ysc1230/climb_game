@@ -378,3 +378,25 @@ func test_release_on_non_dragging_limb_is_ignored() -> void:
 	# _try_grab 직접 호출도 같은 보호
 	s._try_grab(&"LH", 0.0)
 	runner.check(s.limbs[&"LH"].state == "Deadpoint", "Deadpoint: _try_grab 무시")
+
+
+## 보조 모드(fatigue_disabled)에서는 버틴 손의 즉시 피로 -10도 없다(Fatigue.apply 의미).
+func test_deadpoint_holder_cost_respects_fatigue_disabled() -> void:
+	var results := {}
+	for disabled in [false, true]:
+		var r := _tx()
+		var s := _session(r)
+		s.rules.fatigue_disabled = disabled
+		var aim := _setup(r, s, 0.10, 0.0, false)
+		s.body.vel.y = 0.40
+		runner.check(s.runner.start(s, TechniqueJudge.T_DEADPOINT, &"left", HOLD, aim) == &"", "시작 (%s)" % disabled)
+		var before: float = s.rules.stamina[&"RH"]
+		for i in 20:
+			s.body.vel.y = maxf(s.body.vel.y, 0.0)
+			s.step()
+			if s.runner.active.is_empty():
+				break
+		runner.check(s.limbs[&"LH"].key == HOLD, "붙음 (%s)" % disabled)
+		results[disabled] = before - float(s.rules.stamina[&"RH"])
+	runner.check(results[false] >= ClimbSession.DEADPOINT_STAMINA_COST - 1.0, "기본: -10 적용 (%.2f)" % results[false])
+	runner.check(results[true] <= 0.0, "보조 모드: 감소 없음 (%.2f)" % results[true])

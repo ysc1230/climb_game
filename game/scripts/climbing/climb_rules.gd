@@ -299,7 +299,9 @@ func effective_profile() -> Dictionary:
 func _meta_signature() -> Array:
 	var out := []
 	for limb in PoseSolver.LIMBS:
-		out.append([_quality_of(limb), _mode_of(limb)])
+		var c = contact_meta.get(limb)
+		# 접점 종류가 제자리에서 바뀌어도(inside → drop_knee) 평가 캐시가 무효화되도록 edge·axis·반각도 넣는다
+		out.append([_quality_of(limb), _mode_of(limb), c.edge if c != null else &"", c.axis if c != null else Vector2.ZERO, c.half_angle if c != null else 0.0])
 	return out
 
 

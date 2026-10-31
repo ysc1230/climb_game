@@ -21,6 +21,7 @@ var profile := {}            # 지금의 목표 탐색 선호 거리(무브 프�
 var executing := false       # 기술 실행 중
 var dragging := false        # 패드로 끄는 손발이 있음
 var falling := false
+var deadpoint_active := false  # 패드·기술 데드포인트 비행 중(손이 날아가는 동안)
 var deadpoint_window := false  # 데드포인트 창이 열려 있는가(상승 중이거나 상승 종료 후 0.25초 이내)
 var plan_cache := {}         # 플래그 위치 탐색 결과 캐시(같은 스냅숏에서 judge와 start가 다시 계산하지 않게)
 
@@ -54,6 +55,7 @@ static func from_session(s: ClimbSession) -> ClimbSnapshot:
 	snap.executing = not s.runner.active.is_empty()
 	snap.dragging = s.is_dragging()
 	snap.falling = s.falling
+	snap.deadpoint_active = not s.deadpoint.is_empty()
 	snap.deadpoint_window = s.deadpoint_window()
 	return snap
 

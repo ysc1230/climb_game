@@ -217,14 +217,14 @@ REF01과의 남은 차이: 실제 리깅 캐릭터와 의상, 손으로 그린 �
 | --- | --- | --- |
 | 1 | 홀드 영역(HoldArea) 투영·구간, R01 홀드 반폭 0.12m 확대(합손), 슬롯 grip_modes/축 데이터 | `hold_area.gd`, `data/routes/R01.json` |
 | 2 | 접점 정보(ContactInfo: 방식·모서리·품질), 영역 기반 후보 탐색, 손 겹침 허용 구간 | `grip_check.gd`, `play_test.gd` |
-| 3 | 그립 방식별 지지력(품질 비례 용량, 사이드풀·언더클링·가스톤 힘 축), `contact_meta` | `climb_rules.gd`, `support_solver.gd` |
+| 3 | 그립 방식별 지지력(품질 비례 용량, 사이드풀·언더클링·개스턴 힘 축), `contact_meta` | `climb_rules.gd`, `support_solver.gd` |
 | 4 | `ClimbSession`: 입력 적용·접점 메타·낙하/리스폰·지지 검사를 UI에서 분리 | `climb_session.gd` |
 | 5 | 몸통 yaw 자유도(±40°), `yaw_target`, 관절 한계·리그 반영 | `pose_solver.gd`, `climb_rules.gd`, 리그 |
-| 6 | 배드 도어(barn door) 회전 토크 판정, `imbalance_cause` | `climb_rules.gd` |
-| 7 | 기술 정의 데이터와 로더(TechniqueDefs, 단계·실수·body_parts) | `data/techniques/*`, `technique_defs.gd` |
-| 8a | 판단기: 매치, 풋스왑, 하이스텝, 사이드풀, 언더클링, 가스톤, 크로스 | `technique_judge.gd` |
-| 8b | 드롭니, 아웃사이드/인사이드 엣지(yaw 기술), 한 번에 하나(Ruling 9) | `technique_judge.gd`, `technique_runner.gd` |
-| 8c | 플래그(안/밖) 판단과 다리 깊이, 균형 비용에 배드 도어 토크 감소 반영 | `technique_judge.gd` |
+| 6 | 반도어(barn door) 회전 토크 판정, `imbalance_cause` | `climb_rules.gd` |
+| 7 | 기술 정의 데이터와 로더(TechniqueDefs, 단계·실수·body_parts) | `data/techniques.json`, `technique_defs.gd` |
+| 8a | 판단기: 인사이드 엣지, 매치, 풋스왑, 하이스텝, 사이드풀, 언더클링, 개스턴, 크로스 | `technique_judge.gd` |
+| 8b | 드롭니, 아웃사이드 엣지(yaw 기술), 한 번에 하나(Ruling 9) | `technique_judge.gd`, `technique_runner.gd` |
+| 8c | 플래그(안/밖) 판단과 다리 깊이, 균형 비용에 반도어 토크 감소 반영 | `technique_judge.gd` |
 | 9 | 데드포인트: 윈도(0.20 m/s), 패드 데드포인트, 잡기 가능성, 낙하 `DEADPOINT_MISS` | `climb_session.gd`, `technique_runner.gd`, `input_router.gd` |
 | 10 | 기술 선택 UI(open/close_select), 단계 문구, 하이라이트, 비활성 사유 | `play_test.gd` |
 
@@ -234,11 +234,11 @@ REF01과의 남은 차이: 실제 리깅 캐릭터와 의상, 손으로 그린 �
 | --- | --- | --- |
 | 1 | T2 투영 품질 테스트 기대값을 반폭 0.12 기준 1−(0.05/0.12)²로 | 테스트 기대값만 수정 |
 | 2 | 작업 중 main push·release 안 함, finishing에서 사용자 선택 | APK 배포가 늦어짐 |
-| 3 | 플래그 테스트는 flag로 τ가 용량 아래로 내려가는 배드 도어 자세(골반 x=−0.30) 사용 | 플래그가 설계보다 약해 보임(G2 튜닝 문제) |
+| 3 | 플래그 테스트는 flag로 τ가 용량 아래로 내려가는 반도어 자세(골반 x=−0.30) 사용 | 플래그가 설계보다 약해 보임(G2 튜닝 문제) |
 | 4 | body_parts 어휘에 torso+hand, foot+torso 추가 | 메타데이터 라벨만 변경 |
 | 5 | 기술별 NO_HOLD/JOINT_LIMIT 문구(튜토리얼 설명)와 UI 사유 문구(27 §7.3)를 분리 | 문구 출처 두 곳 동기화 필요 |
 | 6 | 매치는 이미 잡은 손을 같은 홀드 중심±0.04로 옮겨 두 손 품질 ≥0.85 | 자동 손 미끄러짐 한 번 추가 |
-| 7 | 사이드풀 힘 축은 몸→홀드(바깥), 가스톤은 홀드 반대(안쪽) | 데이터 수정 |
+| 7 | 사이드풀 힘 축은 몸→홀드(바깥), 개스턴은 홀드 반대(안쪽) | 데이터 수정 |
 | 8 | 크로스 경로의 몸통 충돌 검사 보류(몸통 충돌 모델·04 H05 미구현) | 팔이 몸통을 통과해 보일 수 있음 |
 | 9 | yaw 기술(드롭니·아웃사이드) 유지 중 다른 기술 버튼은 WRONG_PHASE, 패드는 사용 가능 | 드롭니+버튼 데드포인트/크로스 연계 불가(패드는 가능) |
 | 10 | 데드포인트 윈도 문턱 0.25→0.20 m/s(자연 일어서기 최대 0.2441, 04 §10.5 초기 가설), 04/27 갱신, 자연 플레이 테스트 추가 | 데드포인트가 약간 쉬움 |

@@ -145,18 +145,23 @@ static func limb_name(limb: StringName) -> String:
 
 ## 기술의 쪽별 판단. {&"left": J, &"right": J} 또는 {&"none": J}.
 ## J = {available, reason(첫 이유), reasons(전체), text(첫 이유 문구)}
-static func judge(snap: ClimbSnapshot, tech_id: StringName) -> Dictionary:
+static func judge(snap: ClimbSnapshot, tech_id: StringName, light: bool = false) -> Dictionary:
 	var d: Dictionary = defs().get(tech_id, {})
 	var sides: Array = [&"none"] if d.get("sides", &"left_right") == &"none" else [&"left", &"right"]
 	var out := {}
 	for side in sides:
-		out[side] = judge_side(snap, tech_id, side)
+		out[side] = judge_side(snap, tech_id, side, light)
 	return out
 
 
-static func judge_side(snap: ClimbSnapshot, tech_id: StringName, side: StringName) -> Dictionary:
+## 패널 흐림용 가벼운 판단(27 §7.1 비용 관리): 2~5단계 중 힘 계산·플래그 탐색·목표 자세 탐색 없이 본다. 모양은 judge와 같다.
+static func light_judge(snap: ClimbSnapshot, tech_id: StringName) -> Dictionary:
+	return judge(snap, tech_id, true)
+
+
+static func judge_side(snap: ClimbSnapshot, tech_id: StringName, side: StringName, light: bool = false) -> Dictionary:
 	var acc: Array = []  # [[reason, text], ...]
-	if snap.falling or snap.executing or snap.dragging:
+	if snap.falling or snap.executing or snap.dragging or snap.deadpoint_active:
 		_add(acc, WRONG_PHASE)
 		return _result(acc)
 	if not SUPPORTED.has(tech_id):
@@ -167,15 +172,15 @@ static func judge_side(snap: ClimbSnapshot, tech_id: StringName, side: StringNam
 		T_REST:
 			_judge_rest(snap, acc)
 		T_LOCK_OFF:
-			_judge_lock_off(snap, limb, acc)
+			_judge_lock_off(snap, limb, acc, light)
 		T_DROP_KNEE:
-			_judge_drop_knee(snap, limb, acc)
+			_judge_drop_knee(snap, limb, acc, light)
 		T_FLAG, T_FLAG_INSIDE, T_FLAG_OUTSIDE:
-			_judge_flag(snap, tech_id, limb, acc)
+			_judge_flag(snap, tech_id, limb, acc, light)
 		T_DEADPOINT:
-			_judge_deadpoint(snap, limb, acc)
+			_judge_deadpoint(snap, limb, acc, light)
 		_:
-			_judge_move(snap, tech_id, limb, acc)
+			_judge_move(snap, tech_id, limb, acc, light)
 	return _result(acc)
 
 
@@ -199,7 +204,7 @@ static func _judge_rest(snap: ClimbSnapshot, acc: Array) -> void:
 
 
 ## 록오프: 그 손 붙음·하중 자격, q ≥ 0.5, 반대 손 자유 또는 뗄 수 있음, 목표 자세(그 팔 0.42) 성립, 피로 ≥ 30.
-static func _judge_lock_off(snap: ClimbSnapshot, hand: StringName, acc: Array) -> void:
+static func _judge_lock_off(snap: ClimbSnapshot, hand: StringName, acc: Array, light: bool = false) -> void:
 	var b := snap.body
 	var held := snap.attached.has(hand) and PoseSolver.hand_counts_for_support(b.pos, b.angle, hand, snap.attached[hand], _mode(snap, hand), snap.loaded_feet, b.yaw)
 	if not held:
@@ -207,9 +212,9 @@ static func _judge_lock_off(snap: ClimbSnapshot, hand: StringName, acc: Array) -
 	elif _quality(snap, hand) < MIN_GRIP_QUALITY:
 		_add(acc, GRIP_TOO_POOR)
 	var other := other_of(hand)
-	if snap.attached.has(other) and not release_ok(snap, [other]):
+	if not light and snap.attached.has(other) and not release_ok(snap, [other]):
 		_add(acc, SUPPORT_NEEDED)
-	if held:
+	if held and not light:
 		var profile := snap.profile.duplicate()
 		profile[hand] = LOCK_OFF_PREF
 		var t := PoseSolver.find_target(b.pos, b.angle, snap.attached, snap.feet_eligible, profile, {}, NAN, 0.0, b.yaw)
@@ -286,7 +291,7 @@ static func deadpoint_catch(snap: ClimbSnapshot, hand: StringName, key: String, 
 
 ## 데드포인트(27 §8.4): 창이 열려 있고(상승 중), 그 손이 붙어 있고 떼도 버티며, 반대 손·발 조건이 맞고,
 ## 보너스 범위 안에 홀드가 하나라도 있어야 한다.
-static func _judge_deadpoint(snap: ClimbSnapshot, hand: StringName, acc: Array) -> void:
+static func _judge_deadpoint(snap: ClimbSnapshot, hand: StringName, acc: Array, light: bool = false) -> void:
 	if not snap.deadpoint_window:
 		_add(acc, LIMB_STATE, DEADPOINT_TEXT_CLOSED)
 		return
@@ -296,7 +301,7 @@ static func _judge_deadpoint(snap: ClimbSnapshot, hand: StringName, acc: Array) 
 	var why := deadpoint_hand_reason(snap, hand)
 	if why != "":
 		_add(acc, LIMB_STATE, why)
-	if not release_ok(snap, [hand]):
+	if not light and not release_ok(snap, [hand]):
 		_add(acc, SUPPORT_NEEDED)
 	if not _any_deadpoint_hold(snap, hand):
 		_add(acc, NO_HOLD)
@@ -318,7 +323,7 @@ static func _any_deadpoint_hold(snap: ClimbSnapshot, hand: StringName) -> bool:
 
 ## 드롭니(27 §10): 그 발이 붙어 있고 하중, 발판 pivot_allowed, 다른 발 하중, 손 ≥ 1, 그 발이 고관절보다 바깥·아래,
 ## ψ=±35°에서 관절·방향·깊이·힘 균형 성립(그 발 edge = drop_knee).
-static func _judge_drop_knee(snap: ClimbSnapshot, foot: StringName, acc: Array) -> void:
+static func _judge_drop_knee(snap: ClimbSnapshot, foot: StringName, acc: Array, light: bool = false) -> void:
 	var b := snap.body
 	if not (snap.attached.has(foot) and snap.loaded_feet.has(foot)):
 		_add(acc, LIMB_STATE, "%s로 발판을 딛고 체중을 받고 있어야 해요" % limb_name(foot))
@@ -335,6 +340,8 @@ static func _judge_drop_knee(snap: ClimbSnapshot, foot: StringName, acc: Array) 
 	if not slot.get("pivot_allowed", true):
 		_add(acc, PIVOT_NOT_ALLOWED)
 		return
+	if light:
+		return
 	var r := yaw_pose_reason(snap, snap.attached, snap.contact_meta, foot, &"drop_knee", yaw_for(T_DROP_KNEE, foot))
 	if r != &"":
 		_add(acc, r)
@@ -342,9 +349,9 @@ static func _judge_drop_knee(snap: ClimbSnapshot, foot: StringName, acc: Array) 
 
 ## 플래그(27 §10, 04 §10.6): 그 발이 자유이거나 떼도 버틸 수 있고, 하중 손 ≥ 1, 관절 범위 안 격자에서
 ## 균형 비용(ClimbRules.flag_cost)이 최소인 위치가 휴식 위치보다 FLAG_COST_IMPROVEMENT 이상 나아야 한다.
-static func _judge_flag(snap: ClimbSnapshot, tech_id: StringName, foot: StringName, acc: Array) -> void:
+static func _judge_flag(snap: ClimbSnapshot, tech_id: StringName, foot: StringName, acc: Array, light: bool = false) -> void:
 	var b := snap.body
-	if snap.attached.has(foot) and not release_ok(snap, [foot]):
+	if not light and snap.attached.has(foot) and not release_ok(snap, [foot]):
 		_add(acc, SUPPORT_NEEDED)
 		return
 	if PoseSolver.eligible_hands(b.pos, b.angle, snap.attached, snap.contact_meta, snap.loaded_feet, b.yaw) < 1:
@@ -354,7 +361,7 @@ static func _judge_flag(snap: ClimbSnapshot, tech_id: StringName, foot: StringNa
 	if not (snap.attached.has(other) and snap.loaded_feet.has(other)):
 		_add(acc, LIMB_STATE, "다른 발로 발판을 딛고 체중을 받고 있어야 해요")
 		return
-	if flag_plan(snap, tech_id, foot).is_empty():
+	if not light and flag_plan(snap, tech_id, foot).is_empty():
 		_add(acc, LIMB_STATE, FLAG_NO_GAIN_TEXT)
 
 
@@ -460,8 +467,8 @@ static func yaw_pose_reason(snap: ClimbSnapshot, att: Dictionary, meta: Dictiona
 ## 손발을 홀드로 옮기는 기술: 3 떼기 판단 → 4 홀드 존재(가벼운 검사).
 ## 크로스·매치·풋스왑의 "반대 손발이 붙어 있음"은 홀드 기준(반대 손 X, 반대 손발의 홀드)이라 4단계 조건으로 본다
 ## (TA02: 마지막 손을 떼는 크로스는 SUPPORT_NEEDED가 첫 이유).
-static func _judge_move(snap: ClimbSnapshot, tech_id: StringName, limb: StringName, acc: Array) -> void:
-	if snap.attached.has(limb) and not release_ok(snap, [limb]):
+static func _judge_move(snap: ClimbSnapshot, tech_id: StringName, limb: StringName, acc: Array, light: bool = false) -> void:
+	if not light and snap.attached.has(limb) and not release_ok(snap, [limb]):
 		_add(acc, SUPPORT_NEEDED)
 	if tech_id == T_OUTSIDE_EDGE:
 		var b := snap.body

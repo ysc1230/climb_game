@@ -412,7 +412,7 @@ func _refresh_dim() -> void:
 	_check_timer = CHECK_INTERVAL
 	var snap := ClimbSnapshot.from_session(session)
 	for id in _tab_techs(tab):
-		var j := TechniqueJudge.judge(snap, id)
+		var j := TechniqueJudge.light_judge(snap, id)
 		dim[id] = not j.values().any(func(r): return r.available)
 
 
@@ -422,7 +422,10 @@ func _ui_event(index: int, pos: Vector2, pressed: bool) -> bool:
 	var btn := _btn_rect(size)
 	if not session.selecting:
 		if pressed and btn.has_point(pos):
-			_open_select()
+			if session.cancel_technique():  # 실행 중이면 버튼은 "풀기"
+				_flash("기술을 취소했어요")
+			else:
+				_open_select()
 			return true
 		return false
 	if pressed and btn.has_point(pos):
@@ -454,7 +457,7 @@ func _ui_drag(index: int, pos: Vector2) -> void:
 
 
 func _open_select() -> void:
-	if session.is_dragging() or not session.runner.active.is_empty() or session.falling:
+	if session.is_dragging() or not session.runner.active.is_empty() or session.falling or not session.deadpoint.is_empty():
 		return
 	if session.open_select():
 		_apply(router.cancel_all())  # 입력 세대 증가, 눌러 둔 터치 정리
@@ -489,6 +492,8 @@ func _pick_tech(id: StringName) -> void:
 func _side_tap(pos: Vector2) -> void:
 	for side in [&"left", &"right"]:
 		if not _side_rect(side).has_point(pos):
+			continue
+		if not side_judge.has(side):
 			continue
 		var j: Dictionary = side_judge[side]
 		if not j.available:
@@ -612,13 +617,16 @@ func _draw_tech_ui(size: Vector2) -> void:
 	var k := ui_k
 	var btn := _btn_rect(size)
 	var running: Dictionary = session.runner.active
-	var disabled := session.is_dragging() or session.falling or not running.is_empty()
+	var disabled := (session.is_dragging() or session.falling) and running.is_empty()
 	var label := "기술"
 	if not running.is_empty():
-		label = "%s · %s" % [_techs[running.id].name_ko, STAGE_TEXT.get(running.step, "")]
+		var stage: String = STAGE_TEXT.get(running.step, "")
+		label = "풀기 · %s" % _techs[running.id].name_ko  # 실행 중 같은 버튼은 풀기(27 §6 5)
+		if not stage.is_empty():
+			label += " · " + stage
 	var open := session.selecting
 	_draw_button(btn, label, int(20 * k), Color("f1d59a", 0.9) if open else Color(0.1, 0.1, 0.1, 0.6 if not disabled else 0.35),
-		Color("302820") if open else Color(1, 1, 1, 0.45 if disabled and running.is_empty() else 1.0))
+		Color("302820") if open else Color(1, 1, 1, 0.45 if disabled else 1.0))
 	if session.is_dragging() and running.is_empty():
 		_draw_lock(btn.position + Vector2(btn.size.x - 20 * k, btn.size.y * 0.5), k, Color(1, 1, 1, 0.5))
 	if not open:

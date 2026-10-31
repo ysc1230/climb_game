@@ -161,6 +161,10 @@ func _tick_move(session: ClimbSession) -> void:
 		_end(session, CANCELLED, &"cancelled")
 		return
 	l.req = a.point
+	if _target_taken(session):
+		l.state = "Free"
+		_end(session, FAILED, GripCheck.OCCUPIED)
+		return
 	var d: float = (l.pos as Vector2).distance_to(a.point)
 	var progressed: bool = d < float(a.last_d) - 0.0005
 	a.last_d = d
@@ -186,6 +190,16 @@ func _tick_move(session: ClimbSession) -> void:
 	if a.ticks >= MOVE_BUDGET_TICKS:
 		l.state = "Free"
 		_end(session, FAILED, TechniqueJudge.NEED_WEIGHT_SHIFT if a.needs_shift else TechniqueJudge.JOINT_LIMIT)
+
+
+## 이동 중 다른 팔다리가 목표 자리를 차지했는가(패드 조작 등). 매치·풋스왑은 설계상 반대 손발의 홀드로 가므로 제외.
+func _target_taken(session: ClimbSession) -> bool:
+	var a := active
+	if TechniqueJudge.is_flag(a.id) or a.id in [TechniqueJudge.T_MATCH, TechniqueJudge.T_FOOT_SWAP]:
+		return false
+	var entries: Array = session.occupied().get(a.key, [])
+	var c := GripCheck.contact_point(session.route.slots[a.key], a.limb, a.point, entries, INF)
+	return c.is_empty() or (c.point as Vector2).distance_to(a.point) > 0.001
 
 
 ## 데드포인트: 세션이 끝낼 때까지 기다린다. 붙었으면 성공(놓친 경우는 세션이 fail로 끝내고 추락한다).
@@ -279,6 +293,13 @@ func _push(_session: ClimbSession, type: StringName, reason: StringName) -> void
 
 func _end(session: ClimbSession, type: StringName, reason: StringName) -> void:
 	_push(session, type, reason)
+	if type == CANCELLED and active.step == &"move":
+		# 파트너 팔다리 패드로 취소돼도 이동 중이던 손발이 Dragging(터치 없음)으로 남지 않게 한다
+		var ml: Dictionary = session.limbs[active.limb]
+		if ml.state == "Dragging":
+			ml.state = "Free"
+			ml.cand = {}
+			ml.req = ml.pos
 	session.rules.profile_override = {}
 	session.rules.fatigue_multiplier = {}
 	if TechniqueJudge.is_yaw_tech(active.id):
