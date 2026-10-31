@@ -54,3 +54,12 @@ func test_mistake_reasons_known() -> void:
 		for m in defs[id].mistakes:
 			runner.check(m.reason in KNOWN_REASONS, "%s mistake reason 알려진 ID: %s" % [id, m.reason])
 			runner.check(String(m.text_ko) != "", "%s mistake text 있음" % id)
+
+
+func test_body_parts_per_spec() -> void:
+	var defs := TechniqueDefs.load_all()
+	runner.check(defs[&"T_DEADPOINT"].body_parts == &"torso+hand", "T_DEADPOINT torso+hand")
+	for id in [&"T_OUTSIDE_EDGE", &"T_DROP_KNEE", &"T_HIGH_STEP"]:
+		runner.check(defs[id].body_parts == &"foot+torso", "%s foot+torso: %s" % [id, defs[id].body_parts])
+	for id in defs:
+		runner.check(defs[id].body_parts in [&"hand", &"foot", &"hand+foot", &"torso", &"torso+hand", &"foot+torso"], "%s body_parts 값: %s" % [id, defs[id].body_parts])

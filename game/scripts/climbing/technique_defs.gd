@@ -3,6 +3,7 @@ extends RefCounted
 ## docs/27 §9.2 기술 정의 로더. 판단 로직은 코드, 설명 문구는 data/techniques.json.
 
 const PATH := "res://data/techniques.json"
+# mistakes.text_ko는 튜토리얼용 설명이다. 실행 거부 시 UI 이유 문구는 docs/27 §7.3을 따로 쓴다.
 
 
 ## id(StringName) -> {id, name_ko, phase, body_parts, sides, flow, group, purpose_tags, purpose_ko, when_ko, how_ko, mistakes}

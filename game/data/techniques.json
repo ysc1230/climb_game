@@ -29,7 +29,7 @@
    "id": "T_OUTSIDE_EDGE",
    "name_ko": "아웃사이드 엣지(백스텝)",
    "phase": 1,
-   "body_parts": "foot",
+   "body_parts": "foot+torso",
    "sides": "left_right",
    "flow": "hold_tap",
    "group": "foot",
@@ -55,7 +55,7 @@
    "id": "T_DROP_KNEE",
    "name_ko": "드롭니",
    "phase": 1,
-   "body_parts": "foot",
+   "body_parts": "foot+torso",
    "sides": "left_right",
    "flow": "execute",
    "group": "foot",
@@ -86,7 +86,7 @@
    "id": "T_HIGH_STEP",
    "name_ko": "하이스텝",
    "phase": 1,
-   "body_parts": "foot",
+   "body_parts": "foot+torso",
    "sides": "left_right",
    "flow": "hold_tap",
    "group": "foot",
@@ -111,7 +111,7 @@
    "id": "T_DEADPOINT",
    "name_ko": "데드포인트",
    "phase": 1,
-   "body_parts": "hand+foot",
+   "body_parts": "torso+hand",
    "sides": "left_right",
    "flow": "drag_or_hold_tap",
    "group": "hand",
@@ -272,8 +272,7 @@
    "flow": "hold_tap",
    "group": "hand",
    "purpose_tags": [
-    "direction_change",
-    "reach_far"
+    "direction_change"
    ],
    "purpose_ko": "한 팔을 몸 앞으로 건너 반대편 홀드를 잡아요.",
    "when_ko": "가고 싶은 방향의 홀드가 반대 손 너머에 있을 때, 방향을 바꾸고 싶을 때 써요.",
@@ -432,7 +431,7 @@
    ],
    "purpose_ko": "발 뒤꿈치를 홀드에 걸어 다리로 당겨서 팔 부담을 줄여요.",
    "when_ko": "오버행처럼 팔에 부담이 클 때, 발 높이에 걸 만한 홀드가 있을 때 써요.",
-   "how_ko": "1. 기술에서 힐훅를 고르세요. 2. 발을 고르세요. 3. 걸 홀드를 탭하세요.",
+   "how_ko": "1. 기술에서 힐훅을 고르세요. 2. 발을 고르세요. 3. 걸 홀드를 탭하세요.",
    "mistakes": [
     {
      "reason": "MOVE_NOT_SUPPORTED",
@@ -453,7 +452,7 @@
    ],
    "purpose_ko": "발등을 홀드에 걸어 당겨서 발이 흔들리는 것을 막아요.",
    "when_ko": "벽에서 발이 흔들리거나 떨어지려 할 때, 걸 만한 홀드가 있을 때 써요.",
-   "how_ko": "1. 기술에서 토훅를 고르세요. 2. 발을 고르세요. 3. 걸 홀드를 탭하세요.",
+   "how_ko": "1. 기술에서 토훅을 고르세요. 2. 발을 고르세요. 3. 걸 홀드를 탭하세요.",
    "mistakes": [
     {
      "reason": "MOVE_NOT_SUPPORTED",
