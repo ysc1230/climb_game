@@ -5,7 +5,7 @@ extends RefCounted
 var route_id := ""
 var content_version := 0
 var validation_status := "Draft"
-var slots := {}          # 전체 슬롯 키 -> {pos: Vector2, allowed: Array[StringName]}
+var slots := {}          # 전체 슬롯 키 -> {pos, allowed, hand_area?, foot_area?, grip_modes, pivot_allowed, hook}
 var platforms := []      # {platform_id, x_range: Vector2, foot_slot_keys: Array}
 var start_pelvis := Vector2.ZERO
 var start_angle := 0.0
@@ -40,7 +40,7 @@ func _read(d: Dictionary) -> void:
 			var allowed: Array[StringName] = []
 			for l in s.get("allowed", []):
 				allowed.append(StringName(l))
-			slots[key] = {"pos": Vector2(s.pos[0], s.pos[1]), "allowed": allowed}
+			slots[key] = _read_slot(s, allowed)
 	for p in d.get("platforms", []):
 		platforms.append({"platform_id": p.platform_id, "x_range": Vector2(p.x_range[0], p.x_range[1]), "foot_slot_keys": p.foot_slot_keys})
 	var sp: Dictionary = d.get("start_pose", {})
@@ -52,6 +52,30 @@ func _read(d: Dictionary) -> void:
 	time_medal_seconds = float(d.get("time_medal_seconds", 0.0))
 	for m in d.get("intended_moves", []):
 		intended_moves.append([StringName(m[0]), m[1]])
+
+
+static func _vec(a, fallback: Vector2) -> Vector2:
+	if a is Array and a.size() == 2:
+		return Vector2(a[0], a[1])
+	return fallback
+
+
+## 슬롯 JSON을 읽고 영역·그립 방식 기본값(docs/19 v0.6)을 채운다. 손 허용 슬롯만 hand_area, 발 허용 슬롯만 foot_area.
+func _read_slot(s: Dictionary, allowed: Array[StringName]) -> Dictionary:
+	var slot := {"pos": Vector2(s.pos[0], s.pos[1]), "allowed": allowed}
+	if allowed.any(func(l): return PoseSolver.is_hand(l)):
+		var ha: Dictionary = s.get("hand_area", {})
+		slot.hand_area = {"dir": _vec(ha.get("dir"), Vector2(1, 0)).normalized(), "half_width": float(ha.get("half_width", 0.08))}
+	if allowed.any(func(l): return not PoseSolver.is_hand(l)):
+		var fa: Dictionary = s.get("foot_area", {})
+		slot.foot_area = {"up": _vec(fa.get("up"), Vector2(0, 1)).normalized(), "half_height": float(fa.get("half_height", 0.04))}
+	var modes: Array = []
+	for g in s.get("grip_modes", [{"mode": "pull", "axis": [0, 1], "half_angle": 65}]):
+		modes.append({"mode": StringName(g.get("mode", "")), "axis": _vec(g.get("axis"), Vector2(0, 1)).normalized(), "half_angle": float(g.get("half_angle", 65))})
+	slot.grip_modes = modes
+	slot.pivot_allowed = bool(s.get("pivot_allowed", true))
+	slot.hook = bool(s.get("hook", false))
+	return slot
 
 
 func _validate() -> void:
@@ -82,6 +106,16 @@ func _validate() -> void:
 		var pos: Vector2 = slots[key].pos
 		if not (is_finite(pos.x) and is_finite(pos.y)):
 			errors.append("유한하지 않은 좌표 %s" % key)
+		var slot: Dictionary = slots[key]
+		if slot.has("hand_area") and not (slot.hand_area.half_width > 0.0 and slot.hand_area.dir.length() > 0.0):
+			errors.append("손 영역 반폭/방향 오류 %s" % key)
+		if slot.has("foot_area") and not (slot.foot_area.half_height > 0.0 and slot.foot_area.up.length() > 0.0):
+			errors.append("발 영역 반높이/방향 오류 %s" % key)
+		if slot.grip_modes.is_empty():
+			errors.append("grip_modes 비어 있음 %s" % key)
+		for g in slot.grip_modes:
+			if g.mode == &"" or g.axis.length() == 0.0 or not (g.half_angle > 0.0 and g.half_angle <= 180.0):
+				errors.append("그립 방식 오류 %s" % key)
 
 
 func _check_slot_for(limb: StringName, key: String, where: String) -> void:
