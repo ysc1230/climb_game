@@ -287,7 +287,7 @@ var _bends := {}  # limb -> 직전 굽힘 축(연속성)
 ## 판정 상태 → 표현용 3D 관절 위치. 골반 깊이는 판정과 같은 PoseSolver.body_depth(docs/04 §1).
 func _pose_targets(delta: float) -> Dictionary:
 	var body: BodyState = logic.session.body
-	var depth := PoseSolver.body_depth(body.pos, body.angle, logic.session.attached())
+	var depth := PoseSolver.body_depth(body.pos, body.angle, logic.session.attached(), body.yaw)
 	if is_nan(depth):
 		depth = Tuning.PELVIS_DEPTH_PREFERRED
 	var ang := deg_to_rad(body.angle)
@@ -298,8 +298,8 @@ func _pose_targets(delta: float) -> Dictionary:
 	var max_step := LimbIK.PRESENTATION_JOINT_SPEED_DEG * delta
 	for limb in PoseSolver.LIMBS:
 		var hand := PoseSolver.is_hand(limb)
-		var j2 := PoseSolver.joint_position(body.pos, body.angle, limb)
-		var root := Vector3(j2.x, j2.y, depth)
+		var j2 := PoseSolver.joint_position(body.pos, body.angle, limb, body.yaw)
+		var root := Vector3(j2.x, j2.y, depth + PoseSolver.joint_depth_offset(limb, body.yaw))
 		var e2: Vector2 = logic.session.limbs[limb].pos
 		var state: String = logic.session.limbs[limb].state
 		var end_z := Tuning.CONTACT_DEPTH if state in ["Attached", "Armed"] else Tuning.CONTACT_DEPTH + Tuning.FREE_ENDPOINT_LIFT
@@ -356,7 +356,7 @@ func _pose_model(t: Dictionary) -> void:
 	for key in t:
 		if t[key] is Vector3 and key != "up":
 			local[key] = inv * (t[key] as Vector3)
-	var frames := rig.solve(local, logic.session.body.angle)
+	var frames := rig.solve(local, logic.session.body.angle, logic.session.body.yaw)
 	for entry in RigPose.BONES:
 		var idx := skeleton.find_bone(entry[0])
 		if idx >= 0 and frames.has(entry[0]):
@@ -445,10 +445,11 @@ func _update_reach() -> void:
 	for limb in logic.session.limbs:
 		if logic.session.limbs[limb].state != "Dragging":
 			continue
-		var joint := PoseSolver.joint_position(body.pos, body.angle, limb)
+		var joint := PoseSolver.joint_position(body.pos, body.angle, limb, body.yaw)
 		var rng := PoseSolver.dir_range(limb)
 		var lift := Tuning.CONTACT_DEPTH + Tuning.FREE_ENDPOINT_LIFT
-		var pr := PoseSolver.planar_range(limb, Tuning.PELVIS_DEPTH_PREFERRED - lift, Tuning.PELVIS_DEPTH_PREFERRED - lift)
+		var free_dz := Tuning.PELVIS_DEPTH_PREFERRED - lift + PoseSolver.joint_depth_offset(limb, body.yaw)
+		var pr := PoseSolver.planar_range(limb, free_dz, free_dz)
 		var s := PoseSolver.side_sign(limb)
 		var hand := PoseSolver.is_hand(limb)
 		var z := Tuning.CONTACT_DEPTH + 0.03

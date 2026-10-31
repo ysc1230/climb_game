@@ -86,11 +86,11 @@ func _move(limb: StringName, key: String) -> bool:
 			hints[limb] = MoveClassifier.HAND_MATCH
 	var travel := int(ceil(from.distance_to(target) / ENDPOINT_FOLLOW_SPEED * Tuning.TICK_HZ))
 	for wait in MAX_WAIT_TICKS + 1:
-		endpoints[limb] = PoseSolver.clamp_endpoint(body.pos, body.angle, limb, endpoints[limb], (endpoints[limb] as Vector2).move_toward(target, ENDPOINT_FOLLOW_SPEED * Tuning.DT))
+		endpoints[limb] = PoseSolver.clamp_endpoint(body.pos, body.angle, limb, endpoints[limb], (endpoints[limb] as Vector2).move_toward(target, ENDPOINT_FOLLOW_SPEED * Tuning.DT), body.yaw)
 		if wait >= travel:
 			var with_new := attached.duplicate()
 			with_new[limb] = target
-			if PoseSolver.can_reach(body.pos, body.angle, limb, target) and PoseSolver.is_valid(body.pos, body.angle, with_new):
+			if PoseSolver.can_reach(body.pos, body.angle, limb, target, body.yaw) and PoseSolver.is_valid(body.pos, body.angle, with_new, body.yaw):
 				attached = with_new
 				attached_keys[limb] = key
 				_set_meta(limb, key)
@@ -104,7 +104,7 @@ func _move(limb: StringName, key: String) -> bool:
 				return true
 		if not _tick():
 			return false
-	var d := PoseSolver.limb_distance(body.pos, body.angle, limb, target)
+	var d := PoseSolver.limb_distance(body.pos, body.angle, limb, target, body.yaw)
 	failure = "%s→%s 잡기 불가: %d틱 기다려도 거리 %.3fm (허용 %.3f~%.3f), 골반=(%.3f, %.3f)" % [limb, key, MAX_WAIT_TICKS, d, PoseSolver.reach_of(limb).x, PoseSolver.reach_of(limb).y, body.pos.x, body.pos.y]
 	log.append(failure)
 	return false

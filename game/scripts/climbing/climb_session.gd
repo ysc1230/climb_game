@@ -111,13 +111,13 @@ func apply_input(cmds: Array) -> void:
 
 ## v0.5: 최대 반경만이 아니라 최소 거리·방향 영역을 연속적으로 적용(docs/04 H02/H03/H06).
 func _clamp_to_reach(limb: StringName, previous: Vector2, p: Vector2) -> Vector2:
-	return PoseSolver.clamp_endpoint(body.pos, body.angle, limb, previous, p)
+	return PoseSolver.clamp_endpoint(body.pos, body.angle, limb, previous, p, body.yaw)
 
 
 ## 실제 말단 기준 잡기 후보(GripCheck, 히스테리시스는 직전에 보여준 후보 기준).
 func _candidate(limb: StringName) -> Dictionary:
 	var l: Dictionary = limbs[limb]
-	return GripCheck.candidate(route.slots, limb, l.pos, body.pos, body.angle, attached(), occupied(), l.cand.get("key", ""))
+	return GripCheck.candidate(route.slots, limb, l.pos, body.pos, body.angle, attached(), occupied(), l.cand.get("key", ""), body.yaw)
 
 
 func _try_grab(limb: StringName) -> void:
@@ -125,7 +125,7 @@ func _try_grab(limb: StringName) -> void:
 	var cand := _candidate(limb)
 	l.cand = {}
 	if cand.is_empty():
-		var reason := GripCheck.reject_reason(route.slots, limb, l.pos, l.req, body.pos, body.angle, attached(), occupied(), rules.feet_eligible)
+		var reason := GripCheck.reject_reason(route.slots, limb, l.pos, l.req, body.pos, body.angle, attached(), occupied(), rules.feet_eligible, body.yaw)
 		var text := GripCheck.message(reason, limb)
 		if not text.is_empty():
 			messages.append(text)
@@ -152,7 +152,7 @@ func _attach(limb: StringName, key: String, point: Vector2, contact: ContactInfo
 ## 검증 후 붙인다(기술 실행기용). 검증은 슬롯 존재와 PoseSolver.can_reach뿐이다.
 ## 종류·점유·영역 판정은 호출 측이 GripCheck로 먼저 해야 한다. 실패하면 false.
 func grab(limb: StringName, key: String, point: Vector2, contact: ContactInfo) -> bool:
-	if not route.slots.has(key) or not PoseSolver.can_reach(body.pos, body.angle, limb, point):
+	if not route.slots.has(key) or not PoseSolver.can_reach(body.pos, body.angle, limb, point, body.yaw):
 		return false
 	limbs[limb].cand = {}
 	_attach(limb, key, point, contact)
@@ -242,7 +242,7 @@ func _drag_hints(att: Dictionary, occ: Dictionary) -> void:
 		var l: Dictionary = limbs[limb]
 		if l.state != "Dragging" or not l.cand.is_empty():
 			continue
-		var reason := GripCheck.reject_reason(route.slots, limb, l.pos, l.req, body.pos, body.angle, att, occ, rules.feet_eligible)
+		var reason := GripCheck.reject_reason(route.slots, limb, l.pos, l.req, body.pos, body.angle, att, occ, rules.feet_eligible, body.yaw)
 		if reason in [GripCheck.JOINT_LIMIT, GripCheck.NEED_WEIGHT_SHIFT, GripCheck.OUT_OF_REACH, GripCheck.OCCUPIED, GripCheck.TYPE_MISMATCH] and reason != _last_hint:
 			messages.append(GripCheck.message(reason, limb))
 			_last_hint = reason

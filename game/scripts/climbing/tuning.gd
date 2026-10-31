@@ -22,6 +22,9 @@ const LEG_REACH_NOMINAL := Vector2(0.25, 1.00)
 const ELBOW_BEND_DEG := Vector2(5.0, 155.0)
 const KNEE_BEND_DEG := Vector2(5.0, 145.0)
 const BODY_ANGLE_LIMIT_DEG := 25.0
+const PELVIS_YAW_LIMIT_DEG := 40.0   # 04 §3, §10.1
+const SHOULDER_YAW_DEPTH := 0.18     # 04 §10.1 어깨 깊이 계수
+const HIP_YAW_DEPTH := 0.14          # 04 §10.1 고관절 깊이 계수
 
 # 목표 자세 비용
 const PREF_ARM := 0.52

@@ -32,11 +32,11 @@ const W_LEG := 0.15
 
 ## 무게중심 대리점. endpoints: 네 팔다리 말단의 현재 위치(붙은 접점·자유 말단 모두).
 ## 팔다리 중심은 관절·중간·말단 평균인데, 중간 관절을 직선 중점으로 근사해 (관절+말단)/2를 쓴다.
-static func com_proxy(pelvis: Vector2, angle_deg: float, endpoints: Dictionary) -> Vector2:
+static func com_proxy(pelvis: Vector2, angle_deg: float, endpoints: Dictionary, yaw_deg: float = 0.0) -> Vector2:
 	var up := Vector2(0, 1).rotated(deg_to_rad(angle_deg))
 	var c := (pelvis + (pelvis + up * 0.78)) * 0.5 * W_TORSO
 	for limb in PoseSolver.LIMBS:
-		var j := PoseSolver.joint_position(pelvis, angle_deg, limb)
+		var j := PoseSolver.joint_position(pelvis, angle_deg, limb, yaw_deg)
 		var e: Vector2 = endpoints.get(limb, j)
 		c += (j + e) * 0.5 * (W_ARM if PoseSolver.is_hand(limb) else W_LEG)
 	return c

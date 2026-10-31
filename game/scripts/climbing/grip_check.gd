@@ -83,7 +83,7 @@ static func _contact_point(slot: Dictionary, limb: StringName, endpoint: Vector2
 
 ## 실제 말단 기준 잡기 후보. occupied: 슬롯 키 → [{limb, interval}] (발 interval은 ZERO).
 ## previous: 직전에 보여준 후보 키(히스테리시스 0.03m). 반환 {key, point, quality} 또는 {}.
-static func candidate(slots: Dictionary, limb: StringName, endpoint: Vector2, pelvis: Vector2, angle_deg: float, attached: Dictionary, occupied: Dictionary, previous: String = "") -> Dictionary:
+static func candidate(slots: Dictionary, limb: StringName, endpoint: Vector2, pelvis: Vector2, angle_deg: float, attached: Dictionary, occupied: Dictionary, previous: String = "", yaw_deg: float = 0.0) -> Dictionary:
 	var radius := radius_of(limb)
 	var best := {}
 	var best_d := INF
@@ -98,7 +98,7 @@ static func candidate(slots: Dictionary, limb: StringName, endpoint: Vector2, pe
 			continue
 		var with_new := attached.duplicate()
 		with_new[limb] = c.point
-		if not PoseSolver.is_valid(pelvis, angle_deg, with_new):
+		if not PoseSolver.is_valid(pelvis, angle_deg, with_new, yaw_deg):
 			continue
 		var d := endpoint.distance_to(c.point)
 		var found := {"key": key, "point": c.point, "quality": c.quality}
@@ -140,7 +140,7 @@ static func aimed_slot(slots: Dictionary, requested: Vector2) -> String:
 
 
 ## 잡기 거부 사유. 잡을 수 있으면 &"".
-static func reject_reason(slots: Dictionary, limb: StringName, endpoint: Vector2, requested: Vector2, pelvis: Vector2, angle_deg: float, attached: Dictionary, occupied: Dictionary, feet: Array) -> StringName:
+static func reject_reason(slots: Dictionary, limb: StringName, endpoint: Vector2, requested: Vector2, pelvis: Vector2, angle_deg: float, attached: Dictionary, occupied: Dictionary, feet: Array, yaw_deg: float = 0.0) -> StringName:
 	var key := aimed_slot(slots, requested)
 	if key.is_empty():
 		key = aimed_slot(slots, endpoint)
@@ -154,16 +154,16 @@ static func reject_reason(slots: Dictionary, limb: StringName, endpoint: Vector2
 	var sp: Vector2 = found.point
 	var with_new := attached.duplicate()
 	with_new[limb] = sp
-	if not PoseSolver.direction_ok(pelvis, angle_deg, limb, sp):
+	if not PoseSolver.direction_ok(pelvis, angle_deg, limb, sp, yaw_deg):
 		return JOINT_LIMIT
-	if not PoseSolver.can_reach(pelvis, angle_deg, limb, sp):
+	if not PoseSolver.can_reach(pelvis, angle_deg, limb, sp, yaw_deg):
 		# 남은 접점을 유지한 채 몸통을 옮기면 닿는가(점선 영역, 25)
-		var t := PoseSolver.find_target(pelvis, angle_deg, attached, feet, {}, {limb: sp})
+		var t := PoseSolver.find_target(pelvis, angle_deg, attached, feet, {}, {limb: sp}, NAN, 0.0, yaw_deg)
 		var tp := Vector2(t.x, t.y)
-		if PoseSolver.can_reach(tp, t.z, limb, sp) and PoseSolver.is_valid(tp, t.z, with_new):
+		if PoseSolver.can_reach(tp, t.z, limb, sp, yaw_deg) and PoseSolver.is_valid(tp, t.z, with_new, yaw_deg):
 			return NEED_WEIGHT_SHIFT
 		return OUT_OF_REACH
-	if not PoseSolver.is_valid(pelvis, angle_deg, with_new):
+	if not PoseSolver.is_valid(pelvis, angle_deg, with_new, yaw_deg):
 		return POSE_CONFLICT
 	if endpoint.distance_to(sp) > radius_of(limb):
 		return NOT_ARRIVED

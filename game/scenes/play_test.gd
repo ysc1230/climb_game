@@ -206,7 +206,7 @@ func _draw() -> void:
 			var c: Dictionary = session.limbs[limb].cand
 			if not c.is_empty():
 				draw_arc(w2s(c.point), 0.11 * px_per_m, 0, TAU, 24, Color("fff2c8"), 3.0)
-			var j := PoseSolver.joint_position(session.body.pos, session.body.angle, limb)
+			var j := PoseSolver.joint_position(session.body.pos, session.body.angle, limb, session.body.yaw)
 			draw_arc(w2s(j), PoseSolver.reach_of(limb).y * px_per_m, 0, TAU, 64, Color(1, 1, 1, 0.15), 1.5)
 	_draw_body()
 	_draw_pads(size)
@@ -220,7 +220,7 @@ func _draw_body() -> void:
 	draw_line(pel, neck, Color("4f6a68"), 0.22 * px_per_m)
 	draw_circle(w2s(session.body.pos + Vector2(0, 0.78).rotated(deg_to_rad(session.body.angle))), 0.12 * px_per_m, Color("c7b79b"))
 	for limb in session.limbs:
-		var j := PoseSolver.joint_position(session.body.pos, session.body.angle, limb)
+		var j := PoseSolver.joint_position(session.body.pos, session.body.angle, limb, session.body.yaw)
 		var e: Vector2 = session.limbs[limb].pos
 		var hand := PoseSolver.is_hand(limb)
 		var a := Tuning.ARM_UPPER if hand else Tuning.LEG_UPPER
