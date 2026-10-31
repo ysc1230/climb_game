@@ -33,6 +33,8 @@ var moves := MoveClassifier.new()   # 무브 라벨·무브별 선호 거리(doc
 var contact_meta := {}    # limb → ContactInfo (접점 품질·방식, 없으면 pull·q=1)
 var yaw_target := NAN     # 도. NAN이면 0으로 복귀(04 §10.1, 기술만 설정)
 var flag_ready: Array[StringName] = []  # 지금 놓으면 균형 발(Free/Flag)로 남는 드래그 발
+var profile_override := {}  # limb → 선호 거리. 기술 실행 중 무브 프로필 위에 덮어씀(docs/27 §10, 비면 영향 없음)
+var fatigue_multiplier := {}  # 손 → 피로(음수 변화율) 배율. 록오프 중 그 손 ×1.5(docs/27 §10)
 
 # accept 콜백용 틱 문맥
 var _ctx_attached := {}
@@ -188,6 +190,8 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 		var rate := Fatigue.FREE_HAND_RATE
 		if attached.has(hand):
 			rate = Fatigue.attached_hand_rate(phase == Phase.REBALANCING, platform, rest_ok, loaded_feet.size(), hands_attached, result.u.get(hand, 0.0), low_load, _quality_of(hand))
+		if rate < 0.0:
+			rate *= float(fatigue_multiplier.get(hand, 1.0))
 		stamina[hand] = Fatigue.apply(stamina[hand], rate, Tuning.DT, fatigue_disabled)
 		if attached.has(hand) and stamina[hand] <= 0.0:
 			slipped.append(hand)
@@ -252,14 +256,22 @@ func _evaluate_cached(p: Vector2, a: float) -> Dictionary:
 ## 목표 자세 재사용: 접점·지지 발·정렬 목표가 같고 탐색 시작점이 직전 탐색과 거의 같으면 그대로 쓴다.
 ## find_target은 시작점 근방의 국소 탐색이라 시작점이 3mm·0.3° 안이면 같은 수렴 목표로 본다.
 func _target_for(body: BodyState, attached: Dictionary, intents: Dictionary, lateral: float, weight: float) -> Vector3:
-	var sig := [_signature(attached), _meta_signature(), feet_eligible.duplicate(), lateral, weight, _signature(intents), moves.profile.duplicate(), body.yaw]
+	var profile := effective_profile()
+	var sig := [_signature(attached), _meta_signature(), feet_eligible.duplicate(), lateral, weight, _signature(intents), profile, body.yaw]
 	if sig == _target_sig and body.pos.distance_to(_target_from_pos) < 0.003 and absf(body.angle - _target_from_angle) < 0.3:
 		return _target
-	_target = PoseSolver.find_target(body.pos, body.angle, attached, feet_eligible, moves.profile, intents, lateral, weight, body.yaw)
+	_target = PoseSolver.find_target(body.pos, body.angle, attached, feet_eligible, profile, intents, lateral, weight, body.yaw)
 	_target_sig = sig
 	_target_from_pos = body.pos
 	_target_from_angle = body.angle
 	return _target
+
+
+## 목표 탐색에 쓰는 선호 거리: 무브 프로필 위에 기술의 profile_override를 덮어쓴 것.
+func effective_profile() -> Dictionary:
+	if profile_override.is_empty():
+		return moves.profile.duplicate()
+	return moves.profile.merged(profile_override, true)
 
 
 func _meta_signature() -> Array:

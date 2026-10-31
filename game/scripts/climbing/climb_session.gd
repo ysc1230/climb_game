@@ -17,6 +17,11 @@ var clears := 0
 var falls := 0
 var messages: Array[String] = []
 var last_phase := -1
+var runner := TechniqueRunner.new()  # 기술 실행기(docs/27). 한 번에 하나
+## 확정된 틱의 기술 이벤트 {tick, type, id, side, key, quality, reason}(09 v0.6, 능력치에 쓰지 않음). 최근 200개.
+var technique_log: Array = []
+var tick_count := 0
+const TECHNIQUE_LOG_MAX := 200
 var _hint_cooldown := 0
 var _last_hint := &""
 
@@ -27,6 +32,7 @@ func _init(p_route: RouteDef) -> void:
 
 
 func reset() -> void:
+	runner.cancel(self, &"reset")
 	body = BodyState.new(route.start_pelvis, route.start_angle)
 	limbs.clear()
 	for limb in PoseSolver.LIMBS:
@@ -88,6 +94,12 @@ func is_dragging() -> bool:
 func apply_input(cmds: Array) -> void:
 	for c in cmds:
 		var l: Dictionary = limbs[c.limb]
+		# 패드 조작과 실행 중 기술(27 §6 5): 휴식은 어떤 패드 조작이든 끝, 그 외는 기술이 쓰는 손발을 누르면 취소
+		if not runner.active.is_empty():
+			if runner.active.id == TechniqueJudge.T_REST:
+				runner.finish(self)
+			elif c.type in ["arm", "detach"] and runner.uses(c.limb):
+				runner.cancel(self)
 		match c.type:
 			"arm":
 				l.state = "Armed"
@@ -163,8 +175,10 @@ func grab(limb: StringName, key: String, point: Vector2, contact: ContactInfo) -
 
 ## 고정 틱 1회. 반환: "" / "fall:<이유>" / "clear" / "unresolved" / "respawn"(추락 연출이 끝나 다시 시작).
 func step() -> String:
+	tick_count += 1
 	if falling:
 		return _fall_tick()
+	_log_event(runner.tick(self))
 	_move_endpoints()
 	var att := attached()
 	var endpoints := {}
@@ -195,7 +209,7 @@ func step() -> String:
 			if l.cand.is_empty():
 				flag_probe.append(limb)
 	rules.contact_meta = _contact_meta()
-	var outcome := rules.tick(body, att, endpoints, _on_platform(att), moving, intents, hints, flag_probe)
+	var outcome := rules.tick(body, att, endpoints, on_platform(att), moving, intents, hints, flag_probe)
 	_drag_hints(att, occ)
 	for hand in rules.slipped:
 		limbs[hand].state = "Free"
@@ -240,7 +254,7 @@ func _drag_hints(att: Dictionary, occ: Dictionary) -> void:
 		return
 	for limb in limbs:
 		var l: Dictionary = limbs[limb]
-		if l.state != "Dragging" or not l.cand.is_empty():
+		if l.state != "Dragging" or not l.cand.is_empty() or runner.uses(limb):
 			continue
 		var reason := GripCheck.reject_reason(route.slots, limb, l.pos, l.req, body.pos, body.angle, att, occ, rules.feet_eligible, body.yaw)
 		if reason in [GripCheck.JOINT_LIMIT, GripCheck.NEED_WEIGHT_SHIFT, GripCheck.OUT_OF_REACH, GripCheck.OCCUPIED, GripCheck.TYPE_MISMATCH] and reason != _last_hint:
@@ -251,7 +265,7 @@ func _drag_hints(att: Dictionary, occ: Dictionary) -> void:
 	_last_hint = &""
 
 
-func _on_platform(att: Dictionary) -> bool:
+func on_platform(att: Dictionary) -> bool:
 	if not (att.has(&"LF") and att.has(&"RF")) or rules.feet_eligible.size() < 2:
 		return false
 	for p in route.platforms:
@@ -276,12 +290,27 @@ func _goal_tick() -> String:
 
 
 func _start_fall(reason: String) -> void:
+	runner.cancel(self, &"fall")
+	_log_event(runner.tick(self))
 	falls += 1
 	falling = true
 	fall_reason = reason
 	fall_ticks = 0
 	for limb in limbs:
 		limbs[limb].state = "Free"
+
+
+## 확정된 틱의 기술 이벤트를 기록한다. 실패는 이유 문구를 안내한다.
+func _log_event(ev: Dictionary) -> void:
+	if ev.is_empty():
+		return
+	technique_log.append({"tick": tick_count, "type": ev.type, "id": ev.id, "side": ev.side, "key": ev.key, "quality": ev.quality, "reason": ev.reason})
+	if technique_log.size() > TECHNIQUE_LOG_MAX:
+		technique_log.pop_front()
+	if ev.type == TechniqueRunner.FAILED:
+		var text := TechniqueJudge.text_for(ev.reason)
+		if not text.is_empty():
+			messages.append(text)
 
 
 func _fall_tick() -> String:
