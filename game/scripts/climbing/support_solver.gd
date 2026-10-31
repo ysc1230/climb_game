@@ -7,7 +7,7 @@ extends RefCounted
 ## 풀이: 등식·용량을 큰 가중치의 벌점 행으로 둔 비음수 최소제곱(Lawson–Hanson NNLS, Gram 행렬).
 ## 결과의 잔차가 허용치(힘 0.02BW, 모멘트 0.02BW·m) 안이면 Feasible, 밖이면 Infeasible,
 ## 반복 상한 초과·수치 오류는 Unresolved(docs/04: 플레이어 불균형으로 단정하지 않음).
-## 벽 밖 모멘트(barn door)·마찰은 계산하지 않는다.
+## 벽 밖 모멘트(barn door)는 barn_door()가 근사하고, 마찰은 계산하지 않는다.
 
 enum Status { FEASIBLE, INFEASIBLE, UNRESOLVED }
 
@@ -22,6 +22,13 @@ const LOAD_COST_FOOT := 1.0
 const REGULARIZER := 0.001
 const PENALTY := 1.0e5
 const STABLE_LOAD_RATIO := 0.80
+
+# barn door 근사(docs/04 §10.4)
+const BARN_MIN_LOAD := 0.05       # 이 하중 이상인 접점만 센다
+const BARN_MAX_SPREAD := 0.15     # 이 X 폭 미만일 때만 적용
+const BARN_HAND_CAPACITY := 0.05  # × 품질
+const BARN_FOOT_CAPACITY := 0.04  # inside/toe
+const BARN_FOOT_CAPACITY_OUTSIDE := 0.10  # outside/drop_knee
 const RECOVER_HAND_LOAD_RATIO := 0.35
 
 # 무게중심 대리점 가중치(docs/04 §4, 게임용)
@@ -136,6 +143,39 @@ static func solve(contacts: Array, com: Vector2) -> Dictionary:
 	if result.force_residual <= FORCE_TOLERANCE and result.moment_residual <= MOMENT_TOLERANCE and not over:
 		result.status = Status.FEASIBLE
 	return result
+
+
+## barn door 근사: 하중 접점들이 한 수직선에 몰렸을 때 무게중심이 그 선에서 벗어난 거리 τ가
+## 접점이 버티는 용량을 넘으면 exceeded. meta: limb → ContactInfo (없으면 손 q=1, 발 inside).
+static func barn_door(contacts: Array, loads: Dictionary, com: Vector2, meta: Dictionary) -> Dictionary:
+	var out := {"applies": false, "tau": 0.0, "capacity": 0.0, "exceeded": false}
+	var min_x := INF
+	var max_x := -INF
+	var sum_x := 0.0
+	var count := 0
+	var capacity := 0.0
+	for ct in contacts:
+		var limb: StringName = ct.limb
+		if loads.get(limb, 0.0) < BARN_MIN_LOAD:
+			continue
+		var x: float = ct.pos.x
+		min_x = minf(min_x, x)
+		max_x = maxf(max_x, x)
+		sum_x += x
+		count += 1
+		var info: ContactInfo = meta.get(limb)
+		if PoseSolver.is_hand(limb):
+			capacity += BARN_HAND_CAPACITY * (info.quality if info != null else 1.0)
+		else:
+			var edge: StringName = info.edge if info != null else &"inside"
+			capacity += BARN_FOOT_CAPACITY_OUTSIDE if (edge == &"outside" or edge == &"drop_knee") else BARN_FOOT_CAPACITY
+	if count == 0 or max_x - min_x >= BARN_MAX_SPREAD:
+		return out
+	out.applies = true
+	out.tau = absf(com.x - sum_x / count)
+	out.capacity = capacity
+	out.exceeded = out.tau > capacity
+	return out
 
 
 static func max_u(result: Dictionary) -> float:

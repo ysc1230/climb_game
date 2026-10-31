@@ -25,6 +25,7 @@ var imbalance_ticks := 0
 var balance_confirm_ticks := 0
 var rest_confirm_ticks := 0
 var phase := Phase.STABLE
+var imbalance_cause: StringName = &""  # &""/&"FORCE"/&"BARN_DOOR": REBALANCING의 원인(04 §10.4)
 var last := {}            # 마지막 확정 힘 계산 결과
 var fatigue_disabled := false
 var slipped: Array[StringName] = []
@@ -40,6 +41,8 @@ var _ctx_platform := false
 var _ctx_yaw := 0.0
 var _ctx_prev_feasible := false
 var _ctx_prev_residual := INF
+var _ctx_prev_barn := false          # 직전 확정 결과가 barn door 초과였는가
+var _ctx_prev_barn_excess := -INF    # 직전 τ − 용량(적용 안 되면 −INF)
 var _eval_sig := []
 var _eval := {}
 var _target_sig := []
@@ -57,7 +60,7 @@ func reset(body: BodyState, attached: Dictionary, endpoints: Dictionary, platfor
 	feet_eligible = PoseSolver.supporting_feet(body.pos, body.angle, attached, [], body.yaw)
 	last = evaluate(body.pos, body.angle, attached, endpoints, platform, feet_eligible, body.yaw)
 	loaded_feet = _loaded_from(last, [])
-	phase = _phase_of(last)
+	_apply_phase(last)
 
 
 func balance_confirmed() -> bool:
@@ -115,8 +118,10 @@ func evaluate(pelvis: Vector2, angle_deg: float, attached: Dictionary, endpoints
 	for limb in attached:
 		eps[limb] = attached[limb]
 	var com := SupportSolver.com_proxy(pelvis, angle_deg, eps, yaw_deg)
-	var r := SupportSolver.solve(contacts_for(pelvis, angle_deg, attached, feet, yaw_deg), com)
+	var contacts := contacts_for(pelvis, angle_deg, attached, feet, yaw_deg)
+	var r := SupportSolver.solve(contacts, com)
 	r["com"] = com
+	r["barn"] = SupportSolver.barn_door(contacts, r.loads, com, contact_meta) if r.status == SupportSolver.Status.FEASIBLE else {"applies": false, "tau": 0.0, "capacity": 0.0, "exceeded": false}
 	return r
 
 
@@ -143,6 +148,8 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 		_ctx_yaw = body.yaw
 		_ctx_prev_feasible = last.get("status", -1) == SupportSolver.Status.FEASIBLE
 		_ctx_prev_residual = last.get("residual", INF)
+		_ctx_prev_barn = _barn_exceeded(last)
+		_ctx_prev_barn_excess = _barn_excess(last)
 		var lateral := NAN
 		var weight := 0.0
 		if phase == Phase.REBALANCING:
@@ -158,11 +165,12 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 		result = _evaluate_cached(body.pos, body.angle)
 		if result.status == SupportSolver.Status.UNRESOLVED:
 			return "UNRESOLVED"
-		phase = _phase_of(result)
+		_apply_phase(result)
 	else:
 		unsupported_ticks += 1
 		result = {"status": SupportSolver.Status.INFEASIBLE, "loads": {}, "u": {}, "residual": INF}
 		phase = Phase.GRACE
+		imbalance_cause = &""
 		PoseSolver.step_yaw(body, yaw_target, attached)
 	loaded_feet = _loaded_from(result, loaded_feet)
 	last = result
@@ -192,12 +200,13 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 			if phase != Phase.GRACE:
 				unsupported_ticks += 1
 			phase = Phase.GRACE
+			imbalance_cause = &""
 			result = {"status": SupportSolver.Status.INFEASIBLE, "loads": {}, "u": {}, "residual": INF}
 		else:
 			result = evaluate(body.pos, body.angle, remain, endpoints, platform, feet_eligible, body.yaw)
 			if result.status == SupportSolver.Status.UNRESOLVED:
 				return "UNRESOLVED"
-			phase = _phase_of(result)
+			_apply_phase(result)
 		loaded_feet = _loaded_from(result, loaded_feet)
 		last = result
 	# 무지지·불균형 카운터(docs/04 §4 정확한 카운터 정의)
@@ -221,7 +230,12 @@ func _accept(p: Vector2, a: float) -> bool:
 	if r.status == SupportSolver.Status.UNRESOLVED:
 		return false
 	if _ctx_prev_feasible:
-		return r.status == SupportSolver.Status.FEASIBLE
+		if r.status != SupportSolver.Status.FEASIBLE:
+			return false
+		if not _ctx_prev_barn:
+			return not _barn_exceeded(r)  # 안정이던 자세는 barn door를 만드는 이동 불가
+		# barn door 재균형 중: 초과분(τ−용량)이 늘지 않는 이동만
+		return not _barn_exceeded(r) or _barn_excess(r) <= _ctx_prev_barn_excess + ACCEPT_EPSILON
 	return r.status == SupportSolver.Status.FEASIBLE or r.residual <= _ctx_prev_residual + ACCEPT_EPSILON
 
 
@@ -289,6 +303,27 @@ func _update_flags(body: BodyState, attached: Dictionary, endpoints: Dictionary,
 			flag_ready.append(foot)
 
 
+static func _barn_exceeded(r: Dictionary) -> bool:
+	return r.get("barn", {}).get("exceeded", false)
+
+
+## τ − 용량. barn door가 적용되지 않으면 −INF.
+static func _barn_excess(r: Dictionary) -> float:
+	var b: Dictionary = r.get("barn", {})
+	return b.tau - b.capacity if b.get("applies", false) else -INF
+
+
+## 결과로 phase와 불균형 원인을 정한다. 힘 해가 있어도 barn door 초과면 REBALANCING.
+func _apply_phase(r: Dictionary) -> void:
+	phase = _phase_of(r)
+	if r.status != SupportSolver.Status.FEASIBLE:
+		imbalance_cause = &"FORCE"
+	elif _barn_exceeded(r):
+		imbalance_cause = &"BARN_DOOR"
+	else:
+		imbalance_cause = &""
+
+
 static func balance_cost(r: Dictionary) -> float:
 	if r.get("status", -1) != SupportSolver.Status.FEASIBLE:
 		return 10.0 * pow(r.get("residual", 1.0), 2) + 4.0
@@ -300,7 +335,7 @@ static func balance_cost(r: Dictionary) -> float:
 
 
 func _phase_of(r: Dictionary) -> Phase:
-	if r.status != SupportSolver.Status.FEASIBLE:
+	if r.status != SupportSolver.Status.FEASIBLE or _barn_exceeded(r):
 		return Phase.REBALANCING
 	return Phase.STABLE if SupportSolver.max_u(r) <= SupportSolver.STABLE_LOAD_RATIO else Phase.STRAINED
 
