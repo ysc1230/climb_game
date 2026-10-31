@@ -34,6 +34,8 @@ func _ready() -> void:
 	rng.seed = 1230
 	logic = $UI/PlayTest
 	logic.draw_world = false
+	logic.w2s_fn = world_to_screen
+	logic.s2w_fn = screen_to_wall
 	_build_environment()
 	_build_wall()
 	_build_holds()
@@ -409,6 +411,21 @@ func _update_camera() -> void:
 	var dist := (visible_h * 0.5) / tan(deg_to_rad(camera.fov * 0.5))
 	camera.position = Vector3(0, logic.cam_y, CONTACT_DEPTH + dist)
 	camera.rotation = Vector3.ZERO
+
+
+## 벽 접촉 평면(z = CONTACT_DEPTH)의 월드 좌표 → 화면 픽셀. 기술 UI의 홀드 강조·탭 변환용.
+func world_to_screen(p: Vector2) -> Vector2:
+	return camera.unproject_position(Vector3(p.x, p.y, CONTACT_DEPTH))
+
+
+## 화면 픽셀 → 카메라 광선과 z = CONTACT_DEPTH 평면의 교점(벽 좌표).
+func screen_to_wall(s: Vector2) -> Vector2:
+	var o := camera.project_ray_origin(s)
+	var n := camera.project_ray_normal(s)
+	if absf(n.z) < 0.0001:
+		return Vector2(o.x, o.y)
+	var t := (CONTACT_DEPTH - o.z) / n.z
+	return Vector2(o.x + n.x * t, o.y + n.y * t)
 
 
 ## 발 아래 작은 삼각형(꼭짓점 위). hollow=true이면 테두리만.

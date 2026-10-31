@@ -54,6 +54,7 @@ func reset() -> void:
 	falling = false
 	fall_reason = ""
 	deadpoint = {}
+	selecting = false
 	_last_rise_tick = -1000
 
 
