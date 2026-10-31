@@ -89,6 +89,7 @@ func touch_up(index: int, time_s: float = -1.0) -> Array:
 	if not b.dragging:
 		return [{"type": "disarm", "limb": b.limb}]
 	var now := _now(time_s)
+	# 속도 = 놓기 직전 0.1초 구간에 들어온 drag 이동량(월드)의 경로 길이 합 / 0.1 (끝점 변위가 아니라 경로 길이)
 	var path := 0.0
 	for m in b.moves:
 		if m.t >= now - SPEED_WINDOW:

@@ -193,6 +193,7 @@ func _tick_deadpoint(session: ClimbSession) -> void:
 	var a := active
 	a.ticks += 1
 	if session.deadpoint.is_empty():
+		# 놓친 경우는 세션이 먼저 fail()로 끝내므로 여기까지 오는 것은 성공뿐이다. CANCELLED는 방어용(도달 불가)
 		_end(session, SUCCEEDED if session.attached().has(a.limb) else CANCELLED, &"")
 
 

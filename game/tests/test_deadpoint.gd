@@ -1,6 +1,6 @@
 extends RefCounted
 ## 데드포인트(docs/04 §10.5, docs/27 §8.4·§13 TA04): 패드 빠른 놓기·기술 버튼, 창, 받기 판정, 놓치면 추락.
-## 실제 하이스텝의 최대 상승 속도는 0.244m/s(< 0.25)라 창이 열리지 않으므로, 상승 중은 골반 속도를 직접 넣어 만든다.
+## 대부분의 시험은 상승 중을 골반 속도 직접 주입으로 만든다. 실제 하이스텝(최대 0.244m/s)으로 창이 열리는지는 별도 시험이 본다.
 
 var runner
 
@@ -235,3 +235,146 @@ func test_router_release_speed() -> void:
 	rt.touch_drag(2, Vector2(160, 200), 2.0)
 	var still := rt.touch_up(2, 2.5)
 	runner.check(is_zero_approx(still[0].speed), "멈췄다 놓으면 speed 0: %.3f" % still[0].speed)
+
+
+## Ruling 12: 느린 놓기(< 1.0 m/s)는 창이 열려 있어도 일반 잡기 규칙: 후보 없으면 Free, 추락 없음.
+func test_slow_release_is_not_deadpoint() -> void:
+	var r := _tx()
+	var s := _session(r)
+	_setup(r, s, 0.10)
+	s.body.vel.y = 0.40
+	_release(s, 0.5)
+	runner.check(s.limbs[&"LH"].state == "Free" and s.deadpoint.is_empty(), "느린 놓기: Free (%s)" % s.limbs[&"LH"].state)
+	var res := _run(s, 20)
+	runner.check(res == "" and s.falls == 0, "추락 없음 (%s)" % res)
+
+
+## Ruling 12: 빠르게 놓아도 노린 홀드가 방향 영역 밖이면 던지지 않고 일반 Free.
+func test_fast_release_toward_wrong_direction_is_free() -> void:
+	var r := _tx()
+	var s := _session(r)
+	for k in r.slots:
+		if k != HOLD and not k.contains("/H0") and not k.contains("/F0"):
+			r.slots[k].pos = FAR
+	var sh := PoseSolver.joint_position(s.body.pos, s.body.angle, &"LH", s.body.yaw)
+	var bad := sh + Vector2(0.94, -0.342) * 0.4  # 안쪽 아래(-110°): 방향 영역(-100°) 경계 바로 밖
+	r.slots[HOLD].pos = bad
+	s.apply_input([{"type": "detach", "limb": &"LH"}])
+	for i in 30:
+		var req: Vector2 = s.limbs[&"LH"].req
+		s.apply_input([{"type": "move", "limb": &"LH", "delta": (bad - req).limit_length(2.5 * Tuning.DT)}])
+		s.step()
+	runner.check(s.limbs[&"LH"].req.distance_to(bad) < 0.2, "전제: 요청 목표가 홀드 근처 (%s)" % s.limbs[&"LH"].req)
+	s.body.vel.y = 0.40
+	_release(s, 3.0)
+	runner.check(s.limbs[&"LH"].state == "Free" and s.deadpoint.is_empty(), "방향 밖: Free (%s)" % s.limbs[&"LH"].state)
+	var res := _run(s, 20)
+	runner.check(res == "" and s.falls == 0, "추락 없음 (%s)" % res)
+
+
+## 부정 게이트(패드): 반대 손이 붙어 있지 않으면, 하중 받는 발이 없으면 던지지 않는다.
+func test_pad_gates_opposite_hand_and_feet() -> void:
+	for gate in ["no_other_hand", "no_loaded_foot"]:
+		var r := _tx()
+		var s := _session(r)
+		_setup(r, s, 0.10)
+		s.body.vel.y = 0.40
+		if gate == "no_other_hand":
+			s.limbs[&"RH"].state = "Free"
+		else:
+			s.rules.loaded_feet.clear()
+		_release(s, 2.0)
+		runner.check(s.limbs[&"LH"].state == "Free" and s.deadpoint.is_empty(), "%s: Free, 데드포인트 없음 (%s)" % [gate, s.limbs[&"LH"].state])
+		runner.check(s.falls == 0 and not s.falling, "%s: 추락 없음" % gate)
+
+
+## 부정 게이트(버튼): 같은 조건에서 불가(LIMB_STATE).
+func test_button_gates_opposite_hand_and_feet() -> void:
+	for gate in ["no_other_hand", "no_loaded_foot"]:
+		var r := _tx()
+		var s := _session(r)
+		_setup(r, s, 0.10, 0.0, false)
+		s.body.vel.y = 0.40
+		runner.check(TechniqueJudge.judge(ClimbSnapshot.from_session(s), TechniqueJudge.T_DEADPOINT).left.available, "%s 전제: 조건 만족 시 가능" % gate)
+		if gate == "no_other_hand":
+			s.limbs[&"RH"].state = "Free"
+		else:
+			s.rules.loaded_feet.clear()
+		var j: Dictionary = TechniqueJudge.judge(ClimbSnapshot.from_session(s), TechniqueJudge.T_DEADPOINT).left
+		runner.check(not j.available and j.reason == TechniqueJudge.LIMB_STATE, "%s: 불가·LIMB_STATE: %s" % [gate, j])
+
+
+## 드래그 속도 항이 도달을 넓힌다: 정적 한계 + 0.13 홀드는 속도 1(보너스 0.10)로는 놓치고 속도 4(0.15)로는 잡는다.
+func test_drag_speed_term_widens_reach() -> void:
+	var outcomes := {}
+	for speed in [1.0, 4.0]:
+		var r := _tx()
+		var s := _session(r)
+		_setup(r, s, 0.13)
+		s.body.vel.y = 0.20
+		_release(s, speed)
+		runner.check(s.limbs[&"LH"].state == "Deadpoint", "속도 %.0f: 던짐 (%s)" % [speed, s.limbs[&"LH"].state])
+		outcomes[speed] = _run(s, 12)
+	runner.check(outcomes[1.0] == "fall:DEADPOINT_MISS", "속도 1: 보너스 0.10으로는 놓침 (%s)" % outcomes[1.0])
+	runner.check(outcomes[4.0] == "", "속도 4: 보너스 0.15로 잡음 (%s)" % outcomes[4.0])
+
+
+## 자연 플레이: 실제 하이스텝 일어서기에서 속도 주입 없이 창이 열리고, 정적 한계 바로 밖 홀드를 데드포인트로 잡는다.
+func test_natural_high_step_opens_window_and_catches() -> void:
+	var r := _tx()
+	var s := _session(r)
+	var key := "TX_TECH/F03/foot_1"
+	runner.check(s.runner.start(s, &"T_HIGH_STEP", &"left", key, r.slots[key].pos) == &"", "하이스텝 시작")
+	var opened := false
+	for i in 120:
+		s.step()
+		if s.deadpoint_window() and s.body.vel.y >= TechniqueJudge.DEADPOINT_RISE_SPEED:
+			opened = true
+			break
+	runner.check(opened, "일어서는 중 창이 열림 (v_up %.3f)" % s.body.vel.y)
+	if not opened:
+		return
+	for k in r.slots:
+		if k != HOLD and not k.contains("/H0") and not k.contains("/F0"):
+			r.slots[k].pos = FAR
+	var sh := PoseSolver.joint_position(s.body.pos, s.body.angle, &"LH", s.body.yaw)
+	var aim := sh + Vector2(0.0, 1.0) * (TechniqueJudge.deadpoint_far(&"LH", s.body.yaw) + 0.03)
+	r.slots[HOLD].pos = aim
+	s.apply_input([{"type": "detach", "limb": &"LH"}])
+	for i in 20:  # 손이 옛 홀드에서 떨어져 올라가는 동안 창(상승 + 0.25초)이 계속 열려 있다
+		var req: Vector2 = s.limbs[&"LH"].req
+		s.apply_input([{"type": "move", "limb": &"LH", "delta": (aim - req).limit_length(2.5 * Tuning.DT)}])
+		s.step()
+		if (s.limbs[&"LH"].pos as Vector2).distance_to(s.limbs[&"LH"].req) < 0.02 and i > 8:
+			break
+	runner.check(s.deadpoint_window(), "전제: 창 아직 열려 있음 (v_up %.3f)" % s.body.vel.y)
+	runner.check(s.limbs[&"LH"].cand.is_empty(), "전제: 정적 후보 없음")
+	_release(s, 2.0)
+	runner.check(s.limbs[&"LH"].state == "Deadpoint", "던짐 (%s)" % s.limbs[&"LH"].state)
+	var res := _run(s, 12)
+	runner.check(res == "" and s.limbs[&"LH"].state == "Attached" and s.limbs[&"LH"].key == HOLD, "자연 상승 중 받음: %s %s %s" % [res, s.limbs[&"LH"].state, s.limbs[&"LH"].key])
+
+
+## 다시 잡기 버그: 끌고 있지 않은 손발(붙음·무장·날아가는 중)의 release는 아무것도 바꾸지 않는다.
+func test_release_on_non_dragging_limb_is_ignored() -> void:
+	var r := _tx()
+	var s := _session(r)
+	var rh: Dictionary = s.limbs[&"RH"]
+	var contact = rh.contact
+	s.apply_input([{"type": "release", "limb": &"RH", "speed": 0.0}])
+	runner.check(rh.state == "Attached" and rh.contact == contact and rh.key == "TX_TECH/H02/hand_1", "Attached: release 무시")
+	rh.state = "Armed"
+	s.apply_input([{"type": "release", "limb": &"RH", "speed": 0.0}])
+	runner.check(rh.state == "Armed", "Armed: release 무시 (%s)" % rh.state)
+	rh.state = "Attached"
+	# 날아가는 중
+	_setup(r, s, 0.10)
+	s.body.vel.y = 0.40
+	_release(s, 2.0)
+	runner.check(s.limbs[&"LH"].state == "Deadpoint", "전제: 날아가는 중")
+	var dp := s.deadpoint.duplicate()
+	_release(s, 0.0)
+	runner.check(s.limbs[&"LH"].state == "Deadpoint" and s.deadpoint == dp, "Deadpoint: release 무시")
+	# _try_grab 직접 호출도 같은 보호
+	s._try_grab(&"LH", 0.0)
+	runner.check(s.limbs[&"LH"].state == "Deadpoint", "Deadpoint: _try_grab 무시")

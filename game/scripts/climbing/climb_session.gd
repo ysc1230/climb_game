@@ -154,11 +154,13 @@ func _candidate(limb: StringName) -> Dictionary:
 
 func _try_grab(limb: StringName, speed: float = 0.0) -> void:
 	var l: Dictionary = limbs[limb]
+	if l.state != "Dragging":
+		return  # 끌고 있지 않은 손발(붙어 있거나 날아가는 중)의 release는 잡기를 만들지 않는다
 	var cand := _candidate(limb)
 	l.cand = {}
 	if cand.is_empty():
 		# 정적 후보가 없을 때만 데드포인트(창이 열려 있고 빠르게 놓은 손). 정지 상태의 빠른 드래그는 일반 Free(27 §13 TA04)
-		if PoseSolver.is_hand(limb) and deadpoint_window() and _start_pad_deadpoint(limb, speed):
+		if PoseSolver.is_hand(limb) and speed >= TechniqueJudge.DEADPOINT_MIN_SPEED and deadpoint_window() and _start_pad_deadpoint(limb, speed):
 			return
 		var reason := GripCheck.reject_reason(route.slots, limb, l.pos, l.req, body.pos, body.angle, attached(), occupied(), rules.feet_eligible, body.yaw)
 		var text := GripCheck.message(reason, limb)
@@ -197,6 +199,8 @@ func _start_pad_deadpoint(limb: StringName, speed: float) -> bool:
 		var pt := GripCheck.contact_point(slot, limb, aim, occ.get(key, []), INF)
 		if pt.is_empty() or joint.distance_to(pt.point) > limit:
 			continue
+		if not PoseSolver.direction_ok(body.pos, body.angle, limb, pt.point, body.yaw):
+			continue  # 방향 영역은 완화하지 않는다: 일반 Free로 처리
 		best = {"key": key, "point": pt.point}
 		best_d = aim.distance_to(slot.pos)
 	if best.is_empty():

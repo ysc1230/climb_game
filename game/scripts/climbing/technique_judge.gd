@@ -76,7 +76,8 @@ const FLAG_NO_GAIN_TEXT := "지금은 균형에 도움이 안 돼요"
 const FLAG_MIN_BELOW_JOINT := 0.10   # 플래그 발은 고관절보다 이만큼 이상 아래(m, 구현 해석)
 ## 변형별 깊이 힌트(m, 표현용; 판정은 평면): 인사이드는 지지발 앞(벽과 몸 사이), 아웃사이드는 뒤
 const FLAG_DEPTH := {T_FLAG: 0.0, T_FLAG_INSIDE: -0.05, T_FLAG_OUTSIDE: 0.10}
-const DEADPOINT_RISE_SPEED := 0.25   # 04 §10.5: 골반 위 방향 속도 ≥ 0.25m/s면 창이 열림
+const DEADPOINT_RISE_SPEED := 0.20   # 04 §10.5: 골반 위 방향 속도 ≥ 0.20m/s면 창이 열림(자연 일어서기 최대 0.244)
+const DEADPOINT_MIN_SPEED := 1.0     # 패드 놓기 속도(m/s)가 이 이상일 때만 데드포인트("빠르게 드래그", 27 §8.4)
 const DEADPOINT_GRACE_TICKS := 15    # 상승이 끝난 뒤 0.25초까지 열림
 const DEADPOINT_MAX_BONUS := 0.15
 const DEADPOINT_MIN_QUALITY := 0.5
