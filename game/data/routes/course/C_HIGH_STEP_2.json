@@ -1,0 +1,43 @@
+{
+  "route_id": "C_HIGH_STEP_2",
+  "content_version": 1,
+  "validation_status": "Draft",
+  "mode": "course",
+  "grade": "V1",
+  "order": 2,
+  "name_ko": "좌우 하이스텝",
+  "course_id": "C_HIGH_STEP",
+  "course_slot": "normal",
+  "required_techniques": ["T_HIGH_STEP"],
+  "crux_steps": {"T_HIGH_STEP": 0},
+  "note": "v1: 하이스텝 보통(docs/28 §6.2). 오른발 하이스텝(F03, #0)으로 첫 층을 오르고, 다음 층은 두 발판(F05·F06)이 모두 고관절 높이라 왼발 하이스텝(F05, #4)으로 다시 오른다. 손홀드 반폭 0.10(V1).",
+  "bounds": {"x_min": -1.5, "x_max": 1.5, "y_min": 0.0, "y_max": 5.0},
+  "fail_line_y": -0.5,
+  "holds": [
+    {"hold_id": "H01", "slots": [{"slot_id": "hand_1", "pos": [-0.40, 2.00], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.10}}]},
+    {"hold_id": "H02", "slots": [{"slot_id": "hand_1", "pos": [0.40, 2.00], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.10}}]},
+    {"hold_id": "F01", "slots": [{"slot_id": "foot_1", "pos": [-0.30, 0.10], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "F02", "slots": [{"slot_id": "foot_1", "pos": [0.30, 0.10], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "F03", "slots": [{"slot_id": "foot_1", "pos": [0.30, 0.78], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "F04", "slots": [{"slot_id": "foot_1", "pos": [-0.30, 0.72], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "H03", "slots": [{"slot_id": "hand_1", "pos": [-0.25, 2.28], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.10}}]},
+    {"hold_id": "H04", "slots": [{"slot_id": "hand_1", "pos": [0.30, 2.40], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.10}}]},
+    {"hold_id": "F05", "slots": [{"slot_id": "foot_1", "pos": [-0.30, 1.25], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "F06", "slots": [{"slot_id": "foot_1", "pos": [0.30, 1.30], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "H05", "slots": [{"slot_id": "hand_1", "pos": [-0.25, 2.80], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.10}}]},
+    {"hold_id": "G01", "slots": [
+      {"slot_id": "goal_left", "pos": [-0.22, 2.98], "allowed": ["LH", "RH"]},
+      {"slot_id": "goal_right", "pos": [0.22, 2.98], "allowed": ["LH", "RH"]}]}
+  ],
+  "platforms": [{"platform_id": "P00", "top_y": 0.10, "x_range": [-0.65, 0.65], "foot_slot_keys": ["C_HIGH_STEP_2/F01/foot_1", "C_HIGH_STEP_2/F02/foot_1"]}],
+  "start_pose": {"pelvis": [0.0, 0.839], "angle": 0.0,
+    "slots": {"LH": "C_HIGH_STEP_2/H01/hand_1", "RH": "C_HIGH_STEP_2/H02/hand_1", "LF": "C_HIGH_STEP_2/F01/foot_1", "RF": "C_HIGH_STEP_2/F02/foot_1"}},
+  "goal_slots": ["C_HIGH_STEP_2/G01/goal_left", "C_HIGH_STEP_2/G01/goal_right"],
+  "time_medal_seconds": 40,
+  "intended_moves": [
+    ["RF", "C_HIGH_STEP_2/F03/foot_1"], ["LF", "C_HIGH_STEP_2/F04/foot_1"],
+    ["LH", "C_HIGH_STEP_2/H03/hand_1"], ["RH", "C_HIGH_STEP_2/H04/hand_1"],
+    ["LF", "C_HIGH_STEP_2/F05/foot_1"], ["RF", "C_HIGH_STEP_2/F06/foot_1"], ["LH", "C_HIGH_STEP_2/H05/hand_1"],
+    ["RH", "C_HIGH_STEP_2/G01/goal_right"], ["LH", "C_HIGH_STEP_2/G01/goal_left"]
+  ]
+}

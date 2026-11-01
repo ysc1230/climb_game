@@ -217,7 +217,7 @@ func test_index_real_data() -> void:
 ## 과정 문제 파일은 Task 9~10에서 만든다. 그전까지 없는 파일은 errors에 남기고 멈추지 않는다.
 func test_index_tolerates_missing_course_routes() -> void:
 	var idx := ContentIndex.load_all()
-	runner.check(_has_error(idx.errors, "C_DROP_KNEE_T") and _has_error(idx.errors, "C_HIGH_STEP_3"), "없는 문제 파일 기록: %s" % [idx.errors.slice(0, 3)])
+	runner.check(_has_error(idx.errors, "C_DROP_KNEE_T") and _has_error(idx.errors, "C_DROP_KNEE_3"), "없는 문제 파일 기록: %s" % [idx.errors.slice(0, 3)])
 	runner.check(not _has_error(idx.errors, "C_MATCH"), "2차 빈 항목은 오류 아님")
 	runner.check(not _has_error(idx.errors, "G_V0_01"), "G_V0_01 오류 없음")
 
