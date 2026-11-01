@@ -6,8 +6,8 @@ var runner
 const PHASE1_SIDES := [&"left", &"right"]
 
 
-func _r01() -> RouteDef:
-	return RouteDef.load_json("res://data/routes/R01.json")
+func _g_v0_01() -> RouteDef:
+	return RouteDef.load_json("res://data/routes/general/G_V0_01.json")
 
 
 func _tx() -> RouteDef:
@@ -41,7 +41,7 @@ func _drag_to(s: ClimbSession, limb: StringName, key: String, budget: int = 300)
 
 
 func test_wrong_phase_when_falling() -> void:
-	var s := _session(_r01())
+	var s := _session(_g_v0_01())
 	s.falling = true
 	var snap := ClimbSnapshot.from_session(s)
 	var bad := []
@@ -54,7 +54,7 @@ func test_wrong_phase_when_falling() -> void:
 
 
 func test_unsupported_techniques_marked() -> void:
-	var snap := ClimbSnapshot.from_session(_session(_r01()))
+	var snap := ClimbSnapshot.from_session(_session(_g_v0_01()))
 	for id in [&"T_HEEL_HOOK", &"T_SMEAR", &"T_HIGH_STEP", &"T_CROSS"]:
 		var j := TechniqueJudge.judge(snap, id)
 		runner.check(not j.left.available and j.left.reason == TechniqueJudge.MOVE_NOT_SUPPORTED, "%s 미지원 표시 %s" % [id, j.left])
@@ -62,25 +62,25 @@ func test_unsupported_techniques_marked() -> void:
 
 ## 아웃사이드 엣지 후보는 pivot 가능한 발판만, 손홀드 탭은 TYPE_MISMATCH, 이미 딛은 발판도 후보가 된다.
 func test_outside_edge_hold_checks() -> void:
-	var r := _r01()
-	r.slots["R01/F04/foot_1"].pivot_allowed = false
+	var r := _g_v0_01()
+	r.slots["G_V0_01/F04/foot_1"].pivot_allowed = false
 	var s := _session(r)
 	var snap := ClimbSnapshot.from_session(s)
 	var keys: Array = TechniqueJudge.hold_targets(snap, &"T_OUTSIDE_EDGE", &"right").map(func(t): return t.key)
-	runner.check(keys.has("R01/F02/foot_1") and not keys.has("R01/F04/foot_1"), "pivot 불가 F04 제외: %s" % [keys])
-	var c := TechniqueJudge.check_hold(snap, &"T_OUTSIDE_EDGE", &"right", "R01/F04/foot_1", Vector2.INF)
+	runner.check(keys.has("G_V0_01/F02/foot_1") and not keys.has("G_V0_01/F04/foot_1"), "pivot 불가 F04 제외: %s" % [keys])
+	var c := TechniqueJudge.check_hold(snap, &"T_OUTSIDE_EDGE", &"right", "G_V0_01/F04/foot_1", Vector2.INF)
 	runner.check(not c.ok and c.reason == TechniqueJudge.PIVOT_NOT_ALLOWED, "pivot 불가 탭 거부: %s" % [c])
-	var h := TechniqueJudge.check_hold(snap, &"T_OUTSIDE_EDGE", &"right", "R01/H01/hand_1", Vector2.INF)
+	var h := TechniqueJudge.check_hold(snap, &"T_OUTSIDE_EDGE", &"right", "G_V0_01/H01/hand_1", Vector2.INF)
 	runner.check(not h.ok and h.reason == GripCheck.TYPE_MISMATCH, "손홀드 탭 거부: %s" % [h])
 
 
 ## TA11: 패드로 만든 자세와 세션 필드를 직접 설정한 같은 자세의 판단이 같다(이력에 의존하지 않음).
 func test_same_snapshot_same_result() -> void:
-	var a := _session(_r01())
-	runner.check(_drag_to(a, &"LF", "R01/F03/foot_1"), "전제: 패드로 LF를 F03으로")
+	var a := _session(_g_v0_01())
+	runner.check(_drag_to(a, &"LF", "G_V0_01/F03/foot_1"), "전제: 패드로 LF를 F03으로")
 	for i in 90:
 		a.step()
-	var b := ClimbSession.new(_r01())
+	var b := ClimbSession.new(_g_v0_01())
 	b.body.pos = a.body.pos
 	b.body.angle = a.body.angle
 	b.body.yaw = a.body.yaw

@@ -1,8 +1,14 @@
 {
-  "route_id": "R01",
-  "content_version": 4,
+  "route_id": "G_V0_01",
+  "content_version": 5,
   "validation_status": "Draft",
-  "note": "v4: 손홀드 H01~H06 hand_area 반폭 0.12 명시(큰 홀드, docs/19 v0.6). v3: 시작 골반 0.83→0.744(tuning 3 무브 Rest 프로필의 수렴 자세). v2: G01 Y 3.00→2.80. route_check 양쪽 순서 통과(docs/23).",
+  "mode": "general",
+  "grade": "V0",
+  "order": 1,
+  "name_ko": "첫 번째 벽",
+  "required_techniques": [],
+  "check_swapped": true,
+  "note": "v5: R01에서 G_V0_01로 이동, 일반 모드 V0 첫 문제(docs/28 §7.1·§8.1). v4: 손홀드 H01~H06 hand_area 반폭 0.12 명시(큰 홀드, docs/19 v0.6). v3: 시작 골반 0.83→0.744(tuning 3 무브 Rest 프로필의 수렴 자세). v2: G01 Y 3.00→2.80. route_check 양쪽 순서 통과(docs/23).",
   "bounds": {"x_min": -1.5, "x_max": 1.5, "y_min": 0.0, "y_max": 4.0},
   "fail_line_y": -0.5,
   "holds": [
@@ -22,14 +28,14 @@
       {"slot_id": "goal_left", "pos": [-0.22, 2.80], "allowed": ["LH", "RH"]},
       {"slot_id": "goal_right", "pos": [0.22, 2.80], "allowed": ["LH", "RH"]}]}
   ],
-  "platforms": [{"platform_id": "P00", "top_y": 0.10, "x_range": [-0.65, 0.65], "foot_slot_keys": ["R01/F01/foot_1", "R01/F02/foot_1"]}],
+  "platforms": [{"platform_id": "P00", "top_y": 0.10, "x_range": [-0.65, 0.65], "foot_slot_keys": ["G_V0_01/F01/foot_1", "G_V0_01/F02/foot_1"]}],
   "start_pose": {"pelvis": [0.0, 0.744], "angle": 0.0,
-    "slots": {"LH": "R01/H01/hand_1", "RH": "R01/H02/hand_1", "LF": "R01/F01/foot_1", "RF": "R01/F02/foot_1"}},
-  "goal_slots": ["R01/G01/goal_left", "R01/G01/goal_right"],
+    "slots": {"LH": "G_V0_01/H01/hand_1", "RH": "G_V0_01/H02/hand_1", "LF": "G_V0_01/F01/foot_1", "RF": "G_V0_01/F02/foot_1"}},
+  "goal_slots": ["G_V0_01/G01/goal_left", "G_V0_01/G01/goal_right"],
   "time_medal_seconds": 40,
   "intended_moves": [
-    ["LH", "R01/H03/hand_1"], ["RH", "R01/H04/hand_1"], ["LF", "R01/F03/foot_1"], ["RF", "R01/F04/foot_1"],
-    ["LH", "R01/H05/hand_1"], ["RH", "R01/H06/hand_1"], ["LF", "R01/F05/foot_1"], ["RF", "R01/F06/foot_1"],
-    ["LH", "R01/G01/goal_left"], ["RH", "R01/G01/goal_right"]
+    ["LH", "G_V0_01/H03/hand_1"], ["RH", "G_V0_01/H04/hand_1"], ["LF", "G_V0_01/F03/foot_1"], ["RF", "G_V0_01/F04/foot_1"],
+    ["LH", "G_V0_01/H05/hand_1"], ["RH", "G_V0_01/H06/hand_1"], ["LF", "G_V0_01/F05/foot_1"], ["RF", "G_V0_01/F06/foot_1"],
+    ["LH", "G_V0_01/G01/goal_left"], ["RH", "G_V0_01/G01/goal_right"]
   ]
 }

@@ -1,0 +1,166 @@
+{
+ "courses": [
+  {
+   "course_id": "C_BASIC",
+   "order": 0,
+   "name_ko": "기본 조작",
+   "kind": "pad",
+   "techniques": [],
+   "tutorial": "C_BASIC_T",
+   "problems": [],
+   "phase": 1,
+   "text_ko": {
+    "purpose": "손과 발을 패드로 움직여 벽을 오르는 기본을 익혀요.",
+    "when": "처음 시작할 때 한 번 해 보세요. 건너뛰어도 V0 문제가 열려요.",
+    "how": "팔다리 패드를 끌어 홀드에 놓으면 잡거나 디뎌요. 두 발로 버티면 쉬면서 힘이 돌아와요."
+   }
+  },
+  {
+   "course_id": "C_HIGH_STEP",
+   "order": 1,
+   "name_ko": "하이스텝",
+   "kind": "pad",
+   "techniques": [
+    "T_HIGH_STEP"
+   ],
+   "tutorial": "C_HIGH_STEP_T",
+   "problems": [
+    "C_HIGH_STEP_1",
+    "C_HIGH_STEP_2",
+    "C_HIGH_STEP_3"
+   ],
+   "phase": 1
+  },
+  {
+   "course_id": "C_CROSS",
+   "order": 2,
+   "name_ko": "크로스",
+   "kind": "pad",
+   "techniques": [
+    "T_CROSS"
+   ],
+   "tutorial": "C_CROSS_T",
+   "problems": [
+    "C_CROSS_1",
+    "C_CROSS_2",
+    "C_CROSS_3"
+   ],
+   "phase": 1
+  },
+  {
+   "course_id": "C_FLAG",
+   "order": 3,
+   "name_ko": "플래그(균형 발)",
+   "kind": "pad",
+   "techniques": [
+    "T_FLAG"
+   ],
+   "tutorial": "C_FLAG_T",
+   "problems": [
+    "C_FLAG_1",
+    "C_FLAG_2",
+    "C_FLAG_3"
+   ],
+   "phase": 1
+  },
+  {
+   "course_id": "C_OUTSIDE_EDGE",
+   "order": 4,
+   "name_ko": "아웃사이드 엣지",
+   "kind": "button",
+   "techniques": [
+    "T_OUTSIDE_EDGE"
+   ],
+   "tutorial": "C_OUTSIDE_EDGE_T",
+   "problems": [
+    "C_OUTSIDE_EDGE_1",
+    "C_OUTSIDE_EDGE_2",
+    "C_OUTSIDE_EDGE_3"
+   ],
+   "phase": 1
+  },
+  {
+   "course_id": "C_DROP_KNEE",
+   "order": 5,
+   "name_ko": "드롭니",
+   "kind": "button",
+   "techniques": [
+    "T_DROP_KNEE"
+   ],
+   "tutorial": "C_DROP_KNEE_T",
+   "problems": [
+    "C_DROP_KNEE_1",
+    "C_DROP_KNEE_2",
+    "C_DROP_KNEE_3"
+   ],
+   "phase": 1
+  },
+  {
+   "course_id": "C_MATCH",
+   "order": 6,
+   "name_ko": "매치",
+   "kind": "pad",
+   "techniques": [
+    "T_MATCH"
+   ],
+   "tutorial": "",
+   "problems": [],
+   "phase": 2
+  },
+  {
+   "course_id": "C_FOOT_SWAP",
+   "order": 7,
+   "name_ko": "풋스왑",
+   "kind": "pad",
+   "techniques": [
+    "T_FOOT_SWAP"
+   ],
+   "tutorial": "",
+   "problems": [],
+   "phase": 2
+  },
+  {
+   "course_id": "C_LOCK_OFF",
+   "order": 8,
+   "name_ko": "락오프",
+   "kind": "pad",
+   "techniques": [
+    "T_LOCK_OFF"
+   ],
+   "tutorial": "",
+   "problems": [],
+   "phase": 2
+  },
+  {
+   "course_id": "C_DIRECTION",
+   "order": 9,
+   "name_ko": "방향 홀드(사이드풀·개스턴·언더클링)",
+   "kind": "pad",
+   "techniques": [
+    "T_SIDEPULL",
+    "T_GASTON",
+    "T_UNDERCLING"
+   ],
+   "tutorial": "",
+   "problems": [],
+   "phase": 2,
+   "text_ko": {
+    "purpose": "홀드가 향한 방향에 맞춰 당기는 방향을 바꿔서 잡아요.",
+    "when": "옆이나 아래를 향한 홀드를 잡아야 할 때 써요.",
+    "how": "손 패드로 홀드에 손을 놓으면 몸 위치에 맞는 잡기 방향을 게임이 골라요. 옆으로 당기면 사이드풀, 바깥으로 밀면 개스턴, 아래에서 들어 올리면 언더클링이에요."
+   }
+  },
+  {
+   "course_id": "C_DEADPOINT",
+   "order": 10,
+   "name_ko": "데드포인트",
+   "kind": "pad",
+   "techniques": [
+    "T_DEADPOINT"
+   ],
+   "tutorial": "",
+   "problems": [],
+   "phase": 2
+  }
+ ]
+}

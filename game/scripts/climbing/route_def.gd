@@ -13,8 +13,24 @@ var start_slots := {}    # limb -> slot key
 var goal_slots: Array = []
 var time_medal_seconds := 0.0
 var fail_line_y := -0.5  # 이 아래로 떨어지면 추락 연출 종료
-var intended_moves: Array = []  # [[limb, slot key], ...]
+var intended_moves: Array = []  # [[limb, slot key], ...] — 기술 단계는 [limb, ...나머지 원본 항목] 그대로(steps_raw와 같은 인덱스)
+var steps_raw: Array = []  # JSON intended_moves 원본(docs/28 §7.4 단계 형식, Task 5 검증기용)
+## docs/28 §8.1 문제 필드. mode가 빈 문자열이면 시험 전용 루트(TX_*)다.
+var mode := ""  # "general" / "course"
+var grade := ""  # "V0" ~
+var order := 0
+var name_ko := ""
+var required_techniques: Array[StringName] = []
+var course_id := ""
+var course_slot := ""  # "tutorial" / "easy" / "normal" / "hard"
+var tutorial_steps: Array = []
+var crux_steps := {}  # 기술 ID(StringName) -> intended_moves 인덱스
+var check_swapped := false  # 좌우 손 순서를 바꾼 재생도 검증할지
 var errors: PackedStringArray = []
+
+const MODES := ["general", "course"]
+const COURSE_SLOTS := ["tutorial", "easy", "normal", "hard"]
+static var _technique_ids := {}  # 기술 ID -> true (techniques.json, 처음 쓸 때 읽음)
 
 
 static func load_json(path: String) -> RouteDef:
@@ -24,6 +40,14 @@ static func load_json(path: String) -> RouteDef:
 	if typeof(data) != TYPE_DICTIONARY:
 		route.errors.append("JSON 파싱 실패: %s" % path)
 		return route
+	route._read(data)
+	route._validate()
+	return route
+
+
+## 이미 파싱한 사전에서 읽고 검사한다(테스트·도구용).
+static func from_dict(data: Dictionary) -> RouteDef:
+	var route := RouteDef.new()
 	route._read(data)
 	route._validate()
 	return route
@@ -53,7 +77,31 @@ func _read(d: Dictionary) -> void:
 	time_medal_seconds = float(d.get("time_medal_seconds", 0.0))
 	fail_line_y = float(d.get("fail_line_y", -0.5))
 	for m in d.get("intended_moves", []):
-		intended_moves.append([StringName(m[0]), m[1]])
+		steps_raw.append(m)
+		if m is Array and not m.is_empty():
+			intended_moves.append([StringName(str(m[0]))] + m.slice(1))
+		else:
+			intended_moves.append([])
+	mode = str(d.get("mode", ""))
+	grade = str(d.get("grade", ""))
+	order = int(d.get("order", 0))
+	name_ko = str(d.get("name_ko", ""))
+	for t in d.get("required_techniques", []):
+		required_techniques.append(StringName(t))
+	course_id = str(d.get("course_id", ""))
+	course_slot = str(d.get("course_slot", ""))
+	var ts = d.get("tutorial_steps", [])
+	if ts is Array:
+		tutorial_steps = ts
+	else:
+		errors.append("tutorial_steps는 배열이어야 함")
+	var crux = d.get("crux_steps", {})
+	if crux is Dictionary:
+		for t in crux:
+			crux_steps[StringName(t)] = crux[t]
+	else:
+		errors.append("crux_steps는 사전이어야 함")
+	check_swapped = bool(d.get("check_swapped", false))
 
 
 static func _vec(a, fallback: Vector2) -> Vector2:
@@ -102,8 +150,9 @@ func _validate() -> void:
 		for key in p.foot_slot_keys:
 			if not slots.has(key):
 				errors.append("플랫폼 %s 참조 슬롯 없음 %s" % [p.platform_id, key])
-	for m in intended_moves:
-		_check_slot_for(m[0], m[1], "의도 경로")
+	for i in intended_moves.size():
+		_check_step(i, intended_moves[i])
+	_validate_meta()
 	for key in slots:
 		var pos: Vector2 = slots[key].pos
 		if not (is_finite(pos.x) and is_finite(pos.y)):
@@ -118,6 +167,86 @@ func _validate() -> void:
 		for g in slot.grip_modes:
 			if g.mode == &"" or g.axis.length() == 0.0 or not (g.half_angle > 0.0 and g.half_angle <= 180.0):
 				errors.append("그립 방식 오류 %s" % key)
+
+
+## docs/28 §8.1 문제 필드 검사. mode가 없으면(시험 전용 루트) 과정·등급 필드만 형식 검사한다.
+func _validate_meta() -> void:
+	if mode != "" and not MODES.has(mode):
+		errors.append("mode는 general/course: %s" % mode)
+	var grade_re := RegEx.create_from_string("^V\\d+$")
+	if (mode != "" or grade != "") and grade_re.search(grade) == null:
+		errors.append("grade 형식 오류(V0, V1, …): '%s'" % grade)
+	if mode != "" and name_ko == "":
+		errors.append("name_ko 비어 있음")
+	if mode == "course":
+		if course_id == "":
+			errors.append("과정 문제는 course_id 필수")
+		if not COURSE_SLOTS.has(course_slot):
+			errors.append("과정 문제 course_slot은 tutorial/easy/normal/hard: '%s'" % course_slot)
+	elif course_id != "" or course_slot != "":
+		errors.append("과정 문제가 아니면 course_id·course_slot 없음")
+	for t in required_techniques:
+		if not _technique_exists(t):
+			errors.append("required_techniques에 없는 기술 %s" % t)
+	for t in crux_steps:
+		if not required_techniques.has(t):
+			errors.append("crux_steps 키 %s가 required_techniques에 없음" % t)
+		var idx = crux_steps[t]
+		if not (idx is int or idx is float) or int(idx) != idx or idx < 0 or idx >= intended_moves.size():
+			errors.append("crux_steps %s 인덱스 범위 밖: %s" % [t, idx])
+		else:
+			crux_steps[t] = int(idx)
+	if course_slot == "tutorial":
+		if tutorial_steps.is_empty():
+			errors.append("튜토리얼은 tutorial_steps 필수")
+	elif not tutorial_steps.is_empty():
+		errors.append("튜토리얼이 아니면 tutorial_steps 없음")
+
+
+## docs/28 §7.4 단계 형식: [limb, slot], [limb, T_ID], [limb, T_ID, slot], [hand, slot, "deadpoint"], [foot, "flag", [x, y]].
+func _check_step(i: int, m) -> void:
+	var where := "의도 경로 #%d" % i
+	if not (m is Array) or m.size() < 2 or m.size() > 3 or not (m[0] is String or m[0] is StringName) or not (m[1] is String):
+		errors.append("%s: 단계 형식 오류 %s" % [where, m])
+		return
+	var limb := StringName(m[0])
+	if not PoseSolver.LIMBS.has(limb):
+		errors.append("%s: 모르는 팔다리 %s" % [where, limb])
+		return
+	var second: String = m[1]
+	if m.size() == 2:
+		if second.begins_with("T_"):
+			_check_technique(second, where)
+		else:
+			_check_slot_for(limb, second, where)
+		return
+	var third = m[2]
+	if second == "flag":
+		if PoseSolver.is_hand(limb):
+			errors.append("%s: 플래그는 발만 %s" % [where, limb])
+		if not (third is Array and third.size() == 2 and third.all(func(v): return (v is float or v is int) and is_finite(v))):
+			errors.append("%s: 플래그 위치는 [x, y] %s" % [where, third])
+	elif third is String and third == "deadpoint":
+		if not PoseSolver.is_hand(limb):
+			errors.append("%s: 데드포인트는 손만 %s" % [where, limb])
+		_check_slot_for(limb, second, where)
+	elif second.begins_with("T_") and third is String:
+		_check_technique(second, where)
+		_check_slot_for(limb, third, where)
+	else:
+		errors.append("%s: 단계 형식 오류 %s" % [where, m])
+
+
+func _check_technique(id: String, where: String) -> void:
+	if not _technique_exists(StringName(id)):
+		errors.append("%s: 없는 기술 %s" % [where, id])
+
+
+static func _technique_exists(id: StringName) -> bool:
+	if _technique_ids.is_empty():
+		for t in TechniqueDefs.load_all():
+			_technique_ids[t] = true
+	return _technique_ids.has(id)
 
 
 func _check_slot_for(limb: StringName, key: String, where: String) -> void:

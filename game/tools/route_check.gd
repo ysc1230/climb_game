@@ -1,12 +1,12 @@
 extends SceneTree
-## 루트 검증기. 사용: godot --headless --path game --script res://tools/route_check.gd -- R01
+## 루트 검증기. 사용: godot --headless --path game --script res://tools/route_check.gd -- G_V0_01
 ## 콘텐츠 불변 조건 검사 후, 의도 경로와 좌우 순서를 바꾼 경로를 자동 재생한다.
 
 
 func _init() -> void:
 	var ids := OS.get_cmdline_user_args()
 	if ids.is_empty():
-		ids = PackedStringArray(["R01"])
+		ids = PackedStringArray(["G_V0_01"])
 	var all_ok := true
 	for id in ids:
 		all_ok = _check(id) and all_ok
@@ -14,7 +14,7 @@ func _init() -> void:
 
 
 func _check(id: String) -> bool:
-	var route := RouteDef.load_json("res://data/routes/%s.json" % id)
+	var route := RouteDef.load_json(ContentIndex.route_path(id))
 	print("== %s (content_version %d, tuning_version %d, %s)" % [id, route.content_version, Tuning.TUNING_VERSION, route.validation_status])
 	if not route.errors.is_empty():
 		for e in route.errors:

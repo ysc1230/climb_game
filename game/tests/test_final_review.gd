@@ -6,8 +6,8 @@ var runner
 const FAR := Vector2(3.0, 3.8)
 
 
-func _r01() -> RouteDef:
-	return RouteDef.load_json("res://data/routes/R01.json")
+func _g_v0_01() -> RouteDef:
+	return RouteDef.load_json("res://data/routes/general/G_V0_01.json")
 
 
 func _session(r: RouteDef, settle: int = 30) -> ClimbSession:
@@ -33,8 +33,8 @@ func _last_event(s: ClimbSession) -> Dictionary:
 
 ## 1: 아웃사이드 엣지 이동 중 "풀기"로 취소하면 움직이던 발은 Free(터치 없는 Dragging 금지).
 func test_move_cancel_frees_moving_limb() -> void:
-	var s := _session(_r01())
-	var key := "R01/F04/foot_1"
+	var s := _session(_g_v0_01())
+	var key := "G_V0_01/F04/foot_1"
 	runner.check(s.runner.start(s, &"T_OUTSIDE_EDGE", &"right", key, s.route.slot_pos(key)) == &"", "아웃사이드 엣지 시작")
 	for i in 4:
 		s.step()
@@ -72,7 +72,7 @@ func test_edge_change_invalidates_eval_cache() -> void:
 
 ## 3: 실행 중 버튼 "풀기" = cancel_technique. 드롭니 → 취소 → ψ 목표 NAN, edge inside.
 func test_cancel_technique_releases_drop_knee() -> void:
-	var s := _session(_r01())
+	var s := _session(_g_v0_01())
 	runner.check(not s.cancel_technique(), "실행 없으면 false")
 	runner.check(s.runner.start(s, &"T_DROP_KNEE", &"left") == &"", "드롭니 시작")
 	_run_ticks(s, 90)
@@ -89,8 +89,8 @@ func test_cancel_technique_releases_drop_knee() -> void:
 
 ## 4: 데드포인트 비행 중에는 선택을 열 수 없고 판단은 WRONG_PHASE.
 func test_no_select_during_deadpoint_flight() -> void:
-	var s := _session(_r01())
-	var key := "R01/H02/hand_1"
+	var s := _session(_g_v0_01())
+	var key := "G_V0_01/H02/hand_1"
 	s.start_deadpoint(&"LH", key, s.route.slot_pos(key), 0.1)
 	runner.check(not s.open_select() and not s.selecting, "선택 열리지 않음")
 	var j := TechniqueJudge.judge(ClimbSnapshot.from_session(s), &"T_DROP_KNEE")
@@ -99,8 +99,8 @@ func test_no_select_during_deadpoint_flight() -> void:
 
 ## 5: 이동 중 다른 팔다리가 목표 자리를 차지하면 OCCUPIED로 실패하고 그 발은 Free.
 func test_runner_respects_occupancy_during_move() -> void:
-	var s := _session(_r01())
-	var key := "R01/F04/foot_1"
+	var s := _session(_g_v0_01())
+	var key := "G_V0_01/F04/foot_1"
 	runner.check(s.runner.start(s, &"T_OUTSIDE_EDGE", &"right", key, s.route.slot_pos(key)) == &"", "아웃사이드 엣지 시작")
 	for i in 4:
 		s.step()
@@ -121,7 +121,7 @@ func test_runner_respects_occupancy_during_move() -> void:
 
 ## 6: light_judge는 같은 모양이고 힘 계산이 필요한 이유(드롭니 ψ 자세의 힘 균형)는 보지 않는다.
 func test_light_judge_shape_and_cheaper() -> void:
-	var s := _session(_r01())
+	var s := _session(_g_v0_01())
 	var snap := ClimbSnapshot.from_session(s)
 	for id in TechniqueJudge.defs():
 		var h := TechniqueJudge.judge(snap, id)
@@ -139,8 +139,8 @@ func test_light_judge_shape_and_cheaper() -> void:
 
 ## 7: 패드로 끈 발을 반대 발이 딛은 발판에 놓으면 풋스왑(들어온 발 붙음, 반대 발 같은 틱에 풀림).
 func test_pad_foot_swap() -> void:
-	var s := _session(_r01())
-	var key := "R01/F01/foot_1"
+	var s := _session(_g_v0_01())
+	var key := "G_V0_01/F01/foot_1"
 	runner.check(s.limbs[&"LF"].key == key, "전제: LF가 F01")
 	var target := s.route.slot_pos(key)
 	s.apply_input([{"type": "arm", "limb": &"RF"}, {"type": "detach", "limb": &"RF"}])

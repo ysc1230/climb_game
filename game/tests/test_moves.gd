@@ -14,7 +14,7 @@ func _settle(rules: ClimbRules, body: BodyState, att: Dictionary, ticks: int, in
 
 
 func _route() -> RouteDef:
-	return RouteDef.load_json("res://data/routes/R01.json")
+	return RouteDef.load_json("res://data/routes/general/G_V0_01.json")
 
 
 ## MC06·T02-C: 발이 낮으면 먼 손홀드(H05)에 닿지 않는다 → 두 발을 높이고 체중을 실으면 골반이 오르고 닿는다
@@ -25,7 +25,7 @@ func test_mc06_high_step_then_stand_up_enables_reach() -> void:
 	var att := START.duplicate()
 	rules.reset(body, att, {}, false)
 	_settle(rules, body, att, 120)
-	var h05 := r.slot_pos("R01/H05/hand_1")
+	var h05 := r.slot_pos("G_V0_01/H05/hand_1")
 	var before := body.pos.y
 	runner.check(not PoseSolver.can_reach(body.pos, body.angle, &"LH", h05), "발이 낮을 때 H05 불가")
 	var rest := att.duplicate()
@@ -34,7 +34,7 @@ func test_mc06_high_step_then_stand_up_enables_reach() -> void:
 	runner.check(reason in [GripCheck.OUT_OF_REACH, GripCheck.NEED_WEIGHT_SHIFT], "거부 사유 %s" % reason)
 	# 두 발을 차례로 높은 발판(F03/F04)으로: 드래그 중 HighStep, 놓은 뒤 체중을 실어 일어섬
 	for foot in [&"LF", &"RF"]:
-		var key := "R01/F03/foot_1" if foot == &"LF" else "R01/F04/foot_1"
+		var key := "G_V0_01/F03/foot_1" if foot == &"LF" else "G_V0_01/F04/foot_1"
 		var target := r.slot_pos(key)
 		var less := att.duplicate()
 		less.erase(foot)
@@ -136,13 +136,13 @@ func test_reject_reasons() -> void:
 	var body := BodyState.new(r.start_pelvis)
 	var att := START.duplicate()
 	att.erase(&"LH")
-	r.slots["R01/H02/hand_1"].hand_area.half_width = 0.04  # 좁은 홀드: 한 손만
+	r.slots["G_V0_01/H02/hand_1"].hand_area.half_width = 0.04  # 좁은 홀드: 한 손만
 	var occ := {
-		"R01/H02/hand_1": [{"limb": &"RH", "interval": Vector2(-0.04, 0.04)}],
-		"R01/F01/foot_1": [{"limb": &"LF", "interval": Vector2.ZERO}],
-		"R01/F02/foot_1": [{"limb": &"RF", "interval": Vector2.ZERO}]}
-	var f01 := r.slot_pos("R01/F01/foot_1")
+		"G_V0_01/H02/hand_1": [{"limb": &"RH", "interval": Vector2(-0.04, 0.04)}],
+		"G_V0_01/F01/foot_1": [{"limb": &"LF", "interval": Vector2.ZERO}],
+		"G_V0_01/F02/foot_1": [{"limb": &"RF", "interval": Vector2.ZERO}]}
+	var f01 := r.slot_pos("G_V0_01/F01/foot_1")
 	runner.check(GripCheck.reject_reason(r.slots, &"LH", f01, f01, body.pos, 0, att, occ, [&"LF", &"RF"]) == GripCheck.TYPE_MISMATCH, "손이 발판을 노림")
-	var h02 := r.slot_pos("R01/H02/hand_1")
+	var h02 := r.slot_pos("G_V0_01/H02/hand_1")
 	runner.check(GripCheck.reject_reason(r.slots, &"LH", h02, h02, body.pos, 0, att, occ, [&"LF", &"RF"]) == GripCheck.OCCUPIED, "오른손 점유 슬롯")
 	runner.check(GripCheck.message(GripCheck.TYPE_MISMATCH, &"LH") == "손으로 잡는 홀드가 아니에요", "문구")

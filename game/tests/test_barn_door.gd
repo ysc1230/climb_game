@@ -52,7 +52,7 @@ func test_wide_contacts_no_barn_door() -> void:
 	var rules := ClimbRules.new()
 	var body := BodyState.new(Vector2(0, 0.83))
 	rules.reset(body, START, {}, false)
-	runner.check(not rules.last.barn.applies, "R01 시작 자세는 적용 안 됨")
+	runner.check(not rules.last.barn.applies, "G_V0_01 시작 자세는 적용 안 됨")
 	runner.check(rules.imbalance_cause == &"", "cause 비어 있음")
 
 

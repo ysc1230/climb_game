@@ -59,7 +59,7 @@ func _drag(i: int, p: Vector2) -> void:
 	Input.parse_input_event(e)
 
 
-const F03 := "R01/F03/foot_1"
+const F03 := "G_V0_01/F03/foot_1"
 
 
 ## 기술 선택 흐름 주입(물리 틱 기준). 좌표는 play_test의 레이아웃·카메라 변환으로 구한다.

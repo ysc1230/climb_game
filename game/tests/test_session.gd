@@ -5,7 +5,7 @@ var runner
 
 
 func _route() -> RouteDef:
-	return RouteDef.load_json("res://data/routes/R01.json")
+	return RouteDef.load_json("res://data/routes/general/G_V0_01.json")
 
 
 ## limb을 target 쪽으로 끌어(요청 목표 이동) 후보가 key가 되면 놓는다. 성공하면 true.
@@ -52,10 +52,10 @@ func test_reset_start_pose_stable() -> void:
 
 func test_drag_release_grabs_candidate() -> void:
 	var s := ClimbSession.new(_route())
-	var ok := _drag_to(s, &"LH", "R01/H03/hand_1")
+	var ok := _drag_to(s, &"LH", "G_V0_01/H03/hand_1")
 	runner.check(ok, "LH를 H03까지 끌어 놓으면 붙는다")
 	runner.check(s.limbs[&"LH"].state == "Attached", "LH Attached")
-	runner.check(s.limbs[&"LH"].key == "R01/H03/hand_1", "LH 슬롯 키")
+	runner.check(s.limbs[&"LH"].key == "G_V0_01/H03/hand_1", "LH 슬롯 키")
 
 
 func test_release_without_candidate_frees() -> void:
@@ -90,7 +90,7 @@ func test_grab_validates_reach() -> void:
 	var s := ClimbSession.new(_route())
 	var key: String = s.limbs[&"LH"].key  # 시작 슬롯: 도달 가능
 	s.apply_input([{"type": "detach", "limb": &"LH"}])
-	var far := "R01/G01/goal_left"
+	var far := "G_V0_01/G01/goal_left"
 	var contact := GripCheck.contact_for(key, s.route.slots, &"LH", s.route.slot_pos(key))
 	runner.check(not s.grab(&"LH", far, s.route.slot_pos(far), contact), "닿지 않는 슬롯은 false")
 	runner.check(s.limbs[&"LH"].state == "Dragging", "실패하면 상태 유지")

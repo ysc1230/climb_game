@@ -9,14 +9,14 @@ func _slot(c: Vector2) -> Dictionary:
 
 
 func test_defaults_filled() -> void:
-	var r := RouteDef.load_json("res://data/routes/R01.json")
-	var g: Dictionary = r.slots["R01/G01/goal_left"]
+	var r := RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	var g: Dictionary = r.slots["G_V0_01/G01/goal_left"]
 	runner.check(is_equal_approx(g.hand_area.half_width, 0.08), "손 기본 반폭 0.08")
 	runner.check(g.hand_area.dir == Vector2(1, 0), "손 기본 방향 (1,0)")
 	runner.check(g.grip_modes.size() == 1 and g.grip_modes[0].mode == &"pull", "기본 방식 pull")
 	runner.check(g.grip_modes[0].axis == Vector2(0, 1), "pull 축 (0,1)")
 	runner.check(is_equal_approx(g.grip_modes[0].half_angle, 65.0), "pull 반각 65")
-	var f: Dictionary = r.slots["R01/F01/foot_1"]
+	var f: Dictionary = r.slots["G_V0_01/F01/foot_1"]
 	runner.check(is_equal_approx(f.foot_area.half_height, 0.04), "발 기본 반높이 0.04")
 	runner.check(f.foot_area.up == Vector2(0, 1), "발 기본 up (0,1)")
 	runner.check(f.pivot_allowed == true, "pivot 기본 허용")
@@ -77,26 +77,26 @@ func test_tx_tech_loads() -> void:
 
 
 func test_invalid_area_rejected() -> void:
-	var r := RouteDef.load_json("res://data/routes/R01.json")
-	r.slots["R01/H01/hand_1"].hand_area.half_width = 0.0
+	var r := RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	r.slots["G_V0_01/H01/hand_1"].hand_area.half_width = 0.0
 	r.errors.clear()
 	r._validate()
 	runner.check(r.errors.size() > 0, "half_width<=0 거부")
-	r = RouteDef.load_json("res://data/routes/R01.json")
-	r.slots["R01/H01/hand_1"].grip_modes = []
+	r = RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	r.slots["G_V0_01/H01/hand_1"].grip_modes = []
 	r.errors.clear()
 	r._validate()
 	runner.check(r.errors.size() > 0, "빈 grip_modes 거부")
-	r = RouteDef.load_json("res://data/routes/R01.json")
-	r.slots["R01/F01/foot_1"].foot_area.half_height = -1.0
+	r = RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	r.slots["G_V0_01/F01/foot_1"].foot_area.half_height = -1.0
 	r.errors.clear()
 	r._validate()
 	runner.check(r.errors.size() > 0, "half_height<=0 거부")
 
 
-func test_r01_holds_are_big() -> void:
-	var r := RouteDef.load_json("res://data/routes/R01.json")
-	runner.check(r.content_version == 4, "R01 content_version 4")
+func test_g_v0_01_holds_are_big() -> void:
+	var r := RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	runner.check(r.content_version == 5, "G_V0_01 content_version 5")
 	for i in range(1, 7):
-		var k := "R01/H0%d/hand_1" % i
+		var k := "G_V0_01/H0%d/hand_1" % i
 		runner.check(is_equal_approx(r.slots[k].hand_area.half_width, 0.12), "%s 반폭 0.12" % k)

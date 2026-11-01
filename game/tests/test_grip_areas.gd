@@ -3,11 +3,11 @@ extends RefCounted
 
 var runner
 
-const R01_H03 := "R01/H03/hand_1"
+const G_V0_01_H03 := "G_V0_01/H03/hand_1"
 
 
-func _r01() -> RouteDef:
-	return RouteDef.load_json("res://data/routes/R01.json")
+func _g_v0_01() -> RouteDef:
+	return RouteDef.load_json("res://data/routes/general/G_V0_01.json")
 
 
 func _tx() -> RouteDef:
@@ -25,10 +25,10 @@ func _hand_occ(limb: StringName, lo: float, hi: float) -> Array:
 
 
 func test_candidate_returns_projected_point() -> void:
-	var r := _r01()
-	var c: Vector2 = r.slots[R01_H03].pos
+	var r := _g_v0_01()
+	var c: Vector2 = r.slots[G_V0_01_H03].pos
 	var cand := _cand(r, &"LH", c + Vector2(0.05, 0.03), {})
-	runner.check(not cand.is_empty() and cand.key == R01_H03, "후보 있음 %s" % [cand])
+	runner.check(not cand.is_empty() and cand.key == G_V0_01_H03, "후보 있음 %s" % [cand])
 	if cand.is_empty():
 		return
 	runner.check(cand.point.is_equal_approx(c + Vector2(0.05, 0)), "투영점 %s" % cand.point)
@@ -64,26 +64,26 @@ func test_narrow_hold_rejects_second_hand() -> void:
 
 
 func test_big_hold_match_by_pad() -> void:
-	var r := _r01()
-	var c: Vector2 = r.slots[R01_H03].pos
+	var r := _g_v0_01()
+	var c: Vector2 = r.slots[G_V0_01_H03].pos
 	var lh := c + Vector2(-0.04, 0)
-	var occ := {R01_H03: _hand_occ(&"LH", -0.08, 0.0)}
+	var occ := {G_V0_01_H03: _hand_occ(&"LH", -0.08, 0.0)}
 	var cand := GripCheck.candidate(r.slots, &"RH", c, c + Vector2(0, -0.7), 0.0, {&"LH": lh}, occ)
-	runner.check(not cand.is_empty() and cand.key == R01_H03, "합손 후보 %s" % [cand])
+	runner.check(not cand.is_empty() and cand.key == G_V0_01_H03, "합손 후보 %s" % [cand])
 	if cand.is_empty():
 		return
-	var iv := HoldArea.hand_interval(r.slots[R01_H03], cand.point)
+	var iv := HoldArea.hand_interval(r.slots[G_V0_01_H03], cand.point)
 	runner.check(not GripCheck.overlaps(iv, Vector2(-0.08, 0.0)), "RH 구간 안 겹침 %s" % iv)
 	runner.check(cand.quality >= 0.85, "RH 품질 %f" % cand.quality)
-	var lq: float = HoldArea.project_hand(r.slots[R01_H03], lh).quality
+	var lq: float = HoldArea.project_hand(r.slots[G_V0_01_H03], lh).quality
 	runner.check(lq >= 0.85, "LH 품질 %f" % lq)
 
 
 func test_touching_intervals_allowed() -> void:
-	var r := _r01()
-	var key := "R01/H07/hand_1"
+	var r := _g_v0_01()
+	var key := "G_V0_01/H07/hand_1"
 	if not r.slots.has(key):
-		key = "R01/G01/goal_left"
+		key = "G_V0_01/G01/goal_left"
 	var c: Vector2 = r.slots[key].pos
 	runner.check(is_equal_approx(r.slots[key].hand_area.half_width, 0.08), "반폭 0.08 홀드")
 	var occ := {key: _hand_occ(&"LH", -0.08, 0.0)}
@@ -97,8 +97,8 @@ func test_touching_intervals_allowed() -> void:
 
 
 func test_foot_single_occupant() -> void:
-	var r := _r01()
-	var key := "R01/F01/foot_1"
+	var r := _g_v0_01()
+	var key := "G_V0_01/F01/foot_1"
 	var p: Vector2 = r.slots[key].pos
 	var occ := {key: [{"limb": &"LF", "interval": Vector2.ZERO}]}
 	var pelvis := p + Vector2(0, 0.75)

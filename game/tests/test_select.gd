@@ -5,7 +5,7 @@ var runner
 
 
 func _session() -> ClimbSession:
-	var s := ClimbSession.new(RouteDef.load_json("res://data/routes/R01.json"))
+	var s := ClimbSession.new(RouteDef.load_json("res://data/routes/general/G_V0_01.json"))
 	for i in 30:
 		s.step()
 	return s
@@ -85,7 +85,7 @@ func test_select_clears_armed_without_release() -> void:
 
 func test_choose_resumes_immediately() -> void:
 	var s := _session()
-	var key := "R01/F04/foot_1"
+	var key := "G_V0_01/F04/foot_1"
 	runner.check(s.open_select(), "열기")
 	var ticks := s.tick_count
 	s.step()
@@ -107,5 +107,5 @@ func test_choose_failure_keeps_selecting() -> void:
 func test_choose_rejects_non_button() -> void:
 	var s := _session()
 	s.open_select()
-	var r := s.choose(&"T_HIGH_STEP", &"left", "R01/F03/foot_1")
+	var r := s.choose(&"T_HIGH_STEP", &"left", "G_V0_01/F03/foot_1")
 	runner.check(r == TechniqueRunner.NOT_BUTTON and s.selecting and s.runner.active.is_empty(), "NOT_BUTTON, 선택 유지: %s" % r)

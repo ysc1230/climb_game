@@ -1,5 +1,5 @@
 extends Node2D
-## 1A/2단계 시험 장면. R01 회색 박스 벽과 2D 막대 인형을 네 패드로 조작한다.
+## 1A/2단계 시험 장면. G_V0_01 회색 박스 벽과 2D 막대 인형을 네 패드로 조작한다.
 ## 판정은 PoseSolver/Fatigue/InputRouter를 사용하고, 이 노드는 상태를 들고 그리기만 한다.
 ## 아직 단순화한 부분: GripSystem 동시 거래 대신 release 즉시 단일 판정, 결과 화면 없음(자동 재시작).
 
@@ -51,7 +51,7 @@ func _ready() -> void:
 	var sf := SystemFont.new()
 	sf.font_names = PackedStringArray(["Noto Sans CJK KR", "Noto Sans KR", "Apple SD Gothic Neo", "sans-serif"])
 	font = sf
-	route = RouteDef.load_json("res://data/routes/R01.json")
+	route = RouteDef.load_json("res://data/routes/general/G_V0_01.json")
 	session = ClimbSession.new(route)
 	get_viewport().size_changed.connect(_layout)
 	_layout()
@@ -316,7 +316,7 @@ func _draw_pads(size: Vector2) -> void:
 func _draw_hud(size: Vector2) -> void:
 	var fs := int(22 * ui_k)
 	var height := maxf(session.body.pos.y - route.start_pelvis.y, 0.0)
-	draw_string(font, Vector2(size.x * 0.25, 40 * ui_k), "R01 시험 빌드 · 높이 %.1fm · 완등 %d · 추락 %d" % [height, session.clears, session.falls], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
+	draw_string(font, Vector2(size.x * 0.25, 40 * ui_k), "G_V0_01 시험 빌드 · 높이 %.1fm · 완등 %d · 추락 %d" % [height, session.clears, session.falls], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
 	# 지지 상태(docs/25 피드백): 색만이 아니라 문구와 막대로 표시
 	var names := ["안정", "부담 큼", "균형 회복 중", "지지 없음"]
 	var colors := [Color("cfe3c8"), Color("f1d59a"), Color("ff8a6a"), Color("ff5a4a")]

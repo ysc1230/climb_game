@@ -4,8 +4,8 @@ extends RefCounted
 
 var runner
 
-func _r01() -> RouteDef:
-	return RouteDef.load_json("res://data/routes/R01.json")
+func _g_v0_01() -> RouteDef:
+	return RouteDef.load_json("res://data/routes/general/G_V0_01.json")
 
 
 func _session(r: RouteDef, settle: int = 30) -> ClimbSession:
@@ -23,7 +23,7 @@ func _last_event(s: ClimbSession) -> Dictionary:
 
 ## TA12: 홀드를 고르지 않은 hold_tap 기술은 시작하지 않고 아무것도 움직이지 않는다.
 func test_no_auto_hold() -> void:
-	var s := _session(_r01())
+	var s := _session(_g_v0_01())
 	var before := {}
 	for limb in s.limbs:
 		before[limb] = [s.limbs[limb].state, s.limbs[limb].key, s.limbs[limb].grab]
@@ -39,7 +39,7 @@ func test_no_auto_hold() -> void:
 
 ## TA09: 실행 중 그 발 패드를 누르면 취소되고 패드 조작으로 넘어간다. 다른 팔다리 패드는 취소하지 않는다.
 func test_pad_touch_cancels() -> void:
-	var s := _session(_r01())
+	var s := _session(_g_v0_01())
 	runner.check(s.runner.start(s, &"T_DROP_KNEE", &"left") == &"", "드롭니 시작")
 	for i in 5:
 		s.step()
@@ -54,8 +54,8 @@ func test_pad_touch_cancels() -> void:
 	runner.check(ev.get("type") == TechniqueRunner.CANCELLED and ev.get("id") == &"T_DROP_KNEE", "cancelled 이벤트: %s" % [ev])
 	runner.check(s.limbs[&"LF"].state == "Armed", "패드 조작으로 전환(Armed)")
 
-	var m := _session(_r01())
-	var key := "R01/F04/foot_1"
+	var m := _session(_g_v0_01())
+	var key := "G_V0_01/F04/foot_1"
 	runner.check(m.runner.start(m, &"T_OUTSIDE_EDGE", &"right", key, m.route.slot_pos(key)) == &"", "아웃사이드 엣지 시작")
 	for i in 4:
 		m.step()
@@ -71,8 +71,8 @@ func test_pad_touch_cancels() -> void:
 ## 닿지 않는 채로 90틱이 지나면 failed(체중 이동이 필요 없던 목표면 JOINT_LIMIT), 발은 Free, ψ 목표 해제.
 ## 판단 뒤 상태가 달라진 경우를 만들려고 실행이 시작된 뒤 목표점을 닿지 않는 곳으로 바꾼다.
 func test_move_budget_fails() -> void:
-	var s := _session(_r01())
-	var key := "R01/F04/foot_1"
+	var s := _session(_g_v0_01())
+	var key := "G_V0_01/F04/foot_1"
 	runner.check(s.runner.start(s, &"T_OUTSIDE_EDGE", &"right", key, s.route.slot_pos(key)) == &"", "시작")
 	s.step()
 	runner.check(_last_event(s).get("type") == TechniqueRunner.STARTED and not s.runner.active.needs_shift, "전제: started, 체중 이동 불필요")
@@ -127,8 +127,8 @@ func _run_ticks(s: ClimbSession, n: int) -> String:
 
 ## TA01: 두 손·두 발, 왼발 발판 pivot true·오른발 false → 왼쪽만 가능.
 func test_drop_knee_left_only() -> void:
-	var r := _r01()
-	r.slots["R01/F02/foot_1"].pivot_allowed = false
+	var r := _g_v0_01()
+	r.slots["G_V0_01/F02/foot_1"].pivot_allowed = false
 	var s := _session(r)
 	var j := TechniqueJudge.judge(ClimbSnapshot.from_session(s), &"T_DROP_KNEE")
 	runner.check(j[&"left"].available, "왼쪽 가능: %s" % [j[&"left"]])
@@ -137,7 +137,7 @@ func test_drop_knee_left_only() -> void:
 
 
 func test_drop_knee_turns_hip() -> void:
-	var s := _session(_r01())
+	var s := _session(_g_v0_01())
 	var reach0 := _far_reach(&"LH", 0.0)
 	runner.check(s.runner.start(s, &"T_DROP_KNEE", &"left") == &"", "시작")
 	var fell := _run_ticks(s, 90)
@@ -151,8 +151,8 @@ func test_drop_knee_turns_hip() -> void:
 
 
 func test_outside_edge_sets_yaw() -> void:
-	var s := _session(_r01())
-	var key := "R01/F04/foot_1"
+	var s := _session(_g_v0_01())
+	var key := "G_V0_01/F04/foot_1"
 	var c := TechniqueJudge.check_hold(ClimbSnapshot.from_session(s), &"T_OUTSIDE_EDGE", &"right", key, s.route.slot_pos(key))
 	runner.check(c.ok, "전제: 후보 가능 %s" % [c])
 	runner.check(s.runner.start(s, &"T_OUTSIDE_EDGE", &"right", key, s.route.slot_pos(key)) == &"", "시작")
@@ -162,7 +162,7 @@ func test_outside_edge_sets_yaw() -> void:
 	runner.check(absf(s.body.yaw - 30.0) <= 1.0, "yaw → +30 (%.2f)" % s.body.yaw)
 	runner.check(s.rules.contact_meta[&"RF"].edge == &"outside", "RF edge outside")
 	# pivot 불가 발판은 PIVOT_NOT_ALLOWED
-	var r := _r01()
+	var r := _g_v0_01()
 	r.slots[key].pivot_allowed = false
 	var s2 := _session(r)
 	runner.check(s2.runner.start(s2, &"T_OUTSIDE_EDGE", &"right", key, r.slot_pos(key)) == TechniqueJudge.PIVOT_NOT_ALLOWED, "pivot 불가 → PIVOT_NOT_ALLOWED")
@@ -170,13 +170,13 @@ func test_outside_edge_sets_yaw() -> void:
 
 ## Review Focus 3: 드롭니 중 다른 패드를 써도 유지, 그 발 패드를 누르면 취소·복귀.
 func test_drop_knee_survives_other_pad_moves() -> void:
-	var s := _session(_r01())
+	var s := _session(_g_v0_01())
 	runner.check(s.runner.start(s, &"T_DROP_KNEE", &"left") == &"", "시작")
 	_run_ticks(s, 90)
 	runner.check(absf(s.body.yaw + 35.0) <= 1.0, "전제: yaw -35")
 	# LH를 떼서 다른 홀드(H03)로 옮겨 잡는다
 	s.apply_input([{"type": "arm", "limb": &"LH"}, {"type": "detach", "limb": &"LH"}])
-	var target := s.route.slot_pos("R01/H03/hand_1")
+	var target := s.route.slot_pos("G_V0_01/H03/hand_1")
 	for i in 120:
 		var d: Vector2 = target - s.limbs[&"LH"].req
 		s.apply_input([{"type": "move", "limb": &"LH", "delta": d.limit_length(0.02)}])
@@ -195,7 +195,7 @@ func test_drop_knee_survives_other_pad_moves() -> void:
 			return
 	s.apply_input([{"type": "release", "limb": &"LH"}])
 	_run_ticks(s, 30)
-	runner.check(s.limbs[&"LH"].state == "Attached" and s.limbs[&"LH"].key == "R01/H03/hand_1", "LH가 H03에 붙음 (%s %s)" % [s.limbs[&"LH"].state, s.limbs[&"LH"].key])
+	runner.check(s.limbs[&"LH"].state == "Attached" and s.limbs[&"LH"].key == "G_V0_01/H03/hand_1", "LH가 H03에 붙음 (%s %s)" % [s.limbs[&"LH"].state, s.limbs[&"LH"].key])
 	runner.check(not s.runner.active.is_empty(), "드롭니 유지")
 	runner.check(absf(s.body.yaw + 35.0) <= 1.5, "yaw 유지 (%.2f)" % s.body.yaw)
 	s.apply_input([{"type": "arm", "limb": &"LF"}])
@@ -224,7 +224,7 @@ class GatedRules extends ClimbRules:
 ## 힘 균형 게이트(Task 5 리뷰): yaw 기술 중 다음 yaw가 FEASIBLE이 아니거나 barn door 초과면 yaw 진행을 멈춘다.
 ## 복귀(|yaw| 감소)는 막지 않고, 가드가 꺼져 있으면 기존 동작.
 func test_yaw_guard_stops_when_support_infeasible() -> void:
-	var s := _session(_r01())
+	var s := _session(_g_v0_01())
 	for barn in [false, true]:
 		var rules := GatedRules.new()
 		rules.barn_over = barn
@@ -256,7 +256,7 @@ const BARN_FREE := {&"RF": Vector2(0.20, 0.30), &"RH": Vector2(0.20, 1.60)}
 
 ## Task 6 barn door 자세(test_barn_door.gd): 세로선 LH+LF, 골반 x=-0.30, RH·RF 자유.
 func _barn_session() -> ClimbSession:
-	var s := ClimbSession.new(_r01())
+	var s := ClimbSession.new(_g_v0_01())
 	for limb in BARN_LINE:
 		var l: Dictionary = s.limbs[limb]
 		l.grab = BARN_LINE[limb]
@@ -295,12 +295,12 @@ func test_pad_balance_foot_fixes_barn_door() -> void:
 	runner.check(not s.rules.last.barn.exceeded, "barn door 해소: %s" % [s.rules.last.barn])
 
 
-## 이득이 없는 자세(R01 시작)에서는 균형 발 예고가 켜지지 않는다.
+## 이득이 없는 자세(G_V0_01 시작)에서는 균형 발 예고가 켜지지 않는다.
 func test_pad_balance_foot_needs_gain() -> void:
-	var s := _session(_r01(), 0)
+	var s := _session(_g_v0_01(), 0)
 	var l: Dictionary = s.limbs[&"RF"]
 	l.state = "Dragging"
 	l.contact = null
 	l.req = l.pos
 	s.step()
-	runner.check(not s.rules.flag_ready.has(&"RF"), "R01 시작: 패드 예고 꺼짐")
+	runner.check(not s.rules.flag_ready.has(&"RF"), "G_V0_01 시작: 패드 예고 꺼짐")

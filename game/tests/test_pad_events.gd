@@ -4,18 +4,18 @@ extends RefCounted
 
 var runner
 
-const H01 := "R01/H01/hand_1"
-const H02 := "R01/H02/hand_1"
-const H03 := "R01/H03/hand_1"
-const H04 := "R01/H04/hand_1"
-const F01 := "R01/F01/foot_1"
-const F02 := "R01/F02/foot_1"
-const F03 := "R01/F03/foot_1"
-const F04 := "R01/F04/foot_1"
+const H01 := "G_V0_01/H01/hand_1"
+const H02 := "G_V0_01/H02/hand_1"
+const H03 := "G_V0_01/H03/hand_1"
+const H04 := "G_V0_01/H04/hand_1"
+const F01 := "G_V0_01/F01/foot_1"
+const F02 := "G_V0_01/F02/foot_1"
+const F03 := "G_V0_01/F03/foot_1"
+const F04 := "G_V0_01/F04/foot_1"
 
 
-func _r01() -> RouteDef:
-	return RouteDef.load_json("res://data/routes/R01.json")
+func _g_v0_01() -> RouteDef:
+	return RouteDef.load_json("res://data/routes/general/G_V0_01.json")
 
 
 func _session(r: RouteDef, forbid := {}, settle: int = 30) -> ClimbSession:
@@ -57,7 +57,7 @@ func _labels(s: ClimbSession) -> Array:
 
 ## Ruling D: 모든 이벤트에 단조 증가 seq. 로그가 상한(200)으로 잘려도 seq는 계속 오른다.
 func test_seq_monotonic_beyond_cap() -> void:
-	var s := ClimbSession.new(_r01())
+	var s := ClimbSession.new(_g_v0_01())
 	var n := ClimbSession.TECHNIQUE_LOG_MAX + 50
 	for i in n:
 		s._log_event({"type": "x", "i": i})
@@ -81,7 +81,7 @@ func test_seq_monotonic_beyond_cap() -> void:
 
 ## 높은 발판 딛기: 드래그 중 HighStep, 놓은 뒤 StandUp. 붙을 때 grab 이벤트.
 func test_high_step_then_stand_up_events() -> void:
-	var s := _session(_r01())
+	var s := _session(_g_v0_01())
 	var ok := _drag_to(s, &"LF", F03, 300, 10)
 	runner.check(ok, "LF가 F03에 붙음")
 	var grabs := _events(s, "grab")
@@ -104,7 +104,7 @@ func test_high_step_then_stand_up_events() -> void:
 ## 시작 자세에서 곧장 끌면 H02를 겨누어 HandMatch가 되고 H04에 닿지 않는다.
 ## 반환: 놓은 뒤 세션(LH가 H04에 붙었는지, 라벨은 호출자가 본다).
 func _cross_attempt(forbid: Dictionary) -> ClimbSession:
-	var s := ClimbSession.new(_r01())
+	var s := ClimbSession.new(_g_v0_01())
 	s.forbid = forbid
 	s.reset_to({"pelvis": [0.15, 1.1], "angle": 0.0, "slots": {"LH": H01, "RH": H02, "LF": F03, "RF": F04}})
 	for i in 30:
@@ -128,7 +128,7 @@ func test_cross_reach_event() -> void:
 ## 패드 균형 발: 받칠 곳 없는 허공에서 균형 발 예고 중 놓으면 Flag 상태와 flag 이벤트.
 ## 반환: [놓은 틱 번호, 놓은 뒤 RF 상태]. release_at < 0이면 flag_ready가 처음 켜진 틱에 놓는다.
 func _flag_attempt(forbid: Dictionary, release_at: int) -> Array:
-	var s := _session(_r01(), forbid)
+	var s := _session(_g_v0_01(), forbid)
 	s.apply_input([{"type": "detach", "limb": &"RF"}])
 	for i in 120:
 		var tgt: Vector2 = s.body.pos + Vector2(-0.7, 0.0)  # 발판(F01)에서 떨어진 왼쪽 허공: 풋스왑 아님
@@ -150,7 +150,7 @@ func test_flag_event() -> void:
 
 ## 추락 시작 시 fall 이벤트(reason).
 func test_fall_event() -> void:
-	var s := _session(_r01())
+	var s := _session(_g_v0_01())
 	for limb in PoseSolver.LIMBS:
 		s.apply_input([{"type": "detach", "limb": limb}])
 	var out := ""
@@ -167,7 +167,7 @@ func test_fall_event() -> void:
 ## pose가 있으면 그 자세(reset_to)에서, lf_key는 LF가 딛은 발판. 놓기 직전에 forbid를 release_forbid로 바꾸고(null이면 그대로)
 ## 골반을 release_drop(m)만큼 낮춘다.
 func _foot_swap_attempt(forbid: Dictionary, pose: Dictionary = {}, lf_key: String = F01, release_forbid = null, release_drop: float = 0.0) -> Array:
-	var s := _session(_r01(), forbid)
+	var s := _session(_g_v0_01(), forbid)
 	if not pose.is_empty():
 		s.reset_to(pose)
 		for i in 30:
@@ -241,7 +241,7 @@ func test_pad_deadpoint_events() -> void:
 # ---------- 금지 플래그(28 §7.4) ----------
 
 func test_forbid_defaults_empty() -> void:
-	var s := ClimbSession.new(_r01())
+	var s := ClimbSession.new(_g_v0_01())
 	runner.check(s.forbid.is_empty(), "forbid 기본값 비어 있음")
 	for path in ["res://scenes/play_test.gd", "res://scenes/play_3d.gd"]:
 		runner.check(FileAccess.file_exists(path), "%s 있음(옮겼으면 이 검사 경로를 고친다)" % path)
@@ -249,8 +249,8 @@ func test_forbid_defaults_empty() -> void:
 
 
 func test_forbid_high_step_rejects_high_foot() -> void:
-	runner.check(_drag_to(_session(_r01()), &"LF", F03), "금지 없음: F03 딛기")
-	var s := _session(_r01(), {&"high_step": true})
+	runner.check(_drag_to(_session(_g_v0_01()), &"LF", F03), "금지 없음: F03 딛기")
+	var s := _session(_g_v0_01(), {&"high_step": true})
 	runner.check(not _drag_to(s, &"LF", F03, 200), "high_step 금지: F03(고관절−0.20 위) 후보 아님")
 	runner.check(s.limbs[&"LF"].state != "Attached" or s.limbs[&"LF"].key != F03, "F03에 붙지 않음")
 
@@ -278,7 +278,7 @@ func test_forbid_cross_rejects_crossing_hand() -> void:
 	runner.check(a.limbs[&"LH"].state == "Attached" and a.limbs[&"LH"].key == H04, "금지 없음: LH가 H04를 교차해 잡음")
 	var b := _cross_attempt({&"cross": true})
 	runner.check(not (b.limbs[&"LH"].state == "Attached" and b.limbs[&"LH"].key == H04), "cross 금지: 오른손 X 너머 H04를 못 잡음 (%s %s)" % [b.limbs[&"LH"].state, b.limbs[&"LH"].key])
-	var c := _session(_r01(), {&"cross": true})
+	var c := _session(_g_v0_01(), {&"cross": true})
 	runner.check(_drag_to(c, &"LH", H03), "넘지 않는 H03은 잡음")
 
 
@@ -291,8 +291,8 @@ func test_forbid_flag() -> void:
 
 
 func test_forbid_match_rejects_other_hand_hold() -> void:
-	runner.check(_drag_to(_session(_r01()), &"LH", H02), "금지 없음: 오른손 홀드 H02 매치")
-	var s := _session(_r01(), {&"match": true})
+	runner.check(_drag_to(_session(_g_v0_01()), &"LH", H02), "금지 없음: 오른손 홀드 H02 매치")
+	var s := _session(_g_v0_01(), {&"match": true})
 	runner.check(not _drag_to(s, &"LH", H02, 200), "match 금지: 반대 손이 잡은 H02 후보 아님")
 
 
@@ -331,7 +331,7 @@ func test_forbid_lock_off_profile() -> void:
 
 ## ClimbRules가 무브 판별에 forbid를 넘긴다(세션 → 규칙 → 판별).
 func test_forbid_reaches_classifier() -> void:
-	var s := _session(_r01(), {&"lock_off": true}, 1)
+	var s := _session(_g_v0_01(), {&"lock_off": true}, 1)
 	runner.check(s.rules.forbid.has(&"lock_off") and s.rules.moves.forbid.has(&"lock_off"), "rules·moves에 전달")
 
 
@@ -347,7 +347,7 @@ func test_forbid_grip_auto() -> void:
 
 
 func test_forbid_deadpoint_zero_bonus() -> void:
-	var s := _session(_r01(), {&"deadpoint": true}, 0)
+	var s := _session(_g_v0_01(), {&"deadpoint": true}, 0)
 	s.body.vel.y = 0.40
 	runner.check(is_equal_approx(s.deadpoint_bonus(5.0), 0.0), "deadpoint 금지: 보너스 0")
 	var a := _deadpoint_attempt({}, 0.10)
@@ -359,7 +359,7 @@ func test_forbid_deadpoint_zero_bonus() -> void:
 # ---------- reset_to ----------
 
 func test_reset_to_pose() -> void:
-	var s := _session(_r01())
+	var s := _session(_g_v0_01())
 	_drag_to(s, &"LH", H03)
 	var pose := {"pelvis": [0.05, 0.80], "angle": 2.0, "slots": {"LH": H03, "RH": H04, "LF": F01, "RF": F02}, "stamina": {"LH": 60.0, "RH": 45.0}}
 	s.reset_to(pose)
