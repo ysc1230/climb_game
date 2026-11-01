@@ -1,12 +1,16 @@
 extends Node2D
-## 1A/2단계 시험 장면. G_V0_01 회색 박스 벽과 2D 막대 인형을 네 패드로 조작한다.
+## 플레이 장면. 회색 박스 벽과 2D 막대 인형을 네 패드로 조작한다.
 ## 판정은 PoseSolver/Fatigue/InputRouter를 사용하고, 이 노드는 상태를 들고 그리기만 한다.
-## 아직 단순화한 부분: GripSystem 동시 거래 대신 release 즉시 단일 판정, 결과 화면 없음(자동 재시작).
+## 문제는 자동 로드 Game의 current_route_id에서 받는다(docs/28 §5). Game이 없거나 비면 G_V0_01과 모든 버튼.
+## 완등 결과·튜토리얼 안내·일시정지 [목록]은 PlayOverlay가 그리고, 여기서는 받은 동작만 처리한다.
+## 아직 단순화한 부분: GripSystem 동시 거래 대신 release 즉시 단일 판정.
 
 const LIMB_COLORS := {&"LH": Color("4fa3d9"), &"RH": Color("e08a3c"), &"LF": Color("4fa3d9"), &"RF": Color("e08a3c")}
 const DEADZONE_MM := 2.5  # docs/23 제안 시작값. 04의 10논리단위와 함께 비교 대상
 const PLAY_W := 3.4
 const PLAY_H := 3.8
+const DEFAULT_ROUTE := "res://data/routes/general/G_V0_01.json"
+const PlayOverlay := preload("res://scenes/play_overlay.gd")
 
 var session: ClimbSession
 var route: RouteDef
@@ -26,6 +30,14 @@ var draw_world := true
 ## 월드(m) ↔ 화면(px) 변환. play_3d가 카메라 투영으로 덮어쓴다. 비면 2D 변환을 쓴다.
 var w2s_fn := Callable()
 var s2w_fn := Callable()
+## 자동 로드 Game(없으면 null). 이름으로 직접 부르지 않는다(헤드리스 테스트에서 자동 로드가 없을 수 있음).
+var game: Node
+var overlay := PlayOverlay.new()
+var tutorial: TutorialRunner
+var run_seconds := 0.0      # 이번 시도 시간(문제를 연 뒤 또는 [다시] 뒤, 일시정지 제외)
+var run_falls_from := 0     # 이번 시도가 시작될 때의 session.falls
+var _tutorial_wait := false # 추락 뒤 단계 다시 시작을 추락 연출(respawn)까지 미룸
+var _swallow := {}          # 오버레이 버튼을 누른 터치(떼기 입력도 버린다)
 
 # ---------- 기술 선택 UI 상태(docs/27 §6, 05 v0.6) ----------
 enum UI { NONE, PANEL, SIDE, HOLD }
@@ -51,11 +63,45 @@ func _ready() -> void:
 	var sf := SystemFont.new()
 	sf.font_names = PackedStringArray(["Noto Sans CJK KR", "Noto Sans KR", "Apple SD Gothic Neo", "sans-serif"])
 	font = sf
-	route = RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	overlay.font = sf
+	game = get_node_or_null("/root/Game")
+	if game != null and game.current_route_id != "":
+		route = game.index.route(game.current_route_id)
+	if route == null:
+		route = RouteDef.load_json(DEFAULT_ROUTE)
+	else:
+		overlay.has_list = true
 	session = ClimbSession.new(route)
+	_start_tutorial()
 	get_viewport().size_changed.connect(_layout)
 	_layout()
 	_after_reset("시작")
+
+
+## 문제가 튜토리얼이면 단계 실행기를 만들고 첫 단계를 시작한다. 기술 버튼도 정한다.
+func _start_tutorial() -> void:
+	tutorial = null
+	_tutorial_wait = false
+	overlay.can_skip = false
+	if overlay.has_list and route.course_slot == "tutorial" and not route.tutorial_steps.is_empty():
+		tutorial = TutorialRunner.new(route)
+		tutorial.begin_step(session)
+		overlay.can_skip = route.route_id == Progress.BASIC_TUTORIAL and game.progress.is_first_run()
+	overlay.tutorial = tutorial
+	overlay.tutorial_done = false
+	_refresh_buttons()
+
+
+func _refresh_buttons() -> void:
+	if overlay.has_list:
+		allowed_buttons = game.allowed_buttons_for(route, tutorial)
+
+
+## 튜토리얼 단계 규칙(피로 감소 끄기·시작 체력)을 기본값으로 되돌린다.
+func _end_tutorial_rules() -> void:
+	session.rules.fatigue_disabled = false
+	for hand in [PoseSolver.LH, PoseSolver.RH]:
+		session.rules.stamina[hand] = 100.0
 
 
 func _layout() -> void:
@@ -100,6 +146,10 @@ func _log(text: String) -> void:
 # ---------- 입력 ----------
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch and _overlay_event(event.index, event.position, event.pressed):
+		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and _overlay_event(-1, event.position, event.pressed):
+		return
 	if event is InputEventScreenTouch:
 		if event.canceled:
 			_apply(router.cancel_all())
@@ -129,6 +179,55 @@ func _input(event: InputEvent) -> void:
 		_ui_drag(-1, event.position)
 
 
+## 오버레이 버튼(일시정지·목록·다시·다음·도움말·건너뛰기). 결과·완료 화면이 떠 있으면 모든 입력을 받아 쓴다.
+func _overlay_event(index: int, pos: Vector2, pressed: bool) -> bool:
+	if not pressed:
+		if _swallow.has(index):
+			_swallow.erase(index)
+			return true
+		return overlay.blocking()
+	var act := overlay.tap(pos)
+	if act == "":
+		return overlay.blocking()
+	_swallow[index] = true
+	_overlay_action(act)
+	return true
+
+
+func _overlay_action(act: String) -> void:
+	match act:
+		"pause":
+			_pause(true)
+		"help":
+			overlay.help_open = not overlay.help_open
+		"retry":
+			_retry()
+		"next":
+			game.play(str(overlay.result.next))
+		"list":
+			_end_tutorial_rules()
+			if overlay.can_skip and overlay.tutorial_done:
+				game.home({"tab": "general", "grade": "V0"})  # 첫 실행 기본 조작 직후는 일반 탭(28 §5.2)
+			else:
+				game.home()
+		"skip":
+			_end_tutorial_rules()
+			game.skip_basic()
+			game.home({"tab": "general", "grade": "V0"})
+
+
+## 같은 문제를 처음부터(시간·추락 새로 셈, 튜토리얼은 첫 단계부터).
+func _retry() -> void:
+	overlay.result = {}
+	paused = false
+	_end_tutorial_rules()
+	session.reset()
+	run_seconds = 0.0
+	run_falls_from = session.falls
+	_start_tutorial()
+	_after_reset("다시 시작")
+
+
 func _apply(cmds: Array) -> void:
 	var was_dragging := {}
 	for c in cmds:
@@ -154,8 +253,8 @@ func _notification(what: int) -> void:
 		_pause()
 
 
-func _pause() -> void:
-	if paused or OS.get_cmdline_user_args().has("--no-auto-pause"):
+func _pause(manual := false) -> void:
+	if paused or overlay.blocking() or (not manual and OS.get_cmdline_user_args().has("--no-auto-pause")):
 		return
 	_close_ui()
 	_apply(router.cancel_all())
@@ -177,8 +276,15 @@ func _physics_process(_delta: float) -> void:
 				paused = false
 		queue_redraw()
 		return
+	if overlay.blocking():
+		queue_redraw()
+		return
 	var result := session.step()
 	_take_messages()
+	run_seconds += Tuning.DT
+	if tutorial != null and _tutorial_tick(result):
+		queue_redraw()
+		return
 	match result:
 		"fall:NO_SUPPORT":
 			_apply(router.cancel_all())
@@ -200,13 +306,67 @@ func _physics_process(_delta: float) -> void:
 			return
 		"clear":
 			_log("완등 %d회" % session.clears)
-			_after_reset("완등! 다시 시작해요")
+			_after_reset("")
+			_show_result()
+			queue_redraw()
+			return
 	if session.falling:
 		queue_redraw()
 		return
 	if not session.selecting:
 		_camera_tick()  # 고르는 중에는 카메라도 멈춘다
 	queue_redraw()
+
+
+## 튜토리얼 단계 진행(28 §6.1). 추락 뒤 다시 시작은 추락 연출이 끝난 respawn에서 한다. 처리했으면 true.
+func _tutorial_tick(result: String) -> bool:
+	if _tutorial_wait:
+		if result != "respawn":
+			return false
+		_tutorial_wait = false
+		tutorial.begin_step(session)
+		_refresh_buttons()
+		_after_reset("이 단계를 다시 해 봐요")
+		return true
+	var act := tutorial.observe(session, result, Tuning.DT)
+	match act:
+		"next", "restart":
+			if result.begins_with("fall:"):
+				_tutorial_wait = true
+				return false
+			tutorial.begin_step(session)
+			_refresh_buttons()
+			_after_reset("" if act == "next" else "이 단계를 다시 해 봐요")
+			return true
+		"done":
+			_end_tutorial_rules()
+			overlay.tutorial_done = true
+			if overlay.has_list:
+				game.finish_tutorial()
+			_after_reset("")
+			return true
+	if result == "clear":  # 목표가 완등이 아닌 단계에서 정상을 잡음: 세션이 처음으로 돌아갔으니 그 단계를 다시 놓는다
+		tutorial.begin_step(session)
+		_after_reset("")
+		return true
+	return false
+
+
+## 완등 결과 오버레이(28 §5). Game이 있으면 기록·저장하고 [다음]을 정한다.
+func _show_result() -> void:
+	var falls := session.falls - run_falls_from
+	var r := {"seconds": run_seconds, "falls": falls, "no_fall": falls == 0, "time_limit": route.time_medal_seconds,
+		"time": route.time_medal_seconds > 0.0 and run_seconds <= route.time_medal_seconds, "next": "", "saved": true}
+	if overlay.has_list:
+		var rec: Dictionary = game.finish_clear(run_seconds, falls)
+		r.saved = rec.get("saved", true)
+		var flow: PlayFlow = game.get_flow()
+		var nid := flow.next_route_id(route.route_id)
+		if nid != "" and game.progress.route_lock_text(game.index.route(nid), game.index) == "":
+			r.next = nid
+	overlay.result = r
+	run_seconds = 0.0
+	run_falls_from = session.falls
 
 
 func _camera_tick() -> void:
@@ -316,7 +476,7 @@ func _draw_pads(size: Vector2) -> void:
 func _draw_hud(size: Vector2) -> void:
 	var fs := int(22 * ui_k)
 	var height := maxf(session.body.pos.y - route.start_pelvis.y, 0.0)
-	draw_string(font, Vector2(size.x * 0.25, 40 * ui_k), "G_V0_01 시험 빌드 · 높이 %.1fm · 완등 %d · 추락 %d" % [height, session.clears, session.falls], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
+	draw_string(font, Vector2(size.x * 0.25, 40 * ui_k), "%s · 높이 %.1fm · 추락 %d" % [route.name_ko if route.name_ko != "" else route.route_id, height, session.falls - run_falls_from], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
 	# 지지 상태(docs/25 피드백): 색만이 아니라 문구와 막대로 표시
 	var names := ["안정", "부담 큼", "균형 회복 중", "지지 없음"]
 	var colors := [Color("cfe3c8"), Color("f1d59a"), Color("ff8a6a"), Color("ff5a4a")]
@@ -338,15 +498,18 @@ func _draw_hud(size: Vector2) -> void:
 		draw_rect(Rect2(Vector2(size.x * 0.25, 80 * ui_k), Vector2(w * left, 8 * ui_k)), colors[ph])
 	var y := size.y - 20 * ui_k
 	for i in range(log_lines.size() - 1, -1, -1):
+		if tutorial != null:
+			break  # 튜토리얼 중에는 시험 기록 줄을 숨긴다
 		draw_string(font, Vector2(size.x * 0.25, y), log_lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, int(15 * ui_k), Color(1, 1, 1, 0.6))
 		y -= 18 * ui_k
 	if message_ticks > 0:
-		draw_string(font, Vector2(0, size.y * (0.30 if session.selecting else 0.18)), message, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(34 * ui_k), Color("fff2c8"))
+		draw_string(font, Vector2(0, size.y * (0.30 if session.selecting or tutorial != null else 0.18)), message, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(34 * ui_k), Color("fff2c8"))
 	_draw_tech_ui(size)
 	if paused:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.55))
 		var t := "손가락을 편하게 올려주세요 %d" % ceili(prepare_left) if prepare_left > 0.0 else "일시정지 · 화면을 탭하면 3초 뒤 이어서 시작해요"
 		draw_string(font, Vector2(0, size.y * 0.5), t, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(34 * ui_k), Color.WHITE)
+	overlay.draw(self, size, ui_k, paused, session.selecting)
 
 
 # ---------- 기술 선택 UI (docs/27 §6, 05 v0.6, 18 v0.6) ----------
@@ -395,13 +558,22 @@ func _side_rect(side: StringName) -> Rect2:
 	return Rect2((a + b) * 0.5 - sz * 0.5, sz)
 
 
-## 패널에 그릴 기술 id 목록(allowed_buttons 순서, 정의가 있는 버튼 기술만).
-func _panel_techs() -> Array:
+## 패널에 그릴 기술 id 목록(allowed 순서, 정의가 있는 버튼 기술만).
+static func panel_techs_for(allowed: Array[StringName], defs: Dictionary) -> Array:
 	var out := []
-	for id in allowed_buttons:
-		if _techs.has(id) and _techs[id].input == &"button":
+	for id in allowed:
+		if defs.has(id) and defs[id].input == &"button":
 			out.append(id)
 	return out
+
+
+## 기술 버튼을 보이고 받을지(28 §5.5). 버튼 기술이 하나도 없으면 숨긴다.
+static func shows_tech_button(allowed: Array[StringName], defs: Dictionary) -> bool:
+	return not panel_techs_for(allowed, defs).is_empty()
+
+
+func _panel_techs() -> Array:
+	return panel_techs_for(allowed_buttons, _techs)
 
 
 ## 가벼운 검사(0.2초마다): 두 쪽 다 안 되면 흐리게. 흐려도 누를 수는 있다.
@@ -415,7 +587,7 @@ func _refresh_dim() -> void:
 
 ## 기술 UI 입력. 선택 중이면 항상 받아 쓴다(패드 입력 없음). 쓴 입력이면 true.
 func _ui_event(index: int, pos: Vector2, pressed: bool) -> bool:
-	if _panel_techs().is_empty():
+	if not shows_tech_button(allowed_buttons, _techs):
 		return false  # 버튼 기술이 없으면 기술 버튼·홀드 탭 입력을 받지 않는다
 	var size := _view_size()
 	var btn := _btn_rect(size)
@@ -610,7 +782,7 @@ func _draw_tech_ui(size: Vector2) -> void:
 	var running: Dictionary = session.runner.active
 	if session.deadpoint_window() and not session.falling and running.is_empty() and not session.selecting:
 		draw_string(font, Vector2(btn.position.x - 60 * k, btn.end.y + 24 * k), "지금 뻗으면 탄력으로 잡을 수 있어요", HORIZONTAL_ALIGNMENT_CENTER, btn.size.x + 120 * k, int(18 * k), Color("a8d8d0"))
-	if _panel_techs().is_empty():
+	if not shows_tech_button(allowed_buttons, _techs):
 		return  # 버튼 기술이 없으면 기술 버튼을 그리지 않는다
 	var disabled := (session.is_dragging() or session.falling) and running.is_empty()
 	var label := "기술"

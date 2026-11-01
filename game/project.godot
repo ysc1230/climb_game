@@ -5,8 +5,12 @@ config_version=5
 
 config/name="Climb Game"
 config/icon="res://icon.svg"
-run/main_scene="res://scenes/play_3d.tscn"
+run/main_scene="res://scenes/home.tscn"
 config/features=PackedStringArray("4.7", "Mobile")
+
+[autoload]
+
+Game="*res://scripts/meta/game.gd"
 
 [display]
 
