@@ -19,8 +19,21 @@ var messages: Array[String] = []
 var last_phase := -1
 var runner := TechniqueRunner.new()  # 기술 실행기(docs/27). 한 번에 하나
 ## 확정된 틱의 기술 이벤트(09 v0.6, 능력치에 쓰지 않음). 최근 200개.
-## 기술 실행기: {tick, type, id, side, key, quality, reason}. 패드 손 잡기: {tick, type: "pad_grip", limb, key, mode}(28 §4.3).
+## 모든 이벤트에 tick과 seq(세션 수명 동안 1부터 단조 증가, reset/reset_to에도 되돌리지 않음)가 붙는다.
+## 로그는 최근 TECHNIQUE_LOG_MAX개만 남으므로 소비자(튜토리얼 실행기)는 seq > 마지막으로 본 seq로 새 이벤트를 고른다.
+## 기술 실행기: {type, id, side, key, quality, reason}. 패드 손 잡기: {type: "pad_grip", limb, key, mode}(28 §4.3).
+## 패드 기술(28 §7.4·튜토리얼 판정): {type: "move", label}(확정 라벨이 MOVE_EVENT_LABELS로 바뀔 때 1회),
+## {type: "grab", limb, key, quality}(패드·기술로 붙을 때마다), {type: "flag", limb}(패드 균형 발이 될 때),
+## {type: "pad_foot_swap", limb, key}, {type: "pad_deadpoint", limb, key, ok}(받기 판정 결과), {type: "fall", reason}(추락 시작).
 var technique_log: Array = []
+var event_seq := 0  # 마지막으로 기록한 이벤트의 seq
+## 검증기 전용 금지 플래그(키 StringName → true, 28 §7.4). 플레이 코드는 설정하지 않는다(비면 영향 없음).
+## &"high_step": 고관절−0.20m 이상 발 후보 거부 + StandUp 선호 끔, &"cross": 반대 손 X를 넘는 손 후보 거부,
+## &"flag": 균형 발 상태를 만들지 않음, &"match": 반대 손이 잡은 홀드 거부, &"foot_swap": 패드 풋스왑 끔,
+## &"lock_off": LockOff 선호 대신 뻗기 선호(0.60), &"grip_auto": 잡기 방향 자동 선택 끔(grip_modes[0]), &"deadpoint": 도달 보너스 0.
+var forbid := {}
+const MOVE_EVENT_LABELS := [MoveClassifier.HIGH_STEP, MoveClassifier.STAND_UP, MoveClassifier.CROSS_REACH, MoveClassifier.HAND_MATCH, MoveClassifier.LOCK_OFF]
+var _last_move_label: StringName = MoveClassifier.REST
 var tick_count := 0
 ## 기술 고르는 중(docs/27 §6, 15 v0.6 TechniqueSelect). true인 동안 step()은 아무것도 바꾸지 않는다.
 var selecting := false
@@ -41,11 +54,41 @@ func _init(p_route: RouteDef) -> void:
 
 
 func reset() -> void:
+	_reset_pose(route.start_pelvis, route.start_angle, route.start_slots)
+
+
+## 주어진 자세로 다시 시작한다(튜토리얼 단계 시작용). pose는 RouteDef.start_pose와 같은 형식
+## {pelvis: [x, y], angle, slots: {limb: key}, stamina?: {LH, RH}}. slots에 없는 팔다리는 Free(쉬는 위치)로 둔다.
+## 기술 로그와 seq는 이어진다.
+func reset_to(pose: Dictionary) -> void:
+	var pv = pose.get("pelvis", route.start_pelvis)
+	var pelvis: Vector2 = pv if pv is Vector2 else Vector2(pv[0], pv[1])
+	var src: Dictionary = pose.get("slots", {})
+	var slots := {}
+	for limb in PoseSolver.LIMBS:
+		if src.has(limb):
+			slots[limb] = src[limb]
+		elif src.has(String(limb)):
+			slots[limb] = src[String(limb)]
+	_reset_pose(pelvis, float(pose.get("angle", 0.0)), slots)
+	var st: Dictionary = pose.get("stamina", {})
+	for hand in [PoseSolver.LH, PoseSolver.RH]:
+		if st.has(hand):
+			rules.stamina[hand] = float(st[hand])
+		elif st.has(String(hand)):
+			rules.stamina[hand] = float(st[String(hand)])
+
+
+func _reset_pose(pelvis: Vector2, angle: float, slots: Dictionary) -> void:
 	runner.cancel(self, &"reset")
-	body = BodyState.new(route.start_pelvis, route.start_angle)
+	body = BodyState.new(pelvis, angle)
 	limbs.clear()
 	for limb in PoseSolver.LIMBS:
-		var key: String = route.start_slots[limb]
+		if not slots.has(limb):
+			var rest := body.pos + _rest_offset(limb)
+			limbs[limb] = {"state": "Free", "key": "", "pos": rest, "grab": rest, "req": rest, "cand": {}, "flag": rest, "flag_depth": 0.0, "contact": null}
+			continue
+		var key: String = slots[limb]
 		var p := route.slot_pos(key)
 		limbs[limb] = {"state": "Attached", "key": key, "pos": p, "grab": p, "req": p, "cand": {}, "flag": p, "flag_depth": 0.0,
 			"contact": GripCheck.contact_for(key, route.slots, limb, p)}
@@ -57,6 +100,7 @@ func reset() -> void:
 	deadpoint = {}
 	selecting = false
 	_last_rise_tick = -1000
+	_last_move_label = MoveClassifier.REST  # 새 시작: 다음 틱의 확정 기술 라벨을 다시 한 번 기록한다
 
 
 ## 붙은(Attached/Armed) 팔다리의 잡은 점.
@@ -142,8 +186,10 @@ func deadpoint_window() -> bool:
 	return body.vel.y >= TechniqueJudge.DEADPOINT_RISE_SPEED or tick_count - _last_rise_tick <= TechniqueJudge.DEADPOINT_GRACE_TICKS
 
 
-## 지금 도달 보너스(m). drag_speed: 손가락 속도(m/s, 월드).
+## 지금 도달 보너스(m). drag_speed: 손가락 속도(m/s, 월드). 검증기 금지(&"deadpoint")면 0.
 func deadpoint_bonus(drag_speed: float) -> float:
+	if forbid.has(&"deadpoint"):
+		return 0.0
 	return TechniqueJudge.deadpoint_bonus(body.vel.y, drag_speed)
 
 
@@ -185,7 +231,24 @@ func _clamp_to_reach(limb: StringName, previous: Vector2, p: Vector2) -> Vector2
 ## 실제 말단 기준 잡기 후보(GripCheck, 히스테리시스는 직전에 보여준 후보 기준).
 func _candidate(limb: StringName) -> Dictionary:
 	var l: Dictionary = limbs[limb]
-	return GripCheck.candidate(route.slots, limb, l.pos, body.pos, body.angle, attached(), occupied(), l.cand.get("key", ""), body.yaw)
+	var reject := Callable() if forbid.is_empty() else _forbidden_target.bind(limb)
+	return GripCheck.candidate(route.slots, limb, l.pos, body.pos, body.angle, attached(), occupied(), l.cand.get("key", ""), body.yaw, reject)
+
+
+## 검증기 금지 플래그로 거부하는 잡기 목표인가(28 §7.4). 금지가 비면 항상 false.
+func _forbidden_target(key: String, point: Vector2, limb: StringName) -> bool:
+	if PoseSolver.is_hand(limb):
+		var o: Dictionary = limbs[TechniqueJudge.other_of(limb)]
+		if not (o.state in ["Attached", "Armed"]):
+			return false
+		var ox: float = (o.grab as Vector2).x
+		if forbid.has(&"cross") and ((limb == PoseSolver.LH and point.x > ox) or (limb == PoseSolver.RH and point.x < ox)):
+			return true
+		return forbid.has(&"match") and key.get_base_dir() == String(o.key).get_base_dir()
+	if forbid.has(&"high_step"):
+		var hip := PoseSolver.joint_position(body.pos, body.angle, limb, body.yaw)
+		return point.y >= hip.y - Tuning.HIGH_STEP_BELOW_HIP
+	return false
 
 
 func _try_grab(limb: StringName, speed: float = 0.0) -> void:
@@ -198,7 +261,7 @@ func _try_grab(limb: StringName, speed: float = 0.0) -> void:
 		# 정적 후보가 없을 때만 데드포인트(창이 열려 있고 빠르게 놓은 손). 정지 상태의 빠른 드래그는 일반 Free(27 §13 TA04)
 		if PoseSolver.is_hand(limb) and speed >= TechniqueJudge.DEADPOINT_MIN_SPEED and deadpoint_window() and _start_pad_deadpoint(limb, speed):
 			return
-		if not PoseSolver.is_hand(limb) and _try_pad_foot_swap(limb):
+		if not PoseSolver.is_hand(limb) and not forbid.has(&"foot_swap") and _try_pad_foot_swap(limb):
 			return
 		var reason := GripCheck.reject_reason(route.slots, limb, l.pos, l.req, body.pos, body.angle, attached(), occupied(), rules.feet_eligible, body.yaw)
 		var text := GripCheck.message(reason, limb)
@@ -210,10 +273,11 @@ func _try_grab(limb: StringName, speed: float = 0.0) -> void:
 			l.flag = l.pos
 			l.flag_depth = 0.0
 			messages.append("균형 발로 두었어요")
+			_log_event({"type": "flag", "limb": limb})
 		else:
 			l.state = "Free"
 		return
-	var contact := GripCheck.contact_for_pose(cand.key, route.slots, limb, cand.point, body.pos, body.angle, body.yaw, attached(), _contact_meta(), _endpoints())
+	var contact := GripCheck.contact_for_pose(cand.key, route.slots, limb, cand.point, body.pos, body.angle, body.yaw, attached(), _contact_meta(), _endpoints(), forbid.has(&"grip_auto"))
 	_attach(limb, cand.key, cand.point, contact)
 	if PoseSolver.is_hand(limb):
 		_log_event({"type": "pad_grip", "limb": limb, "key": cand.key, "mode": contact.mode})  # 28 §4.3 5: 튜토리얼 판정용
@@ -248,6 +312,7 @@ func _try_pad_foot_swap(foot: StringName) -> bool:
 	limbs[other].state = "Free"
 	limbs[other].contact = null
 	messages.append("발을 바꿔 딛었어요")
+	_log_event({"type": "pad_foot_swap", "limb": foot, "key": key})
 	return true
 
 
@@ -274,6 +339,8 @@ func _start_pad_deadpoint(limb: StringName, speed: float) -> bool:
 			continue
 		if not PoseSolver.direction_ok(body.pos, body.angle, limb, pt.point, body.yaw):
 			continue  # 방향 영역은 완화하지 않는다: 일반 Free로 처리
+		if not forbid.is_empty() and _forbidden_target(key, pt.point, limb):
+			continue
 		best = {"key": key, "point": pt.point}
 		best_d = aim.distance_to(slot.pos)
 	if best.is_empty():
@@ -309,8 +376,10 @@ func _tick_deadpoint() -> bool:
 		_attach(limb, dp.key, dp.point, TechniqueJudge.contact_for(route, TechniqueJudge.T_DEADPOINT, limb, dp.key, dp.point))
 		var holder := TechniqueJudge.other_of(limb)
 		rules.stamina[holder] = Fatigue.apply(float(rules.stamina[holder]), -DEADPOINT_STAMINA_COST, 1.0, rules.fatigue_disabled)  # 보조 모드는 감소 없음
+		_log_event({"type": "pad_deadpoint", "limb": limb, "key": dp.key, "ok": true})
 		return false
 	l.state = "Free"
+	_log_event({"type": "pad_deadpoint", "limb": limb, "key": dp.key, "ok": false})
 	return true
 
 
@@ -321,6 +390,7 @@ func _attach(limb: StringName, key: String, point: Vector2, contact: ContactInfo
 	l.grab = point
 	l.pos = point
 	l.contact = contact
+	_log_event({"type": "grab", "limb": limb, "key": key, "quality": contact.quality if contact != null else 1.0})
 
 
 ## 검증 후 붙인다(기술 실행기용). 검증은 슬롯 존재와 PoseSolver.can_reach뿐이다.
@@ -376,9 +446,11 @@ func step() -> String:
 			if l.cand.is_empty():
 				flag_probe.append(limb)
 	rules.contact_meta = _contact_meta()
+	rules.forbid = forbid
 	var outcome := rules.tick(body, att, endpoints, on_platform(att), moving, intents, hints, flag_probe)
 	if body.vel.y >= TechniqueJudge.DEADPOINT_RISE_SPEED:
 		_last_rise_tick = tick_count
+	_log_move_label()
 	_drag_hints(att, occ)
 	for hand in rules.slipped:
 		limbs[hand].state = "Free"
@@ -411,11 +483,26 @@ func _move_endpoints() -> void:
 		if l.state == "Flag":
 			target = l.flag
 		elif l.state == "Free":
-			var side := -1.0 if limb in [&"LH", &"LF"] else 1.0
-			target = body.pos + (Vector2(0.35 * side, 0.18) if PoseSolver.is_hand(limb) else Vector2(0.25 * side, -0.70))
+			target = body.pos + _rest_offset(limb)
 		var prev: Vector2 = l.pos
 		target = _clamp_to_reach(limb, prev, target)
 		l.pos = _clamp_to_reach(limb, prev, l.pos.move_toward(target, 2.5 * Tuning.DT))
+
+
+## 쉬는(Free) 손발의 골반 기준 목표 위치.
+static func _rest_offset(limb: StringName) -> Vector2:
+	var side := -1.0 if limb in [&"LH", &"LF"] else 1.0
+	return Vector2(0.35 * side, 0.18) if PoseSolver.is_hand(limb) else Vector2(0.25 * side, -0.70)
+
+
+## 확정 무브 라벨이 바뀌어 기술 라벨(MOVE_EVENT_LABELS)이 되면 move 이벤트를 한 번 남긴다.
+func _log_move_label() -> void:
+	var lbl: StringName = rules.moves.label
+	if lbl == _last_move_label:
+		return
+	_last_move_label = lbl
+	if lbl in MOVE_EVENT_LABELS:
+		_log_event({"type": "move", "label": lbl})
 
 
 ## 드래그 중 경계에 막혀 후보가 없을 때 이유를 한 번 안내(반복 쿨다운 20틱, docs/05)
@@ -463,6 +550,7 @@ func _goal_tick() -> String:
 func _start_fall(reason: String) -> void:
 	runner.cancel(self, &"fall")
 	_log_event(runner.tick(self))
+	_log_event({"type": "fall", "reason": reason})
 	falls += 1
 	deadpoint = {}
 	falling = true
@@ -472,13 +560,15 @@ func _start_fall(reason: String) -> void:
 		limbs[limb].state = "Free"
 
 
-## 확정된 틱의 기술 이벤트를 기록한다. 이벤트의 키를 그대로 두고 tick을 더한다(형식 자유, type은 필수).
+## 확정된 틱의 기술 이벤트를 기록한다. 이벤트의 키를 그대로 두고 tick과 seq를 더한다(형식 자유, type은 필수).
 ## 실패는 이유 문구를 안내한다.
 func _log_event(ev: Dictionary) -> void:
 	if ev.is_empty():
 		return
 	var entry := ev.duplicate()
 	entry["tick"] = tick_count
+	event_seq += 1
+	entry["seq"] = event_seq
 	technique_log.append(entry)
 	if technique_log.size() > TECHNIQUE_LOG_MAX:
 		technique_log.pop_front()

@@ -37,6 +37,7 @@ var flag_ready: Array[StringName] = []  # 지금 놓으면 균형 발(Free/Flag)
 var profile_override := {}  # limb → 선호 거리. 기술 실행 중 무브 프로필 위에 덮어씀(docs/27 §10, 비면 영향 없음)
 var load_scale := 1.0  # 접점 최대 하중 배율. 데드포인트 받기는 순간 하중 1.3배를 1/1.3으로 환산해 넣는다(04 §10.5)
 var fatigue_multiplier := {}  # 손 → 피로(음수 변화율) 배율. 록오프 중 그 손 ×1.5(docs/27 §10)
+var forbid := {}  # 검증기 전용 금지 플래그(ClimbSession.forbid, 28 §7.4). &"flag"면 균형 발 후보를 만들지 않는다. 무브 판별에도 넘긴다
 
 # accept 콜백용 틱 문맥
 var _ctx_attached := {}
@@ -156,6 +157,7 @@ func evaluate(pelvis: Vector2, angle_deg: float, attached: Dictionary, endpoints
 ## flag_probe: 잡을 후보가 없는 드래그 발 목록. 균형 발 조건을 통과하면 flag_ready에 담는다(25 MV06).
 func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform: bool, moving: bool, intents: Dictionary = {}, hints: Dictionary = {}, flag_probe: Array = []) -> String:
 	slipped.clear()
+	moves.forbid = forbid
 	_update_flags(body, attached, endpoints, flag_probe)
 	var all_hints := hints.duplicate()
 	for foot in flag_ready:
@@ -326,7 +328,7 @@ func _support_center_x(pelvis: Vector2, angle_deg: float, attached: Dictionary, 
 ## 균형 비용(손 하중 Σ2u², 불균형이면 잔차²×10, barn door 초과분×10; flag_cost)을 0.02 이상 줄이면 균형 발 후보.
 func _update_flags(body: BodyState, attached: Dictionary, endpoints: Dictionary, probe: Array) -> void:
 	flag_ready.clear()
-	if probe.is_empty() or _eligible_hand_count(body.pos, body.angle, attached, body.yaw) == 0:
+	if probe.is_empty() or forbid.has(&"flag") or _eligible_hand_count(body.pos, body.angle, attached, body.yaw) == 0:
 		return
 	for foot in probe:
 		if not endpoints.has(foot):

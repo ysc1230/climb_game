@@ -84,7 +84,8 @@ static func contact_point(slot: Dictionary, limb: StringName, endpoint: Vector2,
 
 ## 실제 말단 기준 잡기 후보. occupied: 슬롯 키 → [{limb, interval}] (발 interval은 ZERO).
 ## previous: 직전에 보여준 후보 키(히스테리시스 0.03m). 반환 {key, point, quality} 또는 {}.
-static func candidate(slots: Dictionary, limb: StringName, endpoint: Vector2, pelvis: Vector2, angle_deg: float, attached: Dictionary, occupied: Dictionary, previous: String = "", yaw_deg: float = 0.0) -> Dictionary:
+## reject: (key, point) → true면 그 목표를 후보에서 뺀다(검증기 금지 플래그, 28 §7.4). 비면 쓰지 않는다.
+static func candidate(slots: Dictionary, limb: StringName, endpoint: Vector2, pelvis: Vector2, angle_deg: float, attached: Dictionary, occupied: Dictionary, previous: String = "", yaw_deg: float = 0.0, reject: Callable = Callable()) -> Dictionary:
 	var radius := radius_of(limb)
 	var best := {}
 	var best_d := INF
@@ -96,6 +97,8 @@ static func candidate(slots: Dictionary, limb: StringName, endpoint: Vector2, pe
 			continue
 		var c := contact_point(slot, limb, endpoint, occupied.get(key, []), radius)
 		if c.is_empty():
+			continue
+		if reject.is_valid() and reject.call(key, c.point):
 			continue
 		var with_new := attached.duplicate()
 		with_new[limb] = c.point

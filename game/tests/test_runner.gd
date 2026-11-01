@@ -15,8 +15,10 @@ func _session(r: RouteDef, settle: int = 30) -> ClimbSession:
 	return s
 
 
+## 기술 실행기 이벤트(id가 있는 것) 중 마지막. 패드 기술 이벤트(move·grab 등)는 건너뛴다.
 func _last_event(s: ClimbSession) -> Dictionary:
-	return s.technique_log.back() if not s.technique_log.is_empty() else {}
+	var evs := s.technique_log.filter(func(e): return e.has("id"))
+	return evs.back() if not evs.is_empty() else {}
 
 
 ## TA12: 홀드를 고르지 않은 hold_tap 기술은 시작하지 않고 아무것도 움직이지 않는다.

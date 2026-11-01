@@ -37,6 +37,9 @@ var _pending: StringName = REST
 var _pending_ticks := 0
 var _active_sig := []
 var _stand_foot: StringName = &"" 
+## 검증기 전용 금지 플래그(28 §7.4, ClimbRules가 매 틱 넘김). 라벨은 그대로 두고 선호 거리만 바꾼다.
+## &"high_step": StandUp 선호(다리 0.86·골반을 발 위로) 끔, &"lock_off": LockOff 팔 0.42 대신 뻗기 0.60.
+var forbid := {}
 
 
 ## intents: limb → 요청 목표, endpoints: limb → 현재 말단(자유·드래그), hints: limb → HAND_MATCH/FOOT_SWAP/FLAG
@@ -139,11 +142,13 @@ func _standing_up(pelvis: Vector2, angle_deg: float, attached: Dictionary, yaw_d
 
 ## docs/04 §5 무브별 선호 거리: 팔 Rest 0.70 / Reach·Traverse 0.60 / LockOff 0.42, 다리 기본 0.78 / StandUp·Rest 0.86
 func _profile_for(lbl: StringName, pelvis: Vector2, angle_deg: float, attached: Dictionary, lock_off_hand: StringName) -> Dictionary:
+	var stand_off := lbl == STAND_UP and forbid.has(&"high_step")
 	var arm := Tuning.PREF_ARM_REST if lbl in [REST, STAND_UP] else Tuning.PREF_ARM_REACH
-	var leg := Tuning.PREF_LEG_STAND if lbl in [REST, STAND_UP] else Tuning.PREF_LEG_DEFAULT
+	var leg_stand: bool = (lbl == REST or lbl == STAND_UP) and not stand_off
+	var leg := Tuning.PREF_LEG_STAND if leg_stand else Tuning.PREF_LEG_DEFAULT
 	var out := {PoseSolver.LH: arm, PoseSolver.RH: arm, PoseSolver.LF: leg, PoseSolver.RF: leg}
-	if lbl == LOCK_OFF and lock_off_hand != &"":
+	if lbl == LOCK_OFF and lock_off_hand != &"" and not forbid.has(&"lock_off"):
 		out[lock_off_hand] = Tuning.PREF_ARM_LOCKOFF
-	if lbl == STAND_UP and _stand_foot != &"" and attached.has(_stand_foot):
+	if lbl == STAND_UP and not stand_off and _stand_foot != &"" and attached.has(_stand_foot):
 		out[&"_stand_x"] = (attached[_stand_foot] as Vector2).x  # Rockover: 골반을 올린 발 위로
 	return out
