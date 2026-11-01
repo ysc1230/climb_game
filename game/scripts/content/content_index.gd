@@ -118,3 +118,13 @@ func course(id: String) -> Dictionary:
 
 func route(route_id: String) -> RouteDef:
 	return _routes.get(route_id)
+
+
+## 읽은 모든 문제(일반·과정), route_id 순. 콘텐츠 검사(ContentCheck)용.
+func all_routes() -> Array[RouteDef]:
+	var ids := _routes.keys()
+	ids.sort()
+	var out: Array[RouteDef] = []
+	for id in ids:
+		out.append(_routes[id])
+	return out
