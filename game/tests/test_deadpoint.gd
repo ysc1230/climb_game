@@ -1,5 +1,5 @@
 extends RefCounted
-## 데드포인트(docs/04 §10.5, docs/27 §8.4·§13 TA04): 패드 빠른 놓기·기술 버튼, 창, 받기 판정, 놓치면 추락.
+## 데드포인트(docs/04 §10.5, docs/27 §8.4·§13 TA04): 패드 빠른 놓기, 창, 받기 판정, 놓치면 추락. 버튼은 없다(docs/28 §4.2).
 ## 대부분의 시험은 상승 중을 골반 속도 직접 주입으로 만든다. 실제 하이스텝(최대 0.244m/s)으로 창이 열리는지는 별도 시험이 본다.
 
 var runner
@@ -160,61 +160,11 @@ func test_bonus_formula() -> void:
 	var s := _session(_tx())
 	s.body.vel.y = 0.0
 	runner.check(is_equal_approx(s.deadpoint_bonus(0.0), 0.0), "정지·무속도: 0")
-	runner.check(is_equal_approx(s.deadpoint_bonus(1.0), 0.05), "속도 1: 0.05 (버튼 흐름)")
+	runner.check(is_equal_approx(s.deadpoint_bonus(1.0), 0.05), "속도 1: 0.05")
 	s.body.vel.y = 0.2
 	runner.check(is_equal_approx(s.deadpoint_bonus(1.0), 0.10), "0.25·0.2 + 0.05 = 0.10")
 	s.body.vel.y = 1.0
 	runner.check(is_equal_approx(s.deadpoint_bonus(5.0), 0.15), "상한 0.15")
-
-
-## 버튼: 정지 상태에서는 양쪽 불가(창 닫힘 문구).
-func test_deadpoint_button_side_disabled_when_static() -> void:
-	var s := _session(_tx())
-	var j := TechniqueJudge.judge(ClimbSnapshot.from_session(s), TechniqueJudge.T_DEADPOINT)
-	for side in [&"left", &"right"]:
-		runner.check(not j[side].available and j[side].reason == TechniqueJudge.LIMB_STATE, "%s 불가·LIMB_STATE: %s" % [side, j[side]])
-		runner.check(j[side].text == TechniqueJudge.DEADPOINT_TEXT_CLOSED, "문구: %s" % j[side].text)
-
-
-## 버튼: 창이 열려 있으면 보너스(0.25·v_up + 0.05) 범위 홀드가 후보가 되고 실행기가 같은 받기 로직으로 붙인다.
-func test_deadpoint_button_catches() -> void:
-	var r := _tx()
-	var s := _session(r)
-	var aim := _setup(r, s, 0.10, 0.0, false)
-	s.body.vel.y = 0.40
-	var snap := ClimbSnapshot.from_session(s)
-	var j := TechniqueJudge.judge(snap, TechniqueJudge.T_DEADPOINT)
-	runner.check(j.left.available, "왼쪽 가능: %s" % [j.left])
-	var targets := TechniqueJudge.hold_targets(snap, TechniqueJudge.T_DEADPOINT, &"left")
-	runner.check(targets.any(func(t): return t.key == HOLD), "후보에 홀드 포함: %s" % [targets.map(func(t): return t.key)])
-	runner.check(s.runner.start(s, TechniqueJudge.T_DEADPOINT, &"left", HOLD, aim) == &"", "시작")
-	var res := ""
-	for i in 20:
-		s.body.vel.y = maxf(s.body.vel.y, 0.0)
-		res = s.step()
-		if res != "" or s.runner.active.is_empty():
-			break
-	runner.check(res == "", "추락 없음 (%s)" % res)
-	runner.check(s.limbs[&"LH"].state == "Attached" and s.limbs[&"LH"].key == HOLD, "LH가 홀드에 붙음: %s %s" % [s.limbs[&"LH"].state, s.limbs[&"LH"].key])
-	var types: Array = s.technique_log.map(func(e): return e.type)
-	runner.check(types == [TechniqueRunner.STARTED, TechniqueRunner.SUCCEEDED], "started→succeeded: %s" % [types])
-
-
-## 버튼: 보너스 밖 홀드는 후보가 아니고 시작도 거절된다. 방향 영역은 보너스로 완화되지 않는다.
-func test_deadpoint_button_rejects_out_of_bonus() -> void:
-	var r := _tx()
-	var s := _session(r)
-	var aim := _setup(r, s, 0.20, 0.0, false)
-	s.body.vel.y = 0.40
-	var snap := ClimbSnapshot.from_session(s)
-	runner.check(not TechniqueJudge.hold_targets(snap, TechniqueJudge.T_DEADPOINT, &"left").any(func(t): return t.key == HOLD), "보너스 밖: 후보 아님")
-	runner.check(s.runner.start(s, TechniqueJudge.T_DEADPOINT, &"left", HOLD, aim) != &"", "시작 거절")
-	# 방향 영역 밖 홀드: 거리는 가까워도 거절
-	var sh := PoseSolver.joint_position(s.body.pos, s.body.angle, &"LH", s.body.yaw)
-	r.slots[HOLD].pos = sh + Vector2(0.3, -0.3)  # 안쪽 아래(-135°): 손 방향 영역 밖
-	snap = ClimbSnapshot.from_session(s)
-	var c := TechniqueJudge.check_hold(snap, TechniqueJudge.T_DEADPOINT, &"left", HOLD, r.slots[HOLD].pos)
-	runner.check(not c.ok, "방향 밖 홀드 거절: %s" % [c])
 
 
 ## 입력 라우터: release 명령의 speed = 마지막 0.1초 동안의 이동 경로 길이 / 0.1.
@@ -288,22 +238,6 @@ func test_pad_gates_opposite_hand_and_feet() -> void:
 		runner.check(s.falls == 0 and not s.falling, "%s: 추락 없음" % gate)
 
 
-## 부정 게이트(버튼): 같은 조건에서 불가(LIMB_STATE).
-func test_button_gates_opposite_hand_and_feet() -> void:
-	for gate in ["no_other_hand", "no_loaded_foot"]:
-		var r := _tx()
-		var s := _session(r)
-		_setup(r, s, 0.10, 0.0, false)
-		s.body.vel.y = 0.40
-		runner.check(TechniqueJudge.judge(ClimbSnapshot.from_session(s), TechniqueJudge.T_DEADPOINT).left.available, "%s 전제: 조건 만족 시 가능" % gate)
-		if gate == "no_other_hand":
-			s.limbs[&"RH"].state = "Free"
-		else:
-			s.rules.loaded_feet.clear()
-		var j: Dictionary = TechniqueJudge.judge(ClimbSnapshot.from_session(s), TechniqueJudge.T_DEADPOINT).left
-		runner.check(not j.available and j.reason == TechniqueJudge.LIMB_STATE, "%s: 불가·LIMB_STATE: %s" % [gate, j])
-
-
 ## 드래그 속도 항이 도달을 넓힌다: 정적 한계 + 0.13 홀드는 속도 1(보너스 0.10)로는 놓치고 속도 4(0.15)로는 잡는다.
 func test_drag_speed_term_widens_reach() -> void:
 	var outcomes := {}
@@ -319,12 +253,27 @@ func test_drag_speed_term_widens_reach() -> void:
 	runner.check(outcomes[4.0] == "", "속도 4: 보너스 0.15로 잡음 (%s)" % outcomes[4.0])
 
 
+## 패드로 limb을 key까지 끌어 놓는다. 붙으면 true.
+func _pad_place(s: ClimbSession, limb: StringName, key: String, budget: int = 300) -> bool:
+	var target := s.route.slot_pos(key)
+	s.apply_input([{"type": "detach", "limb": limb}])
+	for i in budget:
+		var req: Vector2 = s.limbs[limb].req
+		s.apply_input([{"type": "move", "limb": limb, "delta": (target - req).limit_length(2.5 * Tuning.DT)}])
+		if s.step().begins_with("fall"):
+			return false
+		if s.limbs[limb].cand.get("key", "") == key:
+			s.apply_input([{"type": "release", "limb": limb}])
+			return s.limbs[limb].state == "Attached" and s.limbs[limb].key == key
+	return false
+
+
 ## 자연 플레이: 실제 하이스텝 일어서기에서 속도 주입 없이 창이 열리고, 정적 한계 바로 밖 홀드를 데드포인트로 잡는다.
 func test_natural_high_step_opens_window_and_catches() -> void:
 	var r := _tx()
 	var s := _session(r)
 	var key := "TX_TECH/F03/foot_1"
-	runner.check(s.runner.start(s, &"T_HIGH_STEP", &"left", key, r.slots[key].pos) == &"", "하이스텝 시작")
+	runner.check(_pad_place(s, &"LF", key), "패드 하이스텝: LF를 높은 발판에")
 	var opened := false
 	for i in 120:
 		s.step()
@@ -387,14 +336,15 @@ func test_deadpoint_holder_cost_respects_fatigue_disabled() -> void:
 		var r := _tx()
 		var s := _session(r)
 		s.rules.fatigue_disabled = disabled
-		var aim := _setup(r, s, 0.10, 0.0, false)
+		_setup(r, s, 0.10)
 		s.body.vel.y = 0.40
-		runner.check(s.runner.start(s, TechniqueJudge.T_DEADPOINT, &"left", HOLD, aim) == &"", "시작 (%s)" % disabled)
 		var before: float = s.rules.stamina[&"RH"]
+		_release(s, 2.0)
+		runner.check(s.limbs[&"LH"].state == "Deadpoint", "던짐 (%s)" % disabled)
 		for i in 20:
 			s.body.vel.y = maxf(s.body.vel.y, 0.0)
 			s.step()
-			if s.runner.active.is_empty():
+			if s.deadpoint.is_empty():
 				break
 		runner.check(s.limbs[&"LH"].key == HOLD, "붙음 (%s)" % disabled)
 		results[disabled] = before - float(s.rules.stamina[&"RH"])

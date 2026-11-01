@@ -29,12 +29,13 @@ var s2w_fn := Callable()
 
 # ---------- 기술 선택 UI 상태(docs/27 §6, 05 v0.6) ----------
 enum UI { NONE, PANEL, SIDE, HOLD }
-const TABS := [[&"foot", "발"], [&"hand", "손"], [&"body", "몸"]]
 const CHECK_INTERVAL := 0.2  # 패널 흐림 검사 주기(초)
 const HOLD_PICK_RADIUS := 0.12  # 탭이 홀드 영역에서 이만큼 안이면 그 홀드를 누른 것(m)
-const STAGE_TEXT := {&"check": "준비 중", &"move": "옮기는 중", &"stand_up": "일어서는 중", &"hold": "버티는 중", &"yaw": "자세를 유지하는 중", &"deadpoint": "뻗는 중"}
+const STAGE_TEXT := {&"check": "준비 중", &"move": "옮기는 중", &"yaw": "자세를 유지하는 중"}
+const ENTRY_COLS := 4
+## 패널에 보여 줄 버튼 기술(docs/28 §5.5). 비면 기술 버튼을 그리지도 받지도 않는다(패드만으로 진행).
+var allowed_buttons: Array[StringName] = TechniqueDefs.button_ids()
 var ui_mode := UI.NONE
-var tab := &"foot"
 var sel_tech := &""
 var sel_side := &""
 var side_judge := {}       # side -> {available, reason, text} (쪽 선택 단계)
@@ -376,18 +377,14 @@ func _btn_rect(size: Vector2) -> Rect2:
 
 func _panel_rect(size: Vector2) -> Rect2:
 	var b := _btn_rect(size)
-	return Rect2(Vector2(size.x * 0.5 - 400.0 * ui_k, b.end.y + 8.0 * ui_k), Vector2(800.0 * ui_k, 64.0 * ui_k + 2.0 * 64.0 * ui_k + 12.0 * ui_k))
-
-
-func _tab_rect(size: Vector2, i: int) -> Rect2:
-	var p := _panel_rect(size)
-	return Rect2(p.position + Vector2((12.0 + i * 140.0) * ui_k, 10.0 * ui_k), Vector2(130.0, 44.0) * ui_k)
+	var rows := maxi(1, ceili(float(_panel_techs().size()) / ENTRY_COLS))
+	return Rect2(Vector2(size.x * 0.5 - 400.0 * ui_k, b.end.y + 8.0 * ui_k), Vector2(800.0 * ui_k, rows * 64.0 * ui_k + 12.0 * ui_k))
 
 
 func _entry_rect(size: Vector2, i: int) -> Rect2:
 	var p := _panel_rect(size)
-	var cw := (776.0 - 24.0) / 4.0
-	return Rect2(p.position + Vector2((12.0 + (i % 4) * (cw + 8.0)) * ui_k, (64.0 + (i / 4) * 64.0) * ui_k), Vector2(cw, 56.0) * ui_k)
+	var cw := (776.0 - 24.0) / ENTRY_COLS
+	return Rect2(p.position + Vector2((12.0 + (i % ENTRY_COLS) * (cw + 8.0)) * ui_k, (10.0 + (i / ENTRY_COLS) * 64.0) * ui_k), Vector2(cw, 56.0) * ui_k)
 
 
 ## 쪽 버튼: 왼쪽은 LH·LF 패드 사이, 오른쪽은 RH·RF 패드 사이.
@@ -398,11 +395,11 @@ func _side_rect(side: StringName) -> Rect2:
 	return Rect2((a + b) * 0.5 - sz * 0.5, sz)
 
 
-## 이 탭의 1단계 기술 id 목록(JSON 순서).
-func _tab_techs(t: StringName) -> Array:
+## 패널에 그릴 기술 id 목록(allowed_buttons 순서, 정의가 있는 버튼 기술만).
+func _panel_techs() -> Array:
 	var out := []
-	for id in _techs:
-		if _techs[id].phase == 1 and _techs[id].group == t:
+	for id in allowed_buttons:
+		if _techs.has(id) and _techs[id].input == &"button":
 			out.append(id)
 	return out
 
@@ -411,13 +408,15 @@ func _tab_techs(t: StringName) -> Array:
 func _refresh_dim() -> void:
 	_check_timer = CHECK_INTERVAL
 	var snap := ClimbSnapshot.from_session(session)
-	for id in _tab_techs(tab):
+	for id in _panel_techs():
 		var j := TechniqueJudge.light_judge(snap, id)
 		dim[id] = not j.values().any(func(r): return r.available)
 
 
 ## 기술 UI 입력. 선택 중이면 항상 받아 쓴다(패드 입력 없음). 쓴 입력이면 true.
 func _ui_event(index: int, pos: Vector2, pressed: bool) -> bool:
+	if _panel_techs().is_empty():
+		return false  # 버튼 기술이 없으면 기술 버튼·홀드 탭 입력을 받지 않는다
 	var size := _view_size()
 	var btn := _btn_rect(size)
 	if not session.selecting:
@@ -466,12 +465,7 @@ func _open_select() -> void:
 
 
 func _panel_tap(size: Vector2, pos: Vector2) -> void:
-	for i in TABS.size():
-		if _tab_rect(size, i).has_point(pos):
-			tab = TABS[i][0]
-			_refresh_dim()
-			return
-	var ids := _tab_techs(tab)
+	var ids := _panel_techs()
 	for i in ids.size():
 		if _entry_rect(size, i).has_point(pos):
 			_pick_tech(ids[i])
@@ -483,9 +477,6 @@ func _panel_tap(size: Vector2, pos: Vector2) -> void:
 func _pick_tech(id: StringName) -> void:
 	sel_tech = id
 	side_judge = TechniqueJudge.judge(ClimbSnapshot.from_session(session), id)
-	if side_judge.has(&"none"):
-		_start_technique(&"none", "", Vector2.INF)  # 좌우 없는 기술(휴식)은 바로 실행
-		return
 	ui_mode = UI.SIDE
 
 
@@ -617,6 +608,10 @@ func _draw_tech_ui(size: Vector2) -> void:
 	var k := ui_k
 	var btn := _btn_rect(size)
 	var running: Dictionary = session.runner.active
+	if session.deadpoint_window() and not session.falling and running.is_empty() and not session.selecting:
+		draw_string(font, Vector2(btn.position.x - 60 * k, btn.end.y + 24 * k), "지금 뻗으면 탄력으로 잡을 수 있어요", HORIZONTAL_ALIGNMENT_CENTER, btn.size.x + 120 * k, int(18 * k), Color("a8d8d0"))
+	if _panel_techs().is_empty():
+		return  # 버튼 기술이 없으면 기술 버튼을 그리지 않는다
 	var disabled := (session.is_dragging() or session.falling) and running.is_empty()
 	var label := "기술"
 	if not running.is_empty():
@@ -630,8 +625,6 @@ func _draw_tech_ui(size: Vector2) -> void:
 	if session.is_dragging() and running.is_empty():
 		_draw_lock(btn.position + Vector2(btn.size.x - 20 * k, btn.size.y * 0.5), k, Color(1, 1, 1, 0.5))
 	if not open:
-		if session.deadpoint_window() and not session.falling and running.is_empty():
-			draw_string(font, Vector2(btn.position.x - 60 * k, btn.end.y + 24 * k), "지금 뻗으면 탄력으로 잡을 수 있어요", HORIZONTAL_ALIGNMENT_CENTER, btn.size.x + 120 * k, int(18 * k), Color("a8d8d0"))
 		return
 	draw_string(font, Vector2(btn.end.x + 14 * k, btn.position.y + btn.size.y * 0.5 + 8 * k), "고르는 중 · 시간 멈춤", HORIZONTAL_ALIGNMENT_LEFT, -1, int(24 * k), Color("fff2c8"))
 	match ui_mode:
@@ -654,10 +647,7 @@ func _draw_prompt(btn: Rect2, text: String) -> void:
 func _draw_panel(size: Vector2) -> void:
 	var k := ui_k
 	draw_rect(_panel_rect(size), Color(0.08, 0.07, 0.06, 0.7))
-	for i in TABS.size():
-		var on: bool = TABS[i][0] == tab
-		_draw_button(_tab_rect(size, i), TABS[i][1], int(22 * k), Color("f1d59a", 0.9) if on else Color(0.2, 0.2, 0.2, 0.7), Color("302820") if on else Color.WHITE)
-	var ids := _tab_techs(tab)
+	var ids := _panel_techs()
 	for i in ids.size():
 		var r := _entry_rect(size, i)
 		var is_dim: bool = dim.get(ids[i], false)

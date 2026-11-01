@@ -1,5 +1,5 @@
 extends RefCounted
-## 최종 리뷰 수정: 파트너 취소, 접점 edge 캐시, 풀기 버튼, 데드포인트 중 선택 금지, 점유 재검사, 가벼운 판단, 패드 풋스왑.
+## 최종 리뷰 수정: 이동 중 취소, 접점 edge 캐시, 풀기 버튼, 데드포인트 중 선택 금지, 점유 재검사, 가벼운 판단, 패드 풋스왑.
 
 var runner
 
@@ -29,32 +29,22 @@ func _last_event(s: ClimbSession) -> Dictionary:
 	return s.technique_log.back() if not s.technique_log.is_empty() else {}
 
 
-## 1: 매치 이동 중 파트너 손 패드로 취소하면 움직이던 손은 Free(터치 없는 Dragging 금지).
-func test_match_cancel_via_partner_frees_moving_limb() -> void:
+## 1: 아웃사이드 엣지 이동 중 "풀기"로 취소하면 움직이던 발은 Free(터치 없는 Dragging 금지).
+func test_move_cancel_frees_moving_limb() -> void:
 	var s := _session(_r01())
-	var key := "R01/H02/hand_1"
-	runner.check(s.runner.start(s, &"T_MATCH", &"left", key, s.route.slot_pos(key)) == &"", "매치 시작")
+	var key := "R01/F04/foot_1"
+	runner.check(s.runner.start(s, &"T_OUTSIDE_EDGE", &"right", key, s.route.slot_pos(key)) == &"", "아웃사이드 엣지 시작")
 	for i in 4:
 		s.step()
-	runner.check(s.limbs[&"LH"].state == "Dragging", "전제: LH 이동 중")
-	s.apply_input([{"type": "arm", "limb": &"RH"}])  # 파트너 손
+	runner.check(s.limbs[&"RF"].state == "Dragging", "전제: RF 이동 중")
+	runner.check(s.cancel_technique(), "취소 true")
 	runner.check(s.runner.active.is_empty(), "취소됨")
-	runner.check(s.limbs[&"LH"].state == "Free", "LH Free (%s)" % s.limbs[&"LH"].state)
+	runner.check(s.limbs[&"RF"].state == "Free", "RF Free (%s)" % s.limbs[&"RF"].state)
 	runner.check(not s.is_dragging(), "is_dragging false")
-	s.apply_input([{"type": "disarm", "limb": &"RH"}])
 	s.step()
 	runner.check(_last_event(s).get("type") == TechniqueRunner.CANCELLED, "cancelled 이벤트")
-	var j := TechniqueJudge.judge(ClimbSnapshot.from_session(s), &"T_CROSS")
-	runner.check(j.right.reason != TechniqueJudge.WRONG_PHASE, "WRONG_PHASE 아님 (%s)" % j.right.reason)
-	# 풋스왑도 파트너 발로 취소
-	var f := _session(_r01())
-	var fk := "R01/F01/foot_1"
-	runner.check(f.runner.start(f, &"T_FOOT_SWAP", &"right", fk, f.route.slot_pos(fk)) == &"", "풋스왑 시작")
-	for i in 4:
-		f.step()
-	runner.check(f.limbs[&"RF"].state == "Dragging", "전제: RF 이동 중")
-	f.apply_input([{"type": "arm", "limb": &"LF"}])
-	runner.check(f.limbs[&"RF"].state == "Free" and not f.is_dragging(), "RF Free")
+	var j := TechniqueJudge.judge(ClimbSnapshot.from_session(s), &"T_DROP_KNEE")
+	runner.check(j.left.reason != TechniqueJudge.WRONG_PHASE, "WRONG_PHASE 아님 (%s)" % j.left.reason)
 
 
 ## 2: 접점 edge가 제자리에서 바뀌면 평가 캐시가 무효화되어 barn door 용량이 바뀐다.
@@ -86,8 +76,8 @@ func test_cancel_technique_releases_drop_knee() -> void:
 	_run_ticks(s, 90)
 	runner.check(not is_nan(s.rules.yaw_target) and s.rules.contact_meta[&"LF"].edge == &"drop_knee", "전제: 드롭니 유지")
 	# Ruling 9: 실행 중 다른 기술은 WRONG_PHASE
-	var j := TechniqueJudge.judge(ClimbSnapshot.from_session(s), &"T_INSIDE_EDGE")
-	runner.check(j.left.reason == TechniqueJudge.WRONG_PHASE and j.right.reason == TechniqueJudge.WRONG_PHASE, "인사이드 엣지 WRONG_PHASE")
+	var j := TechniqueJudge.judge(ClimbSnapshot.from_session(s), &"T_OUTSIDE_EDGE")
+	runner.check(j.left.reason == TechniqueJudge.WRONG_PHASE and j.right.reason == TechniqueJudge.WRONG_PHASE, "아웃사이드 엣지 WRONG_PHASE")
 	runner.check(s.cancel_technique(), "취소 true")
 	runner.check(s.runner.active.is_empty() and is_nan(s.rules.yaw_target), "active 비움·yaw_target NAN")
 	runner.check(s.limbs[&"LF"].contact.edge == &"inside", "edge inside")
@@ -101,33 +91,33 @@ func test_no_select_during_deadpoint_flight() -> void:
 	var key := "R01/H02/hand_1"
 	s.start_deadpoint(&"LH", key, s.route.slot_pos(key), 0.1)
 	runner.check(not s.open_select() and not s.selecting, "선택 열리지 않음")
-	var j := TechniqueJudge.judge(ClimbSnapshot.from_session(s), &"T_REST")
-	runner.check(j.none.reason == TechniqueJudge.WRONG_PHASE, "WRONG_PHASE (%s)" % j.none.reason)
+	var j := TechniqueJudge.judge(ClimbSnapshot.from_session(s), &"T_DROP_KNEE")
+	runner.check(j.left.reason == TechniqueJudge.WRONG_PHASE, "WRONG_PHASE (%s)" % j.left.reason)
 
 
 ## 5: 이동 중 다른 팔다리가 목표 자리를 차지하면 OCCUPIED로 실패하고 그 발은 Free.
 func test_runner_respects_occupancy_during_move() -> void:
 	var s := _session(_r01())
-	var key := "R01/F03/foot_1"
-	runner.check(s.runner.start(s, &"T_HIGH_STEP", &"left", key, s.route.slot_pos(key)) == &"", "하이스텝 시작")
+	var key := "R01/F04/foot_1"
+	runner.check(s.runner.start(s, &"T_OUTSIDE_EDGE", &"right", key, s.route.slot_pos(key)) == &"", "아웃사이드 엣지 시작")
 	for i in 4:
 		s.step()
-	runner.check(s.limbs[&"LF"].state == "Dragging", "전제: LF 이동 중")
+	runner.check(s.limbs[&"RF"].state == "Dragging", "전제: RF 이동 중")
 	var p := s.route.slot_pos(key)
-	var rf: Dictionary = s.limbs[&"RF"]  # 패드가 다른 발을 그 자리에 놓은 상황
-	rf.state = "Attached"
-	rf.key = key
-	rf.grab = p
-	rf.pos = p
-	rf.contact = GripCheck.contact_for(key, s.route.slots, &"RF", p)
+	var lf: Dictionary = s.limbs[&"LF"]  # 패드가 다른 발을 그 자리에 놓은 상황
+	lf.state = "Attached"
+	lf.key = key
+	lf.grab = p
+	lf.pos = p
+	lf.contact = GripCheck.contact_for(key, s.route.slots, &"LF", p)
 	s.step()
 	var ev := _last_event(s)
 	runner.check(ev.get("type") == TechniqueRunner.FAILED and ev.get("reason") == GripCheck.OCCUPIED, "failed OCCUPIED: %s" % [ev])
-	runner.check(s.limbs[&"LF"].state == "Free" and s.runner.active.is_empty(), "LF Free·active 비움")
-	runner.check(s.limbs[&"RF"].key == key, "RF 그대로")
+	runner.check(s.limbs[&"RF"].state == "Free" and s.runner.active.is_empty(), "RF Free·active 비움")
+	runner.check(s.limbs[&"LF"].key == key, "LF 그대로")
 
 
-## 6: light_judge는 같은 모양이고 힘 계산이 필요한 이유(플래그 이득 없음)는 보지 않는다.
+## 6: light_judge는 같은 모양이고 힘 계산이 필요한 이유(드롭니 ψ 자세의 힘 균형)는 보지 않는다.
 func test_light_judge_shape_and_cheaper() -> void:
 	var s := _session(_r01())
 	var snap := ClimbSnapshot.from_session(s)
@@ -138,9 +128,6 @@ func test_light_judge_shape_and_cheaper() -> void:
 		for side in l:
 			runner.check(l[side].has_all(["available", "reason", "reasons", "text"]), "%s 모양" % id)
 			runner.check(l[side].available or not h[side].available, "%s: 가벼운 판단은 무거운 판단보다 엄격하지 않다" % id)
-	var hf := TechniqueJudge.judge(snap, &"T_FLAG")
-	var lf := TechniqueJudge.light_judge(snap, &"T_FLAG")
-	runner.check(not hf.left.available and lf.left.available, "플래그: 무거운 판단만 이득 없음으로 불가 (%s / %s)" % [hf.left.reason, lf.left.reason])
 	var t0 := Time.get_ticks_usec()
 	for id in TechniqueJudge.defs():
 		TechniqueJudge.light_judge(snap, id)

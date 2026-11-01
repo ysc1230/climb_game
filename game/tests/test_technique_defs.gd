@@ -7,17 +7,17 @@ const KNOWN_REASONS: Array[StringName] = [&"WRONG_PHASE", &"LIMB_STATE", &"SUPPO
 	&"GRIP_TOO_POOR", &"TOO_TIRED", &"DEADPOINT_MISS", &"MOVE_NOT_SUPPORTED"]
 
 
-func test_all_19_present() -> void:
+## docs/28 §4.2: 인사이드·아웃사이드 플래그 항목을 뺀 17개.
+func test_all_17_present() -> void:
 	var defs := TechniqueDefs.load_all()
-	runner.check(defs.size() == 19, "19개: %d" % defs.size())
+	runner.check(defs.size() == 17, "17개: %d" % defs.size())
 	var p1 := 0
 	var p2 := 0
 	for id in defs:
 		if defs[id].phase == 1: p1 += 1
 		elif defs[id].phase == 2: p2 += 1
-	runner.check(p1 == 16 and p2 == 3, "phase1 16 / phase2 3: %d / %d" % [p1, p2])
-	for id in [&"T_INSIDE_EDGE", &"T_OUTSIDE_EDGE", &"T_DROP_KNEE", &"T_HIGH_STEP", &"T_DEADPOINT", &"T_FLAG", &"T_FLAG_INSIDE",
-			&"T_FLAG_OUTSIDE", &"T_LOCK_OFF", &"T_REST", &"T_CROSS", &"T_MATCH", &"T_FOOT_SWAP", &"T_SIDEPULL", &"T_GASTON",
+	runner.check(p1 == 14 and p2 == 3, "phase1 14 / phase2 3: %d / %d" % [p1, p2])
+	for id in [&"T_INSIDE_EDGE", &"T_OUTSIDE_EDGE", &"T_DROP_KNEE", &"T_HIGH_STEP", &"T_DEADPOINT", &"T_FLAG", &"T_LOCK_OFF", &"T_REST", &"T_CROSS", &"T_MATCH", &"T_FOOT_SWAP", &"T_SIDEPULL", &"T_GASTON",
 			&"T_UNDERCLING", &"T_HEEL_HOOK", &"T_TOE_HOOK", &"T_SMEAR"]:
 		runner.check(defs.has(id), "%s 있음" % id)
 
@@ -39,7 +39,7 @@ func test_flow_matches_spec() -> void:
 	var defs := TechniqueDefs.load_all()
 	for id in defs:
 		var d: Dictionary = defs[id]
-		if id in [&"T_DROP_KNEE", &"T_FLAG", &"T_FLAG_INSIDE", &"T_FLAG_OUTSIDE", &"T_LOCK_OFF", &"T_REST"]:
+		if id in [&"T_DROP_KNEE", &"T_FLAG", &"T_LOCK_OFF", &"T_REST"]:
 			runner.check(d.flow == &"execute", "%s flow execute: %s" % [id, d.flow])
 		elif id == &"T_DEADPOINT":
 			runner.check(d.flow == &"drag_or_hold_tap", "T_DEADPOINT flow: %s" % d.flow)

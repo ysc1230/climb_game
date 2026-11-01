@@ -23,7 +23,6 @@ var dragging := false        # 패드로 끄는 손발이 있음
 var falling := false
 var deadpoint_active := false  # 패드·기술 데드포인트 비행 중(손이 날아가는 동안)
 var deadpoint_window := false  # 데드포인트 창이 열려 있는가(상승 중이거나 상승 종료 후 0.25초 이내)
-var plan_cache := {}         # 플래그 위치 탐색 결과 캐시(같은 스냅숏에서 judge와 start가 다시 계산하지 않게)
 
 
 static func from_session(s: ClimbSession) -> ClimbSnapshot:

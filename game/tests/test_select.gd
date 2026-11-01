@@ -85,12 +85,12 @@ func test_select_clears_armed_without_release() -> void:
 
 func test_choose_resumes_immediately() -> void:
 	var s := _session()
-	var key := "R01/F03/foot_1"
+	var key := "R01/F04/foot_1"
 	runner.check(s.open_select(), "열기")
 	var ticks := s.tick_count
 	s.step()
 	runner.check(s.tick_count == ticks, "선택 중 정지")
-	runner.check(s.choose(&"T_HIGH_STEP", &"left", key, s.route.slot_pos(key)) == &"", "choose 성공")
+	runner.check(s.choose(&"T_OUTSIDE_EDGE", &"right", key, s.route.slot_pos(key)) == &"", "choose 성공")
 	runner.check(not s.selecting, "선택 해제")
 	s.step()
 	runner.check(s.tick_count == ticks + 1 and not s.runner.active.is_empty(), "같은 틱부터 진행")
@@ -99,5 +99,13 @@ func test_choose_resumes_immediately() -> void:
 func test_choose_failure_keeps_selecting() -> void:
 	var s := _session()
 	s.open_select()
-	var r := s.choose(&"T_HIGH_STEP", &"left", "")
+	var r := s.choose(&"T_OUTSIDE_EDGE", &"right", "")
 	runner.check(r == TechniqueJudge.NO_HOLD and s.selecting, "홀드 없으면 이유와 선택 유지: %s" % r)
+
+
+## 버튼이 아닌 기술 ID는 NOT_BUTTON으로 거절하고 선택은 유지된다.
+func test_choose_rejects_non_button() -> void:
+	var s := _session()
+	s.open_select()
+	var r := s.choose(&"T_HIGH_STEP", &"left", "R01/F03/foot_1")
+	runner.check(r == TechniqueRunner.NOT_BUTTON and s.selecting and s.runner.active.is_empty(), "NOT_BUTTON, 선택 유지: %s" % r)

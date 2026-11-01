@@ -7,7 +7,7 @@ extends RefCounted
 var route: RouteDef
 var body: BodyState
 var rules := ClimbRules.new()  # 지지·피로·유예 규칙(RouteBot과 공유, docs/04 §4·§7)
-## limb -> {state, key, pos(실제 말단), grab(잡은 점), req(요청 목표), cand, flag, flag_depth(플래그 변형의 깊이 힌트, 표현용), contact}
+## limb -> {state, key, pos(실제 말단), grab(잡은 점), req(요청 목표), cand, flag, flag_depth(균형 발의 깊이 힌트, 표현용), contact}
 var limbs := {}
 var falling := false
 var fall_reason := ""
@@ -113,14 +113,11 @@ func open_select() -> bool:
 	return true
 
 
-## 실행 중 기술을 버튼으로 끝낸다("풀기", 27 §6 5, §10 드롭니). 휴식은 정상 종료, 나머지는 취소. 실행 중이 아니면 false.
+## 실행 중 기술을 버튼으로 끝낸다("풀기", 27 §6 5, §10 드롭니). 실행 중이 아니면 false.
 func cancel_technique() -> bool:
-	if runner.active.is_empty() or runner.active.step == &"deadpoint":
-		return false  # 날아가는 손은 되돌릴 수 없다
-	if runner.active.id == TechniqueJudge.T_REST:
-		runner.finish(self)
-	else:
-		runner.cancel(self)
+	if runner.active.is_empty():
+		return false
+	runner.cancel(self)
 	return true
 
 
@@ -144,7 +141,7 @@ func deadpoint_window() -> bool:
 	return body.vel.y >= TechniqueJudge.DEADPOINT_RISE_SPEED or tick_count - _last_rise_tick <= TechniqueJudge.DEADPOINT_GRACE_TICKS
 
 
-## 지금 도달 보너스(m). drag_speed: 손가락 속도(m/s, 월드). 버튼 흐름은 1을 넣는다(= 0.05).
+## 지금 도달 보너스(m). drag_speed: 손가락 속도(m/s, 월드).
 func deadpoint_bonus(drag_speed: float) -> float:
 	return TechniqueJudge.deadpoint_bonus(body.vel.y, drag_speed)
 
@@ -155,12 +152,9 @@ func apply_input(cmds: Array) -> void:
 		var l: Dictionary = limbs[c.limb]
 		if l.state == "Deadpoint":
 			continue  # 날아가는 중인 손은 0.15초 동안 입력을 받지 않는다
-		# 패드 조작과 실행 중 기술(27 §6 5): 휴식은 어떤 패드 조작이든 끝, 그 외는 기술이 쓰는 손발을 누르면 취소
-		if not runner.active.is_empty():
-			if runner.active.id == TechniqueJudge.T_REST:
-				runner.finish(self)
-			elif c.type in ["arm", "detach"] and runner.uses(c.limb):
-				runner.cancel(self)
+		# 패드 조작과 실행 중 기술(27 §6 5): 기술이 쓰는 발을 누르면 취소
+		if c.type in ["arm", "detach"] and runner.uses(c.limb):
+			runner.cancel(self)
 		match c.type:
 			"arm":
 				l.state = "Armed"
@@ -221,7 +215,7 @@ func _try_grab(limb: StringName, speed: float = 0.0) -> void:
 	_attach(limb, cand.key, cand.point, GripCheck.contact_for(cand.key, route.slots, limb, cand.point))
 
 
-## 패드로 끈 발을 반대 발이 딛은 발판에 놓으면 풋스왑(Ruling 14): 기술 버튼과 같은 판단(T_FOOT_SWAP)을 통과하면
+## 패드로 끈 발을 반대 발이 딛은 발판에 놓으면 풋스왑(Ruling 14): 판단기의 풋스왑 판단(T_FOOT_SWAP)을 통과하면
 ## 들어온 발이 붙고 반대 발은 같은 틱에 풀린다. 못 하면 false(일반 거부 경로로).
 func _try_pad_foot_swap(foot: StringName) -> bool:
 	var l: Dictionary = limbs[foot]
@@ -276,7 +270,7 @@ func _start_pad_deadpoint(limb: StringName, speed: float) -> bool:
 	return true
 
 
-## 데드포인트 시작(패드·기술 버튼 공통). 손을 떼어 "Deadpoint" 상태로 두고 목표로 날린다.
+## 데드포인트 시작(패드 빠른 놓기). 손을 떼어 "Deadpoint" 상태로 두고 목표로 날린다.
 func start_deadpoint(limb: StringName, key: String, point: Vector2, bonus: float) -> void:
 	var l: Dictionary = limbs[limb]
 	l.state = "Deadpoint"
@@ -338,8 +332,6 @@ func step() -> String:
 		return _fall_tick()
 	_log_event(runner.tick(self))
 	if _tick_deadpoint():
-		if not runner.active.is_empty() and runner.active.id == TechniqueJudge.T_DEADPOINT:
-			runner.fail(self, TechniqueJudge.DEADPOINT_MISS)
 		_start_fall("DEADPOINT_MISS")
 		return "fall:DEADPOINT_MISS"
 	_move_endpoints()
