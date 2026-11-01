@@ -14,6 +14,13 @@ func _g_v0_01_dict() -> Dictionary:
 	return JSON.parse_string(FileAccess.get_file_as_string("res://data/routes/general/G_V0_01.json"))
 
 
+func _hold(d: Dictionary, id: String) -> Dictionary:
+	for h in d.holds:
+		if h.hold_id == id:
+			return h
+	return {}
+
+
 ## 의도 경로와 좌우 손 순서를 바꾼 경로 모두 실제 세션으로 완등한다.
 func test_bot_clears_g_v0_01() -> void:
 	var r := _g_v0_01()
@@ -22,7 +29,7 @@ func test_bot_clears_g_v0_01() -> void:
 	runner.check(bot.failed_step == -1, "failed_step -1 (%d)" % bot.failed_step)
 	runner.check(bot.metrics.moves == r.intended_moves.size(), "이동 수 %s" % bot.metrics.moves)
 	runner.check(bot.metrics.seconds > 0.0 and bot.metrics.min_stamina <= 100.0 and bot.metrics.max_hand_u > 0.0, "측정값 %s" % [bot.metrics])
-	runner.check(bot.metrics.min_half_width > 0.0 and bot.metrics.min_half_width <= 0.12, "최소 손 반폭 %s" % bot.metrics.min_half_width)
+	runner.check(is_equal_approx(bot.metrics.min_hand_half_width, 0.12), "최소 손 반폭 0.12(정상 슬롯 제외) %s" % bot.metrics.min_hand_half_width)
 	runner.check(is_finite(bot.metrics.min_reach_margin) and bot.metrics.min_reach_margin >= 0.0, "도달 여유 %s" % bot.metrics.min_reach_margin)
 	var sw := SessionBot.run(r, RouteBot.swapped_pairs(r.intended_moves))
 	runner.check(sw.ok(), "교체 경로 완등: %s" % sw.failure)
@@ -70,18 +77,19 @@ func test_required_check_detects_unneeded() -> void:
 
 ## 등급 기준을 벗어나면 경고(ok에는 영향 없음).
 func test_grade_warning() -> void:
-	runner.check(GradeRules.LIMITS["V0"] == {"min_half_width": 0.12, "min_reach_margin": 0.15}, "V0 기준")
+	runner.check(GradeRules.LIMITS["V0"] == {"min_half_width": 0.12, "min_reach_margin": 0.06}, "V0 기준")
+	runner.check(GradeRules.LIMITS["V2"] == {"min_half_width": 0.08, "min_reach_margin": 0.025}, "V2 기준")
 	runner.check(GradeRules.LIMITS["V5"] == {"min_half_width": 0.04, "min_reach_margin": 0.0}, "V5 기준")
 	var r := _g_v0_01()
-	var good := {"min_half_width": 0.12, "min_reach_margin": 0.2}
+	var good := {"min_hand_half_width": 0.12, "min_reach_margin": 0.06}
 	runner.check(GradeRules.warnings(r, good).is_empty(), "기준 안: 경고 없음")
-	var w := GradeRules.warnings(r, {"min_half_width": 0.08, "min_reach_margin": 0.05})
+	var w := GradeRules.warnings(r, {"min_hand_half_width": 0.08, "min_reach_margin": 0.05})
 	runner.check(w.size() == 2 and w[0].begins_with("경고:") and w[1].begins_with("경고:"), "반폭·도달 여유 경고 2개: %s" % [w])
 	var tx := RouteDef.load_json("res://data/routes/TX_TECH.json")
-	runner.check(GradeRules.warnings(tx, {"min_half_width": 0.01, "min_reach_margin": -1.0}).is_empty(), "등급 없는 시험 루트는 경고 없음")
+	runner.check(GradeRules.warnings(tx, {"min_hand_half_width": 0.01, "min_reach_margin": -1.0}).is_empty(), "등급 없는 시험 루트는 경고 없음")
 	# 경고만 있는 문제는 통과
 	var d := _g_v0_01_dict()
-	d.holds[4].slots[0].hand_area.half_width = 0.05  # H03(의도 경로에서 잡음)
+	_hold(d, "H03").slots[0].hand_area.half_width = 0.05  # 의도 경로에서 잡는 손홀드
 	var res := ContentCheck.check(RouteDef.from_dict(d))
 	runner.check(res.ok, "경고는 실패가 아님: %s" % [res.lines])
 	runner.check(Array(res.lines).any(func(l): return l.begins_with("경고:")), "경고 줄: %s" % [res.lines])
@@ -109,3 +117,26 @@ func test_bot_flag_step() -> void:
 	runner.check(bot.failed_step == -1 and bot.session.limbs[&"RF"].state == "Flag", "Flag (%d: %s)" % [bot.failed_step, bot.failure])
 	var no := SessionBot.run(r, [["RF", "flag", [-0.35, 0.52]]], {&"flag": true})
 	runner.check(no.failed_step == 0, "금지하면 #0 실패 (%d: %s)" % [no.failed_step, no.failure])
+
+
+## 정상 슬롯은 손 반폭 측정에서 빠진다(Ruling G). 건너뛴 단계 []는 이동 수에 세지 않는다.
+func test_metrics_goal_excluded_and_skips() -> void:
+	var r := _g_v0_01()
+	var steps: Array = [[]] + r.intended_moves
+	var bot := SessionBot.run(r, steps)
+	runner.check(bot.ok(), "완등: %s" % bot.failure)
+	runner.check(bot.metrics.moves == r.intended_moves.size(), "건너뜀 제외 이동 수 %s" % bot.metrics.moves)
+	runner.check(is_equal_approx(bot.metrics.min_hand_half_width, 0.12), "정상(기본 0.08) 제외 반폭 %s" % bot.metrics.min_hand_half_width)
+	runner.check(bot.metrics.min_reach_margin >= GradeRules.LIMITS["V0"].min_reach_margin, "안정 뒤 도달 여유가 V0 기준 이상 %s" % bot.metrics.min_reach_margin)
+	runner.check(not bot.metrics.has("min_half_width"), "옛 키 없음")
+	var res := ContentCheck.check(r)
+	runner.check(not Array(res.lines).any(func(l): return l.begins_with("경고:")), "G_V0_01 등급 경고 없음: %s" % [res.lines])
+
+
+## 시작 자세에서 바로 떨어지면 failed_step -2.
+func test_start_fall_failed_step() -> void:
+	var d := _g_v0_01_dict()
+	d.start_pose.pelvis = [0.0, 2.5]  # 손발이 닿지 않는 골반
+	var r := RouteDef.from_dict(d)
+	var bot := SessionBot.run(r, r.intended_moves)
+	runner.check(not bot.ok() and bot.failed_step == SessionBot.START_FAILED, "시작 실패 -2 (%d: %s)" % [bot.failed_step, bot.failure])

@@ -46,7 +46,7 @@ static func check(route: RouteDef) -> Dictionary:
 	for tech in route.required_techniques:
 		ok = _check_required(route, tech, lines) and ok
 	lines.append("측정값: 도달 여유 최소 %.3fm, 손 반폭 최소 %.3fm, 최대 손 사용률 %.2f, 최저 손 피로 %.0f, 이동 %d, %.2f초" % [
-		bot.metrics.min_reach_margin, bot.metrics.min_half_width, bot.metrics.max_hand_u, bot.metrics.min_stamina, bot.metrics.moves, bot.metrics.seconds])
+		bot.metrics.min_reach_margin, bot.metrics.min_hand_half_width, bot.metrics.max_hand_u, bot.metrics.min_stamina, bot.metrics.moves, bot.metrics.seconds])
 	lines.append_array(GradeRules.warnings(route, bot.metrics))
 	res.ok = ok
 	return res

@@ -19,19 +19,25 @@ const DEADPOINT_FLIGHT_TICKS := 20
 const TECHNIQUE_TICKS := 120      # 버튼 기술이 유지 단계(yaw)에 들어가거나 끝날 때까지
 const FLAG_TICKS := 120
 const FLAG_ARRIVE := 0.02         # 균형 발 지점 도착 판정(m)
+const START_MIN_TICKS := 30      # 시작 자세 최소 대기 틱
 const GOAL_TICKS := 240           # 모든 단계 뒤 정상에서 "clear"를 기다리는 최대 틱
 
 var route: RouteDef
 var session: ClimbSession
 var failure := ""
-var failed_step := -1   # 실패한 단계 인덱스. -1 = 성공 또는 모든 단계 뒤 목표 미도달
+const START_FAILED := -2  # failed_step: 시작 자세 안정 중 실패(추락 등)
+var failed_step := -1   # 실패한 단계 인덱스. -1 = 성공 또는 모든 단계 뒤 목표 미도달, START_FAILED = 시작 자세에서 실패
 var log: PackedStringArray = []
-## min_reach_margin: 잡는 순간(그 틱 시작의 골반·회전) 그 팔다리의 최대 벽면 도달 거리 − 어깨/고관절에서 잡은 점까지 거리(m).
-##   최대 거리는 PoseSolver.can_reach와 같이 planar_range(limb, 접점 깊이 범위 + 관절 깊이 오프셋)의 먼 쪽이다.
-##   패드·버튼 기술로 잡은 모든 손발을 재고, 데드포인트로 받은 손은 도달 보너스를 쓰므로 제외한다(28 §7.3 V3 "또는 데드포인트").
-## min_hand_half_width: 경로에서 잡은 손홀드(정상 포함)의 hand_area.half_width 최소. max_hand_u: 틱마다의 손 사용률 최대.
-## min_stamina: 붙어 있는 손의 피로 최소. moves: 마친 단계 수. seconds: 시뮬레이션 시간.
-var metrics := {"min_reach_margin": INF, "min_half_width": INF, "max_hand_u": 0.0, "min_stamina": 100.0, "moves": 0, "seconds": 0.0}
+## min_reach_margin: 잡은 뒤 안정된 자세(그 단계 뒤 _settle이 끝난 골반·회전)에서 그 팔다리의 최대 벽면 도달 거리 −
+##   어깨/고관절에서 잡은 점까지 거리(m)의 최소. 최대 거리는 PoseSolver.can_reach와 같이 planar_range(limb, 접점 깊이 범위 +
+##   관절 깊이 오프셋)의 먼 쪽이다. 봇은 후보가 생기는 첫 틱에 놓으므로 잡는 순간에는 여유가 항상 0 근처라, 몸이 자리 잡은 뒤를 잰다.
+##   패드·버튼 기술·데드포인트로 잡은 모든 손발을 같은 방법으로 잰다(데드포인트도 안정 뒤에는 정적 도달 범위 안이다).
+##   다음 단계가 데드포인트라 안정을 건너뛴 잡기는 다음 안정 뒤에, 안정 중 완등하면 완등 직전 틱 자세로 잰다.
+##   잰 때 그 팔다리가 더 이상 그 홀드에 붙어 있지 않으면 재지 않는다.
+## min_hand_half_width: 경로에서 잡은 손홀드(정상 슬롯 제외)의 hand_area.half_width 최소. max_hand_u: 틱마다의 손 사용률 최대.
+## min_stamina: 붙어 있는 손의 피로 최소. moves: 마친 단계 수(건너뛴 [] 제외). seconds: 시뮬레이션 시간.
+var metrics := {"min_reach_margin": INF, "min_hand_half_width": INF, "max_hand_u": 0.0, "min_stamina": 100.0, "moves": 0, "seconds": 0.0}
+var _pending_grabs: Array = []  # 아직 도달 여유를 재지 않은 잡기 [{limb, key}]
 var cleared := false
 var _ticks := 0
 var _seen_seq := 0
@@ -52,9 +58,17 @@ func ok() -> bool:
 
 
 func _play(steps: Array) -> void:
-	_settle()
-	if not failure.is_empty():
-		failed_step = -1
+	var start_err := ""
+	for i in START_MIN_TICKS:  # 무지지·불균형 유예(9·18틱)가 지나도록 먼저 기다린다: 서 있지 못하는 시작 자세를 잡아낸다
+		start_err = _tick()
+		if not start_err.is_empty():
+			break
+	if start_err.is_empty():
+		start_err = _settle()
+	if not start_err.is_empty():
+		failed_step = START_FAILED
+		failure = "시작 자세: " + start_err
+		log.append(failure)
 		return
 	var b := session.body
 	log.append("시작 안정 자세 골반=(%.3f, %.3f) θ=%.1f°" % [b.pos.x, b.pos.y, b.angle])
@@ -68,7 +82,8 @@ func _play(steps: Array) -> void:
 			failure = "#%d %s: %s" % [i, _desc(m), err]
 			log.append(failure)
 			return
-		metrics.moves += 1
+		if not m.is_empty():
+			metrics.moves += 1
 	if cleared:
 		_log_clear()
 		return
@@ -242,22 +257,22 @@ func _drag(limb: StringName, target: Vector2) -> void:
 
 ## 입력을 넣고, 그 입력으로 생긴 잡기를 지금 자세로 잰다.
 func _input(cmds: Array) -> void:
-	var b := session.body
-	var pose := [b.pos, b.angle, b.yaw]
 	session.apply_input(cmds)
-	_scan_events(pose)
+	_scan_events()
 
 
 ## 한 틱. 오류 문구(없으면 ""). 완등하면 cleared(세션은 시작 자세로 돌아간다).
 func _tick() -> String:
 	var b := session.body
 	var pose := [b.pos, b.angle, b.yaw]
+	var held := _held() if not _pending_grabs.is_empty() else {}
 	var r := session.step()
 	_ticks += 1
-	_scan_events(pose)
 	if r == "clear":
 		cleared = true
+		_measure_pending(pose, held)  # 세션이 시작 자세로 돌아갔으므로 완등 직전 틱 자세로 잰다
 		return ""
+	_scan_events()
 	var u: Dictionary = session.rules.last.get("u", {})
 	for hand in [PoseSolver.LH, PoseSolver.RH]:
 		metrics.max_hand_u = maxf(metrics.max_hand_u, float(u.get(hand, 0.0)))
@@ -280,12 +295,16 @@ func _settle() -> String:
 			return err
 		calm = calm + 1 if session.body.vel.length() < SETTLE_SPEED else 0
 		if calm >= SETTLE_CALM_TICKS:
-			return ""
+			break
+		if i == SETTLE_MAX_TICKS - 1:
+			log.append("안정 대기 %d틱 초과(골반 속도 %.3fm/s), 그대로 진행" % [SETTLE_MAX_TICKS, session.body.vel.length()])
+	var b := session.body
+	_measure_pending([b.pos, b.angle, b.yaw], _held())
 	return ""
 
 
-## 새 grab 이벤트마다 도달 여유와 손홀드 반폭을 잰다. pose: 그 잡기가 일어난 틱 시작의 [골반, 각도, yaw].
-func _scan_events(pose: Array) -> void:
+## 새 grab 이벤트: 손홀드 반폭(정상 슬롯 제외)을 재고, 도달 여유는 안정 뒤에 재도록 남겨 둔다.
+func _scan_events() -> void:
 	var fresh := session.technique_log.filter(func(e): return e.seq > _seen_seq)
 	if fresh.is_empty():
 		return
@@ -295,11 +314,27 @@ func _scan_events(pose: Array) -> void:
 			continue
 		var limb: StringName = e.limb
 		var key: String = e.key
-		if PoseSolver.is_hand(limb) and route.slots[key].has("hand_area"):
-			metrics.min_half_width = minf(metrics.min_half_width, float(route.slots[key].hand_area.half_width))
-		if fresh.any(func(x): return x.type == "pad_deadpoint" and x.limb == limb and x.ok):
-			continue
-		metrics.min_reach_margin = minf(metrics.min_reach_margin, reach_margin(pose[0], pose[1], pose[2], limb, session.limbs[limb].grab))
+		if PoseSolver.is_hand(limb) and route.slots[key].has("hand_area") and not route.goal_slots.has(key):
+			metrics.min_hand_half_width = minf(metrics.min_hand_half_width, float(route.slots[key].hand_area.half_width))
+		_pending_grabs.append({"limb": limb, "key": key})
+
+
+## 붙어 있는 팔다리 → [슬롯 키, 잡은 점].
+func _held() -> Dictionary:
+	var d := {}
+	for limb in session.limbs:
+		var l: Dictionary = session.limbs[limb]
+		if l.state in ["Attached", "Armed"]:
+			d[limb] = [l.key, l.grab]
+	return d
+
+
+## 남은 잡기의 도달 여유를 pose [골반, 각도, yaw]와 그때 붙어 있던 팔다리(held)로 잰다(그 홀드에 아직 붙어 있는 것만).
+func _measure_pending(pose: Array, held: Dictionary) -> void:
+	for g in _pending_grabs:
+		if held.has(g.limb) and held[g.limb][0] == g.key:
+			metrics.min_reach_margin = minf(metrics.min_reach_margin, reach_margin(pose[0], pose[1], pose[2], g.limb, held[g.limb][1]))
+	_pending_grabs.clear()
 
 
 ## 그 자세에서 limb이 point를 잡을 때 더 뻗을 수 있는 거리(m). PoseSolver.can_reach의 최대 거리 조건과 같은 식.
@@ -310,4 +345,4 @@ static func reach_margin(pelvis: Vector2, angle: float, yaw: float, limb: String
 
 
 func _log_clear() -> void:
-	log.append("완등: %d틱(%.2f초), 이동 %d, 도달 여유 최소 %.3fm, 손 반폭 최소 %.3fm, 최대 손 사용률 %.2f, 최저 손 피로 %.0f" % [_ticks, _ticks / float(Tuning.TICK_HZ), metrics.moves, metrics.min_reach_margin, metrics.min_half_width, metrics.max_hand_u, metrics.min_stamina])
+	log.append("완등: %d틱(%.2f초), 이동 %d, 도달 여유 최소 %.3fm, 손 반폭 최소 %.3fm, 최대 손 사용률 %.2f, 최저 손 피로 %.0f" % [_ticks, _ticks / float(Tuning.TICK_HZ), metrics.moves, metrics.min_reach_margin, metrics.min_hand_half_width, metrics.max_hand_u, metrics.min_stamina])
