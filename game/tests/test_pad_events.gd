@@ -102,8 +102,10 @@ func test_high_step_then_stand_up_events() -> void:
 
 ## 교차 잡기: 발을 F03·F04로 올린 자세(reset_to)에서 왼손을 위로 돌려(H02를 겨누지 않게) 오른손 X 너머 H04로 → move CrossReach.
 ## 시작 자세에서 곧장 끌면 H02를 겨누어 HandMatch가 되고 H04에 닿지 않는다.
-func test_cross_reach_event() -> void:
+## 반환: 놓은 뒤 세션(LH가 H04에 붙었는지, 라벨은 호출자가 본다).
+func _cross_attempt(forbid: Dictionary) -> ClimbSession:
 	var s := ClimbSession.new(_r01())
+	s.forbid = forbid
 	s.reset_to({"pelvis": [0.15, 1.1], "angle": 0.0, "slots": {"LH": H01, "RH": H02, "LF": F03, "RF": F04}})
 	for i in 30:
 		s.step()
@@ -114,6 +116,11 @@ func test_cross_reach_event() -> void:
 			s.apply_input([{"type": "move", "limb": &"LH", "delta": (target - req).limit_length(2.5 * Tuning.DT)}])
 			s.step()
 	s.apply_input([{"type": "release", "limb": &"LH"}])
+	return s
+
+
+func test_cross_reach_event() -> void:
+	var s := _cross_attempt({})
 	runner.check(s.limbs[&"LH"].state == "Attached" and s.limbs[&"LH"].key == H04, "LH가 H04에 붙음(교차)")
 	runner.check(_labels(s).has(MoveClassifier.CROSS_REACH), "move CrossReach (%s)" % [_labels(s)])
 
@@ -156,10 +163,16 @@ func test_fall_event() -> void:
 	runner.check(falls.size() == 1 and falls[0].reason == out.trim_prefix("fall:"), "fall 이벤트 reason (%s)" % [falls])
 
 
-## 패드 풋스왑(test_final_review 7과 같은 입력): pad_foot_swap 이벤트. 반환: [RF 상태, LF 상태, 이벤트들].
-func _foot_swap_attempt(forbid: Dictionary) -> Array:
+## 패드 풋스왑(test_final_review 7과 같은 입력): RF를 LF가 딛은 발판으로 끌어 놓는다. 반환: [RF 상태, LF 상태, 이벤트들].
+## pose가 있으면 그 자세(reset_to)에서, lf_key는 LF가 딛은 발판. 놓기 직전에 forbid를 release_forbid로 바꾸고(null이면 그대로)
+## 골반을 release_drop(m)만큼 낮춘다.
+func _foot_swap_attempt(forbid: Dictionary, pose: Dictionary = {}, lf_key: String = F01, release_forbid = null, release_drop: float = 0.0) -> Array:
 	var s := _session(_r01(), forbid)
-	var target := s.route.slot_pos(F01)
+	if not pose.is_empty():
+		s.reset_to(pose)
+		for i in 30:
+			s.step()
+	var target := s.route.slot_pos(lf_key)
 	s.apply_input([{"type": "arm", "limb": &"RF"}, {"type": "detach", "limb": &"RF"}])
 	for i in 200:
 		var req: Vector2 = s.limbs[&"RF"].req
@@ -167,6 +180,11 @@ func _foot_swap_attempt(forbid: Dictionary) -> Array:
 		s.step()
 		if (s.limbs[&"RF"].pos as Vector2).distance_to(target) < 0.02:
 			break
+	if release_forbid != null:
+		s.forbid = release_forbid
+	s.body.pos.y -= release_drop
+	var hip := PoseSolver.joint_position(s.body.pos, s.body.angle, &"RF", s.body.yaw)
+	runner.check(release_drop == 0.0 or target.y >= hip.y - Tuning.HIGH_STEP_BELOW_HIP, "전제: 놓는 순간 목표가 고관절−0.20 위 (목표 %.3f, 고관절 %.3f)" % [target.y, hip.y])
 	s.apply_input([{"type": "release", "limb": &"RF"}])
 	return [s.limbs[&"RF"].state, s.limbs[&"LF"].state, _events(s, "pad_foot_swap")]
 
@@ -226,8 +244,8 @@ func test_forbid_defaults_empty() -> void:
 	var s := ClimbSession.new(_r01())
 	runner.check(s.forbid.is_empty(), "forbid 기본값 비어 있음")
 	for path in ["res://scenes/play_test.gd", "res://scenes/play_3d.gd"]:
-		if FileAccess.file_exists(path):
-			runner.check(not FileAccess.get_file_as_string(path).contains("forbid"), "%s는 forbid를 설정하지 않음" % path)
+		runner.check(FileAccess.file_exists(path), "%s 있음(옮겼으면 이 검사 경로를 고친다)" % path)
+		runner.check(FileAccess.file_exists(path) and not FileAccess.get_file_as_string(path).contains("forbid"), "%s는 forbid를 설정하지 않음" % path)
 
 
 func test_forbid_high_step_rejects_high_foot() -> void:
@@ -254,10 +272,14 @@ func test_forbid_high_step_disables_stand_up_profile() -> void:
 	runner.check(is_equal_approx(f.profile[&"LF"], Tuning.PREF_LEG_DEFAULT) and not f.profile.has(&"_stand_x"), "금지: 다리 0.78, 골반 목표 X 없음 (%s)" % [f.profile])
 
 
+## 같은 교차 입력(test_cross_reach_event): 금지 없으면 H04를 잡고, cross 금지면 못 잡는다.
 func test_forbid_cross_rejects_crossing_hand() -> void:
-	var s := _session(_r01(), {&"cross": true})
-	runner.check(not _drag_to(s, &"LH", H04, 200), "cross 금지: 오른손 X 너머 H04 후보 아님")
-	runner.check(_drag_to(s, &"LH", H03), "넘지 않는 H03은 잡음")
+	var a := _cross_attempt({})
+	runner.check(a.limbs[&"LH"].state == "Attached" and a.limbs[&"LH"].key == H04, "금지 없음: LH가 H04를 교차해 잡음")
+	var b := _cross_attempt({&"cross": true})
+	runner.check(not (b.limbs[&"LH"].state == "Attached" and b.limbs[&"LH"].key == H04), "cross 금지: 오른손 X 너머 H04를 못 잡음 (%s %s)" % [b.limbs[&"LH"].state, b.limbs[&"LH"].key])
+	var c := _session(_r01(), {&"cross": true})
+	runner.check(_drag_to(c, &"LH", H03), "넘지 않는 H03은 잡음")
 
 
 func test_forbid_flag() -> void:
@@ -272,6 +294,18 @@ func test_forbid_match_rejects_other_hand_hold() -> void:
 	runner.check(_drag_to(_session(_r01()), &"LH", H02), "금지 없음: 오른손 홀드 H02 매치")
 	var s := _session(_r01(), {&"match": true})
 	runner.check(not _drag_to(s, &"LH", H02, 200), "match 금지: 반대 손이 잡은 H02 후보 아님")
+
+
+## high_step 금지는 높은 발판(고관절−0.20 위)으로 바꿔 딛는 패드 풋스왑도 막는다(우회로 방지).
+## 자연 재생에서는 발이 닿을 즈음 몸이 올라와 목표가 더 이상 "높지" 않으므로(그리고 처음부터 금지하면 StandUp 선호가 꺼져
+## 닿지 못해 풋스왑 검사를 거치지 않으므로), 같은 드래그를 금지 없이 하고 놓기 직전에 골반을 0.04m 낮춰(고관절 0.878→0.838, 문턱 0.638 < F03 0.65) 목표를 높게 만든 뒤
+## 금지 없음/있음을 비교한다. 두 시도는 놓기 직전 상태가 같다.
+func test_forbid_high_step_blocks_high_foot_swap() -> void:
+	var pose := {"pelvis": [0.0, 0.744], "angle": 0.0, "slots": {"LH": H01, "RH": H02, "LF": F03, "RF": F02}}
+	var a := _foot_swap_attempt({}, pose, F03, {}, 0.04)
+	runner.check(a[0] == "Attached" and a[1] == "Free" and a[2].size() == 1 and a[2][0].key == F03, "금지 없음: 높은 F03으로 풋스왑 (%s %s %s)" % [a[0], a[1], a[2]])
+	var b := _foot_swap_attempt({}, pose, F03, {&"high_step": true}, 0.04)
+	runner.check(b[0] != "Attached" and b[1] == "Attached" and b[2].is_empty(), "high_step 금지: F03 풋스왑 거부 (%s %s %s)" % [b[0], b[1], b[2]])
 
 
 func test_forbid_foot_swap() -> void:
