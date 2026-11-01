@@ -156,3 +156,40 @@ func test_skip_basic_and_tab_saved() -> void:
 	var loaded := SaveStore.load(SAVE)
 	runner.check(not loaded.is_first_run() and loaded.last_tab == "technique", "건너뛰기·마지막 탭 저장")
 	_cleanup()
+
+
+func test_attempt_resets_on_respawn_and_retry() -> void:
+	var a := PlayAttempt.new()
+	a.start(0)
+	a.tick(0.5, false)
+	runner.check(is_equal_approx(a.seconds, 0.5), "시간이 흐름")
+	a.on_result("fall:NO_SUPPORT", 1)
+	runner.check(a.falls(1) == 1 and is_equal_approx(a.seconds, 0.5), "추락 직후는 같은 시도")
+	a.on_result("respawn", 1)
+	runner.check(a.seconds == 0.0 and a.falls(1) == 0, "자동 재시작은 새 시도")
+	a.tick(1.0, false)
+	a.start(3)  # [다시]
+	runner.check(a.seconds == 0.0 and a.falls(3) == 0, "[다시]는 새 시도")
+
+
+func test_attempt_time_stops_while_selecting() -> void:
+	var a := PlayAttempt.new()
+	a.start(0)
+	runner.check(a.tick(0.5, true) == 0.0 and a.seconds == 0.0, "고르는 중: 시간·observe dt 0")
+	runner.check(is_equal_approx(a.tick(0.25, false), 0.25), "고르기 끝나면 흐름")
+
+
+func test_intro_blocks_until_start() -> void:
+	var a := PlayAttempt.new()
+	a.start(0)
+	a.begin_intro()
+	runner.check(a.blocks_tick(), "보기: 세션 진행 막음")
+	a.tick(0.5, false)
+	runner.check(a.seconds == 0.0, "보기: 시간 멈춤")
+	runner.check(a.end_intro() and not a.blocks_tick(), "누르면 시작")
+	runner.check(not a.end_intro(), "이미 시작")
+	var r := RouteDef.load_json(G_PATH)
+	var key: String = r.slots.keys()[0]
+	runner.check(PlayAttempt.intro_slot({"goal_event": {"type": "grab", "slot": key}}, r) == key, "목표 홀드 강조")
+	runner.check(PlayAttempt.intro_slot({"goal_event": {"type": "clear"}}, r) == "", "홀드 없는 목표")
+	runner.check(PlayAttempt.intro_slot({"goal_event": {"type": "grab", "slot": "없음"}}, r) == "", "없는 홀드")

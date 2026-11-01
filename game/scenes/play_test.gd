@@ -34,8 +34,7 @@ var s2w_fn := Callable()
 var game: Node
 var overlay := PlayOverlay.new()
 var tutorial: TutorialRunner
-var run_seconds := 0.0      # 이번 시도 시간(문제를 연 뒤 또는 [다시] 뒤, 일시정지 제외)
-var run_falls_from := 0     # 이번 시도가 시작될 때의 session.falls
+var attempt := PlayAttempt.new()  # 이번 시도 시간·추락 수, 튜토리얼 "보기" 상태
 var _tutorial_wait := false # 추락 뒤 단계 다시 시작을 추락 연출(respawn)까지 미룸
 var _swallow := {}          # 오버레이 버튼을 누른 터치(떼기 입력도 버린다)
 
@@ -82,13 +81,21 @@ func _ready() -> void:
 func _start_tutorial() -> void:
 	tutorial = null
 	_tutorial_wait = false
+	attempt.intro = false
 	overlay.can_skip = false
 	if overlay.has_list and route.course_slot == "tutorial" and not route.tutorial_steps.is_empty():
 		tutorial = TutorialRunner.new(route)
-		tutorial.begin_step(session)
+		_begin_step()
 		overlay.can_skip = route.route_id == Progress.BASIC_TUTORIAL and game.progress.is_first_run()
 	overlay.tutorial = tutorial
 	overlay.tutorial_done = false
+	_refresh_buttons()
+
+
+## 튜토리얼 단계를 (다시) 놓고 "보기"로 둔다(28 §6.1: 시간 멈춤, 누르면 시작).
+func _begin_step() -> void:
+	tutorial.begin_step(session)
+	attempt.begin_intro()
 	_refresh_buttons()
 
 
@@ -150,6 +157,9 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and _overlay_event(-1, event.position, event.pressed):
 		return
+	if attempt.intro and not paused:
+		_intro_event(event)
+		return
 	if event is InputEventScreenTouch:
 		if event.canceled:
 			_apply(router.cancel_all())
@@ -194,6 +204,25 @@ func _overlay_event(index: int, pos: Vector2, pressed: bool) -> bool:
 	return true
 
 
+## "보기" 중 입력: 패드·기술 버튼 밖을 누르면 단계 시작. 그 밖의 입력은 버린다.
+func _intro_event(event: InputEvent) -> void:
+	var idx := -2
+	if event is InputEventScreenTouch and event.pressed:
+		idx = event.index
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		idx = -1
+	if idx == -2:
+		return
+	var pos: Vector2 = event.position
+	if router._pad_at(pos) != &"":
+		return
+	if shows_tech_button(allowed_buttons, _techs) and _btn_rect(_view_size()).has_point(pos):
+		return
+	_swallow[idx] = true
+	attempt.end_intro()
+	message_ticks = 0
+
+
 func _overlay_action(act: String) -> void:
 	match act:
 		"pause":
@@ -222,8 +251,7 @@ func _retry() -> void:
 	paused = false
 	_end_tutorial_rules()
 	session.reset()
-	run_seconds = 0.0
-	run_falls_from = session.falls
+	attempt.start(session.falls)
 	_start_tutorial()
 	_after_reset("다시 시작")
 
@@ -276,13 +304,14 @@ func _physics_process(_delta: float) -> void:
 				paused = false
 		queue_redraw()
 		return
-	if overlay.blocking():
+	if overlay.blocking() or attempt.blocks_tick():
 		queue_redraw()
 		return
 	var result := session.step()
 	_take_messages()
-	run_seconds += Tuning.DT
-	if tutorial != null and _tutorial_tick(result):
+	var dt := attempt.tick(Tuning.DT, session.selecting)  # 고르는 중에는 0(시간·도움말 타이머 멈춤)
+	attempt.on_result(result, session.falls)  # respawn: 새 시도(Ruling I)
+	if tutorial != null and _tutorial_tick(result, dt):
 		queue_redraw()
 		return
 	match result:
@@ -319,23 +348,21 @@ func _physics_process(_delta: float) -> void:
 
 
 ## 튜토리얼 단계 진행(28 §6.1). 추락 뒤 다시 시작은 추락 연출이 끝난 respawn에서 한다. 처리했으면 true.
-func _tutorial_tick(result: String) -> bool:
+func _tutorial_tick(result: String, dt: float) -> bool:
 	if _tutorial_wait:
 		if result != "respawn":
 			return false
 		_tutorial_wait = false
-		tutorial.begin_step(session)
-		_refresh_buttons()
+		_begin_step()
 		_after_reset("이 단계를 다시 해 봐요")
 		return true
-	var act := tutorial.observe(session, result, Tuning.DT)
+	var act := tutorial.observe(session, result, dt)
 	match act:
 		"next", "restart":
 			if result.begins_with("fall:"):
 				_tutorial_wait = true
 				return false
-			tutorial.begin_step(session)
-			_refresh_buttons()
+			_begin_step()
 			_after_reset("" if act == "next" else "이 단계를 다시 해 봐요")
 			return true
 		"done":
@@ -346,7 +373,7 @@ func _tutorial_tick(result: String) -> bool:
 			_after_reset("")
 			return true
 	if result == "clear":  # 목표가 완등이 아닌 단계에서 정상을 잡음: 세션이 처음으로 돌아갔으니 그 단계를 다시 놓는다
-		tutorial.begin_step(session)
+		_begin_step()
 		_after_reset("")
 		return true
 	return false
@@ -354,19 +381,20 @@ func _tutorial_tick(result: String) -> bool:
 
 ## 완등 결과 오버레이(28 §5). Game이 있으면 기록·저장하고 [다음]을 정한다.
 func _show_result() -> void:
-	var falls := session.falls - run_falls_from
-	var r := {"seconds": run_seconds, "falls": falls, "no_fall": falls == 0, "time_limit": route.time_medal_seconds,
-		"time": route.time_medal_seconds > 0.0 and run_seconds <= route.time_medal_seconds, "next": "", "saved": true}
+	var falls := attempt.falls(session.falls)
+	var r := {"seconds": attempt.seconds, "falls": falls, "no_fall": falls == 0, "time_limit": route.time_medal_seconds,
+		"time": route.time_medal_seconds > 0.0 and attempt.seconds <= route.time_medal_seconds, "next": "", "saved": true}
 	if overlay.has_list:
-		var rec: Dictionary = game.finish_clear(run_seconds, falls)
-		r.saved = rec.get("saved", true)
+		var rec: Dictionary = game.finish_clear(attempt.seconds, falls)  # 메달은 기록한 쪽 판정을 그대로 쓴다
+		for key in ["no_fall", "time", "saved"]:
+			if rec.has(key):
+				r[key] = rec[key]
 		var flow: PlayFlow = game.get_flow()
 		var nid := flow.next_route_id(route.route_id)
 		if nid != "" and game.progress.route_lock_text(game.index.route(nid), game.index) == "":
 			r.next = nid
 	overlay.result = r
-	run_seconds = 0.0
-	run_falls_from = session.falls
+	attempt.start(session.falls)
 
 
 func _camera_tick() -> void:
@@ -476,7 +504,7 @@ func _draw_pads(size: Vector2) -> void:
 func _draw_hud(size: Vector2) -> void:
 	var fs := int(22 * ui_k)
 	var height := maxf(session.body.pos.y - route.start_pelvis.y, 0.0)
-	draw_string(font, Vector2(size.x * 0.25, 40 * ui_k), "%s · 높이 %.1fm · 추락 %d" % [route.name_ko if route.name_ko != "" else route.route_id, height, session.falls - run_falls_from], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
+	draw_string(font, Vector2(size.x * 0.25, 40 * ui_k), "%s · 높이 %.1fm · 추락 %d" % [route.name_ko if route.name_ko != "" else route.route_id, height, attempt.falls(session.falls)], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
 	# 지지 상태(docs/25 피드백): 색만이 아니라 문구와 막대로 표시
 	var names := ["안정", "부담 큼", "균형 회복 중", "지지 없음"]
 	var colors := [Color("cfe3c8"), Color("f1d59a"), Color("ff8a6a"), Color("ff5a4a")]
@@ -509,7 +537,20 @@ func _draw_hud(size: Vector2) -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.55))
 		var t := "손가락을 편하게 올려주세요 %d" % ceili(prepare_left) if prepare_left > 0.0 else "일시정지 · 화면을 탭하면 3초 뒤 이어서 시작해요"
 		draw_string(font, Vector2(0, size.y * 0.5), t, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(34 * ui_k), Color.WHITE)
+	if attempt.intro and tutorial != null and not paused:
+		_draw_intro(size)
 	overlay.draw(self, size, ui_k, paused, session.selecting)
+
+
+## 튜토리얼 "보기": 목표 홀드 강조(기술 홀드 고르기와 같은 표시) + 시작 안내.
+func _draw_intro(size: Vector2) -> void:
+	var step := tutorial.current()
+	var key := PlayAttempt.intro_slot(step, route)
+	if key != "":
+		var goal: Dictionary = step.get("goal_event", {})
+		var hand: bool = PoseSolver.is_hand(StringName(goal.limb)) if goal.has("limb") else (route.slots[key].allowed.has(&"LH") or route.slots[key].allowed.has(&"RH"))
+		_draw_hold_mark(key, hand, false)
+	draw_string(font, Vector2(0, size.y * 0.42), "시간 멈춤 · 화면을 누르면 시작해요", HORIZONTAL_ALIGNMENT_CENTER, size.x, int(30 * ui_k), Color("fff2c8"))
 
 
 # ---------- 기술 선택 UI (docs/27 §6, 05 v0.6, 18 v0.6) ----------
@@ -846,35 +887,39 @@ func _draw_dashed_circle(c: Vector2, r: float, col: Color, width: float) -> void
 		draw_arc(c, r, a0, a0 + TAU / n * 0.55, 6, col, width)
 
 
+## 홀드 하나 강조: 고리(실선 = 바로, 점선 = 체중을 옮긴 뒤) + 잡기 선분 또는 디딤 면.
+func _draw_hold_mark(key: String, hand: bool, needs_shift: bool) -> void:
+	var k := ui_k
+	var slot: Dictionary = route.slots[key]
+	var col := Color("a8d8d0") if needs_shift else Color("fff2c8")
+	var c := w2s(slot.pos)
+	var rr := _screen_r(slot.pos, 0.11)
+	var ink := Color(0.19, 0.16, 0.13, 0.85)  # 밝은 벽에서도 보이게 어두운 밑선을 깐다
+	draw_arc(c, rr, 0, TAU, 28, ink, 7.0 * k)
+	if needs_shift:
+		_draw_dashed_circle(c, rr, col, 4.0 * k)  # 점선 = 체중을 옮긴 뒤 도달
+	else:
+		draw_arc(c, rr, 0, TAU, 28, col, 4.0 * k)  # 실선 = 지금 바로
+	var seg := _area_segment(slot, hand)
+	var a := w2s(seg[0])
+	var b := w2s(seg[1])
+	if hand:
+		draw_line(a, b, ink, 9.0 * k)
+		draw_line(a, b, Color(col, 0.95), 5.0 * k)  # 잡기 영역 선분
+		for e in [a, b]:
+			draw_circle(e, 4.0 * k, col)
+	else:
+		var n := (b - a).orthogonal().normalized() * _screen_r(slot.pos, 0.05)  # 디딤 면
+		draw_colored_polygon(PackedVector2Array([a + n, b + n, b - n, a - n]), Color(col, 0.45))
+		draw_polyline(PackedVector2Array([a + n, b + n, b - n, a - n, a + n]), ink, 5.0 * k)
+		draw_polyline(PackedVector2Array([a + n, b + n, b - n, a - n, a + n]), col, 2.5 * k)
+
+
 func _draw_hold_select(size: Vector2) -> void:
 	var k := ui_k
 	var hand := PoseSolver.is_hand(TechniqueJudge.limb_for(sel_tech, sel_side))
-	var solid := Color("fff2c8")
-	var shift := Color("a8d8d0")
 	for t in hold_targets:
-		var slot: Dictionary = route.slots[t.key]
-		var col := shift if t.needs_shift else solid
-		var c := w2s(slot.pos)
-		var rr := _screen_r(slot.pos, 0.11)
-		var ink := Color(0.19, 0.16, 0.13, 0.85)  # 밝은 벽에서도 보이게 어두운 밑선을 깐다
-		draw_arc(c, rr, 0, TAU, 28, ink, 7.0 * k)
-		if t.needs_shift:
-			_draw_dashed_circle(c, rr, col, 4.0 * k)  # 점선 = 체중을 옮긴 뒤 도달
-		else:
-			draw_arc(c, rr, 0, TAU, 28, col, 4.0 * k)  # 실선 = 지금 바로
-		var seg := _area_segment(slot, hand)
-		var a := w2s(seg[0])
-		var b := w2s(seg[1])
-		if hand:
-			draw_line(a, b, ink, 9.0 * k)
-			draw_line(a, b, Color(col, 0.95), 5.0 * k)  # 잡기 영역 선분
-			for e in [a, b]:
-				draw_circle(e, 4.0 * k, col)
-		else:
-			var n := (b - a).orthogonal().normalized() * _screen_r(slot.pos, 0.05)  # 디딤 면
-			draw_colored_polygon(PackedVector2Array([a + n, b + n, b - n, a - n]), Color(col, 0.45))
-			draw_polyline(PackedVector2Array([a + n, b + n, b - n, a - n, a + n]), ink, 5.0 * k)
-			draw_polyline(PackedVector2Array([a + n, b + n, b - n, a - n, a + n]), col, 2.5 * k)
+		_draw_hold_mark(t.key, hand, t.needs_shift)
 	draw_string(font, Vector2(0, size.y - 52 * k), "실선 = 바로 가능 · 점선 = 몸을 옮겨야 닿아요", HORIZONTAL_ALIGNMENT_CENTER, size.x, int(18 * k), Color(1, 1, 1, 0.8))
 	if preview.is_empty():
 		return

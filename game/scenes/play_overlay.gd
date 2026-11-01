@@ -15,6 +15,7 @@ var help_open := false
 var can_skip := false     # 기본 조작 첫 실행: [건너뛰기]
 var has_list := false     # Game이 있을 때만 [목록]
 var _help_step := -1
+var _help_seen := 0       # 이 단계에서 이미 자동으로 열어 준 도움말 단계
 var _buttons: Array = []  # [{rect, action}] 마지막으로 그린 버튼
 
 
@@ -98,6 +99,7 @@ func _draw_tutorial(ci: CanvasItem, size: Vector2, k: float) -> void:
 	if _help_step != tutorial.index:
 		_help_step = tutorial.index
 		help_open = false
+		_help_seen = 0
 	var step := tutorial.current()
 	var band := Rect2(Vector2(size.x * 0.22, 148 * k), Vector2(size.x * 0.56, 84 * k))
 	ci.draw_rect(band, Color(0.08, 0.07, 0.06, 0.8))
@@ -107,13 +109,16 @@ func _draw_tutorial(ci: CanvasItem, size: Vector2, k: float) -> void:
 		_button(ci, Rect2(Vector2(right - bw, band.position.y + 16 * k), Vector2(bw, 52 * k)), "건너뛰기", "skip", k, false, 20)
 		right -= bw + 10 * k
 	var lvl := tutorial.help_level()
+	if lvl > _help_seen:  # 도움말 단계가 오르면 한 번 열어 준다. 닫을 수 있고, 강조는 남는다.
+		_help_seen = lvl
+		help_open = true
 	var help_label := "도움말 !" if lvl >= 1 else "도움말"  # 강조는 색과 "!" 함께
 	_button(ci, Rect2(Vector2(right - bw, band.position.y + 16 * k), Vector2(bw, 52 * k)), help_label, "help", k, lvl >= 1, 20)
 	right -= bw + 10 * k
 	var text_w := right - band.position.x - 20 * k
 	ci.draw_string(font, Vector2(band.position.x + 18 * k, band.position.y + 34 * k), "%d/%d" % [tutorial.index + 1, tutorial.steps.size()], HORIZONTAL_ALIGNMENT_LEFT, -1, int(18 * k), Color(1, 1, 1, 0.6))
 	ci.draw_multiline_string(font, Vector2(band.position.x + 70 * k, band.position.y + 34 * k), str(step.get("text_ko", "")), HORIZONTAL_ALIGNMENT_LEFT, text_w - 50 * k, int(22 * k), 2, Color.WHITE)
-	if help_open or lvl >= 1:
+	if help_open:
 		var h := help_line()
 		if h != "":
 			var hb := Rect2(Vector2(band.position.x, band.end.y + 6 * k), Vector2(band.size.x, 44 * k))
