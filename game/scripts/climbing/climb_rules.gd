@@ -363,6 +363,15 @@ func _apply_phase(r: Dictionary) -> void:
 		imbalance_cause = &""
 
 
+## 가정한 자세·접점의 힘 계산(패드 잡기 방향 비교, docs/28 §4.3). TechniqueJudge.support_reason과 같은 evaluate 경로.
+## eps: 붙지 않은 팔다리의 말단, loaded: 하중 받는 발(언더클링 손 자격), feet: 지지 발 자격.
+static func evaluate_pose(pelvis: Vector2, angle_deg: float, yaw_deg: float, att: Dictionary, eps: Dictionary, meta: Dictionary, loaded: Array, feet: Array) -> Dictionary:
+	var rules := ClimbRules.new()
+	rules.contact_meta = meta
+	rules.loaded_feet.assign(loaded)
+	return rules.evaluate(pelvis, angle_deg, att, eps, false, feet, yaw_deg)
+
+
 ## 플래그 이득 비교용 비용: 균형 비용 + barn door 초과분×10. 패드 균형 발 예고와 플래그 기술 판단이 같이 쓴다(TA11).
 static func flag_cost(r: Dictionary) -> float:
 	var c := balance_cost(r)
@@ -388,6 +397,11 @@ func _phase_of(r: Dictionary) -> Phase:
 
 
 func _loaded_from(r: Dictionary, previous: Array) -> Array[StringName]:
+	return loaded_from(r, previous)
+
+
+## 힘 계산 결과에서 하중 받는 발(진입 0.05 / 유지 0.03 히스테리시스).
+static func loaded_from(r: Dictionary, previous: Array) -> Array[StringName]:
 	var out: Array[StringName] = []
 	if r.get("status", -1) != SupportSolver.Status.FEASIBLE:
 		return out

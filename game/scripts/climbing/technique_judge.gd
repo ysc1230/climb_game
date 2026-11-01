@@ -60,6 +60,9 @@ const DEADPOINT_MIN_QUALITY := 0.5
 const DEADPOINT_LOAD_FACTOR := 1.3   # 순간 하중 배율(받기 판정은 최대 하중을 1/1.3로 계산)
 const DEADPOINT_AIM_MARGIN := 0.10   # 보너스 범위를 이만큼 넘는 홀드까지는 "던져 보는" 대상(놓치면 추락)
 const SHIFT_SEARCHES := 3            # 체중 이동 후 도달 판정의 목표 탐색 반복(각 ±0.30m)
+const MIN_GRIP_QUALITY := 0.5        # 27 §8.1: q < 0.5면 사이드풀·개스턴 불가
+const GASTON_SHOULDER_BAND := 0.30   # 개스턴: 홀드가 어깨 높이 ±0.30m (구현 해석)
+const HIGH_FOOT_BELOW_HIP := 0.55    # 언더클링의 "높은 발": 하중 발 Y ≥ 고관절 Y − 0.55 (25 StandUp의 높은 발 기준)
 
 static var _defs := {}
 
@@ -314,6 +317,31 @@ static func _mode(snap: ClimbSnapshot, limb: StringName) -> StringName:
 
 
 # ---------- 홀드 ----------
+
+## 손 그립 방식의 자세 조건(27 §8.1·§10, 28 §4.3 4). 패드 잡기 방향 자동 선택이 쓴다. 거리·관절·힘은 보지 않는다.
+## 사이드풀·개스턴: q ≥ 0.5. 개스턴: 홀드가 그 손 쪽(골반 기준)이고 어깨 높이 ±0.30m.
+## 언더클링: 홀드가 어깨 아래이고 하중 받는 발이 높다(발 Y ≥ 고관절 Y − 0.55). pull 등 나머지는 항상 성립.
+## hold: 홀드 중심, att: 붙은 접점(limb → 위치), loaded: 하중 받는 발.
+static func grip_mode_ok(mode: StringName, hand: StringName, hold: Vector2, quality: float, pelvis: Vector2, angle: float, yaw: float, att: Dictionary, loaded: Array) -> bool:
+	match mode:
+		&"sidepull":
+			return quality >= MIN_GRIP_QUALITY
+		&"gaston":
+			var sh := PoseSolver.joint_position(pelvis, angle, hand, yaw)
+			return quality >= MIN_GRIP_QUALITY and (hold.x - pelvis.x) * PoseSolver.side_sign(hand) > 0.0 and absf(hold.y - sh.y) <= GASTON_SHOULDER_BAND
+		&"undercling":
+			var sh := PoseSolver.joint_position(pelvis, angle, hand, yaw)
+			return hold.y < sh.y and has_high_loaded_foot(pelvis, angle, yaw, att, loaded)
+	return true
+
+
+## 하중 받는 발 중 높은 발(발 Y ≥ 고관절 Y − 0.55)이 있는가.
+static func has_high_loaded_foot(pelvis: Vector2, angle: float, yaw: float, att: Dictionary, loaded: Array) -> bool:
+	for foot in loaded:
+		if att.has(foot) and (att[foot] as Vector2).y >= PoseSolver.joint_position(pelvis, angle, foot, yaw).y - HIGH_FOOT_BELOW_HIP:
+			return true
+	return false
+
 
 ## 기술로 붙일 접점 정보: 손(패드 데드포인트)은 홀드의 첫 grip_mode, 발은 inside(아웃사이드 엣지는 outside).
 static func contact_for(route: RouteDef, tech_id: StringName, limb: StringName, key: String, point: Vector2) -> ContactInfo:

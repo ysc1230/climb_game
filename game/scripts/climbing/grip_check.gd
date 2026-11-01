@@ -24,6 +24,7 @@ const MESSAGES := {
 	POSE_CONFLICT: "지금 자세로는 함께 잡을 수 없어요",
 }
 const AIM_RADIUS := 0.25
+const GRIP_TIE_MARGIN := 0.02  # 28 §4.3: 방식 간 균형 비용 차이가 이 미만이면 grip_modes 앞쪽(떨림 방지)
 
 
 static func radius_of(limb: StringName) -> float:
@@ -117,14 +118,56 @@ static func candidate(slots: Dictionary, limb: StringName, endpoint: Vector2, pe
 static func contact_for(slot_key: String, slots: Dictionary, limb: StringName, point: Vector2) -> ContactInfo:
 	var slot: Dictionary = slots[slot_key]
 	if PoseSolver.is_hand(limb):
-		var q: float = HoldArea.project_hand(slot, point).quality
-		var gm: Dictionary = slot.grip_modes[0]
-		var ci := ContactInfo.make(slot_key, point, q, gm.mode, &"")
-		ci.axis = gm.axis
-		ci.half_angle = gm.half_angle
-		return ci
+		return _hand_contact(slot_key, point, HoldArea.project_hand(slot, point).quality, slot.grip_modes[0])
 	var qf: float = HoldArea.project_foot(slot, point).quality
 	return ContactInfo.make(slot_key, point, qf, &"foot", &"inside")
+
+
+static func _hand_contact(slot_key: String, point: Vector2, q: float, gm: Dictionary) -> ContactInfo:
+	var ci := ContactInfo.make(slot_key, point, q, gm.mode, &"")
+	ci.axis = gm.axis
+	ci.half_angle = gm.half_angle
+	return ci
+
+
+## 패드 잡기 방향 자동 선택(docs/28 §4.3). 손은 홀드의 grip_modes마다 접점을 만들어 지금 자세에서 힘 계산을 하고,
+## 성립하는(힘 해 FEASIBLE·barn door 아님·하중 자격 손 ≥ 1·방식 자세 조건 통과) 방식 중 균형 비용(ClimbRules.flag_cost)이
+## 가장 작은 것을 쓴다. 최소와의 차이가 GRIP_TIE_MARGIN 미만이면 목록 앞쪽. 성립하는 방식이 없거나 forbid_auto면 grip_modes[0].
+## 발은 contact_for와 같다. attached: 지금 붙은 접점(이 limb 제외 가능), meta: limb → ContactInfo, endpoints: 말단 위치.
+## 하중 받는 발은 이 방식으로 잡은 자세의 힘 해에서 정한다(언더클링 자격·높은 발 조건).
+static func contact_for_pose(slot_key: String, slots: Dictionary, limb: StringName, point: Vector2, pelvis: Vector2, angle: float, yaw: float, attached: Dictionary, meta: Dictionary, endpoints: Dictionary, forbid_auto := false) -> ContactInfo:
+	var slot: Dictionary = slots[slot_key]
+	var modes: Array = slot.grip_modes
+	if not PoseSolver.is_hand(limb) or forbid_auto or modes.size() < 2:
+		return contact_for(slot_key, slots, limb, point)
+	var q: float = HoldArea.project_hand(slot, point).quality
+	var with_new := attached.duplicate()
+	with_new[limb] = point
+	var eps := {}
+	for l in endpoints:
+		if not with_new.has(l):
+			eps[l] = endpoints[l]
+	var feet := PoseSolver.supporting_feet(pelvis, angle, with_new, [], yaw)
+	var costs: Array[float] = []
+	var best := INF
+	for gm in modes:
+		var m := meta.duplicate()
+		m[limb] = _hand_contact(slot_key, point, q, gm)
+		var r := ClimbRules.evaluate_pose(pelvis, angle, yaw, with_new, eps, m, feet, feet)
+		var loaded := ClimbRules.loaded_from(r, [])
+		var ok: bool = r.status == SupportSolver.Status.FEASIBLE and not ClimbRules.barn_exceeded(r) \
+			and PoseSolver.eligible_hands(pelvis, angle, with_new, m, loaded, yaw) >= 1 \
+			and TechniqueJudge.grip_mode_ok(gm.mode, limb, slot.pos, q, pelvis, angle, yaw, with_new, loaded)
+		var c := ClimbRules.flag_cost(r) if ok else INF
+		costs.append(c)
+		best = minf(best, c)
+	var pick := 0
+	if best < INF:
+		for i in costs.size():
+			if costs[i] < best + GRIP_TIE_MARGIN:
+				pick = i
+				break
+	return _hand_contact(slot_key, point, q, modes[pick])
 
 
 ## 요청 목표 근처에서 노린 슬롯(종류 무관, 가장 가까운 것).

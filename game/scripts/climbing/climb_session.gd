@@ -18,7 +18,8 @@ var falls := 0
 var messages: Array[String] = []
 var last_phase := -1
 var runner := TechniqueRunner.new()  # 기술 실행기(docs/27). 한 번에 하나
-## 확정된 틱의 기술 이벤트 {tick, type, id, side, key, quality, reason}(09 v0.6, 능력치에 쓰지 않음). 최근 200개.
+## 확정된 틱의 기술 이벤트(09 v0.6, 능력치에 쓰지 않음). 최근 200개.
+## 기술 실행기: {tick, type, id, side, key, quality, reason}. 패드 손 잡기: {tick, type: "pad_grip", limb, key, mode}(28 §4.3).
 var technique_log: Array = []
 var tick_count := 0
 ## 기술 고르는 중(docs/27 §6, 15 v0.6 TechniqueSelect). true인 동안 step()은 아무것도 바꾸지 않는다.
@@ -212,7 +213,18 @@ func _try_grab(limb: StringName, speed: float = 0.0) -> void:
 		else:
 			l.state = "Free"
 		return
-	_attach(limb, cand.key, cand.point, GripCheck.contact_for(cand.key, route.slots, limb, cand.point))
+	var contact := GripCheck.contact_for_pose(cand.key, route.slots, limb, cand.point, body.pos, body.angle, body.yaw, attached(), _contact_meta(), _endpoints())
+	_attach(limb, cand.key, cand.point, contact)
+	if PoseSolver.is_hand(limb):
+		_log_event({"type": "pad_grip", "limb": limb, "key": cand.key, "mode": contact.mode})  # 28 §4.3 5: 튜토리얼 판정용
+
+
+## 네 팔다리의 실제 말단 위치.
+func _endpoints() -> Dictionary:
+	var d := {}
+	for limb in limbs:
+		d[limb] = limbs[limb].pos
+	return d
 
 
 ## 패드로 끈 발을 반대 발이 딛은 발판에 놓으면 풋스왑(Ruling 14): 판단기의 풋스왑 판단(T_FOOT_SWAP)을 통과하면
@@ -460,11 +472,14 @@ func _start_fall(reason: String) -> void:
 		limbs[limb].state = "Free"
 
 
-## 확정된 틱의 기술 이벤트를 기록한다. 실패는 이유 문구를 안내한다.
+## 확정된 틱의 기술 이벤트를 기록한다. 이벤트의 키를 그대로 두고 tick을 더한다(형식 자유, type은 필수).
+## 실패는 이유 문구를 안내한다.
 func _log_event(ev: Dictionary) -> void:
 	if ev.is_empty():
 		return
-	technique_log.append({"tick": tick_count, "type": ev.type, "id": ev.id, "side": ev.side, "key": ev.key, "quality": ev.quality, "reason": ev.reason})
+	var entry := ev.duplicate()
+	entry["tick"] = tick_count
+	technique_log.append(entry)
 	if technique_log.size() > TECHNIQUE_LOG_MAX:
 		technique_log.pop_front()
 	if ev.type == TechniqueRunner.FAILED:

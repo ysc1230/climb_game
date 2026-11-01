@@ -1,0 +1,33 @@
+{
+  "route_id": "TX_GRIP",
+  "content_version": 1,
+  "validation_status": "Draft",
+  "note": "패드 잡기 방향 자동 선택(docs/28 §4.3) 테스트용 시험 루트. 사이드풀만 있는 홀드 S01, pull·sidepull 홀드 M01, sidepull·pull 순서 홀드 M02, undercling·pull 홀드 U01(어깨 아래). 의도 경로 없음.",
+  "bounds": {"x_min": -1.5, "x_max": 1.5, "y_min": 0.0, "y_max": 4.0},
+  "fail_line_y": -0.5,
+  "holds": [
+    {"hold_id": "H01", "slots": [{"slot_id": "hand_1", "pos": [-0.45, 1.80], "allowed": ["LH", "RH"]}]},
+    {"hold_id": "H02", "slots": [{"slot_id": "hand_1", "pos": [0.45, 1.80], "allowed": ["LH", "RH"]}]},
+    {"hold_id": "F01", "slots": [{"slot_id": "foot_1", "pos": [-0.30, 0.10], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "F02", "slots": [{"slot_id": "foot_1", "pos": [0.30, 0.10], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "F03", "slots": [{"slot_id": "foot_1", "pos": [0.30, 0.55], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "S01", "slots": [{"slot_id": "hand_1", "pos": [-0.75, 1.75], "allowed": ["LH", "RH"],
+      "grip_modes": [{"mode": "sidepull", "axis": [-1, 0], "half_angle": 65}]}]},
+    {"hold_id": "M01", "slots": [{"slot_id": "hand_1", "pos": [-0.45, 2.15], "allowed": ["LH", "RH"],
+      "grip_modes": [{"mode": "pull", "axis": [0, 1], "half_angle": 65}, {"mode": "sidepull", "axis": [-1, 0], "half_angle": 65}]}]},
+    {"hold_id": "M02", "slots": [{"slot_id": "hand_1", "pos": [-0.80, 1.60], "allowed": ["LH", "RH"],
+      "hand_area": {"dir": [0, 1], "half_width": 0.12},
+      "grip_modes": [{"mode": "sidepull", "axis": [-1, 0], "half_angle": 65}, {"mode": "pull", "axis": [0, 1], "half_angle": 65}]}]},
+    {"hold_id": "U01", "slots": [{"slot_id": "hand_1", "pos": [0.40, 1.15], "allowed": ["LH", "RH"],
+      "grip_modes": [{"mode": "undercling", "axis": [0, -1], "half_angle": 60}, {"mode": "pull", "axis": [0, 1], "half_angle": 65}]}]},
+    {"hold_id": "G01", "slots": [
+      {"slot_id": "goal_left", "pos": [-0.22, 3.00], "allowed": ["LH", "RH"]},
+      {"slot_id": "goal_right", "pos": [0.22, 3.00], "allowed": ["LH", "RH"]}]}
+  ],
+  "platforms": [{"platform_id": "P00", "top_y": 0.10, "x_range": [-0.65, 0.65], "foot_slot_keys": ["TX_GRIP/F01/foot_1", "TX_GRIP/F02/foot_1"]}],
+  "start_pose": {"pelvis": [0.0, 0.744], "angle": 0.0,
+    "slots": {"LH": "TX_GRIP/H01/hand_1", "RH": "TX_GRIP/H02/hand_1", "LF": "TX_GRIP/F01/foot_1", "RF": "TX_GRIP/F02/foot_1"}},
+  "goal_slots": ["TX_GRIP/G01/goal_left", "TX_GRIP/G01/goal_right"],
+  "time_medal_seconds": 60,
+  "intended_moves": []
+}
