@@ -128,3 +128,17 @@ func _rest_joints() -> Dictionary:
 		j["ankle_" + s] = j["knee_" + s] + Vector3(0, -0.48, 0)
 		j["toe_" + s] = j["ankle_" + s] + Vector3(0, -0.05, -0.15)
 	return j
+
+
+## 팔꿈치는 어깨 평면보다 벽 쪽(몸통 앞)에 있어야 한다. 팔을 크게 굽혀도 등 뒤(+Z)로 넘어가지 않는다.
+func test_elbow_stays_in_front_of_shoulder() -> void:
+	var root := Vector3(-0.2, 1.55, 0.28)
+	var pole := LimbIK.default_pole(PoseSolver.LH)
+	var prev := Vector3.ZERO
+	for i in 120:
+		var a := i * 0.05
+		var end := Vector3(-0.2 + 0.3 * cos(a), 1.55 + 0.35 * sin(a), 0.07)
+		var r := LimbIK.solve(root, end, 0.40, 0.38, pole, prev, INF, root.z - LimbIK.ELBOW_FRONT_MARGIN)
+		prev = r.bend
+		runner.check(r.mid.z <= root.z - LimbIK.ELBOW_FRONT_MARGIN + 0.0005, "틱 %d 팔꿈치 z %.3f > 어깨 %.3f" % [i, r.mid.z, root.z])
+		runner.check(absf((r.mid - root).length() - 0.40) < 0.001 and absf((end - r.mid).length() - 0.38) < 0.002, "뼈 길이 변화")

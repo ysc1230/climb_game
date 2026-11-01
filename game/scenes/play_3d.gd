@@ -308,7 +308,8 @@ func _pose_targets(delta: float) -> Dictionary:
 		var end := Vector3(e2.x, e2.y, end_z)
 		var a := Tuning.ARM_UPPER if hand else Tuning.LEG_UPPER
 		var b := Tuning.ARM_LOWER if hand else Tuning.LEG_LOWER
-		var ik := LimbIK.solve(root, end, a, b, LimbIK.default_pole(limb), _bends.get(limb, Vector3.ZERO), max_step)
+		var max_mid_z := root.z - LimbIK.ELBOW_FRONT_MARGIN if hand else INF
+		var ik := LimbIK.solve(root, end, a, b, LimbIK.default_pole(limb), _bends.get(limb, Vector3.ZERO), max_step, max_mid_z)
 		_bends[limb] = ik.bend
 		var mid: Vector3 = ik.mid
 		var s := "L" if PoseSolver.side_sign(limb) < 0 else "R"

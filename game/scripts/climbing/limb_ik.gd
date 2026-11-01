@@ -5,6 +5,7 @@ extends RefCounted
 ## 다시 투영해 이어 쓴다(같은 반구 유지). 완전히 펴짐/접힘을 지나 관절이 반대로 뒤집히지 않는다.
 
 const PRESENTATION_JOINT_SPEED_DEG := 180.0  # docs/04 §3
+const ELBOW_FRONT_MARGIN := 0.03  # 팔꿈치는 어깨 평면보다 이만큼 벽 쪽(몸통 앞)에 둔다
 
 
 ## 팔다리별 기본 pole. 손: 바깥·아래·벽 밖, 발: 바깥·약간 위·벽 밖.
@@ -18,7 +19,8 @@ static func default_pole(limb: StringName) -> Vector3:
 ## 반환: {mid: Vector3, bend: Vector3(단위, 다음 틱의 연속성용)}
 ## max_step_deg: 한 번 호출에서 굽힘 축이 돌 수 있는 최대 각(docs/04 presentation_joint_speed × dt).
 ## 직전 축(prev_bend)을 현재 팔다리 축에 다시 투영해 이어 쓰고, pole 쪽으로는 이 한도 안에서만 돌린다.
-static func solve(root: Vector3, end: Vector3, a: float, b: float, pole: Vector3, prev_bend: Vector3 = Vector3.ZERO, max_step_deg: float = INF) -> Dictionary:
+## max_mid_z: 중간 관절(팔꿈치) Z 상한. 넘으면 굽힘 축을 벽 쪽(-Z)으로 최소한만 돌린다(몸통 뒤로 넘어가지 않게).
+static func solve(root: Vector3, end: Vector3, a: float, b: float, pole: Vector3, prev_bend: Vector3 = Vector3.ZERO, max_step_deg: float = INF, max_mid_z: float = INF) -> Dictionary:
 	var v := end - root
 	var length := v.length()
 	var dir := v / length if length > 0.0001 else Vector3.DOWN
@@ -42,4 +44,22 @@ static func solve(root: Vector3, end: Vector3, a: float, b: float, pole: Vector3
 		bend = carried.rotated(axis, step) if step > 0.0 else carried
 		bend = bend - dir * bend.dot(dir)
 	bend = bend.normalized()
-	return {"mid": root + dir * x + bend * h, "bend": bend}
+	var center := root + dir * x
+	if h > 0.0001 and center.z + bend.z * h > max_mid_z:
+		bend = _limit_bend_z(bend, dir, (max_mid_z - center.z) / h)
+	return {"mid": center + bend * h, "bend": bend}
+
+
+## dir에 수직인 단위 굽힘 축 bend를 bend.z ≤ max_bz가 되도록 그 평면 안에서 최소 회전한다.
+## 불가능하면 가장 벽 쪽(-Z) 축을 쓴다.
+static func _limit_bend_z(bend: Vector3, dir: Vector3, max_bz: float) -> Vector3:
+	var n := Vector3.FORWARD - dir * Vector3.FORWARD.dot(dir)  # 평면 안에서 가장 -Z 쪽
+	if n.length() < 0.0001:
+		return bend  # 팔다리 축이 Z와 평행: 어느 축이든 z 같음
+	n = n.normalized()
+	var t := dir.cross(n).normalized()
+	var k := -n.z  # > 0
+	var alpha := clampf(-max_bz / k, -1.0, 1.0)
+	var beta := bend.dot(t)
+	var sgn := 1.0 if beta >= 0.0 else -1.0
+	return (n * alpha + t * sgn * sqrt(maxf(1.0 - alpha * alpha, 0.0))).normalized()
