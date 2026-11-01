@@ -304,3 +304,36 @@ func test_pad_balance_foot_needs_gain() -> void:
 	l.req = l.pos
 	s.step()
 	runner.check(not s.rules.flag_ready.has(&"RF"), "G_V0_01 시작: 패드 예고 꺼짐")
+
+
+## 버튼 기술이 유지 자세(yaw 단계)에 들어서면 succeeded를 정확히 한 번 남긴다(튜토리얼 technique 목표, 28 §8.1).
+func _tech_events(s: ClimbSession, id: StringName, type: StringName) -> Array:
+	return s.technique_log.filter(func(e): return e.get("id") == id and e.type == type)
+
+
+func test_succeeded_once_on_held_pose() -> void:
+	var s := _session(_g_v0_01())
+	runner.check(s.runner.start(s, &"T_DROP_KNEE", &"left") == &"", "드롭니 시작")
+	runner.check(_run_ticks(s, 90) == "", "드롭니 추락 없음")
+	runner.check(s.runner.active.get("step") == &"yaw", "드롭니 유지 단계")
+	runner.check(_tech_events(s, &"T_DROP_KNEE", TechniqueRunner.SUCCEEDED).size() == 1, "드롭니 succeeded 1회")
+	var st: Array = _tech_events(s, &"T_DROP_KNEE", TechniqueRunner.STARTED)
+	var ok: Array = _tech_events(s, &"T_DROP_KNEE", TechniqueRunner.SUCCEEDED)
+	runner.check(st.size() == 1 and ok.size() == 1 and int(st[0].seq) < int(ok[0].seq), "started 뒤 succeeded")
+	s.cancel_technique()
+	_run_ticks(s, 5)
+	runner.check(_tech_events(s, &"T_DROP_KNEE", TechniqueRunner.CANCELLED).size() == 1, "풀기 → cancelled 그대로")
+	runner.check(_tech_events(s, &"T_DROP_KNEE", TechniqueRunner.SUCCEEDED).size() == 1, "풀어도 succeeded 추가 없음")
+
+	var o := _session(_g_v0_01())
+	var key := "G_V0_01/F04/foot_1"
+	runner.check(o.runner.start(o, &"T_OUTSIDE_EDGE", &"right", key, o.route.slot_pos(key)) == &"", "아웃사이드 엣지 시작")
+	runner.check(_tech_events(o, &"T_OUTSIDE_EDGE", TechniqueRunner.SUCCEEDED).is_empty(), "시작만으로는 succeeded 없음")
+	var saw_before_attach := false
+	for i in 150:
+		o.step()
+		if not _tech_events(o, &"T_OUTSIDE_EDGE", TechniqueRunner.SUCCEEDED).is_empty() and o.limbs[&"RF"].key != key:
+			saw_before_attach = true
+	runner.check(not saw_before_attach, "발이 붙기 전에는 succeeded 없음")
+	runner.check(o.limbs[&"RF"].state == "Attached" and o.limbs[&"RF"].key == key, "RF 붙음")
+	runner.check(_tech_events(o, &"T_OUTSIDE_EDGE", TechniqueRunner.SUCCEEDED).size() == 1, "아웃사이드 엣지 succeeded 1회")

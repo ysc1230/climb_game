@@ -17,7 +17,7 @@ const MOVE_BUDGET_TICKS := 90      # 27 §11: 체중 이동 후 도달은 1.5초
 const ARRIVE_EPSILON := 0.02       # 말단이 목표점에 이만큼 가까우면 붙인다
 
 ## {id, side, limb, key, point, step, ticks, ...}. 비면 실행 없음.
-## step: check(첫 틱 재검사) → move(아웃사이드 엣지: 발 이동) → yaw(드롭니·아웃사이드 엣지: 취소될 때까지 ψ 유지)
+## step: check(첫 틱 재검사) → move(아웃사이드 엣지: 발 이동) → yaw(드롭니·아웃사이드 엣지: 취소될 때까지 ψ 유지, 들어설 때 succeeded)
 var active := {}
 var _events: Array = []
 
@@ -143,12 +143,14 @@ func _target_taken(session: ClimbSession) -> bool:
 
 
 ## yaw 단계 시작: ψ 목표를 정하고 힘 균형 게이트를 켠다. 기술은 취소될 때까지 유지된다.
+## 유지 자세에 들어선 이 순간 succeeded를 한 번 남긴다(튜토리얼 technique 목표, 28 §8.1). 끝날 때의 cancelled/failed는 그대로다.
 func _begin_yaw(session: ClimbSession) -> void:
 	var a := active
 	session.rules.yaw_target = TechniqueJudge.yaw_for(a.id, a.limb)
 	session.rules.yaw_guard = true
 	a.step = &"yaw"
 	a.ticks = 0
+	_push(session, SUCCEEDED, &"")
 
 
 ## yaw 유지: 다른 패드 조작에는 영향받지 않는다. 그 발이 붙어 있지 않게 되면(슬립·떼기) 중립으로 복귀하며 취소.

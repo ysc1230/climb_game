@@ -291,3 +291,22 @@ func test_together() -> void:
 		n += 1
 	runner.check(res == "restart" and n >= 120 and n <= 122, "2초 넘으면 restart: %d틱 %s" % [n, res])
 	runner.check(t.index == 1, "같은 단계")
+
+
+## technique 목표: 실제 기술 선택(session.choose)으로 드롭니가 유지 자세에 들어서면 완료.
+func test_technique_goal_drop_knee() -> void:
+	var r := _route([_step({"type": "technique", "id": "T_DROP_KNEE"}, {"rules": {"techniques": ["T_DROP_KNEE"]}})])
+	var s := ClimbSession.new(r)
+	var t := TutorialRunner.new(r)
+	t.begin_step(s)
+	_settle(s)
+	runner.check(t.observe(s, "", DT) == "", "아직")
+	runner.check(s.open_select(), "선택 열기")
+	runner.check(s.choose(&"T_DROP_KNEE", &"left") == &"", "드롭니 선택")
+	var res := ""
+	var n := 0
+	while res == "" and n < 120:
+		res = t.observe(s, s.step(), DT)
+		n += 1
+	runner.check(res == "done" and t.done, "드롭니 성공으로 완료: %s (%d틱)" % [res, n])
+	runner.check(s.runner.active.get("step") == &"yaw", "기술은 유지 중")
