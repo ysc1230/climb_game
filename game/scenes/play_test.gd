@@ -5,7 +5,8 @@ extends Node2D
 ## 완등 결과·튜토리얼 안내·일시정지 [목록]은 PlayOverlay가 그리고, 여기서는 받은 동작만 처리한다.
 ## 아직 단순화한 부분: GripSystem 동시 거래 대신 release 즉시 단일 판정.
 
-const LIMB_COLORS := {&"LH": Color("4fa3d9"), &"RH": Color("e08a3c"), &"LF": Color("4fa3d9"), &"RF": Color("e08a3c")}
+## 벽(주황·모래·올리브)과 겹치지 않는 차가운 색: 왼쪽 팔다리 하늘색, 오른쪽 팔다리 보라색(2026-11-04).
+const LIMB_COLORS := {&"LH": Color("5fd4ff"), &"RH": Color("c79bff"), &"LF": Color("5fd4ff"), &"RF": Color("c79bff")}
 const DEADZONE_MM := 2.5  # docs/23 제안 시작값. 04의 10논리단위와 함께 비교 대상
 const PLAY_W := 3.4
 const PLAY_H := 3.8
@@ -85,10 +86,22 @@ func _start_tutorial() -> void:
 	if overlay.has_list and route.course_slot == "tutorial" and not route.tutorial_steps.is_empty():
 		tutorial = TutorialRunner.new(route)
 		_begin_step()
+		overlay.briefing = _briefing_for(route)
 		overlay.can_skip = route.route_id == Progress.BASIC_TUTORIAL and game.progress.is_first_run()
 	overlay.tutorial = tutorial
 	overlay.tutorial_done = false
 	_refresh_buttons()
+
+
+## 튜토리얼 시작 설명 카드(사용자 결정 2026-11-04): 그 과정의 이름·설명(text_ko). 탭하면 사라지고 그때부터 시작한다.
+func _briefing_for(r: RouteDef) -> Dictionary:
+	if game == null or r.course_id == "":
+		return {}
+	var c: Dictionary = game.index.course(r.course_id)
+	var t: Dictionary = c.get("text_ko", {})
+	if t.is_empty():
+		return {}
+	return {"title": str(c.get("name_ko", "")), "purpose": str(t.get("purpose", "")), "when": str(t.get("when", "")), "how": str(t.get("how", ""))}
 
 
 ## 튜토리얼 단계를 (다시) 놓는다. 멈춤 없이 바로 시작하고, 목표 홀드는 단계 내내 반짝인다(사용자 결정 2026-11-04).
@@ -205,6 +218,8 @@ func _overlay_action(act: String) -> void:
 			_pause(true)
 		"help":
 			overlay.help_open = not overlay.help_open
+		"brief":
+			overlay.briefing = {}
 		"retry":
 			_retry()
 		"next":
@@ -468,16 +483,35 @@ func _draw_pads(size: Vector2) -> void:
 		var p: Dictionary = router.pads[limb]
 		var active := router.active_limbs().has(limb)
 		var col: Color = LIMB_COLORS[limb]
-		draw_circle(p.center, p.radius, Color(col, 0.45 if active else 0.22))
-		draw_arc(p.center, p.radius, 0, TAU, 40, Color(col, 0.9), 3.0)
-		var label := "%s %s" % [limb, "손" if PoseSolver.is_hand(limb) else "발"]
-		draw_string(font, p.center + Vector2(-p.radius, 8), label, HORIZONTAL_ALIGNMENT_CENTER, p.radius * 2, int(26 * ui_k), Color.WHITE)
-		if PoseSolver.is_hand(limb):
-			var s: float = session.rules.stamina[limb]
-			draw_arc(p.center, p.radius + 8 * ui_k, -PI / 2, -PI / 2 + TAU * s / 100.0, 48, Color("f1d59a") if s > 25 else Color("ff5a4a"), 6.0 * ui_k)
+		# 안쪽은 더 투명하게(뒤의 벽·홀드가 보이게), 테두리는 어두운 밑선 + 색 선으로 어느 바탕에서도 보이게
+		draw_circle(p.center, p.radius, Color(col, 0.30 if active else 0.08))
+		draw_arc(p.center, p.radius, 0, TAU, 48, Color(0.08, 0.07, 0.10, 0.6), 7.0 * ui_k)
+		draw_arc(p.center, p.radius, 0, TAU, 48, Color(col, 0.95), 3.5 * ui_k)
+		var label := "%s%s" % ["왼" if limb in [&"LH", &"LF"] else "오른", "손" if PoseSolver.is_hand(limb) else "발"]
+		var fs := int(26 * ui_k)
+		draw_string(font, p.center + Vector2(-p.radius, 8 * ui_k + 2 * ui_k), label, HORIZONTAL_ALIGNMENT_CENTER, p.radius * 2, fs, Color(0, 0, 0, 0.7))
+		draw_string(font, p.center + Vector2(-p.radius, 8 * ui_k), label, HORIZONTAL_ALIGNMENT_CENTER, p.radius * 2, fs, Color.WHITE)
+
+
+## 팔 힘 게이지: 화면 위 왼쪽(왼손, 일시정지 버튼 아래)·오른쪽(오른손). 숫자와 "!"를 함께 써 색만으로 구분하지 않는다.
+func _draw_stamina_bars(size: Vector2) -> void:
+	var k := ui_k
+	var w := 250.0 * k
+	var h := 30.0 * k
+	for hand in [PoseSolver.LH, PoseSolver.RH]:
+		var s: float = session.rules.stamina[hand]
+		var x := 16.0 * k if hand == PoseSolver.LH else size.x - 16.0 * k - w
+		var r := Rect2(Vector2(x, 72.0 * k), Vector2(w, h))
+		draw_rect(r, Color(0.05, 0.05, 0.06, 0.75))
+		var fill := Color("7fdc8f") if s >= 50.0 else (Color("f1d59a") if s >= 25.0 else Color("ff5a4a"))
+		draw_rect(Rect2(r.position, Vector2(w * clampf(s / 100.0, 0.0, 1.0), h)), Color(fill, 0.9))
+		draw_rect(r, Color(LIMB_COLORS[hand], 0.95), false, 2.5 * k)
+		var t := "%s 팔 힘 %d%s" % ["왼손" if hand == PoseSolver.LH else "오른손", roundi(s), " !" if s < 25.0 else ""]
+		draw_string(font, Vector2(r.position.x, r.position.y + h * 0.5 + 8 * k), t, HORIZONTAL_ALIGNMENT_CENTER, w, int(20 * k), Color(0.05, 0.05, 0.06))
 
 
 func _draw_hud(size: Vector2) -> void:
+	_draw_stamina_bars(size)
 	var fs := int(22 * ui_k)
 	var height := maxf(session.body.pos.y - route.start_pelvis.y, 0.0)
 	draw_string(font, Vector2(size.x * 0.25, 40 * ui_k), "%s · 높이 %.1fm · 추락 %d" % [route.name_ko if route.name_ko != "" else route.route_id, height, attempt.falls(session.falls)], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)

@@ -102,6 +102,8 @@ func observe(session: ClimbSession, step_result: String, dt: float) -> String:
 			var r := _observe_together(session, goal, events, dt)
 			hit = r == 1
 			failed = r == -1
+		"stamina":
+			hit = stamina_goal_met(goal, session)
 		_:
 			hit = events.any(func(e): return matches(goal, e))
 	if hit:
@@ -116,6 +118,20 @@ func observe(session: ClimbSession, step_result: String, dt: float) -> String:
 	if _help_since >= HELP_SECONDS - _EPS:
 		_bump_help()
 	return ""
+
+
+## 팔 힘 목표(쉬는 법·몸 모양과 팔 힘 튜토리얼): {"type": "stamina", "limb": "LH", "min": 80 | "max": 70, "free": bool?}.
+## min이면 그 손 체력 ≥ min, max면 ≤ max. free가 true면 그 손이 홀드를 놓은 상태(붙어 있지 않음)여야 한다.
+static func stamina_goal_met(goal: Dictionary, session: ClimbSession) -> bool:
+	var limb := StringName(str(goal.get("limb", "LH")))
+	var s: float = session.rules.stamina.get(limb, 100.0)
+	if goal.get("free", false) and session.attached().has(limb):
+		return false
+	if goal.has("min") and s < float(goal.min):
+		return false
+	if goal.has("max") and s > float(goal.max):
+		return false
+	return goal.has("min") or goal.has("max")
 
 
 ## 도움말 단계: 0 없음, 1 "움직일 팔다리", 2 "누를 버튼과 홀드"(help_ko[0], help_ko[1]).

@@ -173,28 +173,26 @@ func test_step_formats_invalid() -> void:
 
 # --- 과정 목록 ---
 
+## 2026-11-04 재구성(28 §6): 1차 여덟 과정(기본 넷 + 기술 넷), 나머지는 phase 2로 숨김.
 func test_courses_json_content() -> void:
 	var data = JSON.parse_string(FileAccess.get_file_as_string("res://data/courses.json"))
 	var list: Array = data.courses
-	var ids := list.map(func(c): return c.course_id)
-	runner.check(ids == ["C_BASIC", "C_HIGH_STEP", "C_CROSS", "C_FLAG", "C_OUTSIDE_EDGE", "C_DROP_KNEE", "C_MATCH", "C_FOOT_SWAP", "C_LOCK_OFF", "C_DIRECTION", "C_DEADPOINT"], "순서 %s" % [ids])
+	var first := list.filter(func(c): return int(c.phase) == 1).map(func(c): return c.course_id)
+	runner.check(first == ["C_BASIC", "C_REST", "C_ARM_LOAD", "C_FALL", "C_DROP_FOOT", "C_MATCH", "C_CROSS", "C_DEADPOINT"], "1차 순서 %s" % [first])
 	var defs := TechniqueDefs.load_all()
-	for c in list:
-		for t in c.techniques:
-			runner.check(defs.has(StringName(t)), "%s 기술 %s 있음" % [c.course_id, t])
-		if int(c.phase) == 1 and c.course_id != "C_BASIC":
-			runner.check(c.tutorial == c.course_id + "_T" and c.problems == [c.course_id + "_1", c.course_id + "_2", c.course_id + "_3"], "%s 경로 id" % c.course_id)
 	var by := {}
 	for c in list:
 		by[c.course_id] = c
-	runner.check(by.C_BASIC.kind == "pad" and by.C_BASIC.techniques.is_empty() and by.C_BASIC.problems.is_empty() and by.C_BASIC.tutorial == "C_BASIC_T", "C_BASIC")
-	runner.check(by.C_OUTSIDE_EDGE.kind == "button" and by.C_DROP_KNEE.kind == "button" and by.C_FLAG.kind == "pad", "종류")
+		for t in c.techniques:
+			runner.check(defs.has(StringName(t)), "%s 기술 %s 있음" % [c.course_id, t])
+		if int(c.phase) == 1:
+			runner.check(c.tutorial == c.course_id + "_T", "%s 튜토리얼 id" % c.course_id)
+			var tx: Dictionary = c.get("text_ko", {})
+			runner.check(tx.get("purpose", "") != "" and tx.get("how", "") != "", "%s 시작 설명 문구" % c.course_id)
+	runner.check(by.C_DROP_FOOT.text_ko.purpose == "한쪽 발을 내리고 반대쪽 팔을 멀리 뻗기.", "사용자 문구 그대로")
 	runner.check(by.C_DIRECTION.techniques == ["T_SIDEPULL", "T_GASTON", "T_UNDERCLING"], "방향 홀드 기술")
-	for id in ["C_BASIC", "C_DIRECTION"]:
-		var t: Dictionary = by[id].get("text_ko", {})
-		runner.check(t.get("purpose", "") != "" and t.get("when", "") != "" and t.get("how", "") != "", "%s 자체 문구" % id)
-	for id in ["C_MATCH", "C_FOOT_SWAP", "C_LOCK_OFF", "C_DIRECTION", "C_DEADPOINT"]:
-		runner.check(int(by[id].phase) == 2 and by[id].tutorial == "" and by[id].problems.is_empty(), "%s 2차 빈 항목" % id)
+	for id in ["C_HIGH_STEP", "C_FLAG", "C_OUTSIDE_EDGE", "C_DROP_KNEE", "C_FOOT_SWAP", "C_LOCK_OFF", "C_DIRECTION"]:
+		runner.check(int(by[id].phase) == 2, "%s 이후 차수" % id)
 
 
 # --- ContentIndex ---
@@ -208,17 +206,21 @@ func test_index_real_data() -> void:
 	runner.check(idx.route("NOPE") == null, "없는 route null")
 	runner.check(idx.general("V9").is_empty(), "없는 등급 빈 배열")
 	var ids := idx.courses().map(func(c): return c.course_id)
-	runner.check(ids == ["C_BASIC", "C_HIGH_STEP", "C_CROSS", "C_FLAG", "C_OUTSIDE_EDGE", "C_DROP_KNEE"], "2차 숨김 %s" % [ids])
+	runner.check(ids.size() == 8 and not ids.has("C_HIGH_STEP"), "2차 숨김 %s" % [ids])
 	runner.check(idx.course("C_DROP_KNEE").kind == "button", "course 조회")
-	runner.check(idx.course("C_MATCH").phase == 2, "숨긴 과정도 id로는 조회")
+	runner.check(idx.course("C_HIGH_STEP").phase == 2, "숨긴 과정도 id로는 조회")
 	runner.check(idx.course("C_NOPE").is_empty(), "없는 과정 빈 사전")
 
 
 ## 과정 문제 파일은 Task 9~10에서 만든다. 그전까지 없는 파일은 errors에 남기고 멈추지 않는다.
 func test_index_tolerates_missing_course_routes() -> void:
 	var idx := ContentIndex.load_all()
-	runner.check(_has_error(idx.errors, "C_DROP_KNEE_T") and _has_error(idx.errors, "C_DROP_KNEE_3"), "없는 문제 파일 기록: %s" % [idx.errors.slice(0, 3)])
-	runner.check(not _has_error(idx.errors, "C_MATCH"), "2차 빈 항목은 오류 아님")
+	for c in idx.courses():
+		if c.tutorial != "" and not FileAccess.file_exists(ContentIndex.route_path(c.tutorial)):
+			runner.check(_has_error(idx.errors, c.tutorial), "없는 튜토리얼 파일 기록 %s" % c.tutorial)
+	for e in idx.errors:
+		runner.check(e.contains("없는 문제 파일"), "없는 파일 외 오류 없음: %s" % e)
+	runner.check(not _has_error(idx.errors, "C_FLAG"), "2차 빈 항목은 오류 아님")
 	runner.check(not _has_error(idx.errors, "G_V0_01"), "G_V0_01 오류 없음")
 
 

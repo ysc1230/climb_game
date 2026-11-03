@@ -310,3 +310,23 @@ func test_technique_goal_drop_knee() -> void:
 		n += 1
 	runner.check(res == "done" and t.done, "드롭니 성공으로 완료: %s (%d틱)" % [res, n])
 	runner.check(s.runner.active.get("step") == &"yaw", "기술은 유지 중")
+
+
+## 팔 힘 목표: min·max·free 조건.
+func test_stamina_goal() -> void:
+	var route := RouteDef.load_json(ContentIndex.route_path("G_V0_01"))
+	var s := ClimbSession.new(route)
+	s.rules.stamina[PoseSolver.LH] = 60.0
+	runner.check(TutorialRunner.stamina_goal_met({"type": "stamina", "limb": "LH", "max": 70}, s), "60 ≤ 70")
+	runner.check(not TutorialRunner.stamina_goal_met({"type": "stamina", "limb": "LH", "min": 80}, s), "60 < 80")
+	s.rules.stamina[PoseSolver.LH] = 90.0
+	runner.check(TutorialRunner.stamina_goal_met({"type": "stamina", "limb": "LH", "min": 80}, s), "90 ≥ 80")
+	runner.check(not TutorialRunner.stamina_goal_met({"type": "stamina", "limb": "LH", "min": 80, "free": true}, s), "붙어 있으면 free 목표 아님")
+	runner.check(not TutorialRunner.stamina_goal_met({"type": "stamina", "limb": "LH"}, s), "기준 없으면 거짓")
+
+
+## 이벤트 목표 단계는 mark_slot으로 반짝일 홀드를 따로 준다.
+func test_mark_slot() -> void:
+	var r := RouteDef.load_json(ContentIndex.route_path("G_V0_01"))
+	var key: String = r.slots.keys()[2]
+	runner.check(PlayAttempt.goal_slot({"mark_slot": key, "goal_event": {"type": "pad_deadpoint"}}, r) == key, "mark_slot 우선")

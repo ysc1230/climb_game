@@ -9,6 +9,8 @@ const INK := Color("302820")
 var font: Font
 ## 비어 있지 않으면 결과 오버레이 {seconds, falls, no_fall, time, time_limit, next, saved}.
 var result := {}
+## 비어 있지 않으면 튜토리얼 시작 설명 카드 {title, purpose, when, how}. 탭하면 사라진다(그동안 플레이 멈춤).
+var briefing := {}
 var tutorial: TutorialRunner
 var tutorial_done := false
 var help_open := false
@@ -23,7 +25,7 @@ var _buttons: Array = []  # [{rect, action}] 마지막으로 그린 버튼
 
 ## 결과·완료 화면이 떠 있어 플레이를 멈추는가.
 func blocking() -> bool:
-	return not result.is_empty() or tutorial_done
+	return not result.is_empty() or tutorial_done or not briefing.is_empty()
 
 
 ## 마지막으로 그린 버튼 중 pos를 덮는 것의 동작. 없으면 "".
@@ -48,6 +50,9 @@ func draw(ci: CanvasItem, size: Vector2, k: float, paused: bool, selecting: bool
 		return
 	if tutorial_done:
 		_draw_done(ci, size, k)
+		return
+	if not briefing.is_empty() and not paused:
+		_draw_briefing(ci, size, k)
 		return
 	if paused:
 		if has_list:
@@ -85,6 +90,29 @@ func _draw_result(ci: CanvasItem, size: Vector2, k: float) -> void:
 	if has_list:
 		acts.append(["목록", "list"])
 	_button_row(ci, Rect2(Vector2(x, y + 350 * k), Vector2(w, 64 * k)), acts, k)
+
+
+## 시작 설명 카드: 화면 가운데 큰 카드. 아무 데나 탭하면 닫힌다(전체 화면이 "brief" 버튼).
+func _draw_briefing(ci: CanvasItem, size: Vector2, k: float) -> void:
+	ci.draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.55))
+	var w := minf(size.x * 0.62, 1100.0 * k)
+	var panel := Rect2(Vector2(size.x * 0.5 - w * 0.5, size.y * 0.5 - 250 * k), Vector2(w, 500 * k))
+	ci.draw_rect(panel, Color(0.07, 0.06, 0.05, 0.97))
+	ci.draw_rect(panel, CREAM, false, 3.0)
+	var x := panel.position.x + 40 * k
+	var tw := panel.size.x - 80 * k
+	var y := panel.position.y + 72 * k
+	ci.draw_string(font, Vector2(panel.position.x, y), str(briefing.get("title", "")), HORIZONTAL_ALIGNMENT_CENTER, panel.size.x, int(44 * k), CREAM)
+	y += 64 * k
+	ci.draw_multiline_string(font, Vector2(x, y), str(briefing.get("purpose", "")), HORIZONTAL_ALIGNMENT_CENTER, tw, int(30 * k), 2, Color.WHITE)
+	y += 90 * k
+	for key in ["how", "when"]:
+		var t := str(briefing.get(key, ""))
+		if t != "":
+			ci.draw_multiline_string(font, Vector2(x, y), t, HORIZONTAL_ALIGNMENT_LEFT, tw, int(24 * k), 3, Color(1, 1, 1, 0.85))
+			y += 100 * k
+	ci.draw_string(font, Vector2(panel.position.x, panel.end.y - 28 * k), "화면을 탭하면 시작해요", HORIZONTAL_ALIGNMENT_CENTER, panel.size.x, int(26 * k), CREAM)
+	_buttons.append({"rect": Rect2(Vector2.ZERO, size), "action": "brief"})
 
 
 func _draw_done(ci: CanvasItem, size: Vector2, k: float) -> void:
