@@ -142,3 +142,26 @@ func test_elbow_stays_in_front_of_shoulder() -> void:
 		prev = r.bend
 		runner.check(r.mid.z <= root.z - LimbIK.ELBOW_FRONT_MARGIN + 0.0005, "틱 %d 팔꿈치 z %.3f > 어깨 %.3f" % [i, r.mid.z, root.z])
 		runner.check(absf((r.mid - root).length() - 0.40) < 0.001 and absf((end - r.mid).length() - 0.38) < 0.002, "뼈 길이 변화")
+
+
+## 팔꿈치가 몸 안쪽으로 굽은 상태에서 시작해도(직전 축이 안쪽), 등 뒤 영역을 지나지 않고 벽 쪽으로 돌아
+## 바깥쪽(pole 쪽)으로 빠져나온다. 매 틱 어깨 평면 제한과 회전 속도 한도를 지킨다.
+func test_elbow_escapes_inward_side() -> void:
+	var root := Vector3(-0.2, 1.55, 0.28)
+	var end := Vector3(-0.45, 1.95, 0.07)
+	var pole := LimbIK.default_pole(PoseSolver.LH)
+	var maxz := root.z - LimbIK.ELBOW_FRONT_MARGIN
+	var prev := Vector3(1, 0.3, 0).normalized()  # 몸 안쪽
+	var r := {}
+	for i in 120:
+		r = LimbIK.solve(root, end, 0.40, 0.38, pole, prev, 3.0, maxz)
+		runner.check(r.mid.z <= maxz + 0.0005, "틱 %d 팔꿈치가 어깨 평면 뒤 %.3f" % [i, r.mid.z])
+		if i > 0:
+			var line := (end - root).normalized()
+			var a: Vector3 = prev - line * prev.dot(line)
+			var b: Vector3 = (r.bend as Vector3) - line * (r.bend as Vector3).dot(line)
+			runner.check(rad_to_deg(a.angle_to(b)) <= 3.0 + 0.05, "틱 %d 굽힘 축이 한 번에 %.1f° 돎" % [i, rad_to_deg(a.angle_to(b))])
+		prev = r.bend
+	var line := (end - root).normalized()
+	var side: float = (r.mid - root - line * (r.mid - root).dot(line)).x
+	runner.check(side < -0.1, "2초 뒤 팔꿈치가 바깥쪽이어야 함(가로 %.3f)" % side)
