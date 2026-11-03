@@ -200,25 +200,7 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 		_step_yaw(body, attached, endpoints, platform)
 	loaded_feet = _loaded_from(result, loaded_feet)
 	last = result
-	# 피로(docs/04 §7)
-	var speed := body.vel.length()
-	var still := phase == Phase.STABLE and speed <= Fatigue.STABLE_SPEED and not moving
-	rest_confirm_ticks = rest_confirm_ticks + 1 if still else 0
-	var rest_ok := rest_confirm_ticks >= REST_CONFIRM_TICKS
-	var hands_attached := int(attached.has(PoseSolver.LH)) + int(attached.has(PoseSolver.RH))
-	var low_load := true
-	for hand in [PoseSolver.LH, PoseSolver.RH]:
-		if result.u.get(hand, 0.0) > SupportSolver.RECOVER_HAND_LOAD_RATIO:
-			low_load = false
-	for hand in [PoseSolver.LH, PoseSolver.RH]:
-		var rate := Fatigue.FREE_HAND_RATE
-		if attached.has(hand):
-			rate = Fatigue.attached_hand_rate(phase == Phase.REBALANCING, platform, rest_ok, loaded_feet.size(), hands_attached, result.u.get(hand, 0.0), low_load, _quality_of(hand))
-		if rate < 0.0:
-			rate *= float(fatigue_multiplier.get(hand, 1.0))
-		stamina[hand] = Fatigue.apply(stamina[hand], rate, Tuning.DT, fatigue_disabled)
-		if attached.has(hand) and stamina[hand] <= 0.0:
-			slipped.append(hand)
+	_apply_fatigue(result, attached, platform, moving, body.vel.length())
 	# 미끄러진 손을 뺀 상태로 같은 틱에 지지 재평가(시간·몸통 적분은 다시 하지 않음)
 	if not slipped.is_empty():
 		var remain := attached.duplicate()
@@ -250,6 +232,42 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 	if imbalance_ticks >= IMBALANCE_BUDGET_TICKS:
 		return "BALANCE_LOST"
 	return ""
+
+
+## 피로(docs/04 §7) 한 틱. 문 열림 부담(docs/30 §4.1): 부담 배율이 1보다 크면 그 자세에서는 쉬어 회복하지 못하고,
+## 하중 받는 손의 감소량에 배율을 곱한다. 피로 0이 된 붙은 손은 slipped에 담는다.
+func _apply_fatigue(result: Dictionary, attached: Dictionary, platform: bool, moving: bool, speed: float) -> void:
+	var strain := barn_strain(result)
+	var still := phase == Phase.STABLE and speed <= Fatigue.STABLE_SPEED and not moving and strain <= 1.0
+	rest_confirm_ticks = rest_confirm_ticks + 1 if still else 0
+	var rest_ok := rest_confirm_ticks >= REST_CONFIRM_TICKS
+	var hands_attached := int(attached.has(PoseSolver.LH)) + int(attached.has(PoseSolver.RH))
+	var low_load := true
+	for hand in [PoseSolver.LH, PoseSolver.RH]:
+		if result.u.get(hand, 0.0) > SupportSolver.RECOVER_HAND_LOAD_RATIO:
+			low_load = false
+	for hand in [PoseSolver.LH, PoseSolver.RH]:
+		var rate := Fatigue.FREE_HAND_RATE
+		if attached.has(hand):
+			rate = Fatigue.attached_hand_rate(phase == Phase.REBALANCING, platform, rest_ok, loaded_feet.size(), hands_attached, result.u.get(hand, 0.0), low_load, _quality_of(hand))
+		if rate < 0.0:
+			rate *= float(fatigue_multiplier.get(hand, 1.0))
+			if attached.has(hand) and result.get("loads", {}).get(hand, 0.0) >= SupportSolver.BARN_MIN_LOAD:
+				rate *= strain
+		stamina[hand] = Fatigue.apply(stamina[hand], rate, Tuning.DT, fatigue_disabled)
+		if attached.has(hand) and stamina[hand] <= 0.0:
+			slipped.append(hand)
+
+
+## 문 열림 부담 배율(docs/30 §4.1). 적용되고 초과하지 않았을 때 r = τ/용량이 BARN_STRAIN_START를 넘으면
+## 1 → BARN_STRAIN_MAX_MULT(r = 1)로 선형 증가. 적용 안 됨·초과(REBALANCING이 맡음)는 1.
+static func barn_strain(r: Dictionary) -> float:
+	var b: Dictionary = r.get("barn", {})
+	if not b.get("applies", false) or b.get("exceeded", false) or b.get("capacity", 0.0) <= 0.0:
+		return 1.0
+	var ratio: float = b.tau / b.capacity
+	var t := clampf((ratio - Tuning.BARN_STRAIN_START) / (1.0 - Tuning.BARN_STRAIN_START), 0.0, 1.0)
+	return 1.0 + (Tuning.BARN_STRAIN_MAX_MULT - 1.0) * t
 
 
 ## 몸통 이동 후보 검사: 균형이 있던 틱에는 균형을 유지하는 이동만, 불균형 중에는 잔차를 줄이는 이동만.

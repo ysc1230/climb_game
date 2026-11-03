@@ -5,7 +5,7 @@ extends RefCounted
 
 ## 조정 버전(docs/09 tuning_version). 판정 수치·규칙이 바뀌면 올린다.
 ## 1: v0.4 거리 기반, 2: v0.5 방향·3D 거리·지지 하중, 3: v0.5 무브별 선호·의도 비용, 4: v0.6 접점 품질·그립 방식
-const TUNING_VERSION := 4
+const TUNING_VERSION := 5
 
 const TICK_HZ := 60
 const DT := 1.0 / TICK_HZ
@@ -54,6 +54,9 @@ const LOAD_PROXY_MARGIN := 0.05
 # 무브 판별(docs/04 §5 표)
 const HIGH_STEP_BELOW_HIP := 0.20
 const FLAG_COST_IMPROVEMENT := 0.02
+# v0.7 문 열림 부담(docs/30 §4.1, 04 §10.4): r = τ/용량이 이 값을 넘으면 하중 받는 손이 더 빨리 지친다
+const BARN_STRAIN_START := 0.5
+const BARN_STRAIN_MAX_MULT := 4.0  # r = 1에서의 피로 배율
 const MOVE_SWITCH_CONFIRM_TICKS := 6
 
 # 목표 탐색

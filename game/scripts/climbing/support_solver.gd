@@ -147,7 +147,7 @@ static func solve(contacts: Array, com: Vector2) -> Dictionary:
 
 ## barn door가 적용되지 않는 결과.
 static func barn_door_none() -> Dictionary:
-	return {"applies": false, "tau": 0.0, "capacity": 0.0, "exceeded": false}
+	return {"applies": false, "tau": 0.0, "capacity": 0.0, "exceeded": false, "ratio": 0.0}
 
 
 ## barn door 근사: 하중 접점들이 한 수직선에 몰렸을 때 무게중심이 그 선에서 벗어난 거리 τ가
@@ -180,6 +180,7 @@ static func barn_door(contacts: Array, loads: Dictionary, com: Vector2, meta: Di
 	out.tau = absf(com.x - sum_x / count)
 	out.capacity = capacity
 	out.exceeded = out.tau > capacity
+	out.ratio = out.tau / capacity if capacity > 0.0 else INF
 	return out
 
 
