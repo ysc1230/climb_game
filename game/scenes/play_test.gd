@@ -81,7 +81,6 @@ func _ready() -> void:
 func _start_tutorial() -> void:
 	tutorial = null
 	_tutorial_wait = false
-	attempt.intro = false
 	overlay.can_skip = false
 	if overlay.has_list and route.course_slot == "tutorial" and not route.tutorial_steps.is_empty():
 		tutorial = TutorialRunner.new(route)
@@ -92,10 +91,9 @@ func _start_tutorial() -> void:
 	_refresh_buttons()
 
 
-## 튜토리얼 단계를 (다시) 놓고 "보기"로 둔다(28 §6.1: 시간 멈춤, 누르면 시작).
+## 튜토리얼 단계를 (다시) 놓는다. 멈춤 없이 바로 시작하고, 목표 홀드는 단계 내내 반짝인다(사용자 결정 2026-11-04).
 func _begin_step() -> void:
 	tutorial.begin_step(session)
-	attempt.begin_intro()
 	_refresh_buttons()
 
 
@@ -157,9 +155,6 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and _overlay_event(-1, event.position, event.pressed):
 		return
-	if attempt.intro and not paused:
-		_intro_event(event)
-		return
 	if event is InputEventScreenTouch:
 		if event.canceled:
 			_apply(router.cancel_all())
@@ -202,25 +197,6 @@ func _overlay_event(index: int, pos: Vector2, pressed: bool) -> bool:
 	_swallow[index] = true
 	_overlay_action(act)
 	return true
-
-
-## "보기" 중 입력: 패드·기술 버튼 밖을 누르면 단계 시작. 그 밖의 입력은 버린다.
-func _intro_event(event: InputEvent) -> void:
-	var idx := -2
-	if event is InputEventScreenTouch and event.pressed:
-		idx = event.index
-	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		idx = -1
-	if idx == -2:
-		return
-	var pos: Vector2 = event.position
-	if router._pad_at(pos) != &"":
-		return
-	if shows_tech_button(allowed_buttons, _techs) and _btn_rect(_view_size()).has_point(pos):
-		return
-	_swallow[idx] = true
-	attempt.end_intro()
-	message_ticks = 0
 
 
 func _overlay_action(act: String) -> void:
@@ -304,7 +280,7 @@ func _physics_process(_delta: float) -> void:
 				paused = false
 		queue_redraw()
 		return
-	if overlay.blocking() or attempt.blocks_tick():
+	if overlay.blocking():
 		queue_redraw()
 		return
 	var result := session.step()
@@ -537,20 +513,28 @@ func _draw_hud(size: Vector2) -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.55))
 		var t := "손가락을 편하게 올려주세요 %d" % ceili(prepare_left) if prepare_left > 0.0 else "일시정지 · 화면을 탭하면 3초 뒤 이어서 시작해요"
 		draw_string(font, Vector2(0, size.y * 0.5), t, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(34 * ui_k), Color.WHITE)
-	if attempt.intro and tutorial != null and not paused:
-		_draw_intro(size)
+	var goal_key := _tutorial_goal_key()
+	overlay.goal_screen_y = w2s(route.slots[goal_key].pos).y if goal_key != "" else -1.0
 	overlay.draw(self, size, ui_k, paused, session.selecting)
+	if goal_key != "" and not paused and not session.selecting and not overlay.blocking():
+		_draw_goal_mark(goal_key)  # 설명칸 위에 그려서 가려지지 않게
 
 
-## 튜토리얼 "보기": 목표 홀드 강조(기술 홀드 고르기와 같은 표시) + 시작 안내.
-func _draw_intro(size: Vector2) -> void:
-	var step := tutorial.current()
-	var key := PlayAttempt.intro_slot(step, route)
-	if key != "":
-		var goal: Dictionary = step.get("goal_event", {})
-		var hand: bool = PoseSolver.is_hand(StringName(goal.limb)) if goal.has("limb") else (route.slots[key].allowed.has(&"LH") or route.slots[key].allowed.has(&"RH"))
-		_draw_hold_mark(key, hand, false)
-	draw_string(font, Vector2(0, size.y * 0.42), "시간 멈춤 · 화면을 누르면 시작해요", HORIZONTAL_ALIGNMENT_CENTER, size.x, int(30 * ui_k), Color("fff2c8"))
+## 지금 튜토리얼 단계 목표가 가리키는 홀드 키. 튜토리얼이 아니거나 목표에 홀드가 없으면 "".
+func _tutorial_goal_key() -> String:
+	if tutorial == null or tutorial.done:
+		return ""
+	return PlayAttempt.goal_slot(tutorial.current(), route)
+
+
+## 튜토리얼 목표 홀드를 계속 반짝이게 표시한다(밝기·크기가 함께 출렁임, 기술 홀드 고르기와 같은 모양).
+func _draw_goal_mark(key: String) -> void:
+	var goal: Dictionary = tutorial.current().get("goal_event", {})
+	var hand: bool = PoseSolver.is_hand(StringName(goal.limb)) if goal.has("limb") else (route.slots[key].allowed.has(&"LH") or route.slots[key].allowed.has(&"RH"))
+	var p := PlayOverlay.pulse(Time.get_ticks_msec() * 0.001)
+	var c := w2s(route.slots[key].pos)
+	draw_circle(c, _screen_r(route.slots[key].pos, 0.11) * (1.15 + 0.35 * p), Color(1.0, 0.95, 0.78, 0.18 + 0.30 * p))
+	_draw_hold_mark(key, hand, false)
 
 
 # ---------- 기술 선택 UI (docs/27 §6, 05 v0.6, 18 v0.6) ----------

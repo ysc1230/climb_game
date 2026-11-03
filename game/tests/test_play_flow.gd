@@ -2,6 +2,7 @@ extends RefCounted
 ## docs/28 §5: 홈·플레이 연결(PlayFlow). 모드별 기술 버튼, 패널 숨김 판정, 완등 기록·저장.
 
 var runner
+const PlayOverlay := preload("res://scenes/play_overlay.gd")
 const FIX := "user://test_play_flow_fixture"
 const SAVE := "user://test_play_flow_save.json"
 const G_PATH := "res://data/routes/general/G_V0_01.json"
@@ -179,17 +180,27 @@ func test_attempt_time_stops_while_selecting() -> void:
 	runner.check(is_equal_approx(a.tick(0.25, false), 0.25), "고르기 끝나면 흐름")
 
 
-func test_intro_blocks_until_start() -> void:
+## 튜토리얼은 멈춤 없이 시작한다(사용자 결정 2026-11-04): 시도 시간은 바로 흐르고, 목표 홀드 키는 계속 반짝여 표시한다.
+func test_tutorial_goal_mark_no_pause() -> void:
 	var a := PlayAttempt.new()
 	a.start(0)
-	a.begin_intro()
-	runner.check(a.blocks_tick(), "보기: 세션 진행 막음")
-	a.tick(0.5, false)
-	runner.check(a.seconds == 0.0, "보기: 시간 멈춤")
-	runner.check(a.end_intro() and not a.blocks_tick(), "누르면 시작")
-	runner.check(not a.end_intro(), "이미 시작")
+	runner.check(is_equal_approx(a.tick(0.5, false), 0.5) and is_equal_approx(a.seconds, 0.5), "멈춤 없음: 바로 시간이 흐름")
 	var r := RouteDef.load_json(G_PATH)
 	var key: String = r.slots.keys()[0]
-	runner.check(PlayAttempt.intro_slot({"goal_event": {"type": "grab", "slot": key}}, r) == key, "목표 홀드 강조")
-	runner.check(PlayAttempt.intro_slot({"goal_event": {"type": "clear"}}, r) == "", "홀드 없는 목표")
-	runner.check(PlayAttempt.intro_slot({"goal_event": {"type": "grab", "slot": "없음"}}, r) == "", "없는 홀드")
+	runner.check(PlayAttempt.goal_slot({"goal_event": {"type": "grab", "slot": key}}, r) == key, "목표 홀드 표시")
+	runner.check(PlayAttempt.goal_slot({"goal_event": {"type": "clear"}}, r) == "", "홀드 없는 목표")
+	runner.check(PlayAttempt.goal_slot({"goal_event": {"type": "grab", "slot": "없음"}}, r) == "", "없는 홀드")
+
+
+## 반짝임은 0~1 사이를 계속 오가고, 안내 줄은 목표 홀드가 화면 위쪽이면 아래로 내려간다.
+func test_overlay_pulse_and_band_placement() -> void:
+	var lo := 1.0
+	var hi := 0.0
+	for i in 100:
+		var p: float = PlayOverlay.pulse(i * 0.01)
+		lo = minf(lo, p)
+		hi = maxf(hi, p)
+	runner.check(lo >= 0.0 and hi <= 1.0 and hi - lo > 0.9, "반짝임 범위 %.2f~%.2f" % [lo, hi])
+	runner.check(PlayOverlay.band_on_top(-1.0, 1000.0), "목표 홀드 없음 → 위")
+	runner.check(not PlayOverlay.band_on_top(200.0, 1000.0), "목표가 위쪽 → 안내 줄은 아래")
+	runner.check(PlayOverlay.band_on_top(700.0, 1000.0), "목표가 아래쪽 → 안내 줄은 위")
