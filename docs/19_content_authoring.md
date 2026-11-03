@@ -120,3 +120,7 @@ GeometryChecked는 완성된 배치의 모든 시작/CP·경로 자세에 대한
 - **변환:** 기존 R01의 손홀드는 hand_area 반폭 0.08m·grip_modes=[pull], 발판은 foot_area 반높이 0.04m·pivot_allowed=true로 바꾸고 content_version을 올린다. 정상 G01은 기존처럼 goal_left/goal_right 두 슬롯을 유지하고 각 슬롯에 반폭 0.08m 손 잡기 영역을 준다(설계자 판단: 완등 판정 변경 최소화). R01은 초보용 큰 홀드 루트이므로 손홀드(H01~H06)에 hand_area 반폭 0.12m를 명시하고 content_version 4로 올린다. 발판은 기본값(반높이 0.04m, pivot 허용)을 쓴다.
 - **테스트 전용 루트:** 판단기 검수용으로 `TX_TECH`(사이드풀·개스턴·언더클링 홀드, 좁은/넓은 홀드, pivot 금지 발판, 같은 쪽 손·발만 닿는 구간)를 만든다. 일반 진행에는 나오지 않는다.
 - **기술 의도 경로:** 의도 경로 각 행에 사용할 기술 ID(선택)를 적는다. 기술 없이도 같은 홀드를 패드로 갈 수 있는지 여부를 함께 기록한다.
+
+## v0.7 등급 문제·기술 과정 저작
+
+등급 문제와 기술 과정 문제는 [29. 기술별 사용 조건과 문제 제작 절차](29_technique_conditions_and_authoring.md)의 카드와 5장 절차로 만든다. 검증은 `tools/route_check.gd`(ContentCheck: 의도 경로, 기술 금지 재생, 등급 측정)와 카드에 적힌 우회 재생이다.
