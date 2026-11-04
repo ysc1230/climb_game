@@ -181,9 +181,16 @@ func choose(tech_id: StringName, side: StringName, key: String = "", point: Vect
 
 # ---------- 입력 ----------
 
-## 데드포인트 창(04 §10.5): 골반이 올라가는 중이거나, 그런 상승이 끝난 뒤 0.25초 이내.
+## 데드포인트 창(04 §10.5, docs/31): 발로 일어서는 중(StandUp, 상승 ≥ 0.05)이거나 상승 ≥ 0.20이면 열리고,
+## 그런 상승이 끝난 뒤 0.4초까지 열려 있다. 손을 뻗을 때 몸이 따라 조금 오르는 것만으로는 열리지 않는다.
 func deadpoint_window() -> bool:
-	return body.vel.y >= TechniqueJudge.DEADPOINT_RISE_SPEED or tick_count - _last_rise_tick <= TechniqueJudge.DEADPOINT_GRACE_TICKS
+	return _rising() or tick_count - _last_rise_tick <= TechniqueJudge.DEADPOINT_GRACE_TICKS
+
+
+func _rising() -> bool:
+	if body.vel.y >= TechniqueJudge.DEADPOINT_RISE_SPEED:
+		return true
+	return rules.moves.label == MoveClassifier.STAND_UP and body.vel.y >= TechniqueJudge.DEADPOINT_STANDUP_RISE
 
 
 ## 지금 도달 보너스(m). drag_speed: 손가락 속도(m/s, 월드). 검증기 금지(&"deadpoint")면 0.
@@ -257,10 +264,11 @@ func _try_grab(limb: StringName, speed: float = 0.0) -> void:
 		return  # 끌고 있지 않은 손발(붙어 있거나 날아가는 중)의 release는 잡기를 만들지 않는다
 	var cand := _candidate(limb)
 	l.cand = {}
+	# 데드포인트(v6, docs/31): 창이 열려 있고 빠르게 놓은 손은 겨눈 홀드가 정적 후보와 다르면 그 홀드로 던진다.
+	# 겨눈 홀드가 정적 후보와 같으면 그냥 잡는다. 정지 상태의 빠른 드래그는 창이 닫혀 있어 일반 처리(27 §13 TA04).
+	if PoseSolver.is_hand(limb) and speed >= TechniqueJudge.DEADPOINT_MIN_SPEED and deadpoint_window() and _start_pad_deadpoint(limb, speed, cand):
+		return
 	if cand.is_empty():
-		# 정적 후보가 없을 때만 데드포인트(창이 열려 있고 빠르게 놓은 손). 정지 상태의 빠른 드래그는 일반 Free(27 §13 TA04)
-		if PoseSolver.is_hand(limb) and speed >= TechniqueJudge.DEADPOINT_MIN_SPEED and deadpoint_window() and _start_pad_deadpoint(limb, speed):
-			return
 		if not PoseSolver.is_hand(limb) and not forbid.has(&"foot_swap") and _try_pad_foot_swap(limb):
 			return
 		var reason := GripCheck.reject_reason(route.slots, limb, l.pos, l.req, body.pos, body.angle, attached(), occupied(), rules.feet_eligible, body.yaw)
@@ -320,7 +328,7 @@ func _try_pad_foot_swap(foot: StringName) -> bool:
 
 ## 패드로 놓은 손의 데드포인트 시도. 노린 홀드(요청 목표 근처)가 보너스 범위 + 여유 안에 있으면 던진다.
 ## 범위 안/밖과 무관하게 던진 뒤의 성패는 받기 판정이 정한다(놓치면 DEADPOINT_MISS).
-func _start_pad_deadpoint(limb: StringName, speed: float) -> bool:
+func _start_pad_deadpoint(limb: StringName, speed: float, cand: Dictionary = {}) -> bool:
 	var l: Dictionary = limbs[limb]
 	var snap := ClimbSnapshot.from_session(self)
 	if TechniqueJudge.deadpoint_hand_reason(snap, limb) != "":
@@ -345,7 +353,7 @@ func _start_pad_deadpoint(limb: StringName, speed: float) -> bool:
 			continue
 		best = {"key": key, "point": pt.point}
 		best_d = aim.distance_to(slot.pos)
-	if best.is_empty():
+	if best.is_empty() or (not cand.is_empty() and best.key == cand.key):
 		return false
 	start_deadpoint(limb, best.key, best.point, bonus)
 	return true
@@ -374,7 +382,20 @@ func _tick_deadpoint() -> bool:
 	if not arrived and dp.ticks < DEADPOINT_TICKS:
 		return false
 	deadpoint = {}
+	var follow := {}
 	if arrived and TechniqueJudge.deadpoint_catch(ClimbSnapshot.from_session(self), limb, dp.key, dp.point, dp.bonus).ok:
+		follow = _deadpoint_follow_pose(limb, dp.point)
+	if not follow.is_empty():
+		# 손이 먼저 닿고 몸이 탄력으로 따라간다(v6): 모든 접점이 성립하는 가까운 자세로 골반을 옮긴다
+		body.pos = follow.pos
+		body.angle = follow.angle
+		for f in follow.cut:
+			limbs[f].state = "Free"
+			limbs[f].contact = null
+			limbs[f].cand = {}
+		if not follow.cut.is_empty():
+			messages.append("발이 벽에서 떨어졌어요")
+			_log_event({"type": "feet_cut", "limbs": follow.cut})
 		_attach(limb, dp.key, dp.point, TechniqueJudge.contact_for(route, TechniqueJudge.T_DEADPOINT, limb, dp.key, dp.point))
 		var holder := TechniqueJudge.other_of(limb)
 		rules.stamina[holder] = Fatigue.apply(float(rules.stamina[holder]), -DEADPOINT_STAMINA_COST, 1.0, rules.fatigue_disabled)  # 보조 모드는 감소 없음
@@ -383,6 +404,54 @@ func _tick_deadpoint() -> bool:
 	l.state = "Free"
 	_log_event({"type": "pad_deadpoint", "limb": limb, "key": dp.key, "ok": false})
 	return true
+
+
+## 데드포인트로 받은 뒤 몸이 따라갈 자세(docs/31). 새 접점을 더한 접점들이 성립(PoseSolver.is_valid)하고
+## 지금 골반에서 DEADPOINT_FOLLOW_MAX 안인 자세를 찾는다. 발을 모두 유지한 자세가 없으면 발을 떼어 본다
+## (다이나믹하게 잡으면 발이 벽에서 떨어진다: 풋컷). 반환 {pos, angle, cut: 뗄 발 배열}, 손으로도 안 되면 {}(놓침).
+func _deadpoint_follow_pose(limb: StringName, point: Vector2) -> Dictionary:
+	var base := attached()
+	base[limb] = point
+	var feet_on: Array = [PoseSolver.LF, PoseSolver.RF].filter(func(f): return base.has(f))
+	var options: Array = [[]]
+	for f in feet_on:
+		options.append([f])
+	if feet_on.size() == 2:
+		options.append(feet_on.duplicate())
+	for cut in options:
+		var with_new := base.duplicate()
+		for f in cut:
+			with_new.erase(f)
+		var pose := _valid_pose_near(with_new)
+		if not pose.is_empty():
+			pose.cut = cut
+			return pose
+	return {}
+
+
+## 접점 att가 모두 성립하는 가장 가까운 자세(지금 자세 우선). 골반은 DEADPOINT_FOLLOW_MAX 반경을 0.025m 격자로,
+## 몸통 각은 지금 ±10°를 5° 간격으로 본다. PoseSolver.find_target은 성립하지 않는 자세에서 시작하면 움직이지
+## 않아서(받는 순간이 그렇다) 여기서는 직접 찾는다. 받을 때 한 번만 부른다. 없으면 {}.
+func _valid_pose_near(att: Dictionary) -> Dictionary:
+	if PoseSolver.is_valid(body.pos, body.angle, att, body.yaw):
+		return {"pos": body.pos, "angle": body.angle}
+	var step := 0.025
+	var n := int(TechniqueJudge.DEADPOINT_FOLLOW_MAX / step)
+	var best := {}
+	var best_d := INF
+	for ix in range(-n, n + 1):
+		for iy in range(-n, n + 1):
+			var off := Vector2(ix, iy) * step
+			var d := off.length()
+			if d > TechniqueJudge.DEADPOINT_FOLLOW_MAX or d >= best_d:
+				continue
+			for da in [0.0, -5.0, 5.0, -10.0, 10.0]:
+				var a: float = body.angle + da
+				if PoseSolver.is_valid(body.pos + off, a, att, body.yaw):
+					best = {"pos": body.pos + off, "angle": a}
+					best_d = d
+					break
+	return best
 
 
 func _attach(limb: StringName, key: String, point: Vector2, contact: ContactInfo) -> void:
@@ -450,7 +519,7 @@ func step() -> String:
 	rules.contact_meta = _contact_meta()
 	rules.forbid = forbid
 	var outcome := rules.tick(body, att, endpoints, on_platform(att), moving, intents, hints, flag_probe)
-	if body.vel.y >= TechniqueJudge.DEADPOINT_RISE_SPEED:
+	if _rising():
 		_last_rise_tick = tick_count
 	_log_move_label()
 	_drag_hints(att, occ)

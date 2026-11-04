@@ -25,7 +25,6 @@ var parts := {}       # 이름 -> MeshInstance3D (모델이 없을 때의 대체
 var skeleton: Skeleton3D
 var candidate_ring: MeshInstance3D
 var foot_marks := {}  # foot -> [채운, 빈]
-var reach_lines: MeshInstance3D   # 드래그 중 말단의 즉시 도달 영역(부채꼴, docs/25)
 var flag_marks := {}  # foot -> 균형 발 마름모
 var rng := RandomNumberGenerator.new()
 
@@ -53,11 +52,6 @@ func _ready() -> void:
 		var diamond := _mesh(_diamond_mesh(), _overlay(Color("a8d8d0")), false)
 		add_child(diamond)
 		flag_marks[foot] = diamond
-	reach_lines = MeshInstance3D.new()
-	reach_lines.mesh = ImmediateMesh.new()
-	reach_lines.material_override = _overlay(Color(1.0, 0.95, 0.8, 0.55))
-	(reach_lines.material_override as StandardMaterial3D).transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	add_child(reach_lines)
 
 
 # ---------- 재질 ----------
@@ -280,7 +274,6 @@ func _process(delta: float) -> void:
 		_pose_capsules(t)
 	_update_candidate()
 	_update_foot_marks()
-	_update_reach()
 
 
 var _bends := {}  # limb -> 직전 굽힘 축(연속성)
@@ -453,34 +446,6 @@ func _diamond_mesh() -> ArrayMesh:
 	for v in [Vector3(0, r, 0), Vector3(-r, 0, 0), Vector3(0, -r, 0), Vector3(0, r, 0), Vector3(0, -r, 0), Vector3(r, 0, 0)]:
 		st.add_vertex(v)
 	return st.commit()
-
-
-## 드래그 중 말단: 현재 몸통 자세에서 방향 범위 × 최대 도달 거리 부채꼴(즉시 도달 영역)
-func _update_reach() -> void:
-	var im := reach_lines.mesh as ImmediateMesh
-	im.clear_surfaces()
-	var body: BodyState = logic.session.body
-	for limb in logic.session.limbs:
-		if logic.session.limbs[limb].state != "Dragging":
-			continue
-		var joint := PoseSolver.joint_position(body.pos, body.angle, limb, body.yaw)
-		var rng := PoseSolver.dir_range(limb)
-		var lift := Tuning.CONTACT_DEPTH + Tuning.FREE_ENDPOINT_LIFT
-		var free_dz := Tuning.PELVIS_DEPTH_PREFERRED - lift + PoseSolver.joint_depth_offset(limb, body.yaw)
-		var pr := PoseSolver.planar_range(limb, free_dz, free_dz)
-		var s := PoseSolver.side_sign(limb)
-		var hand := PoseSolver.is_hand(limb)
-		var z := Tuning.CONTACT_DEPTH + 0.03
-		im.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-		im.surface_add_vertex(Vector3(joint.x, joint.y, z))
-		var steps := 36
-		for i in steps + 1:
-			var a := deg_to_rad(lerpf(rng.x, rng.y, float(i) / steps))
-			var local := Vector2(s * sin(a), cos(a)) if hand else Vector2(s * sin(a), -cos(a))
-			var w := joint + (local * pr.y).rotated(deg_to_rad(body.angle))
-			im.surface_add_vertex(Vector3(w.x, w.y, z))
-		im.surface_add_vertex(Vector3(joint.x, joint.y, z))
-		im.surface_end()
 
 
 func _update_foot_marks() -> void:

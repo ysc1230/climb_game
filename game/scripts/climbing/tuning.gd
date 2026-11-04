@@ -5,7 +5,7 @@ extends RefCounted
 
 ## 조정 버전(docs/09 tuning_version). 판정 수치·규칙이 바뀌면 올린다.
 ## 1: v0.4 거리 기반, 2: v0.5 방향·3D 거리·지지 하중, 3: v0.5 무브별 선호·의도 비용, 4: v0.6 접점 품질·그립 방식
-const TUNING_VERSION := 5
+const TUNING_VERSION := 6
 
 const TICK_HZ := 60
 const DT := 1.0 / TICK_HZ
@@ -100,8 +100,8 @@ const FREE_ENDPOINT_LIFT := 0.12  # 자유 말단은 벽에서 이만큼 더 떨
 const HAND_LOAD_MAX_BELOW_SHOULDER := 0.10
 
 # 잡기
-const HAND_CANDIDATE_RADIUS := 0.12
-const FOOT_CANDIDATE_RADIUS := 0.10
+const HAND_CANDIDATE_RADIUS := 0.17  # v6(2026-11-04): 0.12 → 0.17, 잡기 여유(사용자 요청)
+const FOOT_CANDIDATE_RADIUS := 0.14  # v6: 0.10 → 0.14
 const CANDIDATE_HYSTERESIS := 0.03
 const ATTACHED_POSITION_TOLERANCE := 0.02
 

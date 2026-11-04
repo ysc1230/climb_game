@@ -52,12 +52,14 @@ const SUPPORTED: Array[StringName] = [T_OUTSIDE_EDGE, T_DROP_KNEE]
 
 const DROP_KNEE_YAW := 35.0          # 27 §10: 드롭니 ψ 목표(도). 그 발 쪽 엉덩이를 벽으로: 왼발 ψ<0, 오른발 ψ>0
 const OUTSIDE_EDGE_YAW := 30.0       # 27 §10: 아웃사이드 엣지 ψ 목표(도)
-const DEADPOINT_RISE_SPEED := 0.20   # 04 §10.5: 골반 위 방향 속도 ≥ 0.20m/s면 창이 열림(자연 일어서기 최대 0.244)
+const DEADPOINT_RISE_SPEED := 0.20       # 04 §10.5: 어떤 동작이든 골반 상승 ≥ 0.20m/s면 창이 열림
+const DEADPOINT_STANDUP_RISE := 0.05     # v6(docs/31): 발로 일어서는 중(StandUp)이면 상승 ≥ 0.05m/s부터 열림(자연 일어서기 최대 0.244의 정점만 열리던 문제)
 const DEADPOINT_MIN_SPEED := 1.0     # 패드 놓기 속도(m/s)가 이 이상일 때만 데드포인트("빠르게 드래그", 27 §8.4)
-const DEADPOINT_GRACE_TICKS := 15    # 상승이 끝난 뒤 0.25초까지 열림
+const DEADPOINT_GRACE_TICKS := 24    # v6: 상승이 끝난 뒤 0.4초까지 열림(0.25 → 0.4)
 const DEADPOINT_MAX_BONUS := 0.15
 const DEADPOINT_MIN_QUALITY := 0.5
 const DEADPOINT_LOAD_FACTOR := 1.3   # 순간 하중 배율(받기 판정은 최대 하중을 1/1.3로 계산)
+const DEADPOINT_FOLLOW_MAX := 0.25   # v6: 받은 뒤 몸이 탄력으로 따라갈 수 있는 최대 골반 이동(m). 그 안에 성립 자세가 없으면 놓침
 const DEADPOINT_AIM_MARGIN := 0.10   # 보너스 범위를 이만큼 넘는 홀드까지는 "던져 보는" 대상(놓치면 추락)
 const SHIFT_SEARCHES := 3            # 체중 이동 후 도달 판정의 목표 탐색 반복(각 ±0.30m)
 const MIN_GRIP_QUALITY := 0.5        # 27 §8.1: q < 0.5면 사이드풀·개스턴 불가

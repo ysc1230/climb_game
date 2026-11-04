@@ -484,7 +484,8 @@ func _draw_pads(size: Vector2) -> void:
 		var active := router.active_limbs().has(limb)
 		var col: Color = LIMB_COLORS[limb]
 		# 안쪽은 더 투명하게(뒤의 벽·홀드가 보이게), 테두리는 어두운 밑선 + 색 선으로 어느 바탕에서도 보이게
-		draw_circle(p.center, p.radius, Color(col, 0.30 if active else 0.08))
+		var ready: bool = session.limbs[limb].state == "Dragging" and not session.limbs[limb].cand.is_empty()
+		draw_circle(p.center, p.radius, Color(col, 0.45 if ready else (0.30 if active else 0.08)))
 		draw_arc(p.center, p.radius, 0, TAU, 48, Color(0.08, 0.07, 0.10, 0.6), 7.0 * ui_k)
 		draw_arc(p.center, p.radius, 0, TAU, 48, Color(col, 0.95), 3.5 * ui_k)
 		var label := "%s%s" % ["왼" if limb in [&"LH", &"LF"] else "오른", "손" if PoseSolver.is_hand(limb) else "발"]
@@ -547,11 +548,44 @@ func _draw_hud(size: Vector2) -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.55))
 		var t := "손가락을 편하게 올려주세요 %d" % ceili(prepare_left) if prepare_left > 0.0 else "일시정지 · 화면을 탭하면 3초 뒤 이어서 시작해요"
 		draw_string(font, Vector2(0, size.y * 0.5), t, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(34 * ui_k), Color.WHITE)
+	_draw_grab_ready()
 	var goal_key := _tutorial_goal_key()
 	overlay.goal_screen_y = w2s(route.slots[goal_key].pos).y if goal_key != "" else -1.0
 	overlay.draw(self, size, ui_k, paused, session.selecting)
 	if goal_key != "" and not paused and not session.selecting and not overlay.blocking():
 		_draw_goal_mark(goal_key)  # 설명칸 위에 그려서 가려지지 않게
+
+
+## 끌고 있는 손발 아래에 지금 놓으면 잡히는 홀드가 있으면(세션 후보) 그 홀드를 그 팔다리 색으로 반짝이고
+## "놓으면 잡혀요"를 띄운다(가동범위 부채꼴 대신, 2026-11-04 사용자 결정). 후보는 실제 잡기 판정과 같다.
+func _draw_grab_ready() -> void:
+	if session.selecting:
+		return
+	var p := PlayOverlay.pulse(Time.get_ticks_msec() * 0.001 * 1.6)
+	var throw_ready := session.deadpoint_window()
+	for limb in session.limbs:
+		var l: Dictionary = session.limbs[limb]
+		if throw_ready and l.state == "Dragging" and PoseSolver.is_hand(limb) and router.pads.has(limb):
+			# 데드포인트 창이 열린 동안(몸이 올라가는 중) 끄는 손: 패드 위에 신호(docs/31)
+			var pad: Dictionary = router.pads[limb]
+			var tp0: Vector2 = pad.center + Vector2(-pad.radius - 40 * ui_k, -pad.radius - 22 * ui_k)
+			draw_arc(pad.center, pad.radius * (1.08 + 0.06 * p), 0, TAU, 48, Color(1, 1, 1, 0.5 + 0.5 * p), 5.0 * ui_k)
+			draw_string(font, tp0 + Vector2(0, 2 * ui_k), "빠르게 놓으면 던져요", HORIZONTAL_ALIGNMENT_CENTER, pad.radius * 2 + 80 * ui_k, int(22 * ui_k), Color(0, 0, 0, 0.8))
+			draw_string(font, tp0, "빠르게 놓으면 던져요", HORIZONTAL_ALIGNMENT_CENTER, pad.radius * 2 + 80 * ui_k, int(22 * ui_k), Color("fff2c8"))
+		if l.state != "Dragging" or l.cand.is_empty():
+			continue
+		var key: String = l.cand.key
+		var col: Color = LIMB_COLORS[limb]
+		var c := w2s(l.cand.point)
+		var rr := _screen_r(route.slots[key].pos, 0.11)
+		draw_circle(c, rr * (1.6 + 0.6 * p), Color(col, 0.22 + 0.28 * p))
+		draw_circle(c, rr * 1.15, Color(col, 0.35))
+		draw_arc(c, rr * 1.3, 0, TAU, 36, Color(0.05, 0.05, 0.08, 0.75), 10.0 * ui_k)
+		draw_arc(c, rr * 1.3, 0, TAU, 36, Color(col, 1.0), 6.0 * ui_k)
+		var fs := int(24 * ui_k)
+		var tp := c + Vector2(-160 * ui_k, -rr * 1.5 - 10 * ui_k)
+		draw_string(font, tp + Vector2(0, 2 * ui_k), "놓으면 잡혀요", HORIZONTAL_ALIGNMENT_CENTER, 320 * ui_k, fs, Color(0, 0, 0, 0.8))
+		draw_string(font, tp, "놓으면 잡혀요", HORIZONTAL_ALIGNMENT_CENTER, 320 * ui_k, fs, Color.WHITE)
 
 
 ## 지금 튜토리얼 단계 목표가 가리키는 홀드 키. 튜토리얼이 아니거나 목표에 홀드가 없으면 "".

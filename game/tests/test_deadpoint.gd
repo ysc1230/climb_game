@@ -152,7 +152,8 @@ func test_window_grace() -> void:
 			open_ticks += 1
 		s.body.vel.y = 0.0
 		s.step()
-	runner.check(open_ticks >= 14 and open_ticks <= 16, "상승 종료 후 약 15틱 열림 (%d)" % open_ticks)
+	var g := TechniqueJudge.DEADPOINT_GRACE_TICKS
+	runner.check(g == 24 and open_ticks >= g - 1 and open_ticks <= g + 1, "상승 종료 후 약 24틱(0.4초) 열림 (%d)" % open_ticks)
 	runner.check(not s.deadpoint_window(), "그 뒤 닫힘")
 
 
@@ -350,3 +351,43 @@ func test_deadpoint_holder_cost_respects_fatigue_disabled() -> void:
 		results[disabled] = before - float(s.rules.stamina[&"RH"])
 	runner.check(results[false] >= ClimbSession.DEADPOINT_STAMINA_COST - 1.0, "기본: -10 적용 (%.2f)" % results[false])
 	runner.check(results[true] <= 0.0, "보조 모드: 감소 없음 (%.2f)" % results[true])
+
+
+## v6(docs/31): 자연 일어서기 상승(0.10~0.244m/s) 대부분 동안 창이 열린다.
+func test_window_opens_on_slow_rise() -> void:
+	var s := _session(_tx())
+	s.body.vel.y = 0.12
+	runner.check(not s.deadpoint_window(), "일어서기가 아닌 0.12m/s 상승(손 뻗으며 몸이 따라 오름)은 닫힘")
+	s.rules.moves.label = MoveClassifier.STAND_UP
+	runner.check(s.deadpoint_window(), "발로 일어서는 중이면 0.12m/s에서도 열림")
+
+
+## v6(docs/31): 받은 뒤 발을 유지한 자세가 없으면 발을 떼고(풋컷) 손으로 매달린 자세로 간다. 몸은 성립 자세로 옮겨 굳지 않는다.
+func test_catch_follows_body_and_cuts_feet() -> void:
+	var r := _tx()
+	var s := _session(r)
+	_setup(r, s, 0.10)
+	s.body.vel.y = 0.40
+	_release(s, 2.0)
+	var cut := false
+	for i in 12:
+		s.step()
+		for ev in s.technique_log:
+			if ev.type == "feet_cut":
+				cut = true
+		if s.limbs[&"LH"].state == "Attached":
+			break
+	runner.check(s.limbs[&"LH"].state == "Attached", "받음")
+	runner.check(PoseSolver.is_valid(s.body.pos, s.body.angle, s.attached(), s.body.yaw), "받은 뒤 자세가 성립(굳지 않음)")
+	if cut:
+		runner.check(s.limbs[&"LF"].state == "Free" or s.limbs[&"RF"].state == "Free", "풋컷이면 그 발은 Free")
+
+
+## 발을 유지한 채로는 성립하는 자세가 없으면 그 발을 뗀 자세를 고른다(풋컷).
+func test_follow_pose_cuts_unholdable_foot() -> void:
+	var r := _tx()
+	var s := _session(r)
+	s.limbs[&"LF"].grab = s.body.pos + Vector2(-0.3, -1.4)  # 다리 길이(1.0)를 넘는 곳: 이 발은 유지할 수 없다
+	var sh := PoseSolver.joint_position(s.body.pos, s.body.angle, &"LH", s.body.yaw)
+	var f := s._deadpoint_follow_pose(&"LH", sh + Vector2(0, 0.6))
+	runner.check(not f.is_empty() and f.cut.has(&"LF"), "LF를 떼는 자세: %s" % [f])
