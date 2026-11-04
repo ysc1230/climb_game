@@ -9,7 +9,7 @@
   "course_id": "C_CROSS",
   "course_slot": "tutorial",
   "required_techniques": [],
-  "note": "v1: 크로스 튜토리얼(docs/28 §6·§6.1). 해 보기 = 왼손을 오른손(H02) 너머 H03에 잡기(CrossReach), 써먹기 = 건넌 왼손으로 버틸 때만 닿는 먼 오른쪽 H04를 오른손으로. 시작 자세에서 오른손 직접, 손 바꿔 옮기기(오른손 H03 → 왼손 H02 → 오른손 H04)로는 H04에 닿지 않는다(SessionBot). 크로스 홀드는 반대 손 홀드에서 반폭보다 멀리(0.19) 두어 가장자리를 잡아도 교차가 된다.",
+  "note": "v1: 크로스 튜토리얼(docs/28 §6·§6.1). 안내 문구는 docs/16 v0.7 C_CROSS_T 말투(2026-11-04, 배치는 그대로). 해 보기 = 왼손을 오른손(H02) 너머 H03에 잡기(CrossReach), 써먹기 = 건넌 왼손으로 버틸 때만 닿는 먼 오른쪽 H04를 오른손으로. 시작 자세에서 오른손 직접, 손 바꿔 옮기기(오른손 H03 → 왼손 H02 → 오른손 H04)로는 H04에 닿지 않는다(SessionBot). 크로스 홀드는 반대 손 홀드에서 반폭보다 멀리(0.19) 두어 가장자리를 잡아도 교차가 된다.",
   "bounds": {"x_min": -1.5, "x_max": 1.5, "y_min": 0.0, "y_max": 5.0},
   "fail_line_y": -0.5,
   "holds": [
@@ -35,7 +35,7 @@
     ["LH", "C_CROSS_T/G01/goal_left"], ["RH", "C_CROSS_T/G01/goal_right"]
   ],
   "tutorial_steps": [
-    {"step_id": "CR-A", "text_ko": "왼손을 오른손 너머로 건너 표시된 오른쪽 홀드를 잡아 보세요.", "goal_event": {"type": "grab", "limb": "LH", "slot": "C_CROSS_T/H03/hand_1"}, "help_ko": ["왼손을 움직여요. 오른손은 그대로 잡고 있어요.", "왼손을 오른손 위를 지나 표시된 오른쪽 홀드까지 끌어서 놓아요."], "rules": {"fatigue_drain": false, "techniques": []}},
-    {"step_id": "CR-B", "text_ko": "건넌 왼손으로 버티면서 오른손을 표시된 먼 오른쪽 홀드로 옮겨 보세요.", "goal_event": {"type": "grab", "limb": "RH", "slot": "C_CROSS_T/H04/hand_1"}, "help_ko": ["오른손을 움직여요. 왼손은 건넌 홀드를 그대로 잡고 있어요.", "오른손을 표시된 먼 오른쪽 홀드까지 끌어서 놓아요."], "rules": {"fatigue_drain": false, "techniques": []}}
+    {"step_id": "CR-A", "text_ko": "왼손을 오른손 너머 홀드로 교차해 잡아요.", "goal_event": {"type": "grab", "limb": "LH", "slot": "C_CROSS_T/H03/hand_1"}, "help_ko": ["왼손을 움직여요. 오른손은 그대로 잡고 있어요.", "왼손을 오른손 위를 지나 표시된 오른쪽 홀드까지 끌어서 놓아요."], "rules": {"fatigue_drain": false, "techniques": []}},
+    {"step_id": "CR-B", "text_ko": "오른손을 오른쪽 먼 홀드로 옮겨요.", "goal_event": {"type": "grab", "limb": "RH", "slot": "C_CROSS_T/H04/hand_1"}, "help_ko": ["오른손을 움직여요. 왼손은 건넌 홀드를 그대로 잡고 있어요.", "오른손을 표시된 먼 오른쪽 홀드까지 끌어서 놓아요."], "rules": {"fatigue_drain": false, "techniques": []}}
   ]
 }

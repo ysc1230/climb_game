@@ -81,3 +81,36 @@ func drag(limb: StringName, key: String) -> bool:
 		if act != "":
 			return true
 	return false
+
+
+## 패드 데드포인트(사람처럼): 발을 올린 직후 바로 손을 떼어 그 홀드 쪽으로 끌고, 정적 후보가 그 키가 되거나
+## 창이 열려 있고 지금 자세에서 받을 수 있으면(SessionBot과 같은 규칙: 조준점에서 가장 가까운 손홀드가 그 키이고 관절~홀드 거리 ≤ 정적 한계 + 보너스)
+## speed(m/s)로 빠르게 놓는다. 열렸던 창이 닫히면 그때 놓는다. 결과가 나오면 멈춘다. 놓았으면 true.
+func flick(hand: StringName, key: String, speed := 2.0) -> bool:
+	var target := s.route.slot_pos(key)
+	s.apply_input([{"type": "detach", "limb": hand}])
+	var was_open := false
+	for i in 180:
+		var req: Vector2 = s.limbs[hand].req
+		s.apply_input([{"type": "move", "limb": hand, "delta": (target - req).limit_length(DRAG_SPEED * DT)}])
+		if tick() != "":
+			return false
+		var b := s.body
+		var open := s.deadpoint_window()
+		var over := PoseSolver.limb_distance(b.pos, b.angle, hand, target, b.yaw) - TechniqueJudge.deadpoint_far(hand, b.yaw)
+		var aimed := GripCheck.aimed_slot(_hand_slots(hand), s.limbs[hand].req) == key
+		if s.limbs[hand].cand.get("key", "") == key or (was_open and not open) or (open and aimed and over <= s.deadpoint_bonus(speed)):
+			s.apply_input([{"type": "release", "limb": hand, "speed": speed}])
+			return true
+		was_open = was_open or open
+	return false
+
+
+## 손이 잡을 수 있는 손홀드 슬롯만(조준점 판정용).
+func _hand_slots(hand: StringName) -> Dictionary:
+	var out := {}
+	for k in s.route.slots:
+		var slot: Dictionary = s.route.slots[k]
+		if slot.allowed.has(hand) and slot.has("hand_area"):
+			out[k] = slot
+	return out

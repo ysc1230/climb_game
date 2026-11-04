@@ -1,0 +1,39 @@
+{
+  "route_id": "C_DEADPOINT_T",
+  "content_version": 1,
+  "validation_status": "Draft",
+  "mode": "course",
+  "grade": "V0",
+  "order": 0,
+  "name_ko": "데드포인트",
+  "course_id": "C_DEADPOINT",
+  "course_slot": "tutorial",
+  "required_techniques": [],
+  "note": "v1: docs/16 v0.7 C_DEADPOINT_T(D1~D3), 기술 29 §3.10. 배치는 C_HIGH_STEP_T 시작(골반 (0, 0.839), 손 (±0.40, 2.00), 발 (±0.30, 0.10))이고 높은 발판 F03 (0.30, 0.75)·F04 (-0.30, 0.75). 한 발로 일어선 뒤 정적 한계는 y 2.40(2.42부터 못 잡음), 먼 홀드 H03 (-0.30, 2.47)·H04 (0.30, 2.47)는 그보다 0.05~0.07 위다. 발을 딛은 뒤 약 0.58~0.9초(일어서기 끝 무렵, 창이 닫히기 전)에 빠르게 놓으면 잡히고, 더 이르면 놓쳐서 떨어진다. D2·D3 목표는 pad_deadpoint(ok) 이벤트이고 반짝임은 mark_slot. 의도 경로는 데드포인트 없이 정상 G01 (±0.05, 2.30)로 간다(정적 한계 밖 홀드를 데드포인트로 잡으면 그 손이 정적 도달 밖이라 몸이 굳어 다음 이동이 안 되기 때문). 두 발을 모두 높은 발판에 올리면 나중에 올린 발 쪽 손이 먼 홀드에 정적으로 닿는다(목표가 이벤트라 단계는 넘어가지 않음).",
+  "bounds": {"x_min": -1.5, "x_max": 1.5, "y_min": 0.0, "y_max": 5.0},
+  "fail_line_y": -0.5,
+  "holds": [
+    {"hold_id": "H01", "slots": [{"slot_id": "hand_1", "pos": [-0.40, 2.00], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
+    {"hold_id": "H02", "slots": [{"slot_id": "hand_1", "pos": [0.40, 2.00], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
+    {"hold_id": "F01", "slots": [{"slot_id": "foot_1", "pos": [-0.30, 0.10], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "F02", "slots": [{"slot_id": "foot_1", "pos": [0.30, 0.10], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "F03", "slots": [{"slot_id": "foot_1", "pos": [0.30, 0.75], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "F04", "slots": [{"slot_id": "foot_1", "pos": [-0.30, 0.75], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "H03", "slots": [{"slot_id": "hand_1", "pos": [-0.30, 2.47], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
+    {"hold_id": "H04", "slots": [{"slot_id": "hand_1", "pos": [0.30, 2.47], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
+    {"hold_id": "G01", "slots": [
+      {"slot_id": "goal_left", "pos": [-0.05, 2.30], "allowed": ["LH", "RH"]},
+      {"slot_id": "goal_right", "pos": [0.05, 2.30], "allowed": ["LH", "RH"]}]}
+  ],
+  "platforms": [{"platform_id": "P00", "top_y": 0.10, "x_range": [-0.65, 0.65], "foot_slot_keys": ["C_DEADPOINT_T/F01/foot_1", "C_DEADPOINT_T/F02/foot_1"]}],
+  "start_pose": {"pelvis": [0.000, 0.839], "angle": 0.0, "slots": {"LH": "C_DEADPOINT_T/H01/hand_1", "RH": "C_DEADPOINT_T/H02/hand_1", "LF": "C_DEADPOINT_T/F01/foot_1", "RF": "C_DEADPOINT_T/F02/foot_1"}},
+  "goal_slots": ["C_DEADPOINT_T/G01/goal_left", "C_DEADPOINT_T/G01/goal_right"],
+  "intended_moves": [
+    ["RF", "C_DEADPOINT_T/F03/foot_1"], ["RH", "C_DEADPOINT_T/G01/goal_right"], ["LH", "C_DEADPOINT_T/G01/goal_left"]
+  ],
+  "tutorial_steps": [
+    {"step_id": "D1", "text_ko": "오른발을 높은 발판에 올려 몸을 밀어 올려요.", "goal_event": {"type": "grab", "limb": "RF", "slot": "C_DEADPOINT_T/F03/foot_1"}, "help_ko": ["오른쪽 아래 발 패드를 위로", "반짝이는 높은 발판"], "rules": {"fatigue_drain": false, "techniques": []}},
+    {"step_id": "D2", "text_ko": "몸이 올라가는 동안 왼손을 빠르게 끌어 먼 홀드를 잡아요.", "mark_slot": "C_DEADPOINT_T/H03/hand_1", "goal_event": {"type": "pad_deadpoint", "limb": "LH", "slot": "C_DEADPOINT_T/H03/hand_1", "ok": true}, "help_ko": ["발을 올린 직후 왼손 패드를 휙 끌어요", "늦었으면 발을 내렸다가 다시 올려요"], "rules": {"fatigue_drain": false, "techniques": []}},
+    {"step_id": "D3", "text_ko": "이번엔 왼발로 올라서며 오른손으로 해 봐요.", "start_pose": {"pelvis": [0.000, 0.839], "angle": 0.0, "slots": {"LH": "C_DEADPOINT_T/H01/hand_1", "RH": "C_DEADPOINT_T/H02/hand_1", "LF": "C_DEADPOINT_T/F01/foot_1", "RF": "C_DEADPOINT_T/F02/foot_1"}}, "mark_slot": "C_DEADPOINT_T/H04/hand_1", "goal_event": {"type": "pad_deadpoint", "limb": "RH", "slot": "C_DEADPOINT_T/H04/hand_1", "ok": true}, "help_ko": ["왼발을 높은 발판에 올린 직후", "오른손 패드를 휙"], "rules": {"fatigue_drain": false, "techniques": []}}
+  ]
+}

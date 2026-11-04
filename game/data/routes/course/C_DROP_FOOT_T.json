@@ -1,0 +1,42 @@
+{
+  "route_id": "C_DROP_FOOT_T",
+  "content_version": 1,
+  "validation_status": "Draft",
+  "mode": "course",
+  "grade": "V0",
+  "order": 0,
+  "name_ko": "다리 내리기 + 먼 손 뻗기",
+  "course_id": "C_DROP_FOOT",
+  "course_slot": "tutorial",
+  "required_techniques": [],
+  "note": "v1: docs/16 v0.7 C_DROP_FOOT_T(DF1~DF4), 기술 29 §3.11. 시작은 왼손 H01 (-0.35, 2.00), 오른손 H02 (0.35, 2.00), 왼발 높이 F01 (-0.30, 0.95), 오른발 F02 (0.20, 0.75), 수렴 골반 (-0.343, 1.491) 10.3°. 높은 왼발 위로 골반이 왼쪽에 머물러 오른손이 x 0.6 남짓까지만 닿는다. 왼발을 F03 (-0.15, 0.50)으로 내리면 골반이 (0.23, 1.12)로 옮겨 가 H03 (1.10, 2.10)에 닿는다. F03을 정적 탐침값 (-0.35, 0.60)에 두면 실제 세션에서 골반이 옮겨 가지 않아 x 0.59에 그쳤다. DF3·DF4는 x 거울 배치(F04·F05·F06·H04)이며 DF3 start_pose로 거울 시작 자세에 놓는다.",
+  "bounds": {"x_min": -1.6, "x_max": 1.6, "y_min": 0.0, "y_max": 4.0},
+  "fail_line_y": -0.5,
+  "holds": [
+    {"hold_id": "H01", "slots": [{"slot_id": "hand_1", "pos": [-0.35, 2.00], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
+    {"hold_id": "H02", "slots": [{"slot_id": "hand_1", "pos": [0.35, 2.00], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
+    {"hold_id": "F01", "slots": [{"slot_id": "foot_1", "pos": [-0.30, 0.95], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "F02", "slots": [{"slot_id": "foot_1", "pos": [0.20, 0.75], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "F03", "slots": [{"slot_id": "foot_1", "pos": [-0.15, 0.50], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "H03", "slots": [{"slot_id": "hand_1", "pos": [1.10, 2.10], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
+    {"hold_id": "F04", "slots": [{"slot_id": "foot_1", "pos": [0.30, 0.95], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "F05", "slots": [{"slot_id": "foot_1", "pos": [-0.20, 0.75], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "F06", "slots": [{"slot_id": "foot_1", "pos": [0.15, 0.50], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "H04", "slots": [{"slot_id": "hand_1", "pos": [-1.10, 2.10], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
+    {"hold_id": "G01", "slots": [
+      {"slot_id": "goal_left", "pos": [-0.22, 2.30], "allowed": ["LH", "RH"]},
+      {"slot_id": "goal_right", "pos": [0.22, 2.30], "allowed": ["LH", "RH"]}]}
+  ],
+  "platforms": [],
+  "start_pose": {"pelvis": [-0.343, 1.491], "angle": 10.3, "slots": {"LH": "C_DROP_FOOT_T/H01/hand_1", "RH": "C_DROP_FOOT_T/H02/hand_1", "LF": "C_DROP_FOOT_T/F01/foot_1", "RF": "C_DROP_FOOT_T/F02/foot_1"}},
+  "goal_slots": ["C_DROP_FOOT_T/G01/goal_left", "C_DROP_FOOT_T/G01/goal_right"],
+  "intended_moves": [
+    ["LF", "C_DROP_FOOT_T/F03/foot_1"], ["RH", "C_DROP_FOOT_T/H03/hand_1"], ["RH", "C_DROP_FOOT_T/G01/goal_right"], ["LH", "C_DROP_FOOT_T/G01/goal_left"]
+  ],
+  "tutorial_steps": [
+    {"step_id": "DF1", "text_ko": "높이 올린 왼발을 아래 발판으로 내려요.", "goal_event": {"type": "grab", "limb": "LF", "slot": "C_DROP_FOOT_T/F03/foot_1"}, "help_ko": ["왼쪽 아래 발 패드를 아래로 끌어요", "반짝이는 아래 발판에서 떼요"], "rules": {"fatigue_drain": false, "techniques": []}},
+    {"step_id": "DF2", "text_ko": "이제 오른팔을 오른쪽 멀리 뻗어 잡아요.", "goal_event": {"type": "grab", "limb": "RH", "slot": "C_DROP_FOOT_T/H03/hand_1"}, "help_ko": ["오른쪽 위 손 패드를 멀리 끌어요", "발을 내린 덕분에 닿아요"], "rules": {"fatigue_drain": false, "techniques": []}},
+    {"step_id": "DF3", "text_ko": "반대로 해 봐요. 오른발을 내려요.", "start_pose": {"pelvis": [0.343, 1.491], "angle": -10.3, "slots": {"LH": "C_DROP_FOOT_T/H01/hand_1", "RH": "C_DROP_FOOT_T/H02/hand_1", "LF": "C_DROP_FOOT_T/F05/foot_1", "RF": "C_DROP_FOOT_T/F04/foot_1"}}, "goal_event": {"type": "grab", "limb": "RF", "slot": "C_DROP_FOOT_T/F06/foot_1"}, "help_ko": ["오른쪽 아래 발 패드를 아래로", "반짝이는 발판"], "rules": {"fatigue_drain": false, "techniques": []}},
+    {"step_id": "DF4", "text_ko": "왼팔을 왼쪽 멀리 뻗어 잡아요.", "goal_event": {"type": "grab", "limb": "LH", "slot": "C_DROP_FOOT_T/H04/hand_1"}, "help_ko": ["왼쪽 위 손 패드를 멀리", "반짝이는 홀드"], "rules": {"fatigue_drain": false, "techniques": []}}
+  ]
+}
