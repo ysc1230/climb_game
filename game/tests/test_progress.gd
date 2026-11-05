@@ -107,6 +107,35 @@ func test_grade_unlock_two_of_four() -> void:
 	_cleanup()
 
 
+## 문제가 없는 등급은 건너뛴다: V1이 비면 V2는 V0 완등으로 열리고, 앞 등급 문제가 2개보다 적으면 전부 완등해야 한다.
+func test_grade_unlock_skips_empty_grade() -> void:
+	_general("G_V0_01", "V0", 1)
+	_general("G_V2_01", "V2", 1)
+	_general("G_V3_01", "V3", 1)
+	_general("G_V3_02", "V3", 2)
+	_general("G_V3_03", "V3", 3)
+	_write(FIX + "/courses.json", {"courses": []})
+	var idx := ContentIndex.load_all(FIX)
+	var p := Progress.new()
+	p.skip_basic()
+	runner.check(p.prerequisite_grade("V2", idx) == "V0", "V2의 앞 등급은 V0(V1 비어 있음): %s" % p.prerequisite_grade("V2", idx))
+	runner.check(not p.grade_unlocked("V2", idx), "V0 완등 0개: V2 잠김")
+	runner.check(p.grade_lock_text("V2", idx) == "V0에서 1개 더 완등하면 열려요", "V0 문제 1개면 1개 필요: %s" % p.grade_lock_text("V2", idx))
+	p.record_clear(idx.route("G_V0_01"), 30.0, 0)
+	runner.check(p.grade_unlocked("V2", idx) and p.grade_lock_text("V2", idx) == "", "V0 1개 전부 완등: V2 열림")
+	runner.check(not p.grade_unlocked("V3", idx), "V2 0개: V3 잠김")
+	runner.check(p.grade_lock_text("V3", idx) == "V2에서 1개 더 완등하면 열려요", "V3 문구: %s" % p.grade_lock_text("V3", idx))
+	p.record_clear(idx.route("G_V2_01"), 30.0, 0)
+	runner.check(p.grade_unlocked("V3", idx), "V2 1개 전부 완등: V3 열림")
+	runner.check(not p.grade_unlocked("V4", idx) and p.grade_lock_text("V4", idx) == "V3에서 2개 더 완등하면 열려요", "V3 문제 3개면 2개 필요: %s" % p.grade_lock_text("V4", idx))
+	p.record_clear(idx.route("G_V3_02"), 30.0, 0)
+	p.record_clear(idx.route("G_V3_03"), 30.0, 0)
+	runner.check(p.grade_unlocked("V4", idx), "V3 2개: V4 열림")
+	var q := Progress.new()
+	runner.check(not q.grade_unlocked("V0", idx) and q.grade_lock_text("V2", idx) == "V0에서 1개 더 완등하면 열려요", "첫 실행: V0 잠김, V2 문구는 V0 기준")
+	_cleanup()
+
+
 func test_unlocked_buttons_after_tutorial() -> void:
 	var idx := _index()
 	var p := Progress.new()

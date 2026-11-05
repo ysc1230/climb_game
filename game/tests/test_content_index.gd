@@ -197,7 +197,7 @@ func test_courses_json_content() -> void:
 
 func test_index_real_data() -> void:
 	var idx := ContentIndex.load_all()
-	runner.check(idx.grades() == (["V0"] as Array[String]), "등급 %s" % [idx.grades()])
+	runner.check(idx.grades() == (["V0", "V2"] as Array[String]), "등급 %s" % [idx.grades()])  # V1은 아직 문제 없음
 	var g := idx.general("V0")
 	runner.check(g.size() == 1 and g[0].route_id == "G_V0_01", "V0 문제")
 	runner.check(idx.route("G_V0_01") == g[0], "route 조회")

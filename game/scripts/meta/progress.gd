@@ -66,21 +66,36 @@ func cleared_count(grade: String, index: ContentIndex) -> int:
 	return n
 
 
+## 다음 등급을 여는 앞 등급: 그 등급보다 낮은 등급 중 문제가 있는 가장 가까운 등급("" = 없음).
+## 문제가 없는 등급은 건너뛴다(V1이 비어 있으면 V2는 V0 완등으로 열린다).
+func prerequisite_grade(grade: String, index: ContentIndex) -> String:
+	for m in range(grade.substr(1).to_int() - 1, -1, -1):
+		if not index.general("V%d" % m).is_empty():
+			return "V%d" % m
+	return ""
+
+
+## 앞 등급에서 필요한 완등 수: 2개, 그 등급 문제가 2개보다 적으면 전부.
+func clears_needed(prev: String, index: ContentIndex) -> int:
+	return mini(GRADE_CLEAR_NEEDED, index.general(prev).size())
+
+
 func grade_unlocked(grade: String, index: ContentIndex) -> bool:
 	var n := grade.substr(1).to_int()
-	if n <= 0:
+	var prev := prerequisite_grade(grade, index) if n > 0 else ""
+	if prev == "":
 		return not is_first_run()
-	return cleared_count("V%d" % (n - 1), index) >= GRADE_CLEAR_NEEDED
+	return cleared_count(prev, index) >= clears_needed(prev, index)
 
 
 func grade_lock_text(grade: String, index: ContentIndex) -> String:
 	if grade_unlocked(grade, index):
 		return ""
 	var n := grade.substr(1).to_int()
-	if n <= 0:
+	var prev := prerequisite_grade(grade, index) if n > 0 else ""
+	if prev == "":
 		return TEXT_FIRST_RUN
-	var prev := "V%d" % (n - 1)
-	return "%s에서 %d개 더 완등하면 열려요" % [prev, GRADE_CLEAR_NEEDED - cleared_count(prev, index)]
+	return "%s에서 %d개 더 완등하면 열려요" % [prev, clears_needed(prev, index) - cleared_count(prev, index)]
 
 
 ## 튜토리얼을 마친 버튼 과정의 버튼 기술.
