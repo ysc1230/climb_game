@@ -190,22 +190,23 @@ var hold_glows := {}  # 슬롯 키 → 홀드 위에 겹친 빛 메시(잡을 �
 
 
 ## 홀드 디자인 v2(docs/32): Blender로 만든 실제 크기 로우폴리 레진 홀드(art/holds/holds.glb, tools/holds/make_holds.py).
-## 손홀드는 대부분 작은 종류(크림프·에지·핀치·포켓·너브), 다섯에 하나쯤 중간(저그·슬로퍼),
-## 넓은 잡기 영역(반폭 ≥ 0.15)과 정상만 큰 홀드. 발판은 각진 칩·얇은 에지. 늘리지 않고 잡기 방향으로 돌려 놓는다.
-## 잡기 판정(영역·여유)은 그대로다. 잡을 수 있으면 홀드 자체가 빛나 위치를 알려 준다.
+## v8: 홀드 크기는 잡기 영역 반폭에서 정한다(보이는 크기 = 잡는 크기). 아주 작음~아주 큼 다섯 등급마다
+## 어울리는 종류(크림프·너브·포켓·에지·핀치·저그·슬로퍼)를 고른다. 작을수록 잡기 반경도 작아 정확히 가져가야 한다.
 const HOLD_MESHES := preload("res://art/holds/holds.glb")
 const HOLD_COLORS := {
 	"hand": [Color("2b7a6f"), Color("8fd0bc")],
 	"foot": [Color("5e4c70"), Color("c4b0d6")],
 	"goal": [Color("d9b872"), Color("f1d59a")],
 }
-const HOLD_SMALL := ["hs_crimp_0", "hs_crimp_1", "hs_edge_0", "hs_edge_1", "hs_pinch_0", "hs_pocket_0", "hs_nub_0", "hs_nub_1"]
-const HOLD_MEDIUM := ["hm_jug_0", "hm_sloper_0"]
-const HOLD_LARGE := ["hl_jug_0", "hl_sloper_0"]
+## 크기 등급(손홀드 반폭 기준, v8): 보이는 크기 = 잡는 크기. 작은 홀드는 잡기 반경도 작다(GripCheck.radius_for).
+const HAND_SIZE_CLASSES := [
+	[0.05, ["hs_crimp_1", "hs_nub_0", "hs_pocket_0"]],                     # 아주 작음
+	[0.09, ["hs_crimp_0", "hs_edge_1", "hs_pinch_0", "hs_pocket_0", "hs_nub_1"]],  # 작음
+	[0.13, ["hs_edge_0", "hm_jug_0", "hs_nub_0", "hm_sloper_0"]],          # 중간
+	[0.17, ["hm_jug_0", "hm_sloper_0"]],                                   # 큼
+	[INF, ["hl_jug_0", "hl_sloper_0"]],                                    # 아주 큼
+]
 const HOLD_FOOT := ["f_chip_0", "f_chip_1", "f_chip_2", "f_edge_0"]
-const LARGE_HALF_WIDTH := 0.15
-## 화면 배율: 실제 크기(작은 홀드 약 8cm)는 휴대폰 화면에서 몇 픽셀이라, 크기 순서는 지키면서 읽히게 키운다.
-const HOLD_VIEW_SCALE := {"hs": 1.9, "hm": 1.5, "hl": 1.25, "f_": 1.9, "go": 1.25}
 var _hold_mesh_cache := {}
 
 
@@ -218,18 +219,31 @@ func _hold_mesh(name: String) -> Mesh:
 	return _hold_mesh_cache.get(name)
 
 
-## 슬롯에 놓을 홀드 메시 이름(키 해시로 고정된 무작위).
+## 슬롯에 놓을 홀드 메시 이름(크기 등급 안에서 키 해시로 고정된 무작위).
 static func hold_variant(key: String, slot: Dictionary, is_goal: bool) -> String:
 	var h := absi(hash(key))
 	if is_goal:
 		return "goal"
 	if not slot.has("hand_area"):
 		return HOLD_FOOT[h % HOLD_FOOT.size()]
-	if float(slot.hand_area.half_width) >= LARGE_HALF_WIDTH:
-		return HOLD_LARGE[h % HOLD_LARGE.size()]
-	if h % 5 == 0:
-		return HOLD_MEDIUM[(h / 5) % HOLD_MEDIUM.size()]
-	return HOLD_SMALL[h % HOLD_SMALL.size()]
+	var hw := float(slot.hand_area.half_width)
+	for c in HAND_SIZE_CLASSES:
+		if hw < float(c[0]):
+			return c[1][h % (c[1] as Array).size()]
+	return "hl_jug_0"
+
+
+## 보이는 길이(잡는 방향): 손 2·반폭 + 2·두께, 발 2·발 반폭 + 0.02. 메시 원래 길이로 나눈 균일 배율.
+static func hold_view_scale(slot: Dictionary, mesh: Mesh, is_goal: bool) -> float:
+	if is_goal:
+		return 1.25
+	var target: float
+	if slot.has("hand_area"):
+		target = 2.0 * float(slot.hand_area.half_width) + 2.0 * GripCheck.hand_thickness(slot)
+	else:
+		target = 2.0 * GripCheck.foot_half_width(slot) + 0.02
+	var native := maxf(mesh.get_aabb().size.x, 0.01)
+	return maxf(0.45, target / native)
 
 
 func _build_holds() -> void:
@@ -252,7 +266,7 @@ func _build_holds() -> void:
 		var p: Vector2 = slot.pos
 		hold.position = Vector3(p.x, p.y, 0.0)
 		hold.rotation = Vector3(0, 0, ang + deg_to_rad(rng.randf_range(-8, 8)))
-		hold.scale = Vector3.ONE * float(HOLD_VIEW_SCALE.get(variant.left(2), 1.5)) * rng.randf_range(0.92, 1.12)
+		hold.scale = Vector3.ONE * hold_view_scale(slot, mesh, is_goal) * rng.randf_range(0.95, 1.05)
 		add_child(hold)
 		var glow := MeshInstance3D.new()
 		glow.mesh = mesh

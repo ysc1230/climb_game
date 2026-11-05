@@ -36,6 +36,28 @@ static func radius_of(limb: StringName) -> float:
 	return Tuning.HAND_CANDIDATE_RADIUS if PoseSolver.is_hand(limb) else Tuning.FOOT_CANDIDATE_RADIUS
 
 
+## 이 홀드의 잡기 반경(v8, 2026-11-05 사용자: "잡기 힘들 정도로 작은 홀드도 좋다, 크기가 여러 개여야").
+## 작은 홀드일수록 손끝을 더 가까이 가져가야 잡힌다: 손 0.06 + 0.9·반폭(최대 0.17), 발 0.05 + 1.5·발 반폭(최대 0.14).
+static func radius_for(limb: StringName, slot: Dictionary) -> float:
+	if PoseSolver.is_hand(limb):
+		if not slot.has("hand_area"):
+			return Tuning.HAND_CANDIDATE_RADIUS
+		return minf(Tuning.HAND_CANDIDATE_RADIUS, 0.06 + 0.9 * float(slot.hand_area.half_width))
+	return minf(Tuning.FOOT_CANDIDATE_RADIUS, 0.05 + 1.5 * foot_half_width(slot))
+
+
+## 손홀드 몸체 두께(선분 수직 반폭): 0.01 + 0.3·반폭, 최대 0.04. 아주 작은 홀드는 얇다.
+static func hand_thickness(slot: Dictionary) -> float:
+	if not slot.has("hand_area"):
+		return HAND_HOLD_THICKNESS
+	return minf(HAND_HOLD_THICKNESS, 0.01 + 0.3 * float(slot.hand_area.half_width))
+
+
+## 발판 좌우 반폭: foot_area.half_width(없으면 0.06).
+static func foot_half_width(slot: Dictionary) -> float:
+	return float(slot.get("foot_area", {}).get("half_width", FOOT_HOLD_HALF_WIDTH))
+
+
 ## 구간 겹침(맞닿음은 겹침이 아님).
 static func overlaps(a: Vector2, b: Vector2) -> bool:
 	return a.x < b.y - 0.0001 and b.x < a.y - 0.0001
@@ -127,7 +149,7 @@ static func reachable_contact(slot: Dictionary, limb: StringName, endpoint: Vect
 static func _thicken(slot: Dictionary, hand: bool, p: Vector2, endpoint: Vector2) -> Vector2:
 	var along: Vector2 = slot.hand_area.dir if hand else slot.foot_area.up
 	var n := along.orthogonal()
-	var lim := HAND_HOLD_THICKNESS if hand else FOOT_HOLD_HALF_WIDTH
+	var lim := hand_thickness(slot) if hand else foot_half_width(slot)
 	return p + n * clampf((endpoint - p).dot(n), -lim, lim)
 
 
@@ -143,7 +165,6 @@ static func _hand_free(s: float, limb: StringName, entries: Array) -> bool:
 ## previous: 직전에 보여준 후보 키(히스테리시스 0.03m). 반환 {key, point, quality} 또는 {}.
 ## reject: (key, point) → true면 그 목표를 후보에서 뺀다(검증기 금지 플래그, 28 §7.4). 비면 쓰지 않는다.
 static func candidate(slots: Dictionary, limb: StringName, endpoint: Vector2, pelvis: Vector2, angle_deg: float, attached: Dictionary, occupied: Dictionary, previous: String = "", yaw_deg: float = 0.0, reject: Callable = Callable()) -> Dictionary:
-	var radius := radius_of(limb)
 	var best := {}
 	var best_d := INF
 	var prev := {}
@@ -158,7 +179,7 @@ static func candidate(slots: Dictionary, limb: StringName, endpoint: Vector2, pe
 			var with_new := attached.duplicate()
 			with_new[limb] = p
 			return PoseSolver.is_valid(pelvis, angle_deg, with_new, yaw_deg)
-		var c := reachable_contact(slot, limb, endpoint, occupied.get(key, []), radius, ok)
+		var c := reachable_contact(slot, limb, endpoint, occupied.get(key, []), radius_for(limb, slot), ok)
 		if c.is_empty():
 			continue
 		var d := endpoint.distance_to(c.point)
@@ -268,7 +289,7 @@ static func reject_reason(slots: Dictionary, limb: StringName, endpoint: Vector2
 		return OUT_OF_REACH
 	if not PoseSolver.is_valid(pelvis, angle_deg, with_new, yaw_deg):
 		return POSE_CONFLICT
-	if endpoint.distance_to(sp) > radius_of(limb):
+	if endpoint.distance_to(sp) > radius_for(limb, slots[key]):
 		return NOT_ARRIVED
 	return &""
 

@@ -116,3 +116,17 @@ func test_contact_for() -> void:
 	var fk := "TX_TECH/F01/foot_1"
 	var cf := GripCheck.contact_for(fk, r.slots, &"LF", r.slots[fk].pos)
 	runner.check(cf.mode == &"foot" and cf.edge == &"inside", "발 접점 정보")
+
+
+## v8: 작은 홀드일수록 잡기 반경이 작고(정확히 가져가야 함) 몸체도 얇다.
+func test_small_holds_need_precision() -> void:
+	var big := {"pos": Vector2.ZERO, "allowed": [&"LH"], "hand_area": {"dir": Vector2(1, 0), "half_width": 0.12}}
+	var tiny := {"pos": Vector2.ZERO, "allowed": [&"LH"], "hand_area": {"dir": Vector2(1, 0), "half_width": 0.03}}
+	runner.check(is_equal_approx(GripCheck.radius_for(&"LH", big), 0.168), "반폭 0.12 → 반경 0.168: %f" % GripCheck.radius_for(&"LH", big))
+	runner.check(is_equal_approx(GripCheck.radius_for(&"LH", tiny), 0.087), "반폭 0.03 → 반경 0.087: %f" % GripCheck.radius_for(&"LH", tiny))
+	runner.check(GripCheck.hand_thickness(tiny) < GripCheck.hand_thickness(big), "작은 홀드가 더 얇다")
+	var ok := func(_p: Vector2) -> bool: return true
+	var far := Vector2(0.0, 0.12)  # 홀드 위 0.12m
+	runner.check(not GripCheck.reachable_contact(big, &"LH", far, [], GripCheck.radius_for(&"LH", big), ok).is_empty(), "큰 홀드는 0.12m 위에서 잡힘")
+	runner.check(GripCheck.reachable_contact(tiny, &"LH", far, [], GripCheck.radius_for(&"LH", tiny), ok).is_empty(), "아주 작은 홀드는 0.12m 위에서는 안 잡힘")
+	runner.check(not GripCheck.reachable_contact(tiny, &"LH", Vector2(0.0, 0.05), [], GripCheck.radius_for(&"LH", tiny), ok).is_empty(), "가까이 가져가면 잡힘")

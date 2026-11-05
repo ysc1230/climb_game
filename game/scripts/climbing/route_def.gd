@@ -118,7 +118,7 @@ func _read_slot(s: Dictionary, allowed: Array[StringName]) -> Dictionary:
 		slot.hand_area = {"dir": _vec(ha.get("dir"), Vector2(1, 0)).normalized(), "half_width": float(ha.get("half_width", 0.08))}
 	if allowed.any(func(l): return not PoseSolver.is_hand(l)):
 		var fa: Dictionary = s.get("foot_area", {})
-		slot.foot_area = {"up": _vec(fa.get("up"), Vector2(0, 1)).normalized(), "half_height": float(fa.get("half_height", 0.04))}
+		slot.foot_area = {"up": _vec(fa.get("up"), Vector2(0, 1)).normalized(), "half_height": float(fa.get("half_height", 0.04)), "half_width": float(fa.get("half_width", 0.06))}
 	var modes: Array = []
 	for g in s.get("grip_modes", [{"mode": "pull", "axis": [0, 1], "half_angle": 65}]):
 		modes.append({"mode": StringName(g.get("mode", "")), "axis": _vec(g.get("axis"), Vector2(0, 1)).normalized(), "half_angle": float(g.get("half_angle", 65))})

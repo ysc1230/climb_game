@@ -12,6 +12,8 @@ const LIMITS := {
 	"V3": {"min_half_width": 0.06, "min_reach_margin": 0.008},
 	"V4": {"min_half_width": 0.05, "min_reach_margin": 0.003},
 	"V5": {"min_half_width": 0.04, "min_reach_margin": 0.0},
+	"V6": {"min_half_width": 0.03, "min_reach_margin": 0.0},
+	"V7": {"min_half_width": 0.025, "min_reach_margin": 0.0},
 }
 const EPS := 0.0005  # 저작 값(0.12)과 측정 값의 부동소수 오차
 

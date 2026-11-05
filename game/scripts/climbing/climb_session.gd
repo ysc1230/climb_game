@@ -278,7 +278,7 @@ func _try_pad_foot_swap(foot: StringName) -> bool:
 	if not TechniqueJudge.slot_filter(snap, TechniqueJudge.T_FOOT_SWAP, foot, key):
 		return false
 	var pt := TechniqueJudge.point_for(snap, TechniqueJudge.T_FOOT_SWAP, foot, key, l.req)
-	if pt.is_empty() or (l.pos as Vector2).distance_to(pt.point) > GripCheck.radius_of(foot):
+	if pt.is_empty() or (l.pos as Vector2).distance_to(pt.point) > GripCheck.radius_for(foot, route.slots[key]):
 		return false
 	if not forbid.is_empty() and _forbidden_target(key, pt.point, foot):
 		return false  # 검증기 금지(high_step): 높은 발 자리로 바꿔 딛기도 우회로가 되지 않게 거부
