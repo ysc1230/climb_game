@@ -5,7 +5,8 @@ extends RefCounted
 
 ## 조정 버전(docs/09 tuning_version). 판정 수치·규칙이 바뀌면 올린다.
 ## 1: v0.4 거리 기반, 2: v0.5 방향·3D 거리·지지 하중, 3: v0.5 무브별 선호·의도 비용, 4: v0.6 접점 품질·그립 방식
-const TUNING_VERSION := 6
+## 7: 데드포인트 규칙 제거(2026-11-05 사용자 결정)
+const TUNING_VERSION := 7
 
 const TICK_HZ := 60
 const DT := 1.0 / TICK_HZ

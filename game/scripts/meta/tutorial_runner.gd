@@ -207,9 +207,9 @@ func _reset_goal_state() -> void:
 
 ## hold_still: 끌거나 눌러 둔 팔다리가 없고 떨어지지 않은 채 seconds 동안 이어지면 true.
 func _observe_still(session: ClimbSession, fell: bool, seconds: float, dt: float) -> bool:
-	var busy := fell or session.falling or session.selecting or not session.deadpoint.is_empty()
+	var busy := fell or session.falling or session.selecting
 	for limb in session.limbs:
-		if session.limbs[limb].state in ["Dragging", "Armed", "Deadpoint"]:
+		if session.limbs[limb].state in ["Dragging", "Armed"]:
 			busy = true
 	if busy:
 		_still = 0.0

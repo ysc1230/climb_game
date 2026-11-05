@@ -311,7 +311,7 @@ func _physics_process(_delta: float) -> void:
 			_flash("지지를 잃었어요")
 			queue_redraw()
 			return
-		"fall:BALANCE_LOST", "fall:DEADPOINT_MISS":
+		"fall:BALANCE_LOST":
 			_apply(router.cancel_all())
 			_flash("균형을 잃었어요")
 			queue_redraw()
@@ -562,16 +562,8 @@ func _draw_grab_ready() -> void:
 	if session.selecting:
 		return
 	var p := PlayOverlay.pulse(Time.get_ticks_msec() * 0.001 * 1.6)
-	var throw_ready := session.deadpoint_window()
 	for limb in session.limbs:
 		var l: Dictionary = session.limbs[limb]
-		if throw_ready and l.state == "Dragging" and PoseSolver.is_hand(limb) and router.pads.has(limb):
-			# 데드포인트 창이 열린 동안(몸이 올라가는 중) 끄는 손: 패드 위에 신호(docs/31)
-			var pad: Dictionary = router.pads[limb]
-			var tp0: Vector2 = pad.center + Vector2(-pad.radius - 40 * ui_k, -pad.radius - 22 * ui_k)
-			draw_arc(pad.center, pad.radius * (1.08 + 0.06 * p), 0, TAU, 48, Color(1, 1, 1, 0.5 + 0.5 * p), 5.0 * ui_k)
-			draw_string(font, tp0 + Vector2(0, 2 * ui_k), "빠르게 놓으면 던져요", HORIZONTAL_ALIGNMENT_CENTER, pad.radius * 2 + 80 * ui_k, int(22 * ui_k), Color(0, 0, 0, 0.8))
-			draw_string(font, tp0, "빠르게 놓으면 던져요", HORIZONTAL_ALIGNMENT_CENTER, pad.radius * 2 + 80 * ui_k, int(22 * ui_k), Color("fff2c8"))
 		if l.state != "Dragging" or l.cand.is_empty():
 			continue
 		var key: String = l.cand.key
@@ -721,7 +713,7 @@ func _ui_drag(index: int, pos: Vector2) -> void:
 
 
 func _open_select() -> void:
-	if session.is_dragging() or not session.runner.active.is_empty() or session.falling or not session.deadpoint.is_empty():
+	if session.is_dragging() or not session.runner.active.is_empty() or session.falling:
 		return
 	if session.open_select():
 		_apply(router.cancel_all())  # 입력 세대 증가, 눌러 둔 터치 정리
@@ -873,8 +865,6 @@ func _draw_tech_ui(size: Vector2) -> void:
 	var k := ui_k
 	var btn := _btn_rect(size)
 	var running: Dictionary = session.runner.active
-	if session.deadpoint_window() and not session.falling and running.is_empty() and not session.selecting:
-		draw_string(font, Vector2(btn.position.x - 60 * k, btn.end.y + 24 * k), "지금 뻗으면 탄력으로 잡을 수 있어요", HORIZONTAL_ALIGNMENT_CENTER, btn.size.x + 120 * k, int(18 * k), Color("a8d8d0"))
 	if not shows_tech_button(allowed_buttons, _techs):
 		return  # 버튼 기술이 없으면 기술 버튼을 그리지 않는다
 	var disabled := (session.is_dragging() or session.falling) and running.is_empty()

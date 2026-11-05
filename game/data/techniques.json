@@ -112,32 +112,6 @@
    ]
   },
   {
-   "id": "T_DEADPOINT",
-   "name_ko": "데드포인트",
-   "phase": 1,
-   "input": "pad",
-   "body_parts": "torso+hand",
-   "sides": "left_right",
-   "flow": "drag_or_hold_tap",
-   "group": "hand",
-   "purpose_tags": [
-    "reach_far"
-   ],
-   "purpose_ko": "몸이 올라가다 잠깐 멈추는 순간에 손을 뻗어 조금 먼 홀드를 잡아요.",
-   "when_ko": "일어서는 중이고 손홀드가 팔 길이보다 조금 멀 때 써요.",
-   "how_ko": "몸이 일어서는 동안 손 패드를 빠르게 끌어 홀드 쪽으로 놓으세요. 몸이 가장 높은 순간에 손이 조금 먼 홀드에 닿아요.",
-   "mistakes": [
-    {
-     "reason": "DEADPOINT_MISS",
-     "text_ko": "타이밍이 맞지 않아 홀드를 놓쳤어요."
-    },
-    {
-     "reason": "NEED_WEIGHT_SHIFT",
-     "text_ko": "먼저 체중을 옮겨야 해요."
-    }
-   ]
-  },
-  {
    "id": "T_FLAG",
    "name_ko": "플래그",
    "phase": 1,

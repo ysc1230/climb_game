@@ -35,7 +35,7 @@ var yaw_target := NAN     # 도. NAN이면 0으로 복귀(04 §10.1, 기술만 �
 var yaw_guard := false   # yaw 기술 실행 중: yaw를 키우는 한 걸음이 힘 균형(FEASIBLE)·barn door를 깨면 그 걸음을 멈춘다
 var flag_ready: Array[StringName] = []  # 지금 놓으면 균형 발(Free/Flag)로 남는 드래그 발
 var profile_override := {}  # limb → 선호 거리. 기술 실행 중 무브 프로필 위에 덮어씀(docs/27 §10, 비면 영향 없음)
-var load_scale := 1.0  # 접점 최대 하중 배율. 데드포인트 받기는 순간 하중 1.3배를 1/1.3으로 환산해 넣는다(04 §10.5)
+var load_scale := 1.0  # 접점 최대 하중 배율(기본 1.0)
 var fatigue_multiplier := {}  # 손 → 피로(음수 변화율) 배율. 록오프 중 그 손 ×1.5(docs/27 §10)
 var forbid := {}  # 검증기 전용 금지 플래그(ClimbSession.forbid, 28 §7.4). &"flag"면 균형 발 후보를 만들지 않는다. 무브 판별에도 넘긴다
 

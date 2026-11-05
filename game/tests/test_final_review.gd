@@ -1,5 +1,5 @@
 extends RefCounted
-## 최종 리뷰 수정: 이동 중 취소, 접점 edge 캐시, 풀기 버튼, 데드포인트 중 선택 금지, 점유 재검사, 가벼운 판단, 패드 풋스왑.
+## 최종 리뷰 수정: 이동 중 취소, 접점 edge 캐시, 풀기 버튼, 점유 재검사, 가벼운 판단, 패드 풋스왑.
 
 var runner
 
@@ -85,16 +85,6 @@ func test_cancel_technique_releases_drop_knee() -> void:
 	runner.check(s.limbs[&"LF"].contact.edge == &"inside", "edge inside")
 	s.step()
 	runner.check(_last_event(s).get("type") == TechniqueRunner.CANCELLED, "cancelled 이벤트")
-
-
-## 4: 데드포인트 비행 중에는 선택을 열 수 없고 판단은 WRONG_PHASE.
-func test_no_select_during_deadpoint_flight() -> void:
-	var s := _session(_g_v0_01())
-	var key := "G_V0_01/H02/hand_1"
-	s.start_deadpoint(&"LH", key, s.route.slot_pos(key), 0.1)
-	runner.check(not s.open_select() and not s.selecting, "선택 열리지 않음")
-	var j := TechniqueJudge.judge(ClimbSnapshot.from_session(s), &"T_DROP_KNEE")
-	runner.check(j.left.reason == TechniqueJudge.WRONG_PHASE, "WRONG_PHASE (%s)" % j.left.reason)
 
 
 ## 5: 이동 중 다른 팔다리가 목표 자리를 차지하면 OCCUPIED로 실패하고 그 발은 Free.

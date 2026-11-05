@@ -32,7 +32,7 @@ func tick(dt: float, selecting: bool) -> float:
 	return d
 
 
-## 단계에서 반짝여 표시할 홀드: mark_slot(목표가 이벤트일 때 따로 지정, 예: 데드포인트 먼 홀드)이 있으면 그것,
+## 단계에서 반짝여 표시할 홀드: mark_slot(목표가 이벤트일 때 따로 지정)이 있으면 그것,
 ## 없으면 goal_event.slot. route에 없으면 "".
 static func goal_slot(step: Dictionary, route: RouteDef) -> String:
 	var key := str(step.get("mark_slot", step.get("goal_event", {}).get("slot", "")))

@@ -95,21 +95,6 @@ func test_grade_warning() -> void:
 	runner.check(Array(res.lines).any(func(l): return l.begins_with("경고:")), "경고 줄: %s" % [res.lines])
 
 
-## 패드 데드포인트 단계: 하이스텝 일어서기로 열린 창에서 정적 한계 밖 홀드를 던져 잡는다. 금지하면 그 단계에서 실패.
-func test_bot_deadpoint_step() -> void:
-	var r := RouteDef.load_json("res://data/routes/TX_TECH.json")
-	for k in r.slots:
-		if not k.contains("/H0") and not k.contains("/F0"):
-			r.slots[k].pos = Vector2(3.0, 3.8)  # 쓰지 않는 홀드 치우기
-	r.slots["TX_TECH/N02/hand_1"].pos = Vector2(-0.40, 2.10)
-	var steps := [["LF", "TX_TECH/F03/foot_1"], ["LH", "TX_TECH/N02/hand_1", "deadpoint"]]
-	var bot := SessionBot.run(r, steps)
-	runner.check(bot.failed_step == -1, "데드포인트 단계 성공 (%d: %s)" % [bot.failed_step, bot.failure])
-	runner.check(bot.session.technique_log.any(func(e): return e.type == "pad_deadpoint" and e.ok), "pad_deadpoint ok 이벤트")
-	var no := SessionBot.run(r, steps, {&"deadpoint": true})
-	runner.check(no.failed_step == 1, "금지하면 #1 실패 (%d: %s)" % [no.failed_step, no.failure])
-
-
 ## 균형 발 단계: 발을 허공 지점으로 끌어 놓으면 Flag. 플래그 금지면 그 단계에서 실패.
 func test_bot_flag_step() -> void:
 	var r := _g_v0_01()

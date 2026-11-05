@@ -3,7 +3,7 @@ extends RefCounted
 ## 세션 검증 봇(docs/28 §7.4). 실제 게임 경로(ClimbSession)에 InputRouter 명령과 기술 선택을 넣어 단계를 재생한다.
 ## 패드 잡기 방향 자동 선택·검증기 금지 플래그(forbid)·기술 실행기가 플레이와 똑같이 동작한다.
 ## 단계 형식: [limb, key] 패드 이동, [limb, "T_DROP_KNEE"] 제자리 버튼 기술, [limb, "T_OUTSIDE_EDGE", key] 홀드로 옮기는 버튼 기술,
-## [hand, key, "deadpoint"] 패드 데드포인트, [foot, "flag", [x, y]] 발을 벽 지점으로 끌어 균형 발로 두기.
+## [foot, "flag", [x, y]] 발을 벽 지점으로 끌어 균형 발로 두기.
 ## 빈 배열 []은 아무것도 하지 않는 단계다(ContentCheck가 버튼 기술을 금지할 때 인덱스를 유지하려고 쓴다).
 ## 결과는 정적·결정적 시뮬레이션이며 기기 플레이 검증이 아니다.
 
@@ -12,10 +12,6 @@ const CANDIDATE_TICKS := 180      # 이 안에 후보가 그 키가 되지 않�
 const SETTLE_MAX_TICKS := 240
 const SETTLE_SPEED := 0.01        # 골반 속도(m/s)가 이보다 작은 틱이
 const SETTLE_CALM_TICKS := 6      # 이만큼 이어지면 안정
-const DEADPOINT_WAIT_TICKS := 120 # 데드포인트 창을 기다리는 최대 틱
-const DEADPOINT_DRAG_TICKS := 120 # 창이 열린 뒤 손을 끄는 최대 틱(받을 수 있을 때까지 끈 채 기다림)
-const DEADPOINT_RELEASE_SPEED := 2.0
-const DEADPOINT_FLIGHT_TICKS := 20
 const TECHNIQUE_TICKS := 120      # 버튼 기술이 유지 단계(yaw)에 들어가거나 끝날 때까지
 const FLAG_TICKS := 120
 const FLAG_ARRIVE := 0.02         # 균형 발 지점 도착 판정(m)
@@ -31,8 +27,7 @@ var log: PackedStringArray = []
 ## min_reach_margin: 잡은 뒤 안정된 자세(그 단계 뒤 _settle이 끝난 골반·회전)에서 그 팔다리의 최대 벽면 도달 거리 −
 ##   어깨/고관절에서 잡은 점까지 거리(m)의 최소. 최대 거리는 PoseSolver.can_reach와 같이 planar_range(limb, 접점 깊이 범위 +
 ##   관절 깊이 오프셋)의 먼 쪽이다. 봇은 후보가 생기는 첫 틱에 놓으므로 잡는 순간에는 여유가 항상 0 근처라, 몸이 자리 잡은 뒤를 잰다.
-##   패드·버튼 기술·데드포인트로 잡은 모든 손발을 같은 방법으로 잰다(데드포인트도 안정 뒤에는 정적 도달 범위 안이다).
-##   다음 단계가 데드포인트라 안정을 건너뛴 잡기는 다음 안정 뒤에, 안정 중 완등하면 완등 직전 틱 자세로 잰다.
+##   패드·버튼 기술로 잡은 모든 손발을 같은 방법으로 잰다. 안정 중 완등하면 완등 직전 틱 자세로 잰다.
 ##   잰 때 그 팔다리가 더 이상 그 홀드에 붙어 있지 않으면 재지 않는다.
 ## min_hand_half_width: 경로에서 잡은 손홀드(정상 슬롯 제외)의 hand_area.half_width 최소. max_hand_u: 틱마다의 손 사용률 최대.
 ## min_stamina: 붙어 있는 손의 피로 최소. moves: 마친 단계 수(건너뛴 [] 제외). seconds: 시뮬레이션 시간.
@@ -76,7 +71,7 @@ func _play(steps: Array) -> void:
 		if cleared:
 			break
 		var m: Array = steps[i]
-		var err := _do_step(m, i + 1 < steps.size() and _is_deadpoint(steps[i + 1]))
+		var err := _do_step(m)
 		if not err.is_empty():
 			failed_step = i
 			failure = "#%d %s: %s" % [i, _desc(m), err]
@@ -100,16 +95,12 @@ func _play(steps: Array) -> void:
 	log.append(failure)
 
 
-static func _is_deadpoint(m: Array) -> bool:
-	return m.size() == 3 and m[2] is String and m[2] == "deadpoint"
-
-
 static func _desc(m: Array) -> String:
 	return "건너뜀" if m.is_empty() else " ".join(m.map(func(v): return str(v)))
 
 
-## 한 단계. 오류 문구(성공이면 ""). next_deadpoint면 다음 단계(데드포인트)를 위해 안정을 기다리지 않는다.
-func _do_step(m: Array, next_deadpoint: bool) -> String:
+## 한 단계. 오류 문구(성공이면 "").
+func _do_step(m: Array) -> String:
 	if m.is_empty():
 		log.append("건너뜀")
 		return ""
@@ -122,14 +113,11 @@ func _do_step(m: Array, next_deadpoint: bool) -> String:
 		err = _pad_move(limb, second)
 	elif second == "flag":
 		err = _flag(limb, Vector2(m[2][0], m[2][1]))
-	elif _is_deadpoint(m):
-		err = _deadpoint(limb, second)
 	else:
 		err = _technique(limb, StringName(second), str(m[2]))
 	if not err.is_empty() or cleared:
 		return err
-	if not next_deadpoint:
-		err = _settle()
+	err = _settle()
 	if err.is_empty():
 		var b := session.body
 		var st: Dictionary = session.rules.stamina
@@ -180,69 +168,6 @@ func _technique(limb: StringName, id: StringName, key: String) -> String:
 			log.append("%s %s 실행(유지)" % [limb, id])
 			return ""
 	return "기술 %s가 %d틱 안에 자리 잡지 못함" % [id, TECHNIQUE_TICKS]
-
-
-## 패드 데드포인트: 창(골반 상승 중 또는 직후 0.25초)이 열릴 때까지 붙은 채 기다렸다가, 손을 떼어 목표 쪽으로 끈다.
-## 정적 후보가 그 키가 되거나, 조준점에서 가장 가까운 손홀드가 그 홀드이고(AIM_RADIUS 안) 지금 자세에서 받을 수 있으면(관절~홀드 거리 ≤ 정적 한계 + 지금 보너스)
-## 빠르게(2.0m/s) 놓는다. 손이 정적 한계에 걸려 몸을 따라 조금씩 오르는 동안은 받을 수 있을 때까지 끈 채 기다린다(일어서는 끝 무렵에 던지는 사람과 같다).
-## 창이 닫힐 때까지 받을 수 없으면 그때 놓는다(일반 놓기라 그 단계는 실패). 정적 후보가 있으면 일반 잡기가 우선한다(세션 규칙 그대로).
-## 창은 앞 단계의 일어서기로 열리므로 앞 단계 뒤에는 안정을 기다리지 않는다(_play).
-func _deadpoint(hand: StringName, key: String) -> String:
-	var target := route.slot_pos(key)
-	var opened := session.deadpoint_window()
-	for i in DEADPOINT_WAIT_TICKS:
-		if opened:
-			break
-		var err := _tick()
-		if not err.is_empty() or cleared:
-			return err
-		opened = session.deadpoint_window()
-	if not opened:
-		return "%d틱 안에 데드포인트 창이 열리지 않음" % DEADPOINT_WAIT_TICKS
-	_input([{"type": "detach", "limb": hand}])
-	var released := false
-	for i in DEADPOINT_DRAG_TICKS:
-		_drag(hand, target)
-		var err := _tick()
-		if not err.is_empty() or cleared:
-			return err
-		var l: Dictionary = session.limbs[hand]
-		if l.cand.get("key", "") == key or not session.deadpoint_window() or (_aims_at(hand, key) and _catchable(hand, target)):
-			_input([{"type": "release", "limb": hand, "speed": DEADPOINT_RELEASE_SPEED}])
-			released = true
-			break
-	if not released:
-		return "%d틱 동안 끌어도 받을 수 있는 때가 오지 않음" % DEADPOINT_DRAG_TICKS
-	for i in DEADPOINT_FLIGHT_TICKS:
-		if session.limbs[hand].state != "Deadpoint":
-			break
-		var err := _tick()
-		if not err.is_empty() or cleared:
-			return err
-	var l: Dictionary = session.limbs[hand]
-	if l.state != "Attached" or l.key != key:
-		return "데드포인트로 잡지 못함(%s %s)" % [l.state, l.key]
-	return ""
-
-
-## 조준점(끄는 손의 요청 위치)에서 AIM_RADIUS 안의 가장 가까운 손홀드가 그 키다(세션이 데드포인트 목표를 고르는 조건).
-func _aims_at(hand: StringName, key: String) -> bool:
-	var req: Vector2 = session.limbs[hand].req
-	var best := ""
-	var best_d := GripCheck.AIM_RADIUS
-	for k in route.slots:
-		var slot: Dictionary = route.slots[k]
-		if slot.allowed.has(hand) and slot.has("hand_area") and req.distance_to(slot.pos) < best_d:
-			best = k
-			best_d = req.distance_to(slot.pos)
-	return best == key
-
-
-## 지금 자세에서 놓으면 받을 수 있는 거리다: 관절~홀드 거리 − 정적 한계 ≤ 지금 보너스(놓는 속도 DEADPOINT_RELEASE_SPEED).
-func _catchable(hand: StringName, target: Vector2) -> bool:
-	var b := session.body
-	var over := PoseSolver.limb_distance(b.pos, b.angle, hand, target, b.yaw) - TechniqueJudge.deadpoint_far(hand, b.yaw)
-	return over <= session.deadpoint_bonus(DEADPOINT_RELEASE_SPEED)
 
 
 ## 발을 벽 지점으로 끌어 놓아 균형 발(Flag)로 둔다. 말단이 그 지점에 닿거나(FLAG_ARRIVE) 더 나아가지 못하면 놓는다.

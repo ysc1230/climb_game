@@ -4,7 +4,7 @@ extends RefCounted
 var runner
 
 const REMOVED: Array[StringName] = [&"T_HIGH_STEP", &"T_LOCK_OFF", &"T_REST", &"T_CROSS", &"T_MATCH", &"T_FOOT_SWAP",
-	&"T_INSIDE_EDGE", &"T_DEADPOINT", &"T_SIDEPULL", &"T_GASTON", &"T_UNDERCLING", &"T_FLAG"]
+	&"T_INSIDE_EDGE", &"T_SIDEPULL", &"T_GASTON", &"T_UNDERCLING", &"T_FLAG"]
 
 
 func test_button_ids() -> void:

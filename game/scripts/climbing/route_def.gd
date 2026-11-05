@@ -203,7 +203,7 @@ func _validate_meta() -> void:
 		errors.append("튜토리얼이 아니면 tutorial_steps 없음")
 
 
-## docs/28 §7.4 단계 형식: [limb, slot], [limb, T_ID], [limb, T_ID, slot], [hand, slot, "deadpoint"], [foot, "flag", [x, y]].
+## docs/28 §7.4 단계 형식: [limb, slot], [limb, T_ID], [limb, T_ID, slot], [foot, "flag", [x, y]].
 func _check_step(i: int, m) -> void:
 	var where := "의도 경로 #%d" % i
 	if not (m is Array) or m.size() < 2 or m.size() > 3 or not (m[0] is String or m[0] is StringName) or not (m[1] is String):
@@ -226,10 +226,6 @@ func _check_step(i: int, m) -> void:
 			errors.append("%s: 플래그는 발만 %s" % [where, limb])
 		if not (third is Array and third.size() == 2 and third.all(func(v): return (v is float or v is int) and is_finite(v))):
 			errors.append("%s: 플래그 위치는 [x, y] %s" % [where, third])
-	elif third is String and third == "deadpoint":
-		if not PoseSolver.is_hand(limb):
-			errors.append("%s: 데드포인트는 손만 %s" % [where, limb])
-		_check_slot_for(limb, second, where)
 	elif second.begins_with("T_") and third is String:
 		_check_technique(second, where)
 		_check_slot_for(limb, third, where)

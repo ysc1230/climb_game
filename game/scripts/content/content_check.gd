@@ -18,7 +18,6 @@ const PAD_FORBID := {
 	&"T_SIDEPULL": &"grip_auto",
 	&"T_GASTON": &"grip_auto",
 	&"T_UNDERCLING": &"grip_auto",
-	&"T_DEADPOINT": &"deadpoint",
 }
 
 

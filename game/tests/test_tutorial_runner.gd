@@ -61,8 +61,8 @@ func test_matches() -> void:
 	runner.check(not TutorialRunner.matches({"type": "technique", "id": "T_DROP_KNEE"}, started), "시작만으로는 불일치")
 	runner.check(not TutorialRunner.matches({"type": "technique", "id": "T_OUTSIDE_EDGE"}, ok), "다른 기술")
 	runner.check(TutorialRunner.matches({"type": "fall"}, {"type": "fall", "reason": "NO_SUPPORT"}), "fall")
-	runner.check(TutorialRunner.matches({"type": "pad_deadpoint", "ok": true}, {"type": "pad_deadpoint", "limb": &"RH", "key": H03, "ok": true}), "bool 값")
-	runner.check(not TutorialRunner.matches({"type": "pad_deadpoint", "ok": true}, {"type": "pad_deadpoint", "ok": false}), "bool 값 불일치")
+	runner.check(TutorialRunner.matches({"type": "probe", "ok": true}, {"type": "probe", "limb": &"RH", "key": H03, "ok": true}), "bool 값")
+	runner.check(not TutorialRunner.matches({"type": "probe", "ok": true}, {"type": "probe", "ok": false}), "bool 값 불일치")
 
 
 func test_goal_advances() -> void:
@@ -329,4 +329,4 @@ func test_stamina_goal() -> void:
 func test_mark_slot() -> void:
 	var r := RouteDef.load_json(ContentIndex.route_path("G_V0_01"))
 	var key: String = r.slots.keys()[2]
-	runner.check(PlayAttempt.goal_slot({"mark_slot": key, "goal_event": {"type": "pad_deadpoint"}}, r) == key, "mark_slot 우선")
+	runner.check(PlayAttempt.goal_slot({"mark_slot": key, "goal_event": {"type": "move", "label": "StandUp"}}, r) == key, "mark_slot 우선")

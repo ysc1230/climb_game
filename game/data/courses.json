@@ -116,25 +116,8 @@
    }
   },
   {
-   "course_id": "C_DEADPOINT",
-   "order": 7,
-   "name_ko": "데드포인트",
-   "kind": "pad",
-   "techniques": [
-    "T_DEADPOINT"
-   ],
-   "tutorial": "C_DEADPOINT_T",
-   "problems": [],
-   "phase": 1,
-   "text_ko": {
-    "purpose": "몸이 상승하는 타이밍에 먼 홀드 잡기.",
-    "when": "가만히는 닿지 않는 조금 먼 홀드에 써요.",
-    "how": "발로 몸을 밀어 올리는 동안 손 패드를 빠르게 끌어 놓으면 탄력으로 더 멀리 잡아요. 늦거나 빗나가면 떨어져요."
-   }
-  },
-  {
    "course_id": "C_HIGH_STEP",
-   "order": 8,
+   "order": 7,
    "name_ko": "하이스텝",
    "kind": "pad",
    "techniques": [
@@ -150,7 +133,7 @@
   },
   {
    "course_id": "C_FLAG",
-   "order": 9,
+   "order": 8,
    "name_ko": "플래그(균형 발)",
    "kind": "pad",
    "techniques": [
@@ -162,7 +145,7 @@
   },
   {
    "course_id": "C_OUTSIDE_EDGE",
-   "order": 10,
+   "order": 9,
    "name_ko": "아웃사이드 엣지",
    "kind": "button",
    "techniques": [
@@ -174,7 +157,7 @@
   },
   {
    "course_id": "C_DROP_KNEE",
-   "order": 11,
+   "order": 10,
    "name_ko": "드롭니",
    "kind": "button",
    "techniques": [
@@ -186,7 +169,7 @@
   },
   {
    "course_id": "C_FOOT_SWAP",
-   "order": 12,
+   "order": 11,
    "name_ko": "풋스왑",
    "kind": "pad",
    "techniques": [
@@ -198,7 +181,7 @@
   },
   {
    "course_id": "C_LOCK_OFF",
-   "order": 13,
+   "order": 12,
    "name_ko": "락오프",
    "kind": "pad",
    "techniques": [
@@ -210,7 +193,7 @@
   },
   {
    "course_id": "C_DIRECTION",
-   "order": 14,
+   "order": 13,
    "name_ko": "방향 홀드(사이드풀·개스턴·언더클링)",
    "kind": "pad",
    "techniques": [

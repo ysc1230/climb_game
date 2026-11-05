@@ -1,5 +1,5 @@
 extends RefCounted
-## 패드 기술 이벤트(move·grab·flag·pad_foot_swap·pad_deadpoint·fall, seq)와 검증기 전용 금지 플래그(docs/28 §7.4), reset_to.
+## 패드 기술 이벤트(move·grab·flag·pad_foot_swap·fall, seq)와 검증기 전용 금지 플래그(docs/28 §7.4), reset_to.
 ## 금지 시험은 같은 입력을 금지 없이/있게 두 번 넣어 결과가 다른지 본다.
 
 var runner
@@ -195,11 +195,11 @@ func test_pad_foot_swap_event() -> void:
 	runner.check(a[2].size() == 1 and a[2][0].limb == &"RF" and a[2][0].key == F01, "pad_foot_swap limb·key (%s)" % [a[2]])
 
 
-## 패드 데드포인트(test_deadpoint와 같은 시험 루트·자세). extra: 정적 한계 밖 거리.
-func _deadpoint_attempt(forbid: Dictionary, extra: float) -> Dictionary:
+## 빠른 놓기(데드포인트 제거, 2026-11-05): 몸이 올라가는 중 정적 한계 밖 홀드를 겨누고 빠르게 놓아도 던지지 않고 일반 놓기다.
+func test_fast_release_is_normal_release() -> void:
 	var r := RouteDef.load_json("res://data/routes/TX_TECH.json")
 	var hold := "TX_TECH/N02/hand_1"
-	var s := _session(r, forbid)
+	var s := _session(r)
 	for k in r.slots:
 		if k != hold and not k.contains("/H0") and not k.contains("/F0"):
 			r.slots[k].pos = Vector2(3.0, 3.8)
@@ -213,29 +213,19 @@ func _deadpoint_attempt(forbid: Dictionary, extra: float) -> Dictionary:
 	for i in 30:
 		s.step()
 	sh = PoseSolver.joint_position(s.body.pos, s.body.angle, &"LH", s.body.yaw)
-	var aim := sh + Vector2(0, 1) * (TechniqueJudge.deadpoint_far(&"LH", s.body.yaw) + extra)
+	var dz := PoseSolver.contact_dz_range() + Vector2.ONE * PoseSolver.joint_depth_offset(&"LH", s.body.yaw)
+	var aim := sh + Vector2(0, 1) * (PoseSolver.planar_range(&"LH", dz.x, dz.y).y + 0.10)
 	r.slots[hold].pos = aim
 	var req2: Vector2 = s.limbs[&"LH"].req
 	s.apply_input([{"type": "move", "limb": &"LH", "delta": aim - req2}])
 	s.body.vel.y = 0.40
 	s.apply_input([{"type": "release", "limb": &"LH", "speed": 2.0}])
-	var started: bool = s.limbs[&"LH"].state == "Deadpoint"
-	var out := ""
+	runner.check(s.limbs[&"LH"].state == "Free", "빠르게 놓아도 일반 놓기: Free (%s)" % s.limbs[&"LH"].state)
 	for i in 12:
-		out = s.step()
-		if out != "" or s.limbs[&"LH"].state == "Attached":
-			break
-	return {"started": started, "state": s.limbs[&"LH"].state, "out": out, "events": _events(s, "pad_deadpoint"), "falls": _events(s, "fall"), "hold": hold}
-
-
-func test_pad_deadpoint_events() -> void:
-	var a := _deadpoint_attempt({}, 0.10)
-	runner.check(a.started and a.state == "Attached", "받음 (%s)" % a.state)
-	runner.check(a.events.size() == 1 and a.events[0].limb == &"LH" and a.events[0].key == a.hold and a.events[0].ok == true, "pad_deadpoint ok true (%s)" % [a.events])
-	var b := _deadpoint_attempt({}, 0.20)
-	runner.check(b.out == "fall:DEADPOINT_MISS", "놓침 추락 (%s)" % b.out)
-	runner.check(b.events.size() == 1 and b.events[0].ok == false, "pad_deadpoint ok false (%s)" % [b.events])
-	runner.check(b.falls.size() == 1 and b.falls[0].reason == "DEADPOINT_MISS", "fall 이벤트 DEADPOINT_MISS (%s)" % [b.falls])
+		s.step()
+	runner.check(s.limbs[&"LH"].state != "Attached", "먼 홀드를 잡지 않음 (%s)" % s.limbs[&"LH"].state)
+	runner.check(_events(s, "grab").filter(func(e): return e.key == hold).is_empty(), "먼 홀드 grab 이벤트 없음")
+	runner.check(_events(s, "fall").is_empty(), "추락 없음 (%s)" % [_events(s, "fall")])
 
 
 # ---------- 금지 플래그(28 §7.4) ----------
@@ -346,16 +336,6 @@ func test_forbid_grip_auto() -> void:
 	runner.check(b.limbs[&"RH"].contact.mode == &"undercling", "grip_auto 금지: grip_modes[0] undercling (%s)" % b.limbs[&"RH"].contact.mode)
 
 
-func test_forbid_deadpoint_zero_bonus() -> void:
-	var s := _session(_g_v0_01(), {&"deadpoint": true}, 0)
-	s.body.vel.y = 0.40
-	runner.check(is_equal_approx(s.deadpoint_bonus(5.0), 0.0), "deadpoint 금지: 보너스 0")
-	var a := _deadpoint_attempt({}, 0.10)
-	var b := _deadpoint_attempt({&"deadpoint": true}, 0.10)
-	runner.check(a.state == "Attached", "금지 없음: 받음")
-	runner.check(b.state != "Attached" and (b.events.is_empty() or b.events[0].ok == false), "금지: 같은 던지기가 닿지 않음 (%s %s)" % [b.state, b.events])
-
-
 # ---------- reset_to ----------
 
 func test_reset_to_pose() -> void:
@@ -368,7 +348,7 @@ func test_reset_to_pose() -> void:
 		var want: String = pose.slots[String(limb)]
 		runner.check(s.limbs[limb].state == "Attached" and s.limbs[limb].key == want and (s.limbs[limb].grab as Vector2).is_equal_approx(s.route.slot_pos(want)), "%s 붙음 %s" % [limb, want])
 	runner.check(is_equal_approx(s.rules.stamina[&"LH"], 60.0) and is_equal_approx(s.rules.stamina[&"RH"], 45.0), "체력 (%s)" % [s.rules.stamina])
-	runner.check(not s.falling and s.deadpoint.is_empty() and not s.selecting, "추락·데드포인트·선택 초기화")
+	runner.check(not s.falling and not s.selecting, "추락·선택 초기화")
 	var bad := ""
 	for i in 60:
 		bad = s.step()

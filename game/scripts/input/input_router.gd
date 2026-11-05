@@ -2,7 +2,7 @@ class_name InputRouter
 extends RefCounted
 ## docs/03 입력 소유권 계약. 터치 이벤트를 팔다리 명령으로 바꾼다. 노드에 의존하지 않는다.
 ## 명령: {type: "arm"|"detach"|"move"|"release"|"cancel", limb, delta(Vector2, 월드 m)}
-## - release에는 speed(m/s, 월드): 놓기 직전 0.1초 동안의 손가락 이동 경로 길이 / 0.1 (데드포인트 입력, docs/04 §10.5)
+## - release에는 speed(m/s, 월드): 놓기 직전 0.1초 동안의 손가락 이동 경로 길이 / 0.1 (세션은 지금 쓰지 않음, 데드포인트 제거)
 ## - 패드 안에서 시작한 터치만 배정, 같은 패드의 두 번째 터치·중앙 시작 터치는 무시
 ## - 터치 종료까지 소유권 유지(패드 밖으로 나가도), 데드존은 시작점부터의 직선 거리
 ## - 취소(cancel_all)는 정상 release로 전달하지 않는다

@@ -138,13 +138,12 @@ func test_step_formats_valid() -> void:
 	d.intended_moves = [
 		["LF", "T_DROP_KNEE"],
 		["RF", "T_OUTSIDE_EDGE", "G_V0_01/F04/foot_1"],
-		["RH", "G_V0_01/H04/hand_1", "deadpoint"],
 		["LF", "flag", [-0.4, 0.5]],
 		["LH", "G_V0_01/H03/hand_1"],
 	]
 	var r := RouteDef.from_dict(d)
-	runner.check(r.errors.is_empty(), "다섯 형식 모두 허용: %s" % [r.errors])
-	runner.check(r.steps_raw.size() == 5 and r.steps_raw[3] == ["LF", "flag", [-0.4, 0.5]], "원본 보관")
+	runner.check(r.errors.is_empty(), "네 형식 모두 허용: %s" % [r.errors])
+	runner.check(r.steps_raw.size() == 4 and r.steps_raw[2] == ["LF", "flag", [-0.4, 0.5]], "원본 보관")
 
 
 func test_step_formats_invalid() -> void:
@@ -153,8 +152,7 @@ func test_step_formats_invalid() -> void:
 		"홀드로 옮기는 없는 기술": ["LF", "T_NOPE", "G_V0_01/F04/foot_1"],
 		"기술 대상 슬롯 없음": ["RF", "T_OUTSIDE_EDGE", "G_V0_01/F99/foot_1"],
 		"기술 대상 슬롯 팔다리 비허용": ["RF", "T_OUTSIDE_EDGE", "G_V0_01/H04/hand_1"],
-		"데드포인트는 손만": ["RF", "G_V0_01/F04/foot_1", "deadpoint"],
-		"데드포인트 슬롯 없음": ["RH", "G_V0_01/H99/hand_1", "deadpoint"],
+		"데드포인트 형식은 없음(2026-11-05 제거)": ["RH", "G_V0_01/H04/hand_1", "deadpoint"],
 		"플래그는 발만": ["LH", "flag", [0.0, 1.0]],
 		"플래그 좌표 형식": ["LF", "flag", [0.0]],
 		"플래그 좌표 숫자 아님": ["LF", "flag", ["a", 1.0]],
@@ -173,12 +171,12 @@ func test_step_formats_invalid() -> void:
 
 # --- 과정 목록 ---
 
-## 2026-11-04 재구성(28 §6): 1차 여덟 과정(기본 넷 + 기술 넷), 나머지는 phase 2로 숨김.
+## 2026-11-04 재구성(28 §6): 1차 일곱 과정(기본 넷 + 기술 셋, 2026-11-05 데드포인트 제거), 나머지는 phase 2로 숨김.
 func test_courses_json_content() -> void:
 	var data = JSON.parse_string(FileAccess.get_file_as_string("res://data/courses.json"))
 	var list: Array = data.courses
 	var first := list.filter(func(c): return int(c.phase) == 1).map(func(c): return c.course_id)
-	runner.check(first == ["C_BASIC", "C_REST", "C_ARM_LOAD", "C_FALL", "C_DROP_FOOT", "C_MATCH", "C_CROSS", "C_DEADPOINT"], "1차 순서 %s" % [first])
+	runner.check(first == ["C_BASIC", "C_REST", "C_ARM_LOAD", "C_FALL", "C_DROP_FOOT", "C_MATCH", "C_CROSS"], "1차 순서 %s" % [first])
 	var defs := TechniqueDefs.load_all()
 	var by := {}
 	for c in list:
@@ -206,7 +204,7 @@ func test_index_real_data() -> void:
 	runner.check(idx.route("NOPE") == null, "없는 route null")
 	runner.check(idx.general("V9").is_empty(), "없는 등급 빈 배열")
 	var ids := idx.courses().map(func(c): return c.course_id)
-	runner.check(ids.size() == 8 and not ids.has("C_HIGH_STEP"), "2차 숨김 %s" % [ids])
+	runner.check(ids.size() == 7 and not ids.has("C_HIGH_STEP") and not ids.has("C_DEADPOINT"), "2차 숨김 %s" % [ids])
 	runner.check(idx.course("C_DROP_KNEE").kind == "button", "course 조회")
 	runner.check(idx.course("C_HIGH_STEP").phase == 2, "숨긴 과정도 id로는 조회")
 	runner.check(idx.course("C_NOPE").is_empty(), "없는 과정 빈 사전")
