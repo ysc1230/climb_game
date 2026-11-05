@@ -189,44 +189,70 @@ func _prism(size: Vector3) -> PrismMesh:
 var hold_glows := {}  # 슬롯 키 → 홀드 위에 겹친 빛 메시(잡을 수 있음: 흰색 깜빡임, 튜토리얼 목표: 노란색 깜빡임)
 
 
-## 홀드 모양을 실제 잡기 영역에 맞춰 그린다(v7, 사용자 보고: 표시가 홀드와 다른 곳에 생김).
-## 손홀드: 잡기 영역 선분 방향으로 길이 2·반폭 + 두께, 높이 2·두께. 발판: 디딤 면 높이 × 좌우 폭.
+## 홀드 디자인(docs/32): Blender로 만든 로우폴리 레진 홀드(art/holds/holds.glb, tools/holds/make_holds.py).
+## 손홀드는 위쪽 립(밝은 윗날)이 잡기 영역 방향·길이와 같게, 발판은 작은 쐐기 칩. 색은 벽(주황·모래)의 반대색.
+## 단위 메시(X 길이 ±0.5, Y 높이 ±0.5, Z 깊이 0..1)를 슬롯마다 (길이, 높이, 깊이)로 늘린다.
+const HOLD_MESHES := preload("res://art/holds/holds.glb")
+const HOLD_COLORS := {
+	"hand": [Color("2b7a6f"), Color("8fd0bc")],
+	"foot": [Color("5e4c70"), Color("c4b0d6")],
+	"goal": [Color("d9b872"), Color("f1d59a")],
+}
+var _hold_mesh_cache := {}
+
+
+func _hold_mesh(name: String) -> Mesh:
+	if _hold_mesh_cache.is_empty():
+		var root := HOLD_MESHES.instantiate()
+		for n in root.find_children("*", "MeshInstance3D", true, false):
+			_hold_mesh_cache[String(n.name)] = (n as MeshInstance3D).mesh
+		root.free()
+	return _hold_mesh_cache.get(name)
+
+
 func _build_holds() -> void:
 	for key in logic.route.slots:
 		var slot: Dictionary = logic.route.slots[key]
 		var is_goal: bool = logic.route.goal_slots.has(key)
 		var hand: bool = slot.has("hand_area")
-		var col := TARGET_CREAM if is_goal else (HOLD_RUST if hand else WALL_OLIVE)
+		var kind := "goal" if is_goal else ("hand" if hand else "foot")
 		var length: float
 		var height: float
+		var depth: float
 		var ang: float
 		if hand:
 			length = 2.0 * slot.hand_area.half_width + GripCheck.HAND_HOLD_THICKNESS
-			height = 2.0 * GripCheck.HAND_HOLD_THICKNESS + 0.03
+			height = 2.0 * GripCheck.HAND_HOLD_THICKNESS + 0.09
+			depth = 0.13 if is_goal else 0.10
 			ang = (slot.hand_area.dir as Vector2).angle()
 		else:
-			length = 2.0 * GripCheck.FOOT_HOLD_HALF_WIDTH + 0.02
-			height = 2.0 * slot.foot_area.half_height + 0.04
+			length = 2.0 * GripCheck.FOOT_HOLD_HALF_WIDTH + 0.06
+			height = 2.0 * slot.foot_area.half_height + 0.08
+			depth = 0.08
 			ang = (slot.foot_area.up as Vector2).angle() - PI / 2.0
-		var sphere := SphereMesh.new()
-		sphere.radius = 0.5
-		sphere.height = 1.0
-		sphere.radial_segments = 8
-		sphere.rings = 4
-		var hold := _mesh(sphere, _toon(col, col.darkened(0.45)), false)
+		var variant := "goal" if is_goal else "%s_%d" % [kind, absi(hash(key)) % 3]
+		var mesh := _hold_mesh(variant)
+		var hold := MeshInstance3D.new()
+		hold.mesh = mesh
+		var cols: Array = HOLD_COLORS[kind]
+		var mats := [_toon(cols[0], cols[0].darkened(0.45)), _toon(cols[1], cols[1].darkened(0.35)), _toon(INK, INK.darkened(0.3))]
+		for si in mesh.get_surface_count():
+			var m: ShaderMaterial = mats[mini(si, 2)]
+			m.next_pass.set_shader_parameter("width", 0.012)
+			hold.set_surface_override_material(si, m)
 		var p: Vector2 = slot.pos
 		hold.position = Vector3(p.x, p.y, 0.0)
-		hold.rotation = Vector3(0, 0, ang + deg_to_rad(rng.randf_range(-4, 4)))
-		hold.scale = Vector3(length, height, 0.07)
+		hold.rotation = Vector3(0, 0, ang + deg_to_rad(rng.randf_range(-3, 3)))
+		hold.scale = Vector3(length, height, depth)
 		add_child(hold)
 		var glow := MeshInstance3D.new()
-		glow.mesh = sphere
+		glow.mesh = mesh
 		var gm := _overlay(Color(1, 1, 1, 0.0))
 		gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		glow.material_override = gm
-		glow.position = hold.position + Vector3(0, 0, 0.01)
+		glow.position = hold.position + Vector3(0, 0, 0.005)
 		glow.rotation = hold.rotation
-		glow.scale = hold.scale * Vector3(1.12, 1.18, 1.0)
+		glow.scale = hold.scale * Vector3(1.08, 1.12, 1.05)
 		glow.visible = false
 		add_child(glow)
 		hold_glows[key] = glow
