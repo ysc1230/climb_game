@@ -548,12 +548,13 @@ func _draw_hud(size: Vector2) -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.55))
 		var t := "손가락을 편하게 올려주세요 %d" % ceili(prepare_left) if prepare_left > 0.0 else "일시정지 · 화면을 탭하면 3초 뒤 이어서 시작해요"
 		draw_string(font, Vector2(0, size.y * 0.5), t, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(34 * ui_k), Color.WHITE)
-	_draw_grab_ready()
+	if draw_world:
+		_draw_grab_ready()  # 2D 시험 장면만. 3D 화면은 홀드 자체가 빛난다(play_3d)
 	var goal_key := _tutorial_goal_key()
 	overlay.goal_screen_y = w2s(route.slots[goal_key].pos).y if goal_key != "" else -1.0
 	overlay.draw(self, size, ui_k, paused, session.selecting)
-	if goal_key != "" and not paused and not session.selecting and not overlay.blocking():
-		_draw_goal_mark(goal_key)  # 설명칸 위에 그려서 가려지지 않게
+	if draw_world and goal_key != "" and not paused and not session.selecting and not overlay.blocking():
+		_draw_goal_mark(goal_key)  # 2D 시험 장면만. 3D 화면은 목표 홀드 자체가 노랗게 깜빡인다(play_3d)
 
 
 ## 끌고 있는 손발 아래에 지금 놓으면 잡히는 홀드가 있으면(세션 후보) 그 홀드를 그 팔다리 색으로 반짝이고

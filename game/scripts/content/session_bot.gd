@@ -127,16 +127,23 @@ func _do_step(m: Array) -> String:
 
 # ---------- 단계 종류 ----------
 
-## 패드 이동: 떼고 목표 쪽으로 끌다가 후보가 그 키가 되면 speed 0으로 놓는다.
+## 패드 이동: 떼고 목표 쪽으로 끌다가 후보가 그 키이고 가운데에 닿았거나 더 못 가면 speed 0으로 놓는다.
+var _last_end := {}
 func _pad_move(limb: StringName, key: String) -> String:
 	var target := route.slot_pos(key)
+	_last_end.erase(limb)
 	_input([{"type": "detach", "limb": limb}])
 	for i in CANDIDATE_TICKS:
 		_drag(limb, target)
 		var err := _tick()
 		if not err.is_empty() or cleared:
 			return err
-		if session.limbs[limb].cand.get("key", "") == key:
+		var l0: Dictionary = session.limbs[limb]
+		# 후보가 된 뒤에도 홀드 가운데 쪽으로 계속 끌다가, 가운데에 닿거나(0.03m) 말단이 더 못 가면 놓는다.
+		# 사람이 홀드 위로 손을 가져가 놓는 것과 같게 한다(v7 잡기 영역이 넓어져 가장자리에서 바로 놓으면 과하게 뻗은 잡기가 됨).
+		var moved: float = (l0.pos as Vector2).distance_to(_last_end.get(limb, Vector2.INF))
+		_last_end[limb] = l0.pos
+		if l0.cand.get("key", "") == key and ((l0.pos as Vector2).distance_to(target) <= 0.03 or moved < 0.002):
 			_input([{"type": "release", "limb": limb, "speed": 0.0}])
 			var l: Dictionary = session.limbs[limb]
 			if l.state != "Attached" or l.key != key:

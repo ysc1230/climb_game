@@ -31,7 +31,7 @@ func test_candidate_returns_projected_point() -> void:
 	runner.check(not cand.is_empty() and cand.key == G_V0_01_H03, "후보 있음 %s" % [cand])
 	if cand.is_empty():
 		return
-	runner.check(cand.point.is_equal_approx(c + Vector2(0.05, 0)), "투영점 %s" % cand.point)
+	runner.check(cand.point.is_equal_approx(c + Vector2(0.05, 0.03)), "투영점을 홀드 두께(0.04) 안에서 말단 쪽으로 옮긴 점 %s" % cand.point)
 	var expect := 1.0 - pow(0.05 / 0.12, 2)
 	runner.check(absf(cand.quality - expect) < 0.001, "품질 %f vs %f" % [cand.quality, expect])
 

@@ -24,6 +24,11 @@ const MESSAGES := {
 	POSE_CONFLICT: "지금 자세로는 함께 잡을 수 없어요",
 }
 const AIM_RADIUS := 0.25
+## v7(2026-11-05): 홀드는 선분(손 잡기 영역·발 디딤 면)이 아니라 두께가 있는 몸체다. 선분에서 수직으로
+## 이만큼 안의 점도 그 홀드를 잡은 것으로 본다. 화면의 홀드 모양도 이 크기로 그린다(play_3d).
+const HAND_HOLD_THICKNESS := 0.04
+const FOOT_HOLD_HALF_WIDTH := 0.06
+const REACH_SAMPLES := 8  # 투영점이 닿지 않으면 영역 위 점을 이만큼 나눠 닿는 점을 찾는다
 const GRIP_TIE_MARGIN := 0.02  # 28 §4.3: 방식 간 균형 비용 차이가 이 미만이면 grip_modes 앞쪽(떨림 방지)
 
 
@@ -82,6 +87,58 @@ static func contact_point(slot: Dictionary, limb: StringName, endpoint: Vector2,
 	return best
 
 
+## 홀드 몸체 안에서 말단에 가장 가까우면서 valid(점)가 참인 접점(v7). 먼저 투영점(contact_point)을 몸체 두께만큼
+## 말단 쪽으로 옮겨 보고, 안 되면 영역 위를 REACH_SAMPLES로 나눈 점들(빈 구간만)을 같은 식으로 본다.
+## 손이 팔 길이 끝에서 홀드 가장자리에 닿아 보이는데 가운데 선 점은 닿지 않아 못 잡던 문제(사용자 보고)를 없앤다.
+## 반환 {point, quality} 또는 {}.
+static func reachable_contact(slot: Dictionary, limb: StringName, endpoint: Vector2, entries: Array, max_dist: float, valid: Callable) -> Dictionary:
+	var hand := PoseSolver.is_hand(limb)
+	var tries: Array = []
+	var base := contact_point(slot, limb, endpoint, entries, INF)
+	if not base.is_empty():
+		tries.append(base)
+	if hand:
+		var hw: float = slot.hand_area.half_width
+		for i in REACH_SAMPLES + 1:
+			var s := lerpf(-hw, hw, float(i) / REACH_SAMPLES)
+			if _hand_free(s, limb, entries):
+				var t := absf(s) / hw
+				tries.append({"point": slot.pos + slot.hand_area.dir * s, "quality": 1.0 - t * t})
+	else:
+		var occupied_by_other := entries.any(func(e): return e.limb != limb)
+		if not occupied_by_other:
+			var hh: float = slot.foot_area.half_height
+			for i in 5:
+				var pf := HoldArea.project_foot(slot, slot.pos + slot.foot_area.up * lerpf(-hh, hh, i / 4.0))
+				tries.append(pf)
+	var best := {}
+	var best_d := INF
+	for c in tries:
+		var p := _thicken(slot, hand, c.point, endpoint)
+		var d := endpoint.distance_to(p)
+		if d > max_dist or d >= best_d or not valid.call(p):
+			continue
+		best = {"point": p, "quality": c.quality}
+		best_d = d
+	return best
+
+
+## 영역 위 점 p를 몸체 두께 안에서 말단 쪽(영역에 수직)으로 옮긴다.
+static func _thicken(slot: Dictionary, hand: bool, p: Vector2, endpoint: Vector2) -> Vector2:
+	var along: Vector2 = slot.hand_area.dir if hand else slot.foot_area.up
+	var n := along.orthogonal()
+	var lim := HAND_HOLD_THICKNESS if hand else FOOT_HOLD_HALF_WIDTH
+	return p + n * clampf((endpoint - p).dot(n), -lim, lim)
+
+
+static func _hand_free(s: float, limb: StringName, entries: Array) -> bool:
+	var iv := Vector2(s - HoldArea.HAND_INTERVAL_HALF, s + HoldArea.HAND_INTERVAL_HALF)
+	for e in entries:
+		if e.limb != limb and overlaps(iv, e.interval):
+			return false
+	return true
+
+
 ## 실제 말단 기준 잡기 후보. occupied: 슬롯 키 → [{limb, interval}] (발 interval은 ZERO).
 ## previous: 직전에 보여준 후보 키(히스테리시스 0.03m). 반환 {key, point, quality} 또는 {}.
 ## reject: (key, point) → true면 그 목표를 후보에서 뺀다(검증기 금지 플래그, 28 §7.4). 비면 쓰지 않는다.
@@ -95,14 +152,14 @@ static func candidate(slots: Dictionary, limb: StringName, endpoint: Vector2, pe
 		var slot: Dictionary = slots[key]
 		if not slot.allowed.has(limb):
 			continue
-		var c := contact_point(slot, limb, endpoint, occupied.get(key, []), radius)
+		var ok := func(p: Vector2) -> bool:
+			if reject.is_valid() and reject.call(key, p):
+				return false
+			var with_new := attached.duplicate()
+			with_new[limb] = p
+			return PoseSolver.is_valid(pelvis, angle_deg, with_new, yaw_deg)
+		var c := reachable_contact(slot, limb, endpoint, occupied.get(key, []), radius, ok)
 		if c.is_empty():
-			continue
-		if reject.is_valid() and reject.call(key, c.point):
-			continue
-		var with_new := attached.duplicate()
-		with_new[limb] = c.point
-		if not PoseSolver.is_valid(pelvis, angle_deg, with_new, yaw_deg):
 			continue
 		var d := endpoint.distance_to(c.point)
 		var found := {"key": key, "point": c.point, "quality": c.quality}

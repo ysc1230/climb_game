@@ -23,7 +23,6 @@ var outline_shader := preload("res://art/shaders/outline.gdshader")
 var camera: Camera3D
 var parts := {}       # 이름 -> MeshInstance3D (모델이 없을 때의 대체 캡슐)
 var skeleton: Skeleton3D
-var candidate_ring: MeshInstance3D
 var foot_marks := {}  # foot -> [채운, 빈]
 var flag_marks := {}  # foot -> 균형 발 마름모
 var rng := RandomNumberGenerator.new()
@@ -40,8 +39,6 @@ func _ready() -> void:
 	_build_holds()
 	if not _build_model():
 		_build_character()
-	candidate_ring = _mesh(_torus(0.10, 0.012), _unshaded(TARGET_CREAM), false)
-	add_child(candidate_ring)
 	# 발 하중 표시(docs/25): 채운 삼각형 = Loaded, 빈 삼각형 = Attached·Unloaded
 	for foot in [&"LF", &"RF"]:
 		var filled := _mesh(_tri_mesh(false), _overlay(TARGET_CREAM), false)
@@ -189,24 +186,76 @@ func _prism(size: Vector3) -> PrismMesh:
 
 # ---------- 홀드 ----------
 
+var hold_glows := {}  # 슬롯 키 → 홀드 위에 겹친 빛 메시(잡을 수 있음: 흰색 깜빡임, 튜토리얼 목표: 노란색 깜빡임)
+
+
+## 홀드 모양을 실제 잡기 영역에 맞춰 그린다(v7, 사용자 보고: 표시가 홀드와 다른 곳에 생김).
+## 손홀드: 잡기 영역 선분 방향으로 길이 2·반폭 + 두께, 높이 2·두께. 발판: 디딤 면 높이 × 좌우 폭.
 func _build_holds() -> void:
 	for key in logic.route.slots:
 		var slot: Dictionary = logic.route.slots[key]
 		var is_goal: bool = logic.route.goal_slots.has(key)
-		var hand: bool = slot.allowed.has(&"LH")
+		var hand: bool = slot.has("hand_area")
 		var col := TARGET_CREAM if is_goal else (HOLD_RUST if hand else WALL_OLIVE)
-		var r := rng.randf_range(0.065, 0.085) if hand else rng.randf_range(0.055, 0.07)
+		var length: float
+		var height: float
+		var ang: float
+		if hand:
+			length = 2.0 * slot.hand_area.half_width + GripCheck.HAND_HOLD_THICKNESS
+			height = 2.0 * GripCheck.HAND_HOLD_THICKNESS + 0.03
+			ang = (slot.hand_area.dir as Vector2).angle()
+		else:
+			length = 2.0 * GripCheck.FOOT_HOLD_HALF_WIDTH + 0.02
+			height = 2.0 * slot.foot_area.half_height + 0.04
+			ang = (slot.foot_area.up as Vector2).angle() - PI / 2.0
 		var sphere := SphereMesh.new()
-		sphere.radius = r
-		sphere.height = r * 1.5
-		sphere.radial_segments = 6
-		sphere.rings = 3
+		sphere.radius = 0.5
+		sphere.height = 1.0
+		sphere.radial_segments = 8
+		sphere.rings = 4
 		var hold := _mesh(sphere, _toon(col, col.darkened(0.45)), false)
 		var p: Vector2 = slot.pos
 		hold.position = Vector3(p.x, p.y, 0.0)
-		hold.rotation_degrees = Vector3(rng.randf_range(-20, 20), rng.randf_range(0, 360), rng.randf_range(0, 360))
-		hold.scale = Vector3(rng.randf_range(0.9, 1.3), rng.randf_range(0.8, 1.1), 0.75)
+		hold.rotation = Vector3(0, 0, ang + deg_to_rad(rng.randf_range(-4, 4)))
+		hold.scale = Vector3(length, height, 0.07)
 		add_child(hold)
+		var glow := MeshInstance3D.new()
+		glow.mesh = sphere
+		var gm := _overlay(Color(1, 1, 1, 0.0))
+		gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		glow.material_override = gm
+		glow.position = hold.position + Vector3(0, 0, 0.01)
+		glow.rotation = hold.rotation
+		glow.scale = hold.scale * Vector3(1.12, 1.18, 1.0)
+		glow.visible = false
+		add_child(glow)
+		hold_glows[key] = glow
+
+
+## 홀드 빛: 끄는 손발 아래 지금 놓으면 잡히는 홀드(세션 후보)는 흰색으로 깜빡이며 빛나고,
+## 튜토리얼 목표 홀드는 노란색으로 깜빡인다. 잡을 수 있는 쪽이 우선이다.
+func _update_hold_glow() -> void:
+	var t := Time.get_ticks_msec() * 0.001
+	var fast := 0.5 + 0.5 * sin(TAU * 2.2 * t)
+	var slow := 0.5 + 0.5 * sin(TAU * 1.2 * t)
+	var grab := {}
+	if not logic.session.selecting:
+		for limb in logic.session.limbs:
+			var l: Dictionary = logic.session.limbs[limb]
+			if l.state == "Dragging" and not l.cand.is_empty():
+				grab[l.cand.key] = true
+	var goal: String = logic._tutorial_goal_key()
+	for key in hold_glows:
+		var g: MeshInstance3D = hold_glows[key]
+		var m := g.material_override as StandardMaterial3D
+		if grab.has(key):
+			g.visible = true
+			m.albedo_color = Color(1, 1, 1, 0.35 + 0.6 * fast)
+		elif key == goal:
+			g.visible = true
+			m.albedo_color = Color(1.0, 0.86, 0.35, 0.25 + 0.5 * slow)
+		else:
+			g.visible = false
 
 
 # ---------- 캐릭터 ----------
@@ -272,7 +321,7 @@ func _process(delta: float) -> void:
 		_pose_model(t)
 	else:
 		_pose_capsules(t)
-	_update_candidate()
+	_update_hold_glow()
 	_update_foot_marks()
 
 
@@ -461,16 +510,3 @@ func _update_foot_marks() -> void:
 		var flag: bool = l.state == "Flag" or (l.state == "Dragging" and logic.session.rules.flag_ready.has(foot))
 		flag_marks[foot].visible = flag
 		flag_marks[foot].position = Vector3(p.x, p.y + 0.12, Tuning.CONTACT_DEPTH + 0.12 + (float(l.flag_depth) if l.state == "Flag" else 0.0))
-
-
-func _update_candidate() -> void:
-	candidate_ring.visible = false
-	for limb in logic.session.limbs:
-		if logic.session.limbs[limb].state == "Dragging":
-			var cand: Dictionary = logic.session.limbs[limb].cand
-			if not cand.is_empty():
-				var p: Vector2 = cand.point
-				candidate_ring.position = Vector3(p.x, p.y, CONTACT_DEPTH + 0.03)
-				candidate_ring.rotation_degrees = Vector3(90, 0, 0)
-				candidate_ring.visible = true
-				return

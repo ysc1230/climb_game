@@ -77,13 +77,13 @@ func test_required_check_detects_unneeded() -> void:
 
 ## 등급 기준을 벗어나면 경고(ok에는 영향 없음).
 func test_grade_warning() -> void:
-	runner.check(GradeRules.LIMITS["V0"] == {"min_half_width": 0.12, "min_reach_margin": 0.06}, "V0 기준")
-	runner.check(GradeRules.LIMITS["V2"] == {"min_half_width": 0.08, "min_reach_margin": 0.025}, "V2 기준")
+	runner.check(GradeRules.LIMITS["V0"] == {"min_half_width": 0.12, "min_reach_margin": 0.035}, "V0 기준")
+	runner.check(GradeRules.LIMITS["V2"] == {"min_half_width": 0.08, "min_reach_margin": 0.015}, "V2 기준")
 	runner.check(GradeRules.LIMITS["V5"] == {"min_half_width": 0.04, "min_reach_margin": 0.0}, "V5 기준")
 	var r := _g_v0_01()
 	var good := {"min_hand_half_width": 0.12, "min_reach_margin": 0.06}
 	runner.check(GradeRules.warnings(r, good).is_empty(), "기준 안: 경고 없음")
-	var w := GradeRules.warnings(r, {"min_hand_half_width": 0.08, "min_reach_margin": 0.05})
+	var w := GradeRules.warnings(r, {"min_hand_half_width": 0.08, "min_reach_margin": 0.02})
 	runner.check(w.size() == 2 and w[0].begins_with("경고:") and w[1].begins_with("경고:"), "반폭·도달 여유 경고 2개: %s" % [w])
 	var tx := RouteDef.load_json("res://data/routes/TX_TECH.json")
 	runner.check(GradeRules.warnings(tx, {"min_hand_half_width": 0.01, "min_reach_margin": -1.0}).is_empty(), "등급 없는 시험 루트는 경고 없음")

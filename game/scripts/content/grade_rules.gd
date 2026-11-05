@@ -6,11 +6,11 @@ extends RefCounted
 ## 등급 → {min_half_width: 손홀드 반폭 하한(m, 측정값 min_hand_half_width와 비교), min_reach_margin: 가장 어려운 이동의 도달 여유 하한(m)}.
 ## 도달 여유 하한은 SessionBot의 "잡은 뒤 안정 자세" 측정에 맞춘 값이다(28 §7.3 표의 값에서 다시 정함, 플레이 후 조정).
 const LIMITS := {
-	"V0": {"min_half_width": 0.12, "min_reach_margin": 0.06},
-	"V1": {"min_half_width": 0.10, "min_reach_margin": 0.04},
-	"V2": {"min_half_width": 0.08, "min_reach_margin": 0.025},
-	"V3": {"min_half_width": 0.06, "min_reach_margin": 0.012},
-	"V4": {"min_half_width": 0.05, "min_reach_margin": 0.005},
+	"V0": {"min_half_width": 0.12, "min_reach_margin": 0.035},
+	"V1": {"min_half_width": 0.10, "min_reach_margin": 0.025},
+	"V2": {"min_half_width": 0.08, "min_reach_margin": 0.015},
+	"V3": {"min_half_width": 0.06, "min_reach_margin": 0.008},
+	"V4": {"min_half_width": 0.05, "min_reach_margin": 0.003},
 	"V5": {"min_half_width": 0.04, "min_reach_margin": 0.0},
 }
 const EPS := 0.0005  # 저작 값(0.12)과 측정 값의 부동소수 오차

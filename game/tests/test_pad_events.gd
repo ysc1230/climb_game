@@ -104,7 +104,9 @@ func test_high_step_then_stand_up_events() -> void:
 ## 시작 자세에서 곧장 끌면 H02를 겨누어 HandMatch가 되고 H04에 닿지 않는다.
 ## 반환: 놓은 뒤 세션(LH가 H04에 붙었는지, 라벨은 호출자가 본다).
 func _cross_attempt(forbid: Dictionary) -> ClimbSession:
-	var s := ClimbSession.new(_g_v0_01())
+	var r := _g_v0_01()
+	r.slots[H04].hand_area.half_width = 0.04  # 홀드 어느 점을 잡아도 오른손 X 너머(교차)가 되게
+	var s := ClimbSession.new(r)
 	s.forbid = forbid
 	s.reset_to({"pelvis": [0.15, 1.1], "angle": 0.0, "slots": {"LH": H01, "RH": H02, "LF": F03, "RF": F04}})
 	for i in 30:

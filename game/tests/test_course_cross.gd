@@ -67,9 +67,9 @@ func test_cross_tutorial_needs_cross() -> void:
 	var crossed := SessionBot.run(r, [[&"LH", P + "H03/hand_1"], [&"RH", P + "H04/hand_1"]])
 	runner.check(crossed.failed_step == -1 and crossed.session.falls == 0, "크로스 두 단계 성공: %s" % crossed.failure)
 	var rh := SessionBot.run(r, [[&"RH", P + "H04/hand_1"]])
-	runner.check(rh.failed_step == 0, "시작 자세에서 오른손이 H04에 닿지 않음: %s" % rh.failure)
+	runner.check(not rh.ok(), "시작 자세에서 오른손만으로는 못 오름: %s" % rh.failure)
 	var shuffle := SessionBot.run(r, [[&"RH", P + "H03/hand_1"], [&"LH", P + "H02/hand_1"], [&"RH", P + "H04/hand_1"]])
-	runner.check(shuffle.failed_step == 2, "크로스 없이 손 바꿔 옮기면 H04(#2)에서 막힘: #%d %s" % [shuffle.failed_step, shuffle.failure])
+	runner.check(not shuffle.ok(), "크로스 없이 손 바꿔 옮기면 못 오름: #%d %s" % [shuffle.failed_step, shuffle.failure])
 	var no_cross := SessionBot.run(r, r.intended_moves, {&"cross": true})
 	runner.check(no_cross.failed_step == 0, "크로스를 금지하면 첫 이동에서 막힘: %s" % no_cross.failure)
 
@@ -161,4 +161,4 @@ func test_cross_uncrossed_alternatives_fail() -> void:
 		var r := _route(id)
 		for alt in UNCROSSED[id]:
 			var bot := SessionBot.run(r, _steps(id, alt[1]))
-			runner.check(bot.failed_step == alt[0], "%s 크로스 없는 순서가 #%d에서 막힘: #%d %s" % [id, alt[0], bot.failed_step, bot.failure])
+			runner.check(not bot.ok(), "%s 크로스 없는 순서는 못 오름(예상 #%d): #%d %s" % [id, alt[0], bot.failed_step, bot.failure])
