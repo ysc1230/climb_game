@@ -1,28 +1,17 @@
-# 홀드 메시 생성기(Blender 배경 실행). docs/22 아트 방향 + docs/32 홀드 디자인.
+# 홀드 메시 생성기 v2(Blender 배경 실행). docs/32 홀드 디자인.
 # 실행: blender -b --python tools/holds/make_holds.py
-# 출력: game/art/holds/holds.glb — 객체 hand_0..2, foot_0..2, goal
-# 단위 메시: X = 길이(-0.5..0.5, 잡기 영역 방향), Y = 높이(-0.5..0.5), Z = 벽에서 나온 깊이(0..1).
-# 게임이 슬롯마다 (길이, 높이, 깊이)로 늘린다. 재질 슬롯: 0 몸체, 1 윗날(잡는 면), 2 볼트 구멍.
+# 출력: game/art/holds/holds.glb
+# 단위는 m(실제 크기). X = 잡는 방향(길이), Y = 위, Z = 벽에서 나온 깊이(Z=0이 벽면).
+# 재질 슬롯: 0 몸체, 1 윗날(손가락이 걸리는 면·디딤 면), 2 볼트 구멍.
+# 이름: hs_* 작은 손홀드, hm_* 중간, hl_* 큰 손홀드, f_* 발판, goal.
 import bpy
 import bmesh
 import math
 import random
 import os
+from mathutils import Vector
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "game", "art", "holds", "holds.glb")
-
-# 단면(Y, Z): 벽(Z=0)에서 시작해 위쪽에 안으로 파인 립(손가락이 걸리는 곳)을 둔다.
-HAND_PROFILES = [
-    [(-0.50, 0.00), (-0.40, 0.55), (0.02, 0.92), (0.34, 1.00), (0.50, 0.80), (0.30, 0.52), (0.42, 0.00)],  # 저그
-    [(-0.50, 0.00), (-0.35, 0.40), (0.10, 0.70), (0.40, 0.78), (0.50, 0.62), (0.36, 0.45), (0.46, 0.00)],  # 에지
-    [(-0.50, 0.00), (-0.45, 0.48), (-0.05, 0.86), (0.30, 0.96), (0.50, 0.74), (0.28, 0.60), (0.40, 0.00)],  # 둥근 저그
-]
-FOOT_PROFILES = [
-    [(-0.50, 0.00), (-0.32, 0.62), (0.18, 0.96), (0.50, 0.70), (0.50, 0.00)],
-    [(-0.50, 0.00), (-0.20, 0.70), (0.25, 1.00), (0.50, 0.55), (0.48, 0.00)],
-    [(-0.50, 0.00), (-0.38, 0.55), (0.10, 0.90), (0.50, 0.78), (0.50, 0.00)],
-]
-GOAL_PROFILE = [(-0.50, 0.00), (-0.42, 0.62), (0.00, 0.98), (0.32, 1.00), (0.50, 0.82), (0.26, 0.50), (0.38, 0.00)]
 
 COLORS = {
     "hand_body": (0x2B, 0x7A, 0x6F), "hand_lip": (0x8F, 0xD0, 0xBC),
@@ -44,75 +33,188 @@ def material(name):
     return m
 
 
-def build(name, profile, segments, end_scale, seed, kind):
-    rnd = random.Random(seed)
-    bm = bmesh.new()
+def prism(bm, profile, length, segs, end_scale, rnd, jitter=0.1, crown=0.0):
+    """단면(Y, Z) 프로필을 X로 밀어 만든 선반형. 양 끝은 end_scale까지 오므린다. crown: 위 날 가운데 볼록."""
     rings = []
-    for i in range(segments + 1):
-        u = i / segments
-        x = -0.5 + u * 1.0
-        # 양 끝으로 갈수록 가늘고 낮게(둥근 끝), 가운데는 살짝 흔들어 손으로 깎은 레진 느낌
+    for i in range(segs + 1):
+        u = i / segs
         arc = math.sin(math.pi * u)
         taper = end_scale + (1.0 - end_scale) * arc ** 0.7
         ring = []
         for (y, z) in profile:
-            jy = rnd.uniform(-0.04, 0.04) if 0 < i < segments else 0.0
-            jz = rnd.uniform(-0.08, 0.08) * z if 0 < i < segments else 0.0
-            # 정면 실루엣: 위쪽(립)은 가운데가 볼록한 초승달, 양 끝은 둥글게 오므린다(렌즈 모양)
-            yy = (y + jy) * (0.35 + 0.65 * taper) + (0.10 * arc if y > 0.15 else -0.04 * arc)
-            ring.append(bm.verts.new((x * (0.92 + 0.08 * arc), yy, (z + jz) * taper)))
+            inner = 0 < i < segs
+            jy = rnd.uniform(-jitter, jitter) * 0.02 if inner else 0.0
+            jz = rnd.uniform(-jitter, jitter) * z if inner else 0.0
+            yy = (y + jy) * (0.45 + 0.55 * taper) + (crown * arc if y > 0 else 0.0)
+            ring.append(bm.verts.new(((u - 0.5) * length, yy, max(0.0, (z + jz) * taper))))
         rings.append(ring)
     n = len(profile)
-    for i in range(segments):
+    for i in range(segs):
         for k in range(n):
-            a, b = rings[i][k], rings[i][(k + 1) % n]
-            c, d = rings[i + 1][(k + 1) % n], rings[i + 1][k]
-            bm.faces.new((a, b, c, d))
+            bm.faces.new((rings[i][k], rings[i][(k + 1) % n], rings[i + 1][(k + 1) % n], rings[i + 1][k]))
     bm.faces.new(list(reversed(rings[0])))
     bm.faces.new(rings[-1])
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    # 윗날: 위·앞을 향한 면 중 위쪽(Y > 0.2)에 있는 면 = 손가락이 걸리는 곳
+
+
+def rock(bm, size, rnd, jitter=0.18, subdiv=1):
+    """각진 돌기: 정이십면체를 크기대로 늘리고 꼭짓점을 흔든 뒤 벽 뒤(Z<0)는 벽면으로 누른다."""
+    res = bmesh.ops.create_icosphere(bm, subdivisions=subdiv, radius=0.5)
+    for v in res["verts"]:
+        d = Vector((v.co.x * size[0], v.co.y * size[1], v.co.z * size[2] * 2.0))
+        d *= 1.0 + rnd.uniform(-jitter, jitter)
+        d.z = max(0.0, d.z)
+        v.co = d
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.002)
+
+
+def dome(bm, size, rnd, flat_top=0.0):
+    """슬로퍼: 낮은 반구. flat_top이 크면 윗면이 넓게 눌린다."""
+    res = bmesh.ops.create_uvsphere(bm, u_segments=9, v_segments=6, radius=0.5)
+    for v in res["verts"]:
+        z = max(0.0, v.co.z) * 2.0
+        if z > 1.0 - flat_top:
+            z = 1.0 - flat_top + (z - (1.0 - flat_top)) * 0.3
+        v.co = Vector((v.co.x * size[0] * (1 + rnd.uniform(-0.06, 0.06)), v.co.y * size[1] + 0.15 * size[1] * z, z * size[2]))
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.002)
+
+
+def pocket_hole(bm, center, radius, depth):
+    """앞면 위쪽에 구멍(포켓): 가장 가까운 면을 안쪽으로 파고 볼트색으로."""
+    best = min(bm.faces, key=lambda f: (f.calc_center_median() - center).length)
+    bmesh.ops.inset_individual(bm, faces=[best], thickness=radius * 0.35, depth=-depth)
+    best.material_index = 2
+
+
+def bolt(bm, at, r):
+    disk = bmesh.ops.create_circle(bm, cap_ends=True, radius=r, segments=8)
+    for v in disk["verts"]:
+        v.co = Vector((at.x + v.co.x, at.y + v.co.y, at.z + 0.002))
     for f in bm.faces:
+        if all(v in disk["verts"] for v in f.verts):
+            f.material_index = 2
+
+
+def paint_lip(bm, min_up=0.45, min_y_frac=0.25):
+    """위를 향한 면(손가락이 걸리는 날·디딤 면)을 윗날 재질로. 볼트·구멍 면은 그대로."""
+    ys = [v.co.y for v in bm.verts]
+    lo, hi = min(ys), max(ys)
+    cut = lo + (hi - lo) * min_y_frac
+    for f in bm.faces:
+        if f.material_index == 2:
+            continue
         c = f.calc_center_median()
-        nrm = f.normal
-        # 정면 카메라에서도 보이게: 윗면 + 앞면의 위쪽 띠(손가락이 걸리는 날)
-        top = c.y > 0.2 and nrm.y > 0.25
-        front_band = c.y > 0.22 and nrm.z > 0.3
-        f.material_index = 1 if (top or front_band) else 0
-    # 볼트 구멍: 앞면 가운데 작은 원판(벽 쪽으로 살짝 들어간 짙은 구멍)
-    if kind != "foot" or True:
-        cz = max(z for (_, z) in profile) * 0.92
-        cy = -0.05
-        disk = bmesh.ops.create_circle(bm, cap_ends=True, radius=0.055 if kind != "foot" else 0.07, segments=8)
-        for v in disk["verts"]:
-            co = v.co.copy()
-            v.co = (co.x * 0.9, cy + co.y * 1.4, cz + 0.02)
-        for f in bm.faces:
-            if all(v in disk["verts"] for v in f.verts):
-                f.material_index = 2
-                if f.normal.z < 0:
-                    f.normal_flip()
+        f.material_index = 1 if (f.normal.y > min_up and c.y > cut) else 0
+
+
+def finish(name, bm, kind):
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me)
     bm.free()
     obj = bpy.data.objects.new(name, me)
     bpy.context.scene.collection.objects.link(obj)
-    prefix = "goal" if kind == "goal" else kind
-    me.materials.append(material(prefix + "_body"))
-    me.materials.append(material(prefix + "_lip"))
+    for slot in ("_body", "_lip"):
+        me.materials.append(material(kind + slot))
     me.materials.append(material("bolt"))
     for p in me.polygons:
-        p.use_smooth = False  # 로우폴리 면이 보이게(툰 셰이더 밴드)
+        p.use_smooth = False
     return obj
+
+
+def crimp(name, rnd, length=0.10):
+    bm = bmesh.new()
+    prof = [(-0.018, 0.0), (-0.012, 0.022), (0.010, 0.034), (0.018, 0.030), (0.016, 0.0)]
+    prism(bm, prof, length, 5, 0.55, rnd, 0.06)
+    paint_lip(bm, 0.5, 0.4)
+    return finish(name, bm, "hand")
+
+
+def edge(name, rnd, length=0.12):
+    bm = bmesh.new()
+    prof = [(-0.026, 0.0), (-0.020, 0.030), (0.006, 0.046), (0.024, 0.044), (0.028, 0.026), (0.016, 0.018), (0.022, 0.0)]
+    prism(bm, prof, length, 6, 0.4, rnd, 0.1, crown=0.006)
+    paint_lip(bm)
+    return finish(name, bm, "hand")
+
+
+def pinch(name, rnd):
+    """세로 갈비: 좁고 높은 날(양쪽에서 집는다)."""
+    bm = bmesh.new()
+    rock(bm, (0.045, 0.11, 0.05), rnd, 0.12)
+    paint_lip(bm, 0.55, 0.6)
+    return finish(name, bm, "hand")
+
+
+def pocket(name, rnd):
+    bm = bmesh.new()
+    rock(bm, (0.09, 0.07, 0.05), rnd, 0.12)
+    pocket_hole(bm, Vector((0.0, 0.012, 0.05)), 0.02, 0.012)
+    paint_lip(bm, 0.55, 0.55)
+    return finish(name, bm, "hand")
+
+
+def nub(name, rnd):
+    bm = bmesh.new()
+    rock(bm, (0.075, 0.06, 0.045), rnd, 0.22)
+    paint_lip(bm, 0.5, 0.45)
+    return finish(name, bm, "hand")
+
+
+def jug(name, rnd, scale=1.0, kind="hand"):
+    """저그: 위쪽이 안으로 깊게 파인 손잡이(C자 단면)."""
+    bm = bmesh.new()
+    s = scale
+    prof = [(-0.045 * s, 0.0), (-0.036 * s, 0.050 * s), (0.000, 0.080 * s), (0.032 * s, 0.088 * s),
+            (0.045 * s, 0.070 * s), (0.026 * s, 0.050 * s), (0.016 * s, 0.030 * s), (0.034 * s, 0.0)]
+    prism(bm, prof, 0.15 * s, 7, 0.35, rnd, 0.12, crown=0.010 * s)
+    paint_lip(bm)
+    bolt(bm, Vector((0.0, -0.012 * s, 0.072 * s)), 0.006 * s)
+    return finish(name, bm, kind)
+
+
+def sloper(name, rnd, scale=1.0):
+    bm = bmesh.new()
+    dome(bm, (0.16 * scale, 0.12 * scale, 0.055 * scale), rnd, flat_top=0.25)
+    paint_lip(bm, 0.35, 0.45)
+    bolt(bm, Vector((0.0, -0.02 * scale, 0.05 * scale)), 0.006 * scale)
+    return finish(name, bm, "hand")
+
+
+def foot_chip(name, rnd):
+    bm = bmesh.new()
+    rock(bm, (0.065, 0.045, 0.035), rnd, 0.25)
+    paint_lip(bm, 0.45, 0.4)
+    return finish(name, bm, "foot")
+
+
+def foot_edge(name, rnd):
+    bm = bmesh.new()
+    prof = [(-0.020, 0.0), (-0.012, 0.024), (0.014, 0.032), (0.020, 0.0)]
+    prism(bm, prof, 0.085, 4, 0.5, rnd, 0.1)
+    paint_lip(bm, 0.5, 0.3)
+    return finish(name, bm, "foot")
 
 
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    for i, prof in enumerate(HAND_PROFILES):
-        build("hand_%d" % i, prof, 8, 0.28, 100 + i, "hand")
-    for i, prof in enumerate(FOOT_PROFILES):
-        build("foot_%d" % i, prof, 6, 0.22, 200 + i, "foot")
-    build("goal", GOAL_PROFILE, 9, 0.35, 300, "goal")
+    r = random.Random(7)
+    crimp("hs_crimp_0", r)
+    crimp("hs_crimp_1", r, 0.085)
+    edge("hs_edge_0", r)
+    edge("hs_edge_1", r, 0.10)
+    pinch("hs_pinch_0", r)
+    pocket("hs_pocket_0", r)
+    nub("hs_nub_0", r)
+    nub("hs_nub_1", r)
+    jug("hm_jug_0", r, 1.0)
+    sloper("hm_sloper_0", r, 1.0)
+    jug("hl_jug_0", r, 1.7)
+    sloper("hl_sloper_0", r, 1.6)
+    foot_chip("f_chip_0", r)
+    foot_chip("f_chip_1", r)
+    foot_chip("f_chip_2", r)
+    foot_edge("f_edge_0", r)
+    jug("goal", r, 1.6, "goal")
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     bpy.ops.export_scene.gltf(filepath=OUT, export_format="GLB", export_apply=True)
     print("WROTE", os.path.abspath(OUT))

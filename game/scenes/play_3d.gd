@@ -189,15 +189,23 @@ func _prism(size: Vector3) -> PrismMesh:
 var hold_glows := {}  # 슬롯 키 → 홀드 위에 겹친 빛 메시(잡을 수 있음: 흰색 깜빡임, 튜토리얼 목표: 노란색 깜빡임)
 
 
-## 홀드 디자인(docs/32): Blender로 만든 로우폴리 레진 홀드(art/holds/holds.glb, tools/holds/make_holds.py).
-## 손홀드는 위쪽 립(밝은 윗날)이 잡기 영역 방향·길이와 같게, 발판은 작은 쐐기 칩. 색은 벽(주황·모래)의 반대색.
-## 단위 메시(X 길이 ±0.5, Y 높이 ±0.5, Z 깊이 0..1)를 슬롯마다 (길이, 높이, 깊이)로 늘린다.
+## 홀드 디자인 v2(docs/32): Blender로 만든 실제 크기 로우폴리 레진 홀드(art/holds/holds.glb, tools/holds/make_holds.py).
+## 손홀드는 대부분 작은 종류(크림프·에지·핀치·포켓·너브), 다섯에 하나쯤 중간(저그·슬로퍼),
+## 넓은 잡기 영역(반폭 ≥ 0.15)과 정상만 큰 홀드. 발판은 각진 칩·얇은 에지. 늘리지 않고 잡기 방향으로 돌려 놓는다.
+## 잡기 판정(영역·여유)은 그대로다. 잡을 수 있으면 홀드 자체가 빛나 위치를 알려 준다.
 const HOLD_MESHES := preload("res://art/holds/holds.glb")
 const HOLD_COLORS := {
 	"hand": [Color("2b7a6f"), Color("8fd0bc")],
 	"foot": [Color("5e4c70"), Color("c4b0d6")],
 	"goal": [Color("d9b872"), Color("f1d59a")],
 }
+const HOLD_SMALL := ["hs_crimp_0", "hs_crimp_1", "hs_edge_0", "hs_edge_1", "hs_pinch_0", "hs_pocket_0", "hs_nub_0", "hs_nub_1"]
+const HOLD_MEDIUM := ["hm_jug_0", "hm_sloper_0"]
+const HOLD_LARGE := ["hl_jug_0", "hl_sloper_0"]
+const HOLD_FOOT := ["f_chip_0", "f_chip_1", "f_chip_2", "f_edge_0"]
+const LARGE_HALF_WIDTH := 0.15
+## 화면 배율: 실제 크기(작은 홀드 약 8cm)는 휴대폰 화면에서 몇 픽셀이라, 크기 순서는 지키면서 읽히게 키운다.
+const HOLD_VIEW_SCALE := {"hs": 1.9, "hm": 1.5, "hl": 1.25, "f_": 1.9, "go": 1.25}
 var _hold_mesh_cache := {}
 
 
@@ -210,49 +218,50 @@ func _hold_mesh(name: String) -> Mesh:
 	return _hold_mesh_cache.get(name)
 
 
+## 슬롯에 놓을 홀드 메시 이름(키 해시로 고정된 무작위).
+static func hold_variant(key: String, slot: Dictionary, is_goal: bool) -> String:
+	var h := absi(hash(key))
+	if is_goal:
+		return "goal"
+	if not slot.has("hand_area"):
+		return HOLD_FOOT[h % HOLD_FOOT.size()]
+	if float(slot.hand_area.half_width) >= LARGE_HALF_WIDTH:
+		return HOLD_LARGE[h % HOLD_LARGE.size()]
+	if h % 5 == 0:
+		return HOLD_MEDIUM[(h / 5) % HOLD_MEDIUM.size()]
+	return HOLD_SMALL[h % HOLD_SMALL.size()]
+
+
 func _build_holds() -> void:
 	for key in logic.route.slots:
 		var slot: Dictionary = logic.route.slots[key]
 		var is_goal: bool = logic.route.goal_slots.has(key)
 		var hand: bool = slot.has("hand_area")
 		var kind := "goal" if is_goal else ("hand" if hand else "foot")
-		var length: float
-		var height: float
-		var depth: float
-		var ang: float
-		if hand:
-			length = 2.0 * slot.hand_area.half_width + GripCheck.HAND_HOLD_THICKNESS
-			height = 2.0 * GripCheck.HAND_HOLD_THICKNESS + 0.09
-			depth = 0.13 if is_goal else 0.10
-			ang = (slot.hand_area.dir as Vector2).angle()
-		else:
-			length = 2.0 * GripCheck.FOOT_HOLD_HALF_WIDTH + 0.06
-			height = 2.0 * slot.foot_area.half_height + 0.08
-			depth = 0.08
-			ang = (slot.foot_area.up as Vector2).angle() - PI / 2.0
-		var variant := "goal" if is_goal else "%s_%d" % [kind, absi(hash(key)) % 3]
+		var variant := hold_variant(key, slot, is_goal)
 		var mesh := _hold_mesh(variant)
+		var ang: float = (slot.hand_area.dir as Vector2).angle() if hand else (slot.foot_area.up as Vector2).angle() - PI / 2.0
 		var hold := MeshInstance3D.new()
 		hold.mesh = mesh
 		var cols: Array = HOLD_COLORS[kind]
 		var mats := [_toon(cols[0], cols[0].darkened(0.45)), _toon(cols[1], cols[1].darkened(0.35)), _toon(INK, INK.darkened(0.3))]
 		for si in mesh.get_surface_count():
 			var m: ShaderMaterial = mats[mini(si, 2)]
-			m.next_pass.set_shader_parameter("width", 0.012)
+			m.next_pass.set_shader_parameter("width", 0.006)
 			hold.set_surface_override_material(si, m)
 		var p: Vector2 = slot.pos
 		hold.position = Vector3(p.x, p.y, 0.0)
-		hold.rotation = Vector3(0, 0, ang + deg_to_rad(rng.randf_range(-3, 3)))
-		hold.scale = Vector3(length, height, depth)
+		hold.rotation = Vector3(0, 0, ang + deg_to_rad(rng.randf_range(-8, 8)))
+		hold.scale = Vector3.ONE * float(HOLD_VIEW_SCALE.get(variant.left(2), 1.5)) * rng.randf_range(0.92, 1.12)
 		add_child(hold)
 		var glow := MeshInstance3D.new()
 		glow.mesh = mesh
 		var gm := _overlay(Color(1, 1, 1, 0.0))
 		gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		glow.material_override = gm
-		glow.position = hold.position + Vector3(0, 0, 0.005)
+		glow.position = hold.position + Vector3(0, 0, 0.004)
 		glow.rotation = hold.rotation
-		glow.scale = hold.scale * Vector3(1.08, 1.12, 1.05)
+		glow.scale = hold.scale * 1.18
 		glow.visible = false
 		add_child(glow)
 		hold_glows[key] = glow
