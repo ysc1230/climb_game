@@ -13,6 +13,9 @@ var sensitivity := 1.0
 var generation := 0
 var _bindings := {}     # touch index -> {limb, origin, last, dragging, pad_px}
 var _gesture_seq := 0
+## 몸통 끌기 영역(docs/03 v0.9): 네 패드 사이 가운데. 여기서 시작한 터치는 팔다리 대신 몸통(골반 목표)을 움직인다.
+var body_area := Rect2()
+const BODY := &"BODY"
 const SPEED_WINDOW := 0.1  # 속도를 재는 구간(초)
 
 
@@ -47,6 +50,10 @@ func touch_down(index: int, pos: Vector2, attached_now: bool) -> Array:
 	if _bindings.has(index):
 		return []
 	var limb := _pad_at(pos)
+	if limb == &"" and body_area.has_point(pos) and not _limb_bound(BODY):
+		_gesture_seq += 1
+		_bindings[index] = {"limb": BODY, "origin": pos, "last": pos, "dragging": true, "moves": [], "pad_px": _body_pad_px(), "gesture": _gesture_seq}
+		return [{"type": "body_start", "limb": BODY}]
 	if limb == &"" or _limb_bound(limb):
 		return []
 	_gesture_seq += 1
@@ -77,7 +84,7 @@ func touch_drag(index: int, pos: Vector2, time_s: float = -1.0) -> Array:
 	b.moves.append({"t": now, "len": world_delta.length()})
 	while b.moves.size() > 0 and b.moves[0].t < now - 1.0:
 		b.moves.pop_front()
-	out.append({"type": "move", "limb": b.limb, "delta": world_delta})
+	out.append({"type": "body_move" if b.limb == BODY else "move", "limb": b.limb, "delta": world_delta})
 	return out
 
 
@@ -86,6 +93,8 @@ func touch_up(index: int, time_s: float = -1.0) -> Array:
 		return []
 	var b: Dictionary = _bindings[index]
 	_bindings.erase(index)
+	if b.limb == BODY:
+		return [{"type": "body_end", "limb": BODY}]
 	if not b.dragging:
 		return [{"type": "disarm", "limb": b.limb}]
 	var now := _now(time_s)
@@ -105,7 +114,7 @@ func _now(time_s: float) -> float:
 func cancel_all() -> Array:
 	var out := []
 	for b in _bindings.values():
-		out.append({"type": "cancel", "limb": b.limb})
+		out.append({"type": "body_end" if b.limb == BODY else "cancel", "limb": b.limb})
 	_bindings.clear()
 	generation += 1
 	return out
@@ -114,3 +123,10 @@ func cancel_all() -> Array:
 ## 패드 지름만큼 움직이면 월드 1.0m(감도 1). 화면 Y 아래 → 월드 Y 위로 뒤집는다.
 func to_world(screen_delta: Vector2, pad_diameter_px: float) -> Vector2:
 	return Vector2(screen_delta.x, -screen_delta.y) * sensitivity / pad_diameter_px
+
+
+## 몸통 끌기의 화면→월드 환산 기준: 패드 지름(패드와 같은 감도). 패드가 없으면 200px.
+func _body_pad_px() -> float:
+	for limb in pads:
+		return pads[limb].radius * 2.0
+	return 200.0

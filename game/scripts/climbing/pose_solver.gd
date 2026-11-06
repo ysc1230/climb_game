@@ -208,11 +208,13 @@ static func default_pref(limb: StringName) -> float:
 
 
 ## 27후보 근방 탐색. 반환값 Vector3(x, y, angle)은 목표 자세이며 즉시 이동 위치가 아니다.
-static func find_target(pelvis: Vector2, angle_deg: float, attached: Dictionary, feet: Array, profile: Dictionary = {}, intents: Dictionary = {}, lateral_target: float = NAN, lateral_weight: float = 0.0, yaw_deg: float = 0.0) -> Vector3:
+## body_goal: 플레이어가 가운데 영역을 끌어 정한 골반 목표(docs/03 v0.9, 없으면 NAN). 비용에 거리² × Tuning.BODY_GOAL_WEIGHT를 더한다.
+static func find_target(pelvis: Vector2, angle_deg: float, attached: Dictionary, feet: Array, profile: Dictionary = {}, intents: Dictionary = {}, lateral_target: float = NAN, lateral_weight: float = 0.0, yaw_deg: float = 0.0, body_goal: Vector2 = Vector2(NAN, NAN)) -> Vector3:
 	var best := Vector3(pelvis.x, pelvis.y, angle_deg)
 	if attached.is_empty():
 		return best
 	var ctx := _search_context(attached, feet, profile, intents, best, lateral_target, lateral_weight, yaw_deg)
+	ctx["goal"] = body_goal
 	var best_cost := _candidate_cost(pelvis, angle_deg, ctx)
 	var pos_step := Tuning.SEARCH_POS_STEP
 	var ang_step := Tuning.SEARCH_ANGLE_STEP
@@ -365,6 +367,9 @@ static func _candidate_cost(p: Vector2, a: float, ctx: Dictionary) -> float:
 	total += Tuning.W_CHANGE * (dp * dp + da * da)
 	if not is_nan(float(ctx.lat)) and float(ctx.lat_w) > 0.0:
 		total += float(ctx.lat_w) * pow(p.x - float(ctx.lat), 2)
+	var goal: Vector2 = ctx.get("goal", Vector2(NAN, NAN))
+	if goal.is_finite():
+		total += Tuning.BODY_GOAL_WEIGHT * p.distance_squared_to(goal)
 	return total
 
 

@@ -75,6 +75,8 @@ func reset_to(pose: Dictionary) -> void:
 
 func _reset_pose(pelvis: Vector2, angle: float, slots: Dictionary) -> void:
 	runner.cancel(self, &"reset")
+	rules.body_goal = Vector2(NAN, NAN)
+	_body_dragging = false
 	body = BodyState.new(pelvis, angle)
 	limbs.clear()
 	for limb in PoseSolver.LIMBS:
@@ -171,11 +173,45 @@ func choose(tech_id: StringName, side: StringName, key: String = "", point: Vect
 	return reason
 
 
+# ---------- 몸통 끌기(docs/03 v0.9) ----------
+
+var _body_dragging := false
+var _body_anchor := Vector2.ZERO
+var _body_offset := Vector2.ZERO
+
+
+## 패드 사이 가운데 영역 끌기: 누른 순간의 골반을 기준으로 끈 만큼(최대 BODY_GOAL_MAX) 골반 목표를 옮긴다.
+## 손을 떼도 목표는 남고(그 자리에 머묾), 다른 팔다리를 움직이기 시작하면 지운다. 판정(도달·관절·힘 균형)은 그대로다.
+func _body_input(c: Dictionary) -> void:
+	match str(c.type):
+		"body_start":
+			_body_dragging = true
+			_body_anchor = body.pos
+			_body_offset = Vector2.ZERO
+			rules.body_goal = body.pos
+		"body_move":
+			if _body_dragging:
+				_body_offset = (_body_offset + (c.delta as Vector2)).limit_length(Tuning.BODY_GOAL_MAX)
+				rules.body_goal = _body_anchor + _body_offset
+		"body_end":
+			_body_dragging = false
+
+
+## 몸통 끌기 중인가(화면 화살표용).
+func body_dragging() -> bool:
+	return _body_dragging
+
+
 # ---------- 입력 ----------
 
 ## InputRouter 명령({type, limb, delta, speed})을 적용한다. release의 speed는 쓰지 않는다(데드포인트 제거).
 func apply_input(cmds: Array) -> void:
 	for c in cmds:
+		if c.type in ["body_start", "body_move", "body_end"]:
+			_body_input(c)
+			continue
+		if c.type in ["arm", "detach"] and not _body_dragging:
+			rules.body_goal = Vector2(NAN, NAN)  # 다른 팔다리를 움직이기 시작하면 자동 자세로 돌아간다
 		var l: Dictionary = limbs[c.limb]
 		# 패드 조작과 실행 중 기술(27 §6 5): 기술이 쓰는 발을 누르면 취소
 		if c.type in ["arm", "detach"] and runner.uses(c.limb):

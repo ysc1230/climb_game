@@ -33,6 +33,8 @@ var moves := MoveClassifier.new()   # 무브 라벨·무브별 선호 거리(doc
 var contact_meta := {}    # limb → ContactInfo (접점 품질·방식, 없으면 pull·q=1)
 var yaw_target := NAN     # 도. NAN이면 0으로 복귀(04 §10.1, 기술만 설정)
 var yaw_guard := false   # yaw 기술 실행 중: yaw를 키우는 한 걸음이 힘 균형(FEASIBLE)·barn door를 깨면 그 걸음을 멈춘다
+## 플레이어가 끌어 정한 골반 목표(docs/03 v0.9). NAN이면 없음(자동 자세).
+var body_goal := Vector2(NAN, NAN)
 var flag_ready: Array[StringName] = []  # 지금 놓으면 균형 발(Free/Flag)로 남는 드래그 발
 var profile_override := {}  # limb → 선호 거리. 기술 실행 중 무브 프로필 위에 덮어씀(docs/27 §10, 비면 영향 없음)
 var load_scale := 1.0  # 접점 최대 하중 배율(기본 1.0)
@@ -299,10 +301,10 @@ func _evaluate_cached(p: Vector2, a: float) -> Dictionary:
 ## find_target은 시작점 근방의 국소 탐색이라 시작점이 3mm·0.3° 안이면 같은 수렴 목표로 본다.
 func _target_for(body: BodyState, attached: Dictionary, intents: Dictionary, lateral: float, weight: float) -> Vector3:
 	var profile := effective_profile()
-	var sig := [_signature(attached), _meta_signature(), feet_eligible.duplicate(), lateral, weight, _signature(intents), profile, body.yaw]
+	var sig := [_signature(attached), _meta_signature(), feet_eligible.duplicate(), lateral, weight, _signature(intents), profile, body.yaw, body_goal if body_goal.is_finite() else Vector2.INF]  # NAN은 자기 자신과도 같지 않아 캐시가 깨진다
 	if sig == _target_sig and body.pos.distance_to(_target_from_pos) < 0.003 and absf(body.angle - _target_from_angle) < 0.3:
 		return _target
-	_target = PoseSolver.find_target(body.pos, body.angle, attached, feet_eligible, profile, intents, lateral, weight, body.yaw)
+	_target = PoseSolver.find_target(body.pos, body.angle, attached, feet_eligible, profile, intents, lateral, weight, body.yaw, body_goal)
 	_target_sig = sig
 	_target_from_pos = body.pos
 	_target_from_angle = body.angle

@@ -130,6 +130,9 @@ func _layout() -> void:
 	router.set_pad(&"LF", Vector2(0.11, 0.72) * size, pad_d)
 	router.set_pad(&"RH", Vector2(0.89, 0.30) * size, pad_d)
 	router.set_pad(&"RF", Vector2(0.89, 0.72) * size, pad_d)
+	# 네 패드 사이의 네모 공간: 여기서 끌면 몸통(골반 목표)을 그 방향으로 옮긴다(docs/03 v0.9)
+	var r := pad_d * 0.5
+	router.body_area = Rect2(Vector2(0.11 * size.x + r + 12 * ui_k, 0.30 * size.y - r), Vector2(0.78 * size.x - 2 * r - 24 * ui_k, 0.42 * size.y + 2 * r))
 	var dpi := float(DisplayServer.screen_get_dpi())
 	router.deadzone_px = maxf(10.0 * ui_k, DEADZONE_MM / 25.4 * dpi)
 	px_per_m = maxf(minf(size.x * 0.56 / PLAY_W, size.y / PLAY_H), 10.0)
@@ -250,10 +253,11 @@ func _retry() -> void:
 func _apply(cmds: Array) -> void:
 	var was_dragging := {}
 	for c in cmds:
-		was_dragging[c.limb] = session.limbs[c.limb].state == "Dragging"
+		if session.limbs.has(c.limb):
+			was_dragging[c.limb] = session.limbs[c.limb].state == "Dragging"
 	session.apply_input(cmds)
 	for c in cmds:
-		if c.type == "release" and was_dragging[c.limb] and session.limbs[c.limb].state == "Attached" and OS.has_feature("mobile"):
+		if c.type == "release" and was_dragging.get(c.limb, false) and session.limbs[c.limb].state == "Attached" and OS.has_feature("mobile"):
 			Input.vibrate_handheld(20)
 	_take_messages()
 
@@ -548,6 +552,7 @@ func _draw_hud(size: Vector2) -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.55))
 		var t := "손가락을 편하게 올려주세요 %d" % ceili(prepare_left) if prepare_left > 0.0 else "일시정지 · 화면을 탭하면 3초 뒤 이어서 시작해요"
 		draw_string(font, Vector2(0, size.y * 0.5), t, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(34 * ui_k), Color.WHITE)
+	_draw_body_goal()
 	if draw_world:
 		_draw_grab_ready()  # 2D 시험 장면만. 3D 화면은 홀드 자체가 빛난다(play_3d)
 	var goal_key := _tutorial_goal_key()
@@ -559,6 +564,24 @@ func _draw_hud(size: Vector2) -> void:
 
 ## 끌고 있는 손발 아래에 지금 놓으면 잡히는 홀드가 있으면(세션 후보) 그 홀드를 그 팔다리 색으로 반짝이고
 ## "놓으면 잡혀요"를 띄운다(가동범위 부채꼴 대신, 2026-11-04 사용자 결정). 후보는 실제 잡기 판정과 같다.
+## 몸통 끌기 중: 골반에서 목표 골반 쪽으로 화살표(docs/03 v0.9).
+func _draw_body_goal() -> void:
+	var g: Vector2 = session.rules.body_goal
+	if not session.body_dragging() or not g.is_finite():
+		return
+	var a := w2s(session.body.pos)
+	var b := w2s(g)
+	if a.distance_to(b) < 4.0:
+		draw_circle(a, 10 * ui_k, Color(1, 1, 1, 0.8))
+		return
+	var col := Color("fff2c8")
+	draw_line(a, b, Color(0, 0, 0, 0.6), 9 * ui_k)
+	draw_line(a, b, col, 5 * ui_k)
+	var d := (b - a).normalized()
+	var n := d.orthogonal()
+	draw_colored_polygon(PackedVector2Array([b + d * 14 * ui_k, b - d * 6 * ui_k + n * 11 * ui_k, b - d * 6 * ui_k - n * 11 * ui_k]), col)
+
+
 func _draw_grab_ready() -> void:
 	if session.selecting:
 		return

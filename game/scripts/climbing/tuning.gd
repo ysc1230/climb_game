@@ -55,6 +55,9 @@ const LOAD_PROXY_MARGIN := 0.05
 # 무브 판별(docs/04 §5 표)
 const HIGH_STEP_BELOW_HIP := 0.20
 const FLAG_COST_IMPROVEMENT := 0.02
+# v0.9 몸통 끌기(docs/03): 가운데 영역을 끌어 정한 골반 목표 쪽으로 당기는 비용 가중치(1/m²)와 최대 거리(m)
+const BODY_GOAL_WEIGHT := 30.0
+const BODY_GOAL_MAX := 0.45
 # v0.7 문 열림 부담(docs/30 §4.1, 04 §10.4): r = τ/용량이 이 값을 넘으면 하중 받는 손이 더 빨리 지친다
 const BARN_STRAIN_START := 0.5
 const BARN_STRAIN_MAX_MULT := 4.0  # r = 1에서의 피로 배율
