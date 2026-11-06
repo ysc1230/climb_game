@@ -199,7 +199,10 @@ func test_index_real_data() -> void:
 	var idx := ContentIndex.load_all()
 	runner.check(idx.grades() == (["V0", "V2", "V3", "V4"] as Array[String]), "등급 %s" % [idx.grades()])  # V1은 아직 문제 없음
 	var g := idx.general("V0")
-	runner.check(g.size() == 1 and g[0].route_id == "G_V0_01", "V0 문제")
+	runner.check(g.size() == 2 and g[0].route_id == "G_V0_01" and g[1].route_id == "G_V0_02", "V0 문제(order 순)")
+	for grade in ["V2", "V3", "V4"]:
+		var ids_g := idx.general(grade).map(func(r): return r.route_id)
+		runner.check(ids_g == ["G_%s_01" % grade, "G_%s_02" % grade], "%s 문제 %s" % [grade, ids_g])
 	runner.check(idx.route("G_V0_01") == g[0], "route 조회")
 	runner.check(idx.route("NOPE") == null, "없는 route null")
 	runner.check(idx.general("V9").is_empty(), "없는 등급 빈 배열")

@@ -1,0 +1,263 @@
+{
+ "route_id": "G_V0_02",
+ "content_version": 1,
+ "validation_status": "Draft",
+ "mode": "general",
+ "grade": "V0",
+ "order": 2,
+ "name_ko": "짧은 벽",
+ "required_techniques": [],
+ "crux_steps": {},
+ "check_swapped": false,
+ "note": "v1: 홀드가 적은 V0(2026-11-07, 사용자: 등급별 홀드가 너무 많다). G_V0_01(13개)의 사다리를 한 쌍씩 걷어 홀드 9개. 큰 홀드(반폭 0.12)만 쓰고 기술은 필요 없다. 손 두 번, 발 한 번 올리고 정상.",
+ "bounds": {
+  "x_min": -1.5,
+  "x_max": 1.5,
+  "y_min": 0.0,
+  "y_max": 4.0
+ },
+ "fail_line_y": -0.5,
+ "holds": [
+  {
+   "hold_id": "H01",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      -0.45,
+      1.8
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.12
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H02",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      0.45,
+      1.8
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.12
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H03",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      -0.45,
+      2.15
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.12
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H04",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      0.45,
+      2.15
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.12
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F01",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      -0.3,
+      0.1
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ]
+    }
+   ]
+  },
+  {
+   "hold_id": "F02",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      0.3,
+      0.1
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ]
+    }
+   ]
+  },
+  {
+   "hold_id": "F03",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      -0.3,
+      0.8
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ]
+    }
+   ]
+  },
+  {
+   "hold_id": "F04",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      0.3,
+      0.8
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ]
+    }
+   ]
+  },
+  {
+   "hold_id": "G01",
+   "slots": [
+    {
+     "slot_id": "goal_left",
+     "pos": [
+      -0.22,
+      2.75
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ]
+    },
+    {
+     "slot_id": "goal_right",
+     "pos": [
+      0.22,
+      2.75
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ]
+    }
+   ]
+  }
+ ],
+ "platforms": [
+  {
+   "platform_id": "P00",
+   "top_y": 0.1,
+   "x_range": [
+    -0.65,
+    0.65
+   ],
+   "foot_slot_keys": [
+    "G_V0_02/F01/foot_1",
+    "G_V0_02/F02/foot_1"
+   ]
+  }
+ ],
+ "start_pose": {
+  "pelvis": [
+   0,
+   0.744
+  ],
+  "angle": 0.0,
+  "slots": {
+   "LH": "G_V0_02/H01/hand_1",
+   "RH": "G_V0_02/H02/hand_1",
+   "LF": "G_V0_02/F01/foot_1",
+   "RF": "G_V0_02/F02/foot_1"
+  }
+ },
+ "goal_slots": [
+  "G_V0_02/G01/goal_left",
+  "G_V0_02/G01/goal_right"
+ ],
+ "time_medal_seconds": 45,
+ "intended_moves": [
+  [
+   "LH",
+   "G_V0_02/H03/hand_1"
+  ],
+  [
+   "RH",
+   "G_V0_02/H04/hand_1"
+  ],
+  [
+   "LF",
+   "G_V0_02/F03/foot_1"
+  ],
+  [
+   "RF",
+   "G_V0_02/F04/foot_1"
+  ],
+  [
+   "LH",
+   "G_V0_02/G01/goal_left"
+  ],
+  [
+   "RH",
+   "G_V0_02/G01/goal_right"
+  ]
+ ]
+}
