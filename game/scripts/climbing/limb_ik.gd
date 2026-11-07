@@ -23,7 +23,10 @@ const BEND_SAMPLES := 36
 const SEARCH_SAMPLES := 12    # 깊이를 고를 때(가능한 자세가 있는가)만 보는 거친 후보 수
 const MID_SPEED := 4.0        # m/s, 팔꿈치·무릎이 굽힘 방향을 바꾸며 움직이는 최대 속도(관절 뒤집힘 방지)
 const MAX_TICK_DEG := 20.0   # 한 틱에 굽힘 방향이 도는 최대 각(뒤집혀 보이지 않게)
+const TARGET_MARGIN_DEG := 2.0  # 목표 굽힘 방향을 가능한 구간 경계에서 이만큼 안쪽에 둔다
 const SWITCH_H := 0.12        # 굽힘 반지름이 이보다 작으면(거의 펴짐) 반대쪽으로 바꿔도 보이지 않는다
+const ARM_POLE_HIGH := Vector3(0.45, -0.85, -0.25)  # 손이 어깨 위: 팔꿈치 아래·약간 바깥·벽 쪽
+const ARM_POLE_LOW := Vector3(0.55, -0.15, 0.80)    # 손이 어깨 아래·옆: 팔꿈치 뒤·바깥
 const BODY_POLE := {  # 몸 기준(X 오른쪽, Y 위, +Z 등 쪽). s는 오른쪽 +1·왼쪽 −1로 곱한다.
 	&"hand": Vector3(0.6, -0.55, 0.45),   # 팔꿈치: 바깥·아래·약간 뒤(벽 반대)
 	&"foot": Vector3(0.8, 0.1, -0.6),     # 무릎: 바깥·벽 쪽(앞). 무릎은 뒤로 접히지 않는다
@@ -43,7 +46,7 @@ static func solve_limb(limb: StringName, root: Vector3, end: Vector3, frame: Bas
 ## 미리 구한 굽힘 원(circle)으로 굽힘 축을 고른다(ClimberPose가 같은 프레임의 원을 다시 쓸 때).
 static func solve_circle(c: Dictionary, prev_bend: Vector3, max_step_deg: float) -> Dictionary:
 	var bad: Array[float] = c.bad
-	var target := TAU * int(c.best) / bad.size()
+	var target: float = c.target
 	var th_new := target
 	var dir: Vector3 = c.dir
 	var n: Vector3 = c.n
@@ -55,8 +58,36 @@ static func solve_circle(c: Dictionary, prev_bend: Vector3, max_step_deg: float)
 		# 중간 관절 이동 속도 한도(MID_SPEED / 굽힘 반지름) 중 큰 쪽: 많이 굽었으면 천천히, 거의 펴졌으면 빨리 방향을 바꾼다.
 		var dt := max_step_deg / PRESENTATION_JOINT_SPEED_DEG
 		var step := minf(maxf(deg_to_rad(max_step_deg), MID_SPEED * dt / maxf(float(c.h), 0.001)), deg_to_rad(MAX_TICK_DEG))
-		var span := _local_span(bad, th_prev, target, float(c.h))
-		th_new = th_prev + clampf(span, -step, step)
+		var at: Callable = c.at
+		if at.call(th_prev) <= 0.0:
+			# 지금 축이 가능: 목표 쪽(짧은 길, 거친 후보로 막혔고 반대 길이 열렸으면 반대 길)으로 이번 틱 이동분만
+			# 1°씩 정확히 확인하며 가고, 불가능해지기 직전에서 멈춘다(경계에서 오락가락하지 않음).
+			var ccw := fposmod(target - th_prev, TAU)
+			var dirn := 1.0 if ccw <= TAU - ccw else -1.0
+			var dist := minf(ccw, TAU - ccw)
+			if _path_viol(bad, th_prev, dirn * dist) > 0.0 and _path_viol(bad, th_prev, -dirn * (TAU - dist)) <= 0.0:
+				dirn = -dirn
+				dist = TAU - dist
+			var move := minf(dist, step)
+			var done := 0.0
+			while done < move - 0.00001:
+				var d := minf(deg_to_rad(1.0), move - done)
+				if at.call(th_prev + dirn * (done + d)) > 0.0:
+					break
+				done += d
+			th_new = th_prev + dirn * done
+		else:
+			# 지금 축이 불가능: 이번 틱 이동분 안에서 1°씩 양쪽으로 정확히 보고 가장 가까운 가능한 곳으로.
+			# 없으면 거친 후보로 정한 탈출 방향으로 이동분만큼(경계에서 표본 간격만큼 오락가락하지 않음).
+			var found := NAN
+			var a := 0.0
+			while a < step - 0.00001 and is_nan(found):
+				a = minf(a + deg_to_rad(1.0), step)
+				if at.call(th_prev + a) <= 0.0:
+					found = th_prev + a
+				elif at.call(th_prev - a) <= 0.0:
+					found = th_prev - a
+			th_new = found if not is_nan(found) else th_prev + clampf(float(_escape(bad, th_prev).span), -step, step)
 	var bend := (n * cos(th_new) + t * sin(th_new)).normalized()
 	return {"mid": (c.center as Vector3) + bend * float(c.h), "bend": bend}
 
@@ -106,7 +137,7 @@ static func local_violation(c: Dictionary, prev_bend: Vector3) -> float:
 	if carried.length() < 0.0001 or float(c.h) < SWITCH_H:
 		return bad.min()
 	var th_prev := atan2(carried.dot(c.t), carried.dot(c.n))
-	if _viol_at(bad, th_prev) <= 0.0:
+	if (c.at as Callable).call(th_prev) <= 0.0:
 		return 0.0
 	return 0.2 * float(_escape(bad, th_prev).cost) + 10.0 * bad.min()  # 가능한 자세가 있는 깊이를 먼저, 그다음 옮겨 가는 길
 
@@ -123,6 +154,16 @@ static func circle_min(c: Dictionary) -> float:
 ## samples: 후보 수(깊이를 고를 때는 SEARCH_SAMPLES로 거칠게, 표시할 때는 BEND_SAMPLES).
 static func circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3, samples := BEND_SAMPLES, free := false) -> Dictionary:
 	return _circle(limb, root, end, frame, pelvis, up, samples, free)
+
+
+## 팔꿈치 선호 방향(몸 기준, 오른팔 기준 X+ = 바깥). 손 방향(어깨→손, 몸 기준)에 따라 바꾼다(2026-11-08 사용자:
+## "팔 움직임이 부자연스럽고 기괴하게 꺾인다"). 손이 어깨 위면 팔꿈치는 아래·약간 벽 쪽(머리 위 홀드에서 팔꿈치가
+## 옆으로 벌어지는 '닭 날개'를 피함), 어깨 높이·아래면 뒤·바깥(옆·아래로 뻗을 때 팔꿈치가 아래로 꺾여 V·L자가 되지 않음).
+static func arm_pole(hand_dir_body: Vector3) -> Vector3:
+	var up := clampf(hand_dir_body.y, -1.0, 1.0)
+	var high := ARM_POLE_HIGH
+	var low := ARM_POLE_LOW
+	return low.lerp(high, smoothstep(-0.3, 0.6, up)).normalized()
 
 
 ## 굽힘 원: 중심·반지름 h·기준 축 n, t와 BEND_SAMPLES개 후보의 위반량(bad), 가장 좋은 후보(best).
@@ -145,6 +186,8 @@ static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis,
 	n = n.normalized()
 	var t := dir.cross(n).normalized()
 	var pl: Vector3 = BODY_POLE[&"hand" if hand else (&"free_foot" if free else &"foot")]
+	if hand:
+		pl = arm_pole(frame.inverse() * dir)
 	var free_leg := free and not hand
 	var pole := frame * Vector3(pl.x * sgn, pl.y, pl.z)
 	var pole_th := atan2(pole.dot(t), pole.dot(n))
@@ -163,7 +206,26 @@ static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis,
 		if cost < best_cost:
 			best = k
 			best_cost = cost
-	return {"dir": dir, "n": n, "t": t, "center": center, "h": h, "bad": bad, "best": best}
+	# 연속 목표각: 선호 방향이 가능하면 그 방향, 아니면 가장 좋은 후보에서 선호 방향 쪽으로 가능한 구간의 경계(이분법).
+	# 후보 간격(10°)으로 목표가 계단처럼 뛰면 팔꿈치·무릎이 따라 뛰어 떨려 보인다(2026-11-08 사용자 보고).
+	var at := func(th: float) -> float:
+		return _violation(limb, hand, root, center + (n * cos(th) + t * sin(th)) * h, end, frame, torso_a, torso_b, head, free_leg)
+	var target := TAU * best / samples
+	if at.call(pole_th) <= 0.0:
+		target = pole_th
+	elif bad[best] <= 0.0:
+		var span := angle_difference(target, pole_th)
+		var lo := 0.0
+		var hi := 1.0
+		for i in 6:
+			var mid_f := (lo + hi) * 0.5
+			if at.call(target + span * mid_f) <= 0.0:
+				lo = mid_f
+			else:
+				hi = mid_f
+		# 경계에서 TARGET_MARGIN만큼 안쪽(손이 조금 움직여 경계가 옮겨 가도 바로 불가능해지지 않게)
+		target += signf(span) * maxf(0.0, absf(span) * lo - deg_to_rad(TARGET_MARGIN_DEG))
+	return {"dir": dir, "n": n, "t": t, "center": center, "h": h, "bad": bad, "best": best, "target": target, "at": at}
 
 
 ## 굽힘 후보 하나의 제약 위반량(0이면 해부학적으로 가능).

@@ -21,6 +21,16 @@ var flip_examples := {}
 var _prev_bend := {}
 const FLIP_DEG := 25.0      # 한 틱(1/60초) 굽힘 방향 변화 한도. 180°/s 회전 한도의 8배 남짓
 const FLIP_MIN_BEND := 0.08 # 굽힘 반지름(중간 관절이 축에서 떨어진 거리)이 이보다 작으면(거의 펴짐) 보지 않음
+## 떨림: 관절 위치의 한 틱 이동이 바로 전 틱과 반대 방향(내적 < 0)이고 둘 다 JITTER_MIN보다 크면 1번.
+## 표현 관절(t)과 판정 상태(세션의 골반·말단)를 따로 세어 원인이 표현인지 판정인지 가른다.
+const JITTER_MIN := 0.003    # m/틱(0.18 m/s)
+const JITTER_KEYS := ["elbow_L", "elbow_R", "wrist_L", "wrist_R", "knee_L", "knee_R", "ankle_L", "ankle_R", "pelvis", "shoulder_L", "shoulder_R"]
+var jitter := {}             # 키 → 횟수(표현)
+var jitter_big := {}         # 키 → 그중 큰 떨림(두 이동 모두 JITTER_BIG 넘음) 횟수
+const JITTER_BIG := 0.01     # m/틱(0.6 m/s): 눈에 띄는 떨림
+var jitter_sim := {}         # 키 → 횟수(판정: body, LH/RH/LF/RF 2D 위치)
+var _jp := {}                # 키 → [직전 위치, 직전 이동]
+var _jp_sim := {}
 var compute_us_total := 0   # ClimberPose.compute 시간 합·최대(µs)
 var compute_us_max := 0
 var pose_state: ClimberPose
@@ -78,6 +88,8 @@ func _run(route: RouteDef, n_ticks: int, seed: int) -> void:
 		var r := s.step()
 		if r == "respawn" or r == "clear":
 			_prev_bend.clear()
+			_jp.clear()
+			_jp_sim.clear()
 			limb = &""
 			body_drag = false
 			left = 0
@@ -94,6 +106,7 @@ func _run(route: RouteDef, n_ticks: int, seed: int) -> void:
 		poses += 1
 		_record_twists(t, s.body)
 		_record_flips(t, s, i)
+		_record_jitter(t, s)
 		for v in Anatomy.check(t, s.body.angle, s.body.yaw, _free_map(s)):
 			var key := "%s/%s" % [v.kind, v.limb]
 			counts[key] = counts.get(key, 0) + 1
@@ -144,6 +157,38 @@ func _record_flips(t: Dictionary, s, tick: int) -> void:
 		_prev_bend[limb] = b
 
 
+func _record_jitter(t: Dictionary, s) -> void:
+	for k in JITTER_KEYS:
+		var before: int = jitter.get(k, 0)
+		var prev_v: Vector3 = _jp[k][1] if _jp.has(k) else Vector3.ZERO
+		var prev_p: Vector3 = _jp[k][0] if _jp.has(k) else t[k]
+		_jit(jitter, _jp, k, t[k])
+		if jitter.get(k, 0) > before and prev_v.length() > JITTER_BIG and ((t[k] as Vector3) - prev_p).length() > JITTER_BIG:
+			jitter_big[k] = jitter_big.get(k, 0) + 1
+	_jit(jitter_sim, _jp_sim, "body", Vector3(s.body.pos.x, s.body.pos.y, 0))
+	for l in PoseSolver.LIMBS:
+		var p: Vector2 = s.limbs[l].pos
+		_jit(jitter_sim, _jp_sim, String(l), Vector3(p.x, p.y, 0))
+
+
+static func _jit(out: Dictionary, mem: Dictionary, key: String, p: Vector3) -> void:
+	if mem.has(key):
+		var v: Vector3 = p - mem[key][0]
+		var pv: Vector3 = mem[key][1]
+		if v.length() > JITTER_MIN and pv.length() > JITTER_MIN and v.dot(pv) < 0.0:
+			out[key] = out.get(key, 0) + 1
+		mem[key] = [p, v]
+	else:
+		mem[key] = [p, Vector3.ZERO]
+
+
+func jitter_total() -> int:
+	var n := 0
+	for k in jitter:
+		n += jitter[k]
+	return n
+
+
 func _record_twists(t: Dictionary, body) -> void:
 	var frame := Anatomy.body_basis(body.angle, body.yaw)
 	for limb in PoseSolver.LIMBS:
@@ -183,6 +228,43 @@ static func run_lift(route: RouteDef, foot: StringName, offset_x: float, rise: f
 		var t := pose.compute(s, Tuning.DT)
 		sw.poses += 1
 		sw._record_flips(t, s, i)
+		sw._record_jitter(t, s)
+		for v in Anatomy.check(t, s.body.angle, s.body.yaw, _free_map(s)):
+			var key := "%s/%s" % [v.kind, v.limb]
+			sw.counts[key] = sw.counts.get(key, 0) + 1
+			if v.kind != "ankle" and sw._forced(t, s.body, v.limb):
+				sw.forced[key] = sw.forced.get(key, 0) + 1
+	return sw
+
+
+## 손 뻗기 시나리오(2026-11-08 사용자: "팔 움직임이 부자연스럽고 기괴한 각도로 꺾인다, 움직일 때 팔이 심각하게 떨린다"):
+## 시작 자세에서 한 손을 떼어 어깨 기준 (dx, dy)까지 speed로 끈 뒤 hold틱 동안 그대로 둔다. dx는 바깥(+)·안쪽(−).
+static func run_reach(route: RouteDef, hand: StringName, dx: float, dy: float, speed: float, hold := 40) -> AnatomySweep:
+	var sw := AnatomySweep.new()
+	var s := ClimbSession.new(route)
+	sw.session = s
+	var pose := ClimberPose.new()
+	for i in 30:
+		s.step()
+		pose.compute(s, Tuning.DT)
+	var sh := PoseSolver.joint_position(s.body.pos, s.body.angle, hand, s.body.yaw)
+	var target := Vector2(sh.x + dx * PoseSolver.side_sign(hand), sh.y + dy)
+	s.apply_input([{"type": "detach", "limb": hand}])
+	for i in 200:
+		var req: Vector2 = s.limbs[hand].req
+		if req.distance_to(target) > 0.005:
+			s.apply_input([{"type": "move", "limb": hand, "delta": (target - req).limit_length(speed * Tuning.DT)}])
+		elif hold <= 0:
+			break
+		else:
+			hold -= 1
+		s.step()
+		if s.falling:
+			break
+		var t := pose.compute(s, Tuning.DT)
+		sw.poses += 1
+		sw._record_flips(t, s, i)
+		sw._record_jitter(t, s)
 		for v in Anatomy.check(t, s.body.angle, s.body.yaw, _free_map(s)):
 			var key := "%s/%s" % [v.kind, v.limb]
 			sw.counts[key] = sw.counts.get(key, 0) + 1

@@ -102,8 +102,9 @@ func test_sweep_regression() -> void:
 	runner.check(flips == 0, "관절 뒤집힘 %d" % flips)
 	runner.check(all - forced <= poses * 5 / 100, "IK가 놓친 위반 %d / %d" % [all - forced, poses])
 	# 강제된 위반 = 판정이 허용한 손발 위치에서 어떤 굽힘도 범위 안에 들지 않는 경우(크로스 루트에 많다).
-	# 2026-11-08 기준 이 세 루트 8.6%, 전체 22개 루트 4.5%(발을 옮길 때 무릎 처짐 금지 규칙을 넣은 뒤). 회귀 감시용 상한.
-	runner.check(forced <= poses * 12 / 100, "강제된 위반 %d / %d" % [forced, poses])
+	# 2026-11-08 기준 이 세 루트 12.7%, 전체 22개 루트 약 6%. 발을 옮길 때 무릎 처짐 금지 규칙, 그리고 떨림을 없애려고
+	# 손발을 벽 평면에서 비켜 보이게 하던 기능을 뺀 뒤의 값(손을 머리·몸 반대편으로 가로질러 끄는 경우가 대부분). 회귀 감시용 상한.
+	runner.check(forced <= poses * 15 / 100, "강제된 위반 %d / %d" % [forced, poses])
 
 
 ## 사용자 보고(2026-11-08): 다리를 낮은 곳에서 높은 곳으로 올릴 때 관절이 갑자기 반대로 꺾였다(0.9.5에서 6만 6천 자세 중 319번).
@@ -133,3 +134,24 @@ func test_free_leg_no_drop_knee() -> void:
 					var sw := AnatomySweep.run_lift(r, foot, ox, rise, 1.0)
 					var n: int = sw.counts.get("free_drop_knee/%s" % foot, 0)
 					runner.check(n <= 15, "%s %s 가로 %.2f 높이 %.2f 무릎 처짐 %d틱" % [id, foot, ox, rise, n])
+
+
+## 사용자 보고(2026-11-08): 움직일 때 팔이 심각하게 떨렸다. 손을 띄우고 비키는 선택이 매 틱 켜졌다 꺼졌다 해
+## 손이 8cm씩 오갔고, 굽힘 목표가 10° 후보 간격으로 계단처럼 뛰었다(손 뻗기 5만 자세 중 손 떨림 1,517·팔꿈치 1,656번).
+## 손을 여러 방향으로 뻗는 동안 손 위치는 떨리지 않고, 1cm/틱이 넘는 큰 떨림은 한 동작에 몇 번(멈출 때 자리 잡기) 이하다.
+func test_reach_no_tremble() -> void:
+	for id in ["C_ARM_LOAD_T", "G_V4_01", "C_MATCH_T"]:
+		var r := RouteDef.load_json(ContentIndex.route_path(id))
+		for hand in [&"LH", &"RH"]:
+			for tg in [[0.0, 0.7], [0.6, 0.2], [0.5, -0.3], [-0.2, 0.2]]:
+				var sw := AnatomySweep.run_reach(r, hand, tg[0], tg[1], 1.2)
+				var big := 0
+				for k in sw.jitter_big:
+					big += sw.jitter_big[k]
+				var side := "L" if hand == &"LH" else "R"
+				runner.check(sw.jitter.get("wrist_" + side, 0) <= 1, "%s %s %s 손 떨림 %s" % [id, hand, tg, sw.jitter])
+				runner.check(big <= 6, "%s %s %s 큰 떨림 %d %s" % [id, hand, tg, big, sw.jitter_big])
+				var f := 0
+				for l in sw.flips:
+					f += sw.flips[l]
+				runner.check(f == 0, "%s %s %s 뒤집힘 %d" % [id, hand, tg, f])
