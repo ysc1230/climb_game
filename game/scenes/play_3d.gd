@@ -376,47 +376,12 @@ func _process(delta: float) -> void:
 	_update_foot_marks()
 
 
-var _bends := {}  # limb -> 직전 굽힘 축(연속성)
+var climber_pose := ClimberPose.new()
 
 
-## 판정 상태 → 표현용 3D 관절 위치. 골반 깊이는 판정과 같은 PoseSolver.body_depth(docs/04 §1).
+## 판정 상태 → 표현용 3D 관절 위치(ClimberPose, docs/04 §8).
 func _pose_targets(delta: float) -> Dictionary:
-	var body: BodyState = logic.session.body
-	var depth := PoseSolver.body_depth(body.pos, body.angle, logic.session.attached(), body.yaw)
-	if is_nan(depth):
-		depth = Tuning.PELVIS_DEPTH_PREFERRED
-	var ang := deg_to_rad(body.angle)
-	var up := Vector3(-sin(ang), cos(ang), 0)
-	var pelvis := Vector3(body.pos.x, body.pos.y, depth)
-	var t := {"pelvis": pelvis, "spine": pelvis + up * 0.22, "chest": pelvis + up * 0.44,
-		"neck": pelvis + up * 0.63, "head": pelvis + up * 0.80, "head_top": pelvis + up * 0.94, "up": up}
-	var max_step := LimbIK.PRESENTATION_JOINT_SPEED_DEG * delta
-	for limb in PoseSolver.LIMBS:
-		var hand := PoseSolver.is_hand(limb)
-		var j2 := PoseSolver.joint_position(body.pos, body.angle, limb, body.yaw)
-		var root := Vector3(j2.x, j2.y, depth + PoseSolver.joint_depth_offset(limb, body.yaw))
-		var e2: Vector2 = logic.session.limbs[limb].pos
-		var state: String = logic.session.limbs[limb].state
-		var end_z := Tuning.CONTACT_DEPTH if state in ["Attached", "Armed"] else Tuning.CONTACT_DEPTH + Tuning.FREE_ENDPOINT_LIFT
-		var end := Vector3(e2.x, e2.y, end_z)
-		var a := Tuning.ARM_UPPER if hand else Tuning.LEG_UPPER
-		var b := Tuning.ARM_LOWER if hand else Tuning.LEG_LOWER
-		var max_mid_z := root.z - LimbIK.ELBOW_FRONT_MARGIN if hand else INF
-		var ik := LimbIK.solve(root, end, a, b, LimbIK.default_pole(limb), _bends.get(limb, Vector3.ZERO), max_step, max_mid_z)
-		_bends[limb] = ik.bend
-		var mid: Vector3 = ik.mid
-		var s := "L" if PoseSolver.side_sign(limb) < 0 else "R"
-		if hand:
-			t["shoulder_" + s] = root
-			t["elbow_" + s] = mid
-			t["wrist_" + s] = end
-			t["hand_" + s] = end + (end - mid).normalized() * 0.09
-		else:
-			t["hip_" + s] = root
-			t["knee_" + s] = mid
-			t["ankle_" + s] = end
-			t["toe_" + s] = end + Vector3(0, -0.05, -0.15)
-	return t
+	return climber_pose.compute(logic.session, delta)
 
 
 func _pose_capsules(t: Dictionary) -> void:

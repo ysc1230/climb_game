@@ -94,20 +94,29 @@ static func can_reach(pelvis: Vector2, angle_deg: float, limb: StringName, slot:
 ## 고정된 모든 접점이 함께 만족하는 골반 깊이(Z). 없으면 NAN.
 ## 선호 깊이에 가장 가까운 값을 고른다. 판정과 표현이 같은 값을 쓴다.
 static func body_depth(pelvis: Vector2, angle_deg: float, attached: Dictionary, yaw_deg: float = 0.0) -> float:
+	var r := body_depth_range(pelvis, angle_deg, attached, yaw_deg)
+	if not r.is_finite():
+		return NAN
+	return clampf(Tuning.PELVIS_DEPTH_PREFERRED, r.x, r.y)
+
+
+## 붙은 접점이 모두 3D 길이 범위 안에 드는 골반 깊이 구간 [lo, hi]. 없으면 (NAN, NAN).
+## 판정은 body_depth(선호 깊이로 자른 값)를 쓰고, 표현(ClimberPose)은 이 구간 안에서 해부학적으로 가능한 깊이를 고른다.
+static func body_depth_range(pelvis: Vector2, angle_deg: float, attached: Dictionary, yaw_deg: float = 0.0) -> Vector2:
 	var lo := Tuning.PELVIS_DEPTH_RANGE.x
 	var hi := Tuning.PELVIS_DEPTH_RANGE.y
 	for limb in attached:
 		var d := limb_distance(pelvis, angle_deg, limb, attached[limb], yaw_deg)
 		var r := reach_of(limb)
 		if d > r.y + Tuning.DISTANCE_EPSILON:
-			return NAN
+			return Vector2(NAN, NAN)
 		# 관절 깊이 = 골반 깊이 + 관절 깊이 오프셋이므로 요구 골반 깊이에서 오프셋을 뺀다
 		var off := joint_depth_offset(limb, yaw_deg)
 		hi = minf(hi, Tuning.CONTACT_DEPTH + sqrt(maxf(r.y * r.y - d * d, 0.0)) - off)
 		lo = maxf(lo, Tuning.CONTACT_DEPTH + sqrt(maxf(r.x * r.x - d * d, 0.0)) - off)
 	if lo > hi + Tuning.DISTANCE_EPSILON:
-		return NAN
-	return clampf(Tuning.PELVIS_DEPTH_PREFERRED, lo, hi)
+		return Vector2(NAN, NAN)
+	return Vector2(lo, maxf(lo, hi))
 
 
 ## 고정된 모든 접점의 방향·3D 길이·관절 조건과 몸통 회전 제한(H01~H04 중 구현분).
