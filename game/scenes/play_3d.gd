@@ -368,7 +368,8 @@ func _process(delta: float) -> void:
 	_update_camera()
 	var t := _pose_targets(delta)
 	if skeleton:
-		_pose_model(t)
+		_pose_model(t, delta)
+		_update_face()
 	else:
 		_pose_capsules(t)
 	_update_hold_glow()
@@ -445,17 +446,97 @@ var rig := RigPose.new()
 
 
 ## RigPose(docs/04 §8)가 만든 연속 프레임을 그대로 적용한다. 180° 대체 회전 없음.
-func _pose_model(t: Dictionary) -> void:
+func _pose_model(t: Dictionary, delta: float) -> void:
 	var inv := skeleton.global_transform.affine_inverse()
 	var local := {}
 	for key in t:
 		if t[key] is Vector3 and key != "up":
 			local[key] = inv * (t[key] as Vector3)
 	var frames := rig.solve(local, logic.session.body.angle, logic.session.body.yaw)
+	_apply_look(frames, inv, delta)
 	for entry in RigPose.BONES:
 		var idx := skeleton.find_bone(entry[0])
 		if idx >= 0 and frames.has(entry[0]):
 			skeleton.set_bone_global_pose(idx, frames[entry[0]])
+
+
+## CH02 캐릭터 시트(2026-11-07, art_source/character/build_climber.py PALETTE와 같은 값).
+const CHARACTER_COLORS := {
+	"M_hair": Color("6b4129"), "M_skin": Color("e8b48e"), "M_shirt": Color("f1ebe0"), "M_pants": Color("4f6b9e"),
+	"M_belt": Color("3a393b"), "M_buckle": Color("8c8c8c"), "M_chalk": Color("7a7472"), "M_chalk_rim": Color("4a4645"),
+	"M_shoe": Color("a39c94"), "M_strap": Color("c4beb5"), "M_rubber": Color("3d3a38"),
+	"M_face_eye": Color("2a1d18"), "M_face_hi": Color("ffffff"), "M_face_mouth": Color("8a3a34"), "M_face_brow": Color("4a2c1c"),
+	"M_face_cheek": Color("f29a8a"), "M_face_teeth": Color("fbf7f0"),
+}
+const LOOK_MAX_DEG := 80.0   # 머리를 돌리는 최대 각
+const LOOK_BACK_DEG := 125.0 # 정상·추락 때 어깨 너머로 돌아보는 각
+const LOOK_SPEED := 6.0      # 1/s, 목표 방향으로 따라가는 빠르기
+var face_meshes := {}        # 표정 이름 -> MeshInstance3D(FX_face_*)
+var face_now := ""
+var _look := Quaternion.IDENTITY
+
+
+## 표정(표현 전용): 떨어지는 중 놀람, 정상을 잡으면 기쁨, 팔 힘이 45 아래이거나 자세가 무너지는 중이면 힘씀, 그 밖에는 평온.
+static func expression_for(falling: bool, at_goal: bool, min_stamina: float, rebalancing: bool) -> String:
+	if falling:
+		return "scared"
+	if at_goal:
+		return "happy"
+	if min_stamina < 45.0 or rebalancing:
+		return "effort"
+	return "calm"
+
+
+func _set_face(name: String) -> void:
+	if name == face_now or not face_meshes.has(name):
+		return
+	face_now = name
+	for k in face_meshes:
+		face_meshes[k].visible = k == name
+
+
+func _update_face() -> void:
+	var s = logic.session
+	var st: Dictionary = s.rules.stamina
+	var low := 100.0
+	for v in st.values():
+		low = minf(low, v)
+	_set_face(expression_for(s.falling, s.goal_ticks > 0, low, s.rules.phase == ClimbRules.Phase.REBALANCING))
+
+
+## 끌고 있는 손발(손 우선)의 말단 위치를 본다. 없으면 정면으로 돌아온다. 얼굴이 벽을 보므로 옆을 볼 때 옆얼굴이 보인다.
+func _look_target() -> Variant:
+	var best: Variant = null
+	for limb in [&"LH", &"RH", &"LF", &"RF"]:
+		var l: Dictionary = logic.session.limbs[limb]
+		if l.state == "Dragging":
+			var p: Vector2 = l.pos
+			best = Vector3(p.x, p.y, CONTACT_DEPTH)
+			break
+	return best
+
+
+func _apply_look(frames: Dictionary, inv: Transform3D, delta: float) -> void:
+	if not frames.has("head"):
+		return
+	var head: Transform3D = frames["head"]
+	var want := Quaternion.IDENTITY
+	var target: Variant = _look_target()
+	var body_up0: Vector3 = (head.basis * Vector3.UP).normalized()
+	var side0: Vector3 = (head.basis * Vector3.RIGHT).normalized()
+	if face_now in ["happy", "scared"]:
+		# 정상을 잡았을 때·떨어질 때는 어깨 너머로 카메라 쪽을 돌아본다(표정이 보이는 순간).
+		want = Quaternion(body_up0, deg_to_rad(LOOK_BACK_DEG)) * Quaternion(side0, -0.12)
+	elif target != null:
+		# 옆으로 먼저 돌리고(좌우 1m에 약 80°) 위아래는 조금만 든다. 얼굴이 벽을 보므로 옆으로 돌아야 표정이 보인다.
+		var d: Vector3 = (inv * (target as Vector3)) - head.origin
+		var body_up: Vector3 = (head.basis * Vector3.UP).normalized()
+		var side: Vector3 = (head.basis * Vector3.RIGHT).normalized()
+		var yaw := clampf(d.dot(side) * 1.6, -deg_to_rad(LOOK_MAX_DEG), deg_to_rad(LOOK_MAX_DEG))
+		var pitch := clampf(d.dot(body_up) * 0.35, -0.25, 0.4)
+		want = Quaternion(body_up, -yaw) * Quaternion(side, pitch)
+	_look = _look.slerp(want, minf(1.0, LOOK_SPEED * delta))
+	frames["head"] = Transform3D(Basis(_look) * head.basis, head.origin)
 
 
 func _build_model() -> bool:
@@ -483,15 +564,18 @@ func _build_model() -> bool:
 		rest_joints["hand_" + s] = rest_joints["wrist_" + s] + (rest_joints["wrist_" + s] - rest_joints["elbow_" + s]).normalized() * 0.09
 		rest_joints["toe_" + s] = rest_joints["ankle_" + s] + Vector3(0, -0.05, -0.15)
 	rig.setup(rest_poses, rest_joints)
-	var colors := {"M_shirt": CLOTH_TEAL, "M_skin": SKIN, "M_shorts": Color("6e5a48"), "M_bandage": CLOTH_IVORY,
-		"M_shoe": Color("7e4a3e"), "M_hair": Color("3b2e26"), "M_pack": Color("6b5240"), "M_bandana": HOLD_RUST}
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
 		for i in mi.mesh.get_surface_count():
 			var m: Material = mi.mesh.surface_get_material(i)
-			var c: Color = colors.get(m.resource_name if m else "", CLOTH_TEAL)
-			var toon := _toon(c, c.darkened(0.45))
-			toon.next_pass.set_shader_parameter("width", 0.012)
+			var mname: String = m.resource_name if m else ""
+			var c: Color = CHARACTER_COLORS.get(mname, (m as BaseMaterial3D).albedo_color if m is BaseMaterial3D else CLOTH_TEAL)
+			var face := mname.begins_with("M_face")
+			var toon := _toon(c, c.darkened(0.15 if face else 0.45))
+			toon.next_pass.set_shader_parameter("width", 0.0 if face else 0.012)
 			mi.set_surface_override_material(i, toon)
+		if String(mi.name).begins_with("FX_face_"):
+			face_meshes[String(mi.name).trim_prefix("FX_face_")] = mi
+	_set_face("calm")
 	return true
 
 

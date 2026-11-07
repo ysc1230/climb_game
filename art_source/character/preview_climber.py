@@ -1,4 +1,4 @@
-"""CH01 미리보기 렌더(Workbench, 머티리얼 색 + 외곽선). 뒷모습·3/4 두 장."""
+"""CH02 미리보기 렌더(Workbench, 머티리얼 색 + 외곽선). 뒷모습·3/4 두 장."""
 import bpy, math, os
 from mathutils import Vector
 OUT = os.path.expanduser("~/Projects/climb_game/art_source/character")
