@@ -18,8 +18,12 @@ static func default_pole(limb: StringName) -> Vector3:
 
 ## 해부학 IK(docs/04 §8.4): 몸 기준 선호 방향(BODY_POLE)을 따르되, 굽힘 축이 놓일 수 있는 원을 BEND_SAMPLES개로 나눠
 ## 해부학 제약(Anatomy: 어깨·고관절 비틀림, 벽·몸통 관통, 뒤로 젖힘, 팔꿈치는 어깨 평면 앞)을 어기는 정도가 가장 작은 쪽을 고른다.
-## 직전 축에서 목표까지는 위반이 적은 방향으로 한 번에 max_step_deg만 돌고, 멈춘 자리가 불가능하면 첫 가능한 후보까지 건너뛴다.
+## 직전 축에서 목표까지는 위반이 적은 길로 연속해서만 돈다(관절이 반대로 건너뛰지 않음, MID_SPEED 참고).
 const BEND_SAMPLES := 36
+const SEARCH_SAMPLES := 12    # 깊이를 고를 때(가능한 자세가 있는가)만 보는 거친 후보 수
+const MID_SPEED := 4.0        # m/s, 팔꿈치·무릎이 굽힘 방향을 바꾸며 움직이는 최대 속도(관절 뒤집힘 방지)
+const MAX_TICK_DEG := 20.0   # 한 틱에 굽힘 방향이 도는 최대 각(뒤집혀 보이지 않게)
+const SWITCH_H := 0.12        # 굽힘 반지름이 이보다 작으면(거의 펴짐) 반대쪽으로 바꿔도 보이지 않는다
 const BODY_POLE := {  # 몸 기준(X 오른쪽, Y 위, +Z 등 쪽). s는 오른쪽 +1·왼쪽 −1로 곱한다.
 	&"hand": Vector3(0.6, -0.55, 0.45),   # 팔꿈치: 바깥·아래·약간 뒤(벽 반대)
 	&"foot": Vector3(0.8, 0.1, -0.6),     # 무릎: 바깥·벽 쪽(앞). 무릎은 뒤로 접히지 않는다
@@ -37,7 +41,7 @@ static func solve_limb(limb: StringName, root: Vector3, end: Vector3, frame: Bas
 ## 미리 구한 굽힘 원(circle)으로 굽힘 축을 고른다(ClimberPose가 같은 프레임의 원을 다시 쓸 때).
 static func solve_circle(c: Dictionary, prev_bend: Vector3, max_step_deg: float) -> Dictionary:
 	var bad: Array[float] = c.bad
-	var target := TAU * int(c.best) / BEND_SAMPLES
+	var target := TAU * int(c.best) / bad.size()
 	var th_new := target
 	var dir: Vector3 = c.dir
 	var n: Vector3 = c.n
@@ -45,22 +49,64 @@ static func solve_circle(c: Dictionary, prev_bend: Vector3, max_step_deg: float)
 	var carried := prev_bend - dir * prev_bend.dot(dir)
 	if carried.length() > 0.0001 and float(c.h) > 0.0001:
 		var th_prev := atan2(carried.dot(t), carried.dot(n))
-		var step := deg_to_rad(max_step_deg)
-		var ccw := fposmod(target - th_prev, TAU)
-		var cw := TAU - ccw
-		var vc := _path_viol(bad, th_prev, ccw)
-		var vw := _path_viol(bad, th_prev, -cw)
-		var go_ccw := vc < vw or (vc == vw and ccw <= cw)  # 위반이 적은 길, 같으면 짧은 길
-		var span := ccw if go_ccw else -cw
+		# 관절은 연속으로만 움직인다(한 틱에 반대쪽으로 건너뛰지 않음). 한 틱 회전 한도는 각속도 한도와
+		# 중간 관절 이동 속도 한도(MID_SPEED / 굽힘 반지름) 중 큰 쪽: 많이 굽었으면 천천히, 거의 펴졌으면 빨리 방향을 바꾼다.
+		var dt := max_step_deg / PRESENTATION_JOINT_SPEED_DEG
+		var step := minf(maxf(deg_to_rad(max_step_deg), MID_SPEED * dt / maxf(float(c.h), 0.001)), deg_to_rad(MAX_TICK_DEG))
+		var span := _local_span(bad, th_prev, target, float(c.h))
 		th_new = th_prev + clampf(span, -step, step)
-		# 한 틱 회전 한도로 멈춘 자리가 불가능한 구간이면 같은 길로 더 가서 첫 가능한 후보까지 건너뛴다(불가능한 자세를 보이지 않음)
-		var unit := TAU / BEND_SAMPLES * signf(span)
-		var guard := 0
-		while _viol_at(bad, th_new) > 0.0 and absf(angle_difference(th_new, target)) > 0.0001 and guard < BEND_SAMPLES:
-			th_new = th_prev + span if absf(th_new + unit - th_prev) >= absf(span) else th_new + unit
-			guard += 1
 	var bend := (n * cos(th_new) + t * sin(th_new)).normalized()
 	return {"mid": (c.center as Vector3) + bend * float(c.h), "bend": bend}
+
+
+## 직전 축에서 움직일 각(부호 = 방향). 연속성 우선:
+## - 지금 축이 가능하면 가능한 구간 안에서만 선호 목표(best) 쪽으로 간다(길이 막히면 머문다).
+## - 지금 축이 불가능하면 가장 가까운 가능한 후보로 간다(없으면 위반이 가장 작은 가장 가까운 후보).
+static func _local_span(bad: Array[float], th_prev: float, target: float, h: float) -> float:
+	if _viol_at(bad, th_prev) <= 0.0:
+		var ccw := fposmod(target - th_prev, TAU)
+		var cw := TAU - ccw
+		var ok_ccw := _path_viol(bad, th_prev, ccw) <= 0.0
+		var ok_cw := _path_viol(bad, th_prev, -cw) <= 0.0
+		if ok_ccw and (not ok_cw or ccw <= cw):
+			return ccw
+		if ok_cw:
+			return -cw
+		return 0.0
+	return _escape(bad, th_prev).span
+
+
+## 지금 축이 불가능할 때 갈 곳: 가능한 후보 중 가는 길의 최대 위반이 가장 작고(벽·뒤로 꺾임을 덜 지나는 길),
+## 같으면 가까운 곳. 가능한 후보가 없으면 위반이 가장 작은 후보. 반환 {span(부호 = 방향), cost(길의 최대 위반)}.
+static func _escape(bad: Array[float], th_prev: float) -> Dictionary:
+	var unit := TAU / bad.size()
+	var lo: float = bad.min()
+	var best := {"span": 0.0, "cost": INF}
+	var best_d := INF
+	for k in bad.size():
+		if bad[k] > lo + 0.0001:
+			continue
+		for dirn in [1.0, -1.0]:
+			var span: float = fposmod((unit * k - th_prev) * dirn, TAU) * dirn
+			var cost := _path_viol(bad, th_prev, span)
+			if cost < float(best.cost) - 0.0001 or (absf(cost - float(best.cost)) <= 0.0001 and absf(span) < best_d):
+				best = {"span": span, "cost": cost}
+				best_d = absf(span)
+	return best
+
+
+## 깊이를 고를 때의 팔다리 점수: 지금 축이 가능하면 0, 아니면 가능한 곳까지 가는 길의 최대 위반(연속으로 옮겨 갈 수 있는가).
+## 직전 축이 없거나 거의 펴졌으면 전체 최소 위반.
+static func local_violation(c: Dictionary, prev_bend: Vector3) -> float:
+	var bad: Array[float] = c.bad
+	var dir: Vector3 = c.dir
+	var carried := prev_bend - dir * prev_bend.dot(dir)
+	if carried.length() < 0.0001 or float(c.h) < SWITCH_H:
+		return bad.min()
+	var th_prev := atan2(carried.dot(c.t), carried.dot(c.n))
+	if _viol_at(bad, th_prev) <= 0.0:
+		return 0.0
+	return 0.2 * float(_escape(bad, th_prev).cost) + 10.0 * bad.min()  # 가능한 자세가 있는 깊이를 먼저, 그다음 옮겨 가는 길
 
 
 ## 이 말단 위치에서 고를 수 있는 가장 작은 위반량(0이면 해부학적으로 가능한 굽힘이 있다). 점검 도구용.
@@ -72,12 +118,13 @@ static func circle_min(c: Dictionary) -> float:
 	return (c.bad as Array[float]).min()
 
 
-static func circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3) -> Dictionary:
-	return _circle(limb, root, end, frame, pelvis, up)
+## samples: 후보 수(깊이를 고를 때는 SEARCH_SAMPLES로 거칠게, 표시할 때는 BEND_SAMPLES).
+static func circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3, samples := BEND_SAMPLES) -> Dictionary:
+	return _circle(limb, root, end, frame, pelvis, up, samples)
 
 
 ## 굽힘 원: 중심·반지름 h·기준 축 n, t와 BEND_SAMPLES개 후보의 위반량(bad), 가장 좋은 후보(best).
-static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3) -> Dictionary:
+static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3, samples := BEND_SAMPLES) -> Dictionary:
 	var hand := PoseSolver.is_hand(limb)
 	var a := Tuning.ARM_UPPER if hand else Tuning.LEG_UPPER
 	var b := Tuning.ARM_LOWER if hand else Tuning.LEG_LOWER
@@ -104,8 +151,8 @@ static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis,
 	var bad: Array[float] = []
 	var best := 0
 	var best_cost := INF
-	for k in BEND_SAMPLES:
-		var th := TAU * k / BEND_SAMPLES
+	for k in samples:
+		var th := TAU * k / samples
 		var mid := center + (n * cos(th) + t * sin(th)) * h
 		var viol := _violation(limb, hand, root, mid, end, frame, torso_a, torso_b, head)
 		bad.append(viol)
@@ -141,12 +188,13 @@ static func _violation(limb: StringName, hand: bool, root: Vector3, mid: Vector3
 
 
 static func _viol_at(bad: Array[float], th: float) -> float:
-	return bad[int(round(fposmod(th, TAU) / TAU * BEND_SAMPLES)) % BEND_SAMPLES]
+	var n := bad.size()
+	return bad[int(round(fposmod(th, TAU) / TAU * n)) % n]
 
 
 ## th0에서 span(부호 = 방향)만큼 도는 길 위 최대 위반.
 static func _path_viol(bad: Array[float], th0: float, span: float) -> float:
-	var steps := maxi(1, int(ceil(absf(span) / (TAU / BEND_SAMPLES))))
+	var steps := maxi(1, int(ceil(absf(span) / (TAU / bad.size()))))
 	var m := 0.0
 	for i in steps + 1:
 		m = maxf(m, _viol_at(bad, th0 + span * i / steps))

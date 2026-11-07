@@ -22,6 +22,8 @@ var depth := NAN       # 표현 골반 깊이(부드럽게 따라감)
 var free_lift := {}    # limb -> 떠 있는 말단의 추가 깊이(부드럽게 따라감)
 var free_shift := {}   # limb -> 떠 있는 말단을 벽 평면에서 비켜 보이는 양(부드럽게 따라감)
 var _cache := {}       # 이번 프레임에 구한 굽힘 원(limb·관절·끝 → circle)
+var _last_lift := {}   # limb -> 지난 프레임에 고른 떠 있는 말단 추가 깊이·비킴(1단계에서 그대로 시도)
+var _last_shift := {}
 var _budget := 0
 
 
@@ -81,16 +83,20 @@ static func _end(session, limb: StringName, lift: float, shift := Vector2.ZERO) 
 	return Vector3(e2.x, e2.y, z)
 
 
-## 목표 골반 깊이와 떠 있는 말단의 추가 깊이. 선호 깊이(지금 표현 깊이 쪽 우선)에서 시작해 구간 안을 훑어
-## 네 팔다리의 최소 위반 합이 0인 첫 깊이를 쓴다. 없으면 합이 가장 작은 깊이.
+## 목표 골반 깊이와 떠 있는 말단의 [추가 깊이, 비킴]. 점수는 팔다리마다 LimbIK.local_violation(지금 굽힘 쪽에서
+## 가능한 자세가 있는가, 없으면 옮겨 가는 길이 얼마나 막혔나)의 합.
+## 1단계: 떠 있는 말단은 지금 옵션 그대로 두고 골반 깊이 후보(지금 → 선호 → 바깥쪽)를 모두 본다.
+## 2단계: 0인 깊이가 없으면 1단계에서 가장 좋은 깊이와 지금 깊이에서 떠 있는 말단 옵션을 모두 본다.
+## 마지막으로 떠 있는 말단이 제자리(옵션 없음)로도 되면 되돌린다.
 func _choose(session, body, attached: Dictionary, frame: Basis, up: Vector3) -> Dictionary:
 	var r := PoseSolver.body_depth_range(body.pos, body.angle, attached, body.yaw)
 	if not r.is_finite():
 		r = Vector2(Tuning.PELVIS_DEPTH_PREFERRED, Tuning.PELVIS_DEPTH_PREFERRED)
 	var start := clampf(Tuning.PELVIS_DEPTH_PREFERRED, r.x, r.y)
 	var cands: Array[float] = [start]
-	if not is_nan(depth) and absf(depth - start) > 0.001:
-		cands.push_front(clampf(depth, r.x, r.y))
+	var now := clampf(depth, r.x, r.y) if not is_nan(depth) else start
+	if absf(now - start) > 0.001:
+		cands.push_front(now)
 	var k := 1
 	while start + k * DEPTH_STEP <= r.y + 0.0001 or start - k * DEPTH_STEP >= r.x - 0.0001:
 		if start + k * DEPTH_STEP <= r.y + 0.0001:
@@ -98,56 +104,86 @@ func _choose(session, body, attached: Dictionary, frame: Basis, up: Vector3) -> 
 		if start - k * DEPTH_STEP >= r.x - 0.0001:
 			cands.append(start - k * DEPTH_STEP)
 		k += 1
+	var cur_opt := {}
+	for limb in PoseSolver.LIMBS:
+		cur_opt[limb] = [_last_lift.get(limb, 0.0), _last_shift.get(limb, Vector2.ZERO)]
 	var best := {}
 	var best_v := INF
 	for dpt in cands:
-		var pelvis := Vector3(body.pos.x, body.pos.y, dpt)
-		var total := 0.0
-		var lift := {}
-		var shift := {}
-		for limb in PoseSolver.LIMBS:
-			var root := _root(body, limb, dpt)
-			var stuck: bool = session.limbs[limb].state in ["Attached", "Armed"]
-			var lv := INF
-			for opt in ([[0.0, Vector2.ZERO]] if stuck else _free_options()):
-				var c := _circle(limb, root, _end(session, limb, opt[0], opt[1]), frame, pelvis, up)
-				if c.is_empty():
-					break
-				var v := LimbIK.circle_min(c)
-				if v < lv:
-					lv = v
-					lift[limb] = opt[0]
-					shift[limb] = opt[1]
-				if v <= 0.0:
-					break
-			total += lv
-			if total >= best_v:
+		var res := _score_depth(session, body, frame, up, dpt, cur_opt, best_v)
+		if res.total < best_v:
+			best_v = res.total
+			best = res
+		if best_v <= 0.0 or _budget <= 0:
+			break
+	if best_v > 0.0 and _budget > 0:
+		for dpt in [float(best.get("depth", now)), now]:
+			var res := _score_depth(session, body, frame, up, dpt, {}, best_v)
+			if res.total < best_v:
+				best_v = res.total
+				best = res
+			if best_v <= 0.0 or _budget <= 0:
 				break
-		if total < best_v and lift.size() == PoseSolver.LIMBS.size():
-			best_v = total
-			best = {"depth": dpt, "lift": lift, "shift": shift}
-		if _budget <= 0:
-			break
-		if best_v <= 0.0:
-			break
-	if best.is_empty():  # 예산이 첫 깊이도 다 못 본 경우: 지금 값 유지
-		best = {"depth": depth if not is_nan(depth) else clampf(Tuning.PELVIS_DEPTH_PREFERRED, r.x, r.y), "lift": free_lift.duplicate(), "shift": free_shift.duplicate()}
+	if best.is_empty():  # 예산이 다 된 경우: 지금 값 유지
+		best = {"depth": now, "lift": {}, "shift": {}}
 		for limb in PoseSolver.LIMBS:
-			best.lift[limb] = best.lift.get(limb, 0.0)
-			best.shift[limb] = best.shift.get(limb, Vector2.ZERO)
+			best.lift[limb] = cur_opt[limb][0]
+			best.shift[limb] = cur_opt[limb][1]
+	# 떠 있는 말단은 제자리로 돼도 되면 되돌린다(올린 채로 남지 않게)
+	var pelvis := Vector3(body.pos.x, body.pos.y, best.depth)
+	for limb in PoseSolver.LIMBS:
+		if session.limbs[limb].state in ["Attached", "Armed"]:
+			continue
+		if float(best.lift[limb]) == 0.0 and best.shift[limb] == Vector2.ZERO:
+			continue
+		var c := _circle(limb, _root(body, limb, best.depth), _end(session, limb, 0.0), frame, pelvis, up)
+		if not c.is_empty() and LimbIK.local_violation(c, bends.get(limb, Vector3.ZERO)) <= 0.0:
+			best.lift[limb] = 0.0
+			best.shift[limb] = Vector2.ZERO
+	for limb in PoseSolver.LIMBS:
+		_last_lift[limb] = best.lift[limb]
+		_last_shift[limb] = best.shift[limb]
 	return best
 
 
-## 같은 프레임 안 굽힘 원 캐시. force면 예산과 상관없이 계산(실제 표시용). 예산이 다 되면 {}.
+## 골반 깊이 하나의 점수. opts: limb → [추가 깊이, 비킴](떠 있는 말단에 이것만 씀). 비면 떠 있는 말단 옵션을 모두 본다.
+func _score_depth(session, body, frame: Basis, up: Vector3, dpt: float, opts: Dictionary, bound: float) -> Dictionary:
+	var pelvis := Vector3(body.pos.x, body.pos.y, dpt)
+	var total := 0.0
+	var lift := {}
+	var shift := {}
+	for limb in PoseSolver.LIMBS:
+		var root := _root(body, limb, dpt)
+		var stuck: bool = session.limbs[limb].state in ["Attached", "Armed"]
+		var options: Array = [[0.0, Vector2.ZERO]] if stuck else ([opts[limb]] if opts.has(limb) else _free_options())
+		var lv := INF
+		for opt in options:
+			var c := _circle(limb, root, _end(session, limb, opt[0], opt[1]), frame, pelvis, up)
+			if c.is_empty():
+				break
+			var v := LimbIK.local_violation(c, bends.get(limb, Vector3.ZERO))
+			if v < lv:
+				lv = v
+				lift[limb] = opt[0]
+				shift[limb] = opt[1]
+			if v <= 0.0:
+				break
+		total += lv
+		if total >= bound or lv == INF:
+			return {"total": INF}
+	return {"total": total, "depth": dpt, "lift": lift, "shift": shift}
+
+
+## 같은 프레임 안 굽힘 원 캐시. 고르기용은 거친 후보(SEARCH_SAMPLES)·예산 안, force(실제 표시용)는 정밀 후보·예산 무관. 예산이 다 되면 {}.
 func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3, force := false) -> Dictionary:
-	var key := [limb, root, end, pelvis]
+	var key := [limb, root, end, pelvis, force]
 	if _cache.has(key):
 		return _cache[key]
 	if not force:
 		if _budget <= 0:
 			return {}
 		_budget -= 1
-	var c := LimbIK.circle(limb, root, end, frame, pelvis, up)
+	var c := LimbIK.circle(limb, root, end, frame, pelvis, up, LimbIK.BEND_SAMPLES if force else LimbIK.SEARCH_SAMPLES)
 	_cache[key] = c
 	return c
 

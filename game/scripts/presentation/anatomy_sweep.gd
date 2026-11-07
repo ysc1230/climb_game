@@ -16,6 +16,11 @@ var forced := {}            # "kind/limb" → 그중 어떤 굽힘도 가능하�
 
 
 var session: ClimbSession   # 마지막 세션(재현·디버그용)
+var flips := {}             # limb → 굽힘 방향이 한 틱에 FLIP_DEG 넘게 바뀐 횟수(관절이 갑자기 뒤집힘)
+var flip_examples := {}
+var _prev_bend := {}
+const FLIP_DEG := 25.0      # 한 틱(1/60초) 굽힘 방향 변화 한도. 180°/s 회전 한도의 8배 남짓
+const FLIP_MIN_BEND := 0.08 # 굽힘 반지름(중간 관절이 축에서 떨어진 거리)이 이보다 작으면(거의 펴짐) 보지 않음
 var compute_us_total := 0   # ClimberPose.compute 시간 합·최대(µs)
 var compute_us_max := 0
 var pose_state: ClimberPose
@@ -72,6 +77,7 @@ func _run(route: RouteDef, n_ticks: int, seed: int) -> void:
 		left -= 1
 		var r := s.step()
 		if r == "respawn" or r == "clear":
+			_prev_bend.clear()
 			limb = &""
 			body_drag = false
 			left = 0
@@ -87,6 +93,7 @@ func _run(route: RouteDef, n_ticks: int, seed: int) -> void:
 		pose_state = pose
 		poses += 1
 		_record_twists(t, s.body)
+		_record_flips(t, s, i)
 		for v in Anatomy.check(t, s.body.angle, s.body.yaw):
 			var key := "%s/%s" % [v.kind, v.limb]
 			counts[key] = counts.get(key, 0) + 1
@@ -104,6 +111,32 @@ func _forced(t: Dictionary, body, limb: StringName) -> bool:
 	return LimbIK.min_violation(limb, t[("shoulder_" if hand else "hip_") + sd], t[("wrist_" if hand else "ankle_") + sd], frame, t.pelvis, t.up) > 0.0
 
 
+## 중간 관절(팔꿈치·무릎)이 팔다리 축에서 떨어진 방향(굽힘 방향)이 한 틱에 크게 바뀌면 "뒤집힘"으로 센다.
+func _record_flips(t: Dictionary, s, tick: int) -> void:
+	for limb in PoseSolver.LIMBS:
+		var hand := PoseSolver.is_hand(limb)
+		var sd := "L" if PoseSolver.side_sign(limb) < 0 else "R"
+		var root: Vector3 = t[("shoulder_" if hand else "hip_") + sd]
+		var mid: Vector3 = t[("elbow_" if hand else "knee_") + sd]
+		var end: Vector3 = t[("wrist_" if hand else "ankle_") + sd]
+		var axis := (end - root).normalized()
+		var off := (mid - root) - axis * (mid - root).dot(axis)
+		if off.length() < FLIP_MIN_BEND:
+			_prev_bend.erase(limb)
+			continue
+		var b := off.normalized()
+		if _prev_bend.has(limb):
+			var pb: Vector3 = _prev_bend[limb]
+			pb = (pb - axis * pb.dot(axis))
+			if pb.length() > 0.3:
+				var a := rad_to_deg(pb.normalized().angle_to(b))
+				if a > FLIP_DEG:
+					flips[limb] = flips.get(limb, 0) + 1
+					if not flip_examples.has(limb):
+						flip_examples[limb] = {"tick": tick, "deg": a, "pelvis": s.body.pos, "limbs": PoseSolver.LIMBS.map(func(l): return [l, s.limbs[l].state, s.limbs[l].pos])}
+		_prev_bend[limb] = b
+
+
 func _record_twists(t: Dictionary, body) -> void:
 	var frame := Anatomy.body_basis(body.angle, body.yaw)
 	for limb in PoseSolver.LIMBS:
@@ -119,3 +152,32 @@ func total() -> int:
 	for k in counts:
 		n += counts[k]
 	return n
+
+
+## 다리 올리기 시나리오(2026-11-08 사용자: "다리를 낮은 곳에서 높은 곳으로 올릴 때 관절이 갑자기 반대로 꺾인다"):
+## 시작 자세에서 한 발을 떼어 엉덩이 기준 가로 offset, 엉덩이 높이 + rise까지 speed로 끌어 올리고 잠시 둔다.
+static func run_lift(route: RouteDef, foot: StringName, offset_x: float, rise: float, speed: float) -> AnatomySweep:
+	var sw := AnatomySweep.new()
+	var s := ClimbSession.new(route)
+	var pose := ClimberPose.new()
+	for i in 30:
+		s.step()
+		pose.compute(s, Tuning.DT)
+	var hip := PoseSolver.joint_position(s.body.pos, s.body.angle, foot, s.body.yaw)
+	var target := Vector2(hip.x + offset_x * PoseSolver.side_sign(foot), hip.y + rise)
+	s.apply_input([{"type": "detach", "limb": foot}])
+	for i in 150:
+		var req: Vector2 = s.limbs[foot].req
+		s.apply_input([{"type": "move", "limb": foot, "delta": (target - req).limit_length(speed * Tuning.DT)}])
+		s.step()
+		if s.falling:
+			break
+		var t := pose.compute(s, Tuning.DT)
+		sw.poses += 1
+		sw._record_flips(t, s, i)
+		for v in Anatomy.check(t, s.body.angle, s.body.yaw):
+			var key := "%s/%s" % [v.kind, v.limb]
+			sw.counts[key] = sw.counts.get(key, 0) + 1
+			if v.kind != "ankle" and sw._forced(t, s.body, v.limb):
+				sw.forced[key] = sw.forced.get(key, 0) + 1
+	return sw

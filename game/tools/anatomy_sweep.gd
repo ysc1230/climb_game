@@ -13,6 +13,8 @@ func _initialize() -> void:
 	var examples := {}
 	var tw := {&"arm": [], &"leg": []}
 	var poses := 0
+	var flips := {}
+	var flip_ex := {}
 	var us_total := 0
 	var us_max := 0
 	for r in idx.all_routes():
@@ -29,6 +31,10 @@ func _initialize() -> void:
 				examples[k] = [r.route_id, sw.examples[k]]
 		for g in tw:
 			tw[g].append_array(sw.twists[g])
+		for l in sw.flips:
+			flips[l] = flips.get(l, 0) + sw.flips[l]
+			if not flip_ex.has(l):
+				flip_ex[l] = [r.route_id, sw.flip_examples[l]]
 	print("== 합계: 자세 %d, 자세 계산 평균 %.0fµs 최대 %dµs" % [poses, float(us_total) / maxf(poses, 1), us_max])
 	var keys := counts.keys()
 	keys.sort()
@@ -41,4 +47,7 @@ func _initialize() -> void:
 			continue
 		var pct := func(p: float) -> float: return a[clampi(int(p * (a.size() - 1)), 0, a.size() - 1)]
 		print("  비틀림 %s: 최소 %.0f, 1%% %.0f, 50%% %.0f, 99%% %.0f, 최대 %.0f (n=%d)" % [g, a[0], pct.call(0.01), pct.call(0.5), pct.call(0.99), a[-1], a.size()])
+	print("== 관절 뒤집힘(한 틱 %.0f° 넘는 굽힘 방향 변화): %s" % [AnatomySweep.FLIP_DEG, flips])
+	for l in flip_ex:
+		print("  %s 예: %s" % [l, flip_ex[l]])
 	quit()
