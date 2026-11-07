@@ -196,7 +196,8 @@
        1,
        0
       ],
-      "half_width": 0.12
+      "half_width": 0.12,
+      "matchable": true
      }
     }
    ]

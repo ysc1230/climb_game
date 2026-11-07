@@ -115,7 +115,7 @@ func _read_slot(s: Dictionary, allowed: Array[StringName]) -> Dictionary:
 	var slot := {"pos": Vector2(s.pos[0], s.pos[1]), "allowed": allowed}
 	if allowed.any(func(l): return PoseSolver.is_hand(l)):
 		var ha: Dictionary = s.get("hand_area", {})
-		slot.hand_area = {"dir": _vec(ha.get("dir"), Vector2(1, 0)).normalized(), "half_width": float(ha.get("half_width", 0.08))}
+		slot.hand_area = {"dir": _vec(ha.get("dir"), Vector2(1, 0)).normalized(), "half_width": float(ha.get("half_width", 0.08)), "matchable": bool(ha.get("matchable", false))}
 	if allowed.any(func(l): return not PoseSolver.is_hand(l)):
 		var fa: Dictionary = s.get("foot_area", {})
 		slot.foot_area = {"up": _vec(fa.get("up"), Vector2(0, 1)).normalized(), "half_height": float(fa.get("half_height", 0.04)), "half_width": float(fa.get("half_width", 0.06))}

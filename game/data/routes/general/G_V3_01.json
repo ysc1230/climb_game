@@ -1,10 +1,10 @@
 {
  "route_id": "G_V3_01",
- "content_version": 1,
+ "content_version": 2,
  "validation_status": "Draft",
  "mode": "general",
  "grade": "V3",
- "order": 1,
+ "order": 2,
  "name_ko": "모으고 건너기",
  "required_techniques": [
   "T_HIGH_STEP",
@@ -13,16 +13,16 @@
  ],
  "crux_steps": {
   "T_HIGH_STEP": 0,
-  "T_CROSS": 5,
-  "T_MATCH": 11
+  "T_CROSS": 4,
+  "T_MATCH": 9
  },
  "check_swapped": false,
- "note": "v1: 어려운 일반 V3(2026-11-06). 앞 10이동은 G_V2_01의 거울(하이스텝 #0, 크로스 #5). 오른손을 왼손이 잡은 큰 홀드 H07로 모으면(매치 #11) 골반이 왼쪽으로 옮겨 가 왼손이 먼 H09에 닿는다(매치 전에는 못 닿음). H07·H12 반폭 0.12가 쉬는 곳. 손 이동 평균 0.82m. 대안: 크로스 손 바꿔 옮기기는 봇으로 통과한다.",
+ "note": "v2(2026-11-07, 사용자: 홀드가 너무 많고 홀드 사이가 가깝다): 30개 → 16개(손 7·발 8·정상). v1의 앞부분(하이스텝 #0, 크로스 #4)을 남기고 H04·H08과 위쪽 사다리를 걷어 내 정상을 4.10으로 내렸다. 파란 H07(반폭 0.12, matchable)에 오른손을 모으면(매치 #9) 골반이 왼쪽으로 옮겨 가 왼손이 먼 H09에 닿는다. 손 이동 평균 0.95m(최대 1.39).",
  "bounds": {
   "x_min": -1.5,
   "x_max": 1.5,
   "y_min": 0.0,
-  "y_max": 7.0
+  "y_max": 5.5
  },
  "fail_line_y": -0.5,
  "holds": [
@@ -102,31 +102,6 @@
    ]
   },
   {
-   "hold_id": "H04",
-   "slots": [
-    {
-     "slot_id": "hand_1",
-     "pos": [
-      -0.45,
-      2.88
-     ],
-     "allowed": [
-      "LH",
-      "RH",
-      "LF",
-      "RF"
-     ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.06
-     }
-    }
-   ]
-  },
-  {
    "hold_id": "H05",
    "slots": [
     {
@@ -196,32 +171,8 @@
        1,
        0
       ],
-      "half_width": 0.12
-     }
-    }
-   ]
-  },
-  {
-   "hold_id": "H08",
-   "slots": [
-    {
-     "slot_id": "hand_1",
-     "pos": [
-      0.85,
-      3.48
-     ],
-     "allowed": [
-      "LH",
-      "RH",
-      "LF",
-      "RF"
-     ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.06
+      "half_width": 0.12,
+      "matchable": true
      }
     }
    ]
@@ -234,156 +185,6 @@
      "pos": [
       -0.93,
       3.32
-     ],
-     "allowed": [
-      "LH",
-      "RH",
-      "LF",
-      "RF"
-     ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.07
-     }
-    }
-   ]
-  },
-  {
-   "hold_id": "H10",
-   "slots": [
-    {
-     "slot_id": "hand_1",
-     "pos": [
-      0.7,
-      3.95
-     ],
-     "allowed": [
-      "LH",
-      "RH",
-      "LF",
-      "RF"
-     ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.06
-     }
-    }
-   ]
-  },
-  {
-   "hold_id": "H11",
-   "slots": [
-    {
-     "slot_id": "hand_1",
-     "pos": [
-      -0.32,
-      4.18
-     ],
-     "allowed": [
-      "LH",
-      "RH",
-      "LF",
-      "RF"
-     ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.07
-     }
-    }
-   ]
-  },
-  {
-   "hold_id": "H12",
-   "slots": [
-    {
-     "slot_id": "hand_1",
-     "pos": [
-      0.45,
-      4.72
-     ],
-     "allowed": [
-      "LH",
-      "RH",
-      "LF",
-      "RF"
-     ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.12
-     }
-    }
-   ]
-  },
-  {
-   "hold_id": "H13",
-   "slots": [
-    {
-     "slot_id": "hand_1",
-     "pos": [
-      -0.42,
-      4.92
-     ],
-     "allowed": [
-      "LH",
-      "RH",
-      "LF",
-      "RF"
-     ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.07
-     }
-    }
-   ]
-  },
-  {
-   "hold_id": "H14",
-   "slots": [
-    {
-     "slot_id": "hand_1",
-     "pos": [
-      0.15,
-      5.55
-     ],
-     "allowed": [
-      "LH",
-      "RH",
-      "LF",
-      "RF"
-     ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.06
-     }
-    }
-   ]
-  },
-  {
-   "hold_id": "H15",
-   "slots": [
-    {
-     "slot_id": "hand_1",
-     "pos": [
-      -0.48,
-      5.72
      ],
      "allowed": [
       "LH",
@@ -519,104 +320,8 @@
     {
      "slot_id": "foot_1",
      "pos": [
-      0.4,
-      2.3
-     ],
-     "allowed": [
-      "LF",
-      "RF"
-     ]
-    }
-   ]
-  },
-  {
-   "hold_id": "F09",
-   "slots": [
-    {
-     "slot_id": "foot_1",
-     "pos": [
-      -0.5,
-      2.7
-     ],
-     "allowed": [
-      "LF",
-      "RF"
-     ]
-    }
-   ]
-  },
-  {
-   "hold_id": "F10",
-   "slots": [
-    {
-     "slot_id": "foot_1",
-     "pos": [
-      0.15,
-      2.95
-     ],
-     "allowed": [
-      "LF",
-      "RF"
-     ]
-    }
-   ]
-  },
-  {
-   "hold_id": "F11",
-   "slots": [
-    {
-     "slot_id": "foot_1",
-     "pos": [
-      -0.4,
-      3.45
-     ],
-     "allowed": [
-      "LF",
-      "RF"
-     ]
-    }
-   ]
-  },
-  {
-   "hold_id": "F12",
-   "slots": [
-    {
-     "slot_id": "foot_1",
-     "pos": [
       0.25,
-      3.75
-     ],
-     "allowed": [
-      "LF",
-      "RF"
-     ]
-    }
-   ]
-  },
-  {
-   "hold_id": "F13",
-   "slots": [
-    {
-     "slot_id": "foot_1",
-     "pos": [
-      -0.35,
-      4.25
-     ],
-     "allowed": [
-      "LF",
-      "RF"
-     ]
-    }
-   ]
-  },
-  {
-   "hold_id": "F14",
-   "slots": [
-    {
-     "slot_id": "foot_1",
-     "pos": [
-      0.0,
-      4.45
+      2.55
      ],
      "allowed": [
       "LF",
@@ -631,8 +336,8 @@
     {
      "slot_id": "goal_left",
      "pos": [
-      -0.29,
-      6.3
+      -0.22,
+      4.1
      ],
      "allowed": [
       "LH",
@@ -642,8 +347,8 @@
     {
      "slot_id": "goal_right",
      "pos": [
-      0.15,
-      6.3
+      0.22,
+      4.1
      ],
      "allowed": [
       "LH",
@@ -662,8 +367,8 @@
     0.65
    ],
    "foot_slot_keys": [
-    "G_V3_01/F01/foot_1",
-    "G_V3_01/F02/foot_1"
+    "G_V3_01/F02/foot_1",
+    "G_V3_01/F01/foot_1"
    ]
   }
  ],
@@ -684,7 +389,7 @@
   "G_V3_01/G01/goal_left",
   "G_V3_01/G01/goal_right"
  ],
- "time_medal_seconds": 160,
+ "time_medal_seconds": 120,
  "intended_moves": [
   [
    "LF",
@@ -697,10 +402,6 @@
   [
    "RH",
    "G_V3_01/H03/hand_1"
-  ],
-  [
-   "LH",
-   "G_V3_01/H04/hand_1"
   ],
   [
    "RF",
@@ -723,10 +424,6 @@
    "G_V3_01/H07/hand_1"
   ],
   [
-   "RH",
-   "G_V3_01/H08/hand_1"
-  ],
-  [
    "LF",
    "G_V3_01/F07/foot_1"
   ],
@@ -741,54 +438,6 @@
   [
    "RF",
    "G_V3_01/F08/foot_1"
-  ],
-  [
-   "RH",
-   "G_V3_01/H10/hand_1"
-  ],
-  [
-   "LH",
-   "G_V3_01/H11/hand_1"
-  ],
-  [
-   "LF",
-   "G_V3_01/F09/foot_1"
-  ],
-  [
-   "RF",
-   "G_V3_01/F10/foot_1"
-  ],
-  [
-   "RH",
-   "G_V3_01/H12/hand_1"
-  ],
-  [
-   "LH",
-   "G_V3_01/H13/hand_1"
-  ],
-  [
-   "LF",
-   "G_V3_01/F11/foot_1"
-  ],
-  [
-   "RF",
-   "G_V3_01/F12/foot_1"
-  ],
-  [
-   "RH",
-   "G_V3_01/H14/hand_1"
-  ],
-  [
-   "LH",
-   "G_V3_01/H15/hand_1"
-  ],
-  [
-   "LF",
-   "G_V3_01/F13/foot_1"
-  ],
-  [
-   "RF",
-   "G_V3_01/F14/foot_1"
   ],
   [
    "RH",

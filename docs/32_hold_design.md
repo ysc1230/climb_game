@@ -16,6 +16,7 @@
 | --- | --- | --- |
 | hand_body | #2B7A6F 옥빛 청록 | 손홀드 몸체. 벽(주황·모래)의 반대색 |
 | hand_lip | #8FD0BC | 손가락이 걸리는 윗날 띠 |
+| match_body / match_lip | #2F5FC4 / #9CC0F4 파랑 | 합손 가능 손홀드(hand_area.matchable). 2026-11-07 사용자 지시: 합손 홀드를 색으로 구분 |
 | foot_body | #5E4C70 보라 회색 | 발판 몸체(손홀드와 색·모양 모두 다르게) |
 | foot_lip | #C4B0D6 | 발판 디딤 윗면 |
 | goal | #D9B872 / #F1D59A | 정상 홀드(기존 target_cream 계열) |

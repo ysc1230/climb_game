@@ -195,6 +195,7 @@ var hold_glows := {}  # 슬롯 키 → 홀드 위에 겹친 빛 메시(잡을 �
 const HOLD_MESHES := preload("res://art/holds/holds.glb")
 const HOLD_COLORS := {
 	"hand": [Color("2b7a6f"), Color("8fd0bc")],
+	"match": [Color("2f5fc4"), Color("9cc0f4")],  # 합손 가능(hand_area.matchable)
 	"foot": [Color("5e4c70"), Color("c4b0d6")],
 	"goal": [Color("d9b872"), Color("f1d59a")],
 }
@@ -251,7 +252,7 @@ func _build_holds() -> void:
 		var slot: Dictionary = logic.route.slots[key]
 		var is_goal: bool = logic.route.goal_slots.has(key)
 		var hand: bool = slot.has("hand_area")
-		var kind := "goal" if is_goal else ("hand" if hand else "foot")
+		var kind := "goal" if is_goal else ("foot" if not hand else ("match" if slot.hand_area.get("matchable", false) else "hand"))
 		var variant := hold_variant(key, slot, is_goal)
 		var mesh := _hold_mesh(variant)
 		var ang: float = (slot.hand_area.dir as Vector2).angle() if hand else (slot.foot_area.up as Vector2).angle() - PI / 2.0

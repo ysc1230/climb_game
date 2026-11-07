@@ -283,8 +283,12 @@ func test_forbid_flag() -> void:
 
 
 func test_forbid_match_rejects_other_hand_hold() -> void:
-	runner.check(_drag_to(_session(_g_v0_01()), &"LH", H02), "금지 없음: 오른손 홀드 H02 매치")
-	var s := _session(_g_v0_01(), {&"match": true})
+	var r := _g_v0_01()
+	r.slots[H02].hand_area.matchable = true
+	runner.check(_drag_to(_session(r), &"LH", H02), "금지 없음: 오른손 홀드 H02(파란 홀드로 둠) 매치")
+	var r2 := _g_v0_01()
+	r2.slots[H02].hand_area.matchable = true
+	var s := _session(r2, {&"match": true})
 	runner.check(not _drag_to(s, &"LH", H02, 200), "match 금지: 반대 손이 잡은 H02 후보 아님")
 
 

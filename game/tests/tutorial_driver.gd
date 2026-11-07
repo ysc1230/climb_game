@@ -68,14 +68,16 @@ func drag_to_air(limb: StringName, target: Vector2) -> bool:
 	return true
 
 
-## 떼어 끌고, 후보가 그 키가 되면 놓는다. 결과가 나오면 멈춘다.
+## 떼어 끌고, 후보가 그 키가 되면 홀드 가운데까지(팔이 더 못 가면 거기서) 가져가 놓는다(SessionBot과 같음). 결과가 나오면 멈춘다.
 func drag(limb: StringName, key: String) -> bool:
 	s.apply_input([{"type": "detach", "limb": limb}])
 	for i in 300:
 		var req: Vector2 = s.limbs[limb].req
 		s.apply_input([{"type": "move", "limb": limb, "delta": (s.route.slot_pos(key) - req).limit_length(DRAG_SPEED * DT)}])
 		var act := tick()
-		if s.limbs[limb].cand.get("key", "") == key:
+		var now: Vector2 = s.limbs[limb].req
+		var settled := now.distance_to(s.route.slot_pos(key)) < 0.03 or now.distance_to(req) < 0.0005
+		if s.limbs[limb].cand.get("key", "") == key and settled:
 			s.apply_input([{"type": "release", "limb": limb, "speed": 0.0}])
 			return true
 		if act != "":

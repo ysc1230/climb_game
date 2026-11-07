@@ -58,6 +58,13 @@ static func foot_half_width(slot: Dictionary) -> float:
 	return float(slot.get("foot_area", {}).get("half_width", FOOT_HOLD_HALF_WIDTH))
 
 
+## 합손(v0.9.3): 반대 손이 이미 잡은 손홀드는 hand_area.matchable(파란 홀드)일 때만 같이 잡을 수 있다.
+static func match_blocked(slot: Dictionary, limb: StringName, entries: Array) -> bool:
+	if not PoseSolver.is_hand(limb) or slot.hand_area.get("matchable", false):
+		return false
+	return entries.any(func(e): return e.limb != limb and PoseSolver.is_hand(e.limb))
+
+
 ## 구간 겹침(맞닿음은 겹침이 아님).
 static func overlaps(a: Vector2, b: Vector2) -> bool:
 	return a.x < b.y - 0.0001 and b.x < a.y - 0.0001
@@ -74,6 +81,8 @@ static func contact_point(slot: Dictionary, limb: StringName, endpoint: Vector2,
 		if endpoint.distance_to(pf.point) > max_dist:
 			return {}
 		return {"point": pf.point, "quality": pf.quality}
+	if match_blocked(slot, limb, entries):
+		return {}
 	var area: Dictionary = slot.hand_area
 	var hw: float = area.half_width
 	var base := HoldArea.project_hand(slot, endpoint)
@@ -119,7 +128,7 @@ static func reachable_contact(slot: Dictionary, limb: StringName, endpoint: Vect
 	var base := contact_point(slot, limb, endpoint, entries, INF)
 	if not base.is_empty():
 		tries.append(base)
-	if hand:
+	if hand and not match_blocked(slot, limb, entries):
 		var hw: float = slot.hand_area.half_width
 		for i in REACH_SAMPLES + 1:
 			var s := lerpf(-hw, hw, float(i) / REACH_SAMPLES)

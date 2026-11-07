@@ -39,6 +39,7 @@ func test_candidate_returns_projected_point() -> void:
 func test_pad_grab_shifts_off_occupied_interval() -> void:
 	var r := _tx()
 	var key := "TX_TECH/N02/hand_1"
+	r.slots[key].hand_area.matchable = true
 	var c: Vector2 = r.slots[key].pos
 	var occ := {key: _hand_occ(&"RH", -0.04, 0.04)}
 	var cand := _cand(r, &"LH", c, occ)
@@ -65,6 +66,7 @@ func test_narrow_hold_rejects_second_hand() -> void:
 
 func test_big_hold_match_by_pad() -> void:
 	var r := _g_v0_01()
+	r.slots[G_V0_01_H03].hand_area.matchable = true
 	var c: Vector2 = r.slots[G_V0_01_H03].pos
 	var lh := c + Vector2(-0.04, 0)
 	var occ := {G_V0_01_H03: _hand_occ(&"LH", -0.08, 0.0)}
@@ -79,6 +81,30 @@ func test_big_hold_match_by_pad() -> void:
 	runner.check(lq >= 0.85, "LH 품질 %f" % lq)
 
 
+## v0.9.3: 넓어도 matchable(파란 홀드)이 아니면 반대 손이 잡은 홀드는 후보가 아니다. 발은 상관없다.
+func test_match_needs_matchable_hold() -> void:
+	var r := _g_v0_01()
+	var c: Vector2 = r.slots[G_V0_01_H03].pos
+	var occ := {G_V0_01_H03: _hand_occ(&"LH", -0.08, 0.0)}
+	runner.check(not r.slots[G_V0_01_H03].hand_area.matchable, "기본은 합손 불가")
+	var cand := GripCheck.candidate(r.slots, &"RH", c, c + Vector2(0, -0.7), 0.0, {&"LH": c + Vector2(-0.04, 0)}, occ)
+	runner.check(cand.is_empty() or cand.key != G_V0_01_H03, "반폭 %.2f여도 합손 후보 아님 %s" % [r.slots[G_V0_01_H03].hand_area.half_width, cand])
+	runner.check(GripCheck.match_blocked(r.slots[G_V0_01_H03], &"RH", occ[G_V0_01_H03]), "막힘")
+	runner.check(not GripCheck.match_blocked(r.slots[G_V0_01_H03], &"LH", occ[G_V0_01_H03]), "같은 손은 막지 않음")
+	r.slots[G_V0_01_H03].hand_area.matchable = true
+	runner.check(not GripCheck.match_blocked(r.slots[G_V0_01_H03], &"RH", occ[G_V0_01_H03]), "파란 홀드는 합손 가능")
+
+
+func test_routes_mark_match_holds() -> void:
+	for id in ["C_MATCH_T", "G_V3_01", "G_V3_02", "G_V4_01", "G_V4_02"]:
+		var r := RouteDef.load_json(ContentIndex.route_path(id))
+		var n := 0
+		for key in r.slots:
+			if r.slots[key].has("hand_area") and r.slots[key].hand_area.matchable:
+				n += 1
+		runner.check(n >= 1, "%s 파란(합손) 홀드 %d개" % [id, n])
+
+
 func test_touching_intervals_allowed() -> void:
 	var r := _g_v0_01()
 	var key := "G_V0_01/H07/hand_1"
@@ -86,6 +112,7 @@ func test_touching_intervals_allowed() -> void:
 		key = "G_V0_01/G01/goal_left"
 	var c: Vector2 = r.slots[key].pos
 	runner.check(is_equal_approx(r.slots[key].hand_area.half_width, 0.08), "반폭 0.08 홀드")
+	r.slots[key].hand_area.matchable = true
 	var occ := {key: _hand_occ(&"LH", -0.08, 0.0)}
 	var cand := _cand(r, &"RH", c + Vector2(0.04, 0), occ)
 	runner.check(not cand.is_empty(), "맞닿음 허용 %s" % [cand])
