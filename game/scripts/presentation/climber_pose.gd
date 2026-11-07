@@ -54,7 +54,7 @@ func compute(session, delta: float) -> Dictionary:
 		free_shift[limb] = shift_now.move_toward(want.shift[limb], LIFT_SPEED * delta)
 		var root := _root(body, limb, depth)
 		var end := _end(session, limb, float(free_lift[limb]), free_shift[limb])
-		var ik := LimbIK.solve_circle(_circle(limb, root, end, frame, pelvis, up, true), bends.get(limb, Vector3.ZERO), max_step)
+		var ik := LimbIK.solve_circle(_circle(limb, root, end, frame, pelvis, up, true, _free(session, limb)), bends.get(limb, Vector3.ZERO), max_step)
 		bends[limb] = ik.bend
 		var mid: Vector3 = ik.mid
 		var s := "L" if PoseSolver.side_sign(limb) < 0 else "R"
@@ -69,6 +69,11 @@ func compute(session, delta: float) -> Dictionary:
 			t["ankle_" + s] = end
 			t["toe_" + s] = end + Anatomy.foot_direction(mid, end, frame) * Anatomy.FOOT_LENGTH
 	return t
+
+
+## 끌거나 떠 있는 손발인가(붙음·준비가 아님).
+static func _free(session, limb: StringName) -> bool:
+	return not (session.limbs[limb].state in ["Attached", "Armed"])
 
 
 static func _root(body, limb: StringName, pelvis_depth: float) -> Vector3:
@@ -136,7 +141,7 @@ func _choose(session, body, attached: Dictionary, frame: Basis, up: Vector3) -> 
 			continue
 		if float(best.lift[limb]) == 0.0 and best.shift[limb] == Vector2.ZERO:
 			continue
-		var c := _circle(limb, _root(body, limb, best.depth), _end(session, limb, 0.0), frame, pelvis, up)
+		var c := _circle(limb, _root(body, limb, best.depth), _end(session, limb, 0.0), frame, pelvis, up, false, true)
 		if not c.is_empty() and LimbIK.local_violation(c, bends.get(limb, Vector3.ZERO)) <= 0.0:
 			best.lift[limb] = 0.0
 			best.shift[limb] = Vector2.ZERO
@@ -158,7 +163,7 @@ func _score_depth(session, body, frame: Basis, up: Vector3, dpt: float, opts: Di
 		var options: Array = [[0.0, Vector2.ZERO]] if stuck else ([opts[limb]] if opts.has(limb) else _free_options())
 		var lv := INF
 		for opt in options:
-			var c := _circle(limb, root, _end(session, limb, opt[0], opt[1]), frame, pelvis, up)
+			var c := _circle(limb, root, _end(session, limb, opt[0], opt[1]), frame, pelvis, up, false, not stuck)
 			if c.is_empty():
 				break
 			var v := LimbIK.local_violation(c, bends.get(limb, Vector3.ZERO))
@@ -175,15 +180,15 @@ func _score_depth(session, body, frame: Basis, up: Vector3, dpt: float, opts: Di
 
 
 ## 같은 프레임 안 굽힘 원 캐시. 고르기용은 거친 후보(SEARCH_SAMPLES)·예산 안, force(실제 표시용)는 정밀 후보·예산 무관. 예산이 다 되면 {}.
-func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3, force := false) -> Dictionary:
-	var key := [limb, root, end, pelvis, force]
+func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3, force := false, free := false) -> Dictionary:
+	var key := [limb, root, end, pelvis, force, free]
 	if _cache.has(key):
 		return _cache[key]
 	if not force:
 		if _budget <= 0:
 			return {}
 		_budget -= 1
-	var c := LimbIK.circle(limb, root, end, frame, pelvis, up, LimbIK.BEND_SAMPLES if force else LimbIK.SEARCH_SAMPLES)
+	var c := LimbIK.circle(limb, root, end, frame, pelvis, up, LimbIK.BEND_SAMPLES if force else LimbIK.SEARCH_SAMPLES, free)
 	_cache[key] = c
 	return c
 

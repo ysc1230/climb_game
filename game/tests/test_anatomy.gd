@@ -102,8 +102,8 @@ func test_sweep_regression() -> void:
 	runner.check(flips == 0, "관절 뒤집힘 %d" % flips)
 	runner.check(all - forced <= poses * 5 / 100, "IK가 놓친 위반 %d / %d" % [all - forced, poses])
 	# 강제된 위반 = 판정이 허용한 손발 위치에서 어떤 굽힘도 범위 안에 들지 않는 경우(크로스 루트에 많다).
-	# 2026-11-08 기준 이 세 루트 5.0%, 전체 22개 루트 3.6%. 회귀 감시용 상한.
-	runner.check(forced <= poses * 8 / 100, "강제된 위반 %d / %d" % [forced, poses])
+	# 2026-11-08 기준 이 세 루트 8.6%, 전체 22개 루트 4.5%(발을 옮길 때 무릎 처짐 금지 규칙을 넣은 뒤). 회귀 감시용 상한.
+	runner.check(forced <= poses * 12 / 100, "강제된 위반 %d / %d" % [forced, poses])
 
 
 ## 사용자 보고(2026-11-08): 다리를 낮은 곳에서 높은 곳으로 올릴 때 관절이 갑자기 반대로 꺾였다(0.9.5에서 6만 6천 자세 중 319번).
@@ -119,3 +119,17 @@ func test_leg_lift_never_flips() -> void:
 					for l in sw.flips:
 						f += sw.flips[l]
 					runner.check(f == 0, "%s %s 가로 %.2f 높이 %.2f 뒤집힘 %d %s" % [id, foot, ox, rise, f, sw.flip_examples])
+
+
+## 사용자 보고(2026-11-08): 발을 들어 옮길 때 무릎이 발보다 아래로 처지는 드롭니 모양이 나왔다.
+## 드롭니는 발이 붙은 채 몸을 움직일 때만 생기고, 발을 옮기는 동안에는 무릎이 들리고 정강이는 무릎에서 발로 내려간다.
+## 발을 뗀 직후 바로잡히는 몇 틱만 허용한다.
+func test_free_leg_no_drop_knee() -> void:
+	for id in ["G_V4_01", "G_V0_01"]:
+		var r := RouteDef.load_json(ContentIndex.route_path(id))
+		for foot in [&"LF", &"RF"]:
+			for ox in [0.3, 0.0]:
+				for rise in [-0.25, 0.0]:
+					var sw := AnatomySweep.run_lift(r, foot, ox, rise, 1.0)
+					var n: int = sw.counts.get("free_drop_knee/%s" % foot, 0)
+					runner.check(n <= 15, "%s %s 가로 %.2f 높이 %.2f 무릎 처짐 %d틱" % [id, foot, ox, rise, n])

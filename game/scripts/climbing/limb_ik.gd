@@ -27,6 +27,7 @@ const SWITCH_H := 0.12        # 굽힘 반지름이 이보다 작으면(거의 �
 const BODY_POLE := {  # 몸 기준(X 오른쪽, Y 위, +Z 등 쪽). s는 오른쪽 +1·왼쪽 −1로 곱한다.
 	&"hand": Vector3(0.6, -0.55, 0.45),   # 팔꿈치: 바깥·아래·약간 뒤(벽 반대)
 	&"foot": Vector3(0.8, 0.1, -0.6),     # 무릎: 바깥·벽 쪽(앞). 무릎은 뒤로 접히지 않는다
+	&"free_foot": Vector3(0.6, 0.6, -0.5), # 발을 들어 옮길 때 무릎: 바깥·위·벽 쪽(들어 올림)
 }
 const WALL_MIN_Z := 0.05      # 팔꿈치·무릎 중심의 최소 Z(벽면 z=0 + 관절 반지름)
 const TORSO_MIN_DIST := 0.18  # 몸통 축(골반+0.05 ~ +0.50)에서 팔꿈치·무릎 중심까지 최소 거리
@@ -34,8 +35,9 @@ const HEAD_MIN_DIST := 0.17   # 팔 뼈(위팔·아래팔)에서 머리 중심�
 const POLE_WEIGHT := 0.02     # 선호 방향과의 각(라디안)당 비용. 제약 위반(미터·도 환산)보다 훨씬 작다
 
 
-static func solve_limb(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3, prev_bend: Vector3, max_step_deg: float) -> Dictionary:
-	return solve_circle(_circle(limb, root, end, frame, pelvis, up), prev_bend, max_step_deg)
+## free: 끌거나 떠 있는 발(FREE_LEG 규칙 적용).
+static func solve_limb(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3, prev_bend: Vector3, max_step_deg: float, free := false) -> Dictionary:
+	return solve_circle(_circle(limb, root, end, frame, pelvis, up, BEND_SAMPLES, free), prev_bend, max_step_deg)
 
 
 ## 미리 구한 굽힘 원(circle)으로 굽힘 축을 고른다(ClimberPose가 같은 프레임의 원을 다시 쓸 때).
@@ -110,8 +112,8 @@ static func local_violation(c: Dictionary, prev_bend: Vector3) -> float:
 
 
 ## 이 말단 위치에서 고를 수 있는 가장 작은 위반량(0이면 해부학적으로 가능한 굽힘이 있다). 점검 도구용.
-static func min_violation(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3) -> float:
-	return circle_min(circle(limb, root, end, frame, pelvis, up))
+static func min_violation(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3, free := false) -> float:
+	return circle_min(circle(limb, root, end, frame, pelvis, up, BEND_SAMPLES, free))
 
 
 static func circle_min(c: Dictionary) -> float:
@@ -119,12 +121,12 @@ static func circle_min(c: Dictionary) -> float:
 
 
 ## samples: 후보 수(깊이를 고를 때는 SEARCH_SAMPLES로 거칠게, 표시할 때는 BEND_SAMPLES).
-static func circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3, samples := BEND_SAMPLES) -> Dictionary:
-	return _circle(limb, root, end, frame, pelvis, up, samples)
+static func circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3, samples := BEND_SAMPLES, free := false) -> Dictionary:
+	return _circle(limb, root, end, frame, pelvis, up, samples, free)
 
 
 ## 굽힘 원: 중심·반지름 h·기준 축 n, t와 BEND_SAMPLES개 후보의 위반량(bad), 가장 좋은 후보(best).
-static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3, samples := BEND_SAMPLES) -> Dictionary:
+static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3, samples := BEND_SAMPLES, free := false) -> Dictionary:
 	var hand := PoseSolver.is_hand(limb)
 	var a := Tuning.ARM_UPPER if hand else Tuning.LEG_UPPER
 	var b := Tuning.ARM_LOWER if hand else Tuning.LEG_LOWER
@@ -142,7 +144,8 @@ static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis,
 		n = (frame * Vector3.UP) - dir * (frame * Vector3.UP).dot(dir)
 	n = n.normalized()
 	var t := dir.cross(n).normalized()
-	var pl: Vector3 = BODY_POLE[&"hand" if hand else &"foot"]
+	var pl: Vector3 = BODY_POLE[&"hand" if hand else (&"free_foot" if free else &"foot")]
+	var free_leg := free and not hand
 	var pole := frame * Vector3(pl.x * sgn, pl.y, pl.z)
 	var pole_th := atan2(pole.dot(t), pole.dot(n))
 	var torso_a := pelvis + up * 0.05
@@ -154,7 +157,7 @@ static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis,
 	for k in samples:
 		var th := TAU * k / samples
 		var mid := center + (n * cos(th) + t * sin(th)) * h
-		var viol := _violation(limb, hand, root, mid, end, frame, torso_a, torso_b, head)
+		var viol := _violation(limb, hand, root, mid, end, frame, torso_a, torso_b, head, free_leg)
 		bad.append(viol)
 		var cost := viol + POLE_WEIGHT * absf(angle_difference(th, pole_th))
 		if cost < best_cost:
@@ -164,8 +167,10 @@ static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis,
 
 
 ## 굽힘 후보 하나의 제약 위반량(0이면 해부학적으로 가능).
-static func _violation(limb: StringName, hand: bool, root: Vector3, mid: Vector3, end: Vector3, frame: Basis, torso_a: Vector3, torso_b: Vector3, head: Vector3) -> float:
+static func _violation(limb: StringName, hand: bool, root: Vector3, mid: Vector3, end: Vector3, frame: Basis, torso_a: Vector3, torso_b: Vector3, head: Vector3, free_leg := false) -> float:
 	var viol := 0.0
+	if free_leg:
+		viol += _free_leg_violation(limb, root, mid, end, frame)
 	if true:
 		var tw := Anatomy.limb_twist(limb, root, mid, end, frame)  # 거의 펴졌으면 NAN(점검과 같은 기준)
 		if not is_nan(tw):
@@ -185,6 +190,15 @@ static func _violation(limb: StringName, hand: bool, root: Vector3, mid: Vector3
 		var flex := Anatomy.hip_flexion_deg((mid - root).normalized(), frame)
 		viol += (maxf(0.0, flex - (Anatomy.HIP_FLEXION.y - 10.0)) + maxf(0.0, (Anatomy.HIP_FLEXION.x + 10.0) - flex)) / 90.0
 	return viol
+
+
+## 발을 들어 옮기는 중(끌기·떠 있음)의 다리(2026-11-08 사용자): 무릎은 위·바깥으로 들리고 정강이는 무릎에서 발로 내려간다.
+## 무릎이 발보다 아래로 처지는 드롭니 모양은 발이 붙은 채 몸을 움직일 때만 생긴다(고관절 회전은 일반 한계를 따른다).
+static func _free_leg_violation(limb: StringName, root: Vector3, mid: Vector3, end: Vector3, frame: Basis) -> float:
+	var v := 0.0
+	var shin_up := (end - mid).normalized().dot(frame * Vector3.UP)
+	v += maxf(0.0, shin_up - (Anatomy.FREE_LEG_SHIN_UP_MAX - 0.1))
+	return v
 
 
 static func _viol_at(bad: Array[float], th: float) -> float:

@@ -94,7 +94,7 @@ func _run(route: RouteDef, n_ticks: int, seed: int) -> void:
 		poses += 1
 		_record_twists(t, s.body)
 		_record_flips(t, s, i)
-		for v in Anatomy.check(t, s.body.angle, s.body.yaw):
+		for v in Anatomy.check(t, s.body.angle, s.body.yaw, _free_map(s)):
 			var key := "%s/%s" % [v.kind, v.limb]
 			counts[key] = counts.get(key, 0) + 1
 			if v.kind != "ankle" and _forced(t, s.body, v.limb):
@@ -104,11 +104,18 @@ func _run(route: RouteDef, n_ticks: int, seed: int) -> void:
 					"limbs": PoseSolver.LIMBS.map(func(l): return [l, s.limbs[l].state, s.limbs[l].pos])}
 
 
+static func _free_map(s) -> Dictionary:
+	var m := {}
+	for l in PoseSolver.LIMBS:
+		m[l] = ClimberPose._free(s, l)
+	return m
+
+
 func _forced(t: Dictionary, body, limb: StringName) -> bool:
 	var hand := PoseSolver.is_hand(limb)
 	var sd := "L" if PoseSolver.side_sign(limb) < 0 else "R"
 	var frame := Anatomy.body_basis(body.angle, body.yaw)
-	return LimbIK.min_violation(limb, t[("shoulder_" if hand else "hip_") + sd], t[("wrist_" if hand else "ankle_") + sd], frame, t.pelvis, t.up) > 0.0
+	return LimbIK.min_violation(limb, t[("shoulder_" if hand else "hip_") + sd], t[("wrist_" if hand else "ankle_") + sd], frame, t.pelvis, t.up, ClimberPose._free(session, limb)) > 0.0
 
 
 ## 중간 관절(팔꿈치·무릎)이 팔다리 축에서 떨어진 방향(굽힘 방향)이 한 틱에 크게 바뀌면 "뒤집힘"으로 센다.
@@ -159,6 +166,7 @@ func total() -> int:
 static func run_lift(route: RouteDef, foot: StringName, offset_x: float, rise: float, speed: float) -> AnatomySweep:
 	var sw := AnatomySweep.new()
 	var s := ClimbSession.new(route)
+	sw.session = s
 	var pose := ClimberPose.new()
 	for i in 30:
 		s.step()
@@ -175,7 +183,7 @@ static func run_lift(route: RouteDef, foot: StringName, offset_x: float, rise: f
 		var t := pose.compute(s, Tuning.DT)
 		sw.poses += 1
 		sw._record_flips(t, s, i)
-		for v in Anatomy.check(t, s.body.angle, s.body.yaw):
+		for v in Anatomy.check(t, s.body.angle, s.body.yaw, _free_map(s)):
 			var key := "%s/%s" % [v.kind, v.limb]
 			sw.counts[key] = sw.counts.get(key, 0) + 1
 			if v.kind != "ankle" and sw._forced(t, s.body, v.limb):

@@ -22,6 +22,7 @@ const HIP_EXTENSION_MAX := 0.50              # 허벅지의 뒤쪽 성분(sin 30
 const ANKLE_RANGE := Vector2(40.0, 130.0)    # 정강이(무릎→발목)와 발(발목→발끝) 사이 각
 const WALL_CLEARANCE := 0.01                 # 팔꿈치·무릎은 벽면(z = 0)보다 이만큼 앞
 const TORSO_CLEARANCE := 0.15                # 팔꿈치·무릎이 몸통 축(골반+0.05 ~ +0.50)에 이보다 가까우면 몸을 뚫음
+const FREE_LEG_SHIN_UP_MAX := 0.25           # 발을 들어 옮길 때 정강이(무릎→발)의 위쪽 성분 한계(무릎이 발보다 아래로 처지지 않음)
 const HEAD_CENTER_UP := 0.84                 # 머리 중심: 골반 + 위 × 0.84
 const HEAD_CLEARANCE := 0.15                 # 팔 뼈(위팔·아래팔)가 머리 중심에 이보다 가까우면 머리를 뚫음(머리 0.12 + 팔 0.035)
 const STRAIGHT_EPS := 0.06                   # 굽힘(아래 뼈의 수직 성분 비)이 이보다 작으면(약 3°, 거의 펴짐) 비틀림을 재지 않음
@@ -117,7 +118,8 @@ static func _seg_dist(p: Vector3, a: Vector3, b: Vector3) -> float:
 
 
 ## 자세 하나 점검. t: ClimberPose.compute 결과. 반환: 위반 목록 [{kind, limb, value}].
-static func check(t: Dictionary, angle_deg: float, yaw_deg: float) -> Array:
+## free: limb → 끌거나 떠 있는가(발이면 FREE_LEG 규칙도 점검).
+static func check(t: Dictionary, angle_deg: float, yaw_deg: float, free := {}) -> Array:
 	var out: Array = []
 	var frame := body_basis(angle_deg, yaw_deg)
 	var post := frame * Vector3.BACK
@@ -144,6 +146,10 @@ static func check(t: Dictionary, angle_deg: float, yaw_deg: float) -> Array:
 		var back := (mid - root).normalized().dot(post)
 		if back > (SHOULDER_EXTENSION_MAX if hand else HIP_EXTENSION_MAX):
 			out.append({"kind": "extension", "limb": limb, "value": back})
+		if not hand and free.get(limb, false):
+			var shin_up := (end - mid).normalized().dot(frame * Vector3.UP)
+			if shin_up > FREE_LEG_SHIN_UP_MAX:
+				out.append({"kind": "free_drop_knee", "limb": limb, "value": shin_up})
 		if not hand:
 			var flex := hip_flexion_deg((mid - root).normalized(), frame)
 			if flex < HIP_FLEXION.x or flex > HIP_FLEXION.y:
