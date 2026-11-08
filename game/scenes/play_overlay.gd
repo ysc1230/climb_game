@@ -21,11 +21,17 @@ var goal_screen_y := -1.0
 var _help_step := -1
 var _help_seen := 0       # 이 단계에서 이미 자동으로 열어 준 도움말 단계
 var _buttons: Array = []  # [{rect, action}] 마지막으로 그린 버튼
+var pause_rect := Rect2()  # 위쪽 정보 패널(hud.gd)이 그린 일시정지 버튼 자리
 
 
 ## 결과·완료 화면이 떠 있어 플레이를 멈추는가.
 func blocking() -> bool:
 	return not result.is_empty() or tutorial_done or not briefing.is_empty()
+
+
+## 다른 곳(hud.gd)이 그린 버튼을 누름 판정에 넣는다.
+func add_buttons(list: Array) -> void:
+	_buttons.append_array(list)
 
 
 ## 마지막으로 그린 버튼 중 pos를 덮는 것의 동작. 없으면 "".
@@ -55,10 +61,9 @@ func draw(ci: CanvasItem, size: Vector2, k: float, paused: bool, selecting: bool
 		_draw_briefing(ci, size, k)
 		return
 	if paused:
-		if has_list:
-			_button(ci, Rect2(Vector2(size.x * 0.5 - 110 * k, size.y * 0.5 + 50 * k), Vector2(220, 64) * k), "목록", "list", k)
-		return
-	_button(ci, Rect2(Vector2(16, 16) * k, Vector2(130, 46) * k), "일시정지", "pause", k, false, 20)
+		return  # 일시정지 카드·버튼은 hud.gd(draw_pause)가 그리고 add_buttons로 넘긴다
+	if pause_rect.has_area():
+		_buttons.append({"rect": pause_rect, "action": "pause"})  # 버튼 모양은 hud.gd가 그린다
 	if tutorial != null and not selecting:
 		_draw_tutorial(ci, size, k)
 
@@ -144,7 +149,7 @@ func _draw_tutorial(ci: CanvasItem, size: Vector2, k: float) -> void:
 	var step := tutorial.current()
 	var band_h := 104.0 * k
 	var top := band_on_top(goal_screen_y, size.y)
-	var band_y := 148.0 * k if top else size.y - band_h - 44.0 * k
+	var band_y := 290.0 * k if top else size.y - band_h - 44.0 * k  # 위쪽 정보 패널(222)·기술 버튼 아래
 	var band := Rect2(Vector2(size.x * 0.20, band_y), Vector2(size.x * 0.60, band_h))
 	ci.draw_rect(band, Color(0.06, 0.05, 0.04, 0.94))
 	ci.draw_rect(band, Color(CREAM, 0.9), false, 2.0)

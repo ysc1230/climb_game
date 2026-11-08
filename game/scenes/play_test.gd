@@ -18,6 +18,9 @@ var route: RouteDef
 var router := InputRouter.new()
 var paused := false
 var prepare_left := 0.0
+var hud = preload("res://scenes/hud.gd").new()  # 위쪽 정보 패널·일시정지 화면(2026-11-08 사용자 참고 이미지)
+var best_height := 0.0  # 이번 시도에서 오른 가장 높은 높이(진행 점)
+const HUD_BOTTOM := 222.0  # 위쪽 정보 패널(hud.gd) 세 줄의 아래 끝(ui_k 배율 전)
 var message := ""
 var message_ticks := 0
 var cam_y := 1.9
@@ -64,6 +67,7 @@ func _ready() -> void:
 	sf.font_names = PackedStringArray(["Noto Sans CJK KR", "Noto Sans KR", "Apple SD Gothic Neo", "sans-serif"])
 	font = sf
 	overlay.font = sf
+	hud.font = sf
 	game = get_node_or_null("/root/Game")
 	if game != null and game.current_route_id != "":
 		route = game.index.route(game.current_route_id)
@@ -219,6 +223,9 @@ func _overlay_action(act: String) -> void:
 	match act:
 		"pause":
 			_pause(true)
+		"resume":
+			if paused and prepare_left <= 0.0:
+				prepare_left = 3.0
 		"help":
 			overlay.help_open = not overlay.help_open
 		"brief":
@@ -303,6 +310,7 @@ func _physics_process(_delta: float) -> void:
 		queue_redraw()
 		return
 	var result := session.step()
+	best_height = maxf(best_height, _height())
 	_take_messages()
 	var dt := attempt.tick(Tuning.DT, session.selecting)  # 고르는 중에는 0(시간·도움말 타이머 멈춤)
 	attempt.on_result(result, session.falls)  # respawn: 새 시도(Ruling I)
@@ -325,6 +333,7 @@ func _physics_process(_delta: float) -> void:
 			_pause()
 			return
 		"respawn":
+			best_height = 0.0
 			_after_reset("떨어졌어요. 처음부터")
 			queue_redraw()
 			return
@@ -498,47 +507,50 @@ func _draw_pads(size: Vector2) -> void:
 		draw_string(font, p.center + Vector2(-p.radius, 8 * ui_k), label, HORIZONTAL_ALIGNMENT_CENTER, p.radius * 2, fs, Color.WHITE)
 
 
-## 팔 힘 게이지: 화면 위 왼쪽(왼손, 일시정지 버튼 아래)·오른쪽(오른손). 숫자와 "!"를 함께 써 색만으로 구분하지 않는다.
-func _draw_stamina_bars(size: Vector2) -> void:
-	var k := ui_k
-	var w := 250.0 * k
-	var h := 30.0 * k
-	for hand in [PoseSolver.LH, PoseSolver.RH]:
-		var s: float = session.rules.stamina[hand]
-		var x := 16.0 * k if hand == PoseSolver.LH else size.x - 16.0 * k - w
-		var r := Rect2(Vector2(x, 72.0 * k), Vector2(w, h))
-		draw_rect(r, Color(0.05, 0.05, 0.06, 0.75))
-		var fill := Color("7fdc8f") if s >= 50.0 else (Color("f1d59a") if s >= 25.0 else Color("ff5a4a"))
-		draw_rect(Rect2(r.position, Vector2(w * clampf(s / 100.0, 0.0, 1.0), h)), Color(fill, 0.9))
-		draw_rect(r, Color(LIMB_COLORS[hand], 0.95), false, 2.5 * k)
-		var t := "%s 팔 힘 %d%s" % ["왼손" if hand == PoseSolver.LH else "오른손", roundi(s), " !" if s < 25.0 else ""]
-		draw_string(font, Vector2(r.position.x, r.position.y + h * 0.5 + 8 * k), t, HORIZONTAL_ALIGNMENT_CENTER, w, int(20 * k), Color(0.05, 0.05, 0.06))
+## 시작 골반에서 오른 높이(m).
+func _height() -> float:
+	return maxf(session.body.pos.y - route.start_pelvis.y, 0.0)
+
+
+## 목표 높이(m): 정상 홀드가 시작 손 홀드보다 높은 만큼(골반도 대략 그만큼 오른다).
+func _goal_height() -> float:
+	var top := -INF
+	for key in route.goal_slots:
+		top = maxf(top, route.slot_pos(key).y)
+	var start := -INF
+	for limb in [&"LH", &"RH"]:
+		if route.start_slots.has(limb):
+			start = maxf(start, route.slot_pos(route.start_slots[limb]).y)
+	if not is_finite(top) or not is_finite(start):
+		return 1.0
+	return maxf(top - start, 0.5)
 
 
 func _draw_hud(size: Vector2) -> void:
-	_draw_stamina_bars(size)
-	var fs := int(22 * ui_k)
-	var height := maxf(session.body.pos.y - route.start_pelvis.y, 0.0)
-	draw_string(font, Vector2(size.x * 0.25, 40 * ui_k), "%s · 높이 %.1fm · 추락 %d" % [route.name_ko if route.name_ko != "" else route.route_id, height, attempt.falls(session.falls)], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color.WHITE)
-	# 지지 상태(docs/25 피드백): 색만이 아니라 문구와 막대로 표시
+	# 지지 상태(docs/25 피드백): 색만이 아니라 문구로도 표시
 	var names := ["안정", "부담 큼", "균형 회복 중", "지지 없음"]
 	var colors := [Color("cfe3c8"), Color("f1d59a"), Color("ff8a6a"), Color("ff5a4a")]
 	var ph: int = session.rules.phase
-	var status := "지지: %s" % names[ph]
 	var hu: Dictionary = session.rules.last.get("u", {})
-	status += " · 손 하중 L%d%% R%d%%" % [roundi(hu.get(&"LH", 0.0) * 100), roundi(hu.get(&"RH", 0.0) * 100)]
-	draw_rect(Rect2(Vector2(size.x * 0.25 - 6 * ui_k, 50 * ui_k), Vector2(size.x * 0.5 + 12 * ui_k, 26 * ui_k)), Color(0.16, 0.18, 0.17, 0.6))
-	status += " · 무브: %s" % session.rules.moves.korean()
-	if not session.rules.flag_ready.is_empty():
-		status += " · 놓으면 균형 발"
-	draw_string(font, Vector2(size.x * 0.25, 70 * ui_k), status, HORIZONTAL_ALIGNMENT_LEFT, -1, int(21 * ui_k), colors[ph])
+	var budget := -1.0
 	if ph == ClimbRules.Phase.REBALANCING or ph == ClimbRules.Phase.GRACE:
-		var budget := ClimbRules.IMBALANCE_BUDGET_TICKS if ph == ClimbRules.Phase.REBALANCING else Tuning.UNSUPPORTED_GRACE_TICKS
+		var total := ClimbRules.IMBALANCE_BUDGET_TICKS if ph == ClimbRules.Phase.REBALANCING else Tuning.UNSUPPORTED_GRACE_TICKS
 		var used := session.rules.imbalance_ticks if ph == ClimbRules.Phase.REBALANCING else session.rules.unsupported_ticks
-		var w := 220.0 * ui_k
-		var left := clampf(1.0 - float(used) / budget, 0.0, 1.0)
-		draw_rect(Rect2(Vector2(size.x * 0.25, 80 * ui_k), Vector2(w, 8 * ui_k)), Color(0, 0, 0, 0.4))
-		draw_rect(Rect2(Vector2(size.x * 0.25, 80 * ui_k), Vector2(w * left, 8 * ui_k)), colors[ph])
+		budget = clampf(1.0 - float(used) / total, 0.0, 1.0)
+	var move: String = session.rules.moves.korean()
+	if not session.rules.flag_ready.is_empty():
+		move += " · 놓으면 균형 발"
+	var name := route.name_ko if route.name_ko != "" else route.route_id
+	var title := ("%s-%d  %s" % [route.grade, route.order, name]) if route.mode == "general" and route.grade != "" else name
+	var falls := attempt.falls(session.falls)
+	if falls > 0:
+		title += "  · 추락 %d" % falls
+	overlay.pause_rect = hud.draw_top(self, size, ui_k, {
+		"title": title, "goal_height": _goal_height(), "height": _height(), "best_height": best_height,
+		"stamina": session.rules.stamina, "phase_name": names[ph], "phase_color": colors[ph],
+		"load_l": roundi(hu.get(&"LH", 0.0) * 100), "load_r": roundi(hu.get(&"RH", 0.0) * 100),
+		"move": move, "budget": budget,
+	})
 	var y := size.y - 20 * ui_k
 	for i in range(log_lines.size() - 1, -1, -1):
 		if tutorial != null:
@@ -546,18 +558,16 @@ func _draw_hud(size: Vector2) -> void:
 		draw_string(font, Vector2(size.x * 0.25, y), log_lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, int(15 * ui_k), Color(1, 1, 1, 0.6))
 		y -= 18 * ui_k
 	if message_ticks > 0:
-		draw_string(font, Vector2(0, size.y * (0.30 if session.selecting or tutorial != null else 0.18)), message, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(34 * ui_k), Color("fff2c8"))
+		draw_string(font, Vector2(0, maxf(size.y * (0.36 if session.selecting or tutorial != null else 0.30), (HUD_BOTTOM + 70.0) * ui_k)), message, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(34 * ui_k), Color("fff2c8"))
 	_draw_tech_ui(size)
-	if paused:
-		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.55))
-		var t := "손가락을 편하게 올려주세요 %d" % ceili(prepare_left) if prepare_left > 0.0 else "일시정지 · 화면을 탭하면 3초 뒤 이어서 시작해요"
-		draw_string(font, Vector2(0, size.y * 0.5), t, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(34 * ui_k), Color.WHITE)
 	_draw_body_goal()
 	if draw_world:
 		_draw_grab_ready()  # 2D 시험 장면만. 3D 화면은 홀드 자체가 빛난다(play_3d)
 	var goal_key := _tutorial_goal_key()
 	overlay.goal_screen_y = w2s(route.slots[goal_key].pos).y if goal_key != "" else -1.0
 	overlay.draw(self, size, ui_k, paused, session.selecting)
+	if paused and not overlay.blocking():
+		overlay.add_buttons(hud.draw_pause(self, size, ui_k, prepare_left, overlay.has_list))
 	if draw_world and goal_key != "" and not paused and not session.selecting and not overlay.blocking():
 		_draw_goal_mark(goal_key)  # 2D 시험 장면만. 3D 화면은 목표 홀드 자체가 노랗게 깜빡인다(play_3d)
 
@@ -644,7 +654,7 @@ func _view_size() -> Vector2:
 
 func _btn_rect(size: Vector2) -> Rect2:
 	var w := 240.0 * ui_k
-	return Rect2(Vector2(size.x * 0.5 - w * 0.5, 94.0 * ui_k), Vector2(w, 44.0 * ui_k))
+	return Rect2(Vector2(size.x * 0.5 - w * 0.5, HUD_BOTTOM * ui_k + 10.0 * ui_k), Vector2(w, 44.0 * ui_k))
 
 
 func _panel_rect(size: Vector2) -> Rect2:
