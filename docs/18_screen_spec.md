@@ -263,3 +263,9 @@ art/sfx/*.wav (heartbeat, danger, caution, recover). art_source/sfx/make_sfx.py�
 - play_test.gd `_danger_tick` · `_draw_danger_glow` · `_draw_danger` · `_draw_rescue_hint` · `_draw_rescue_button` · `_rescue` · `_rescue_tick`, scripts/climbing/auto_rescue.gd
 - play_3d.gd 떨림·표정
 - 테스트: tests/test_danger_feedback.gd
+
+## 튜토리얼과 경고의 겹침·처음 한 번 안내 (2026-11-09 설계, 구현 전)
+
+[33 §3.5·§5](33_tutorial_redesign.md)를 따른다.
+- 위험 동안 튜토리얼 안내 줄을 흐리게(0.35) 하고, 머리 위 큰 글자와 고리를 우선한다.
+- 튜토리얼 밖에서 새 신호(주의·위험·회복·몸통 옮기기·파란 홀드·자동 도움 소진)를 처음 만나면 한 번만 짧게 알려 준다(Progress.seen_tips).
