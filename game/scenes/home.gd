@@ -19,6 +19,11 @@ var grade := ""
 var course_id := ""   # 비어 있지 않으면 기술 탭에서 그 과정 화면
 var _buttons: Array = []  # [{rect, action, arg}]
 var _techs := TechniqueJudge.defs()
+var choosing_level := false  # 난이도(초급·중급) 고르기 창. 처음 시작할 때와 오른쪽 위 [난이도] 버튼
+const LEVEL_INFO := {
+	"beginner": {"name": "초급", "desc": ["균형을 잃기 직전 2초 동안", "시간이 느려져요", "처음 해 보는 분께 추천"]},
+	"intermediate": {"name": "중급", "desc": ["느려지지 않아요", "원래 속도 그대로", "손에 익은 분께"]},
+}
 
 
 func _ready() -> void:
@@ -40,11 +45,18 @@ func _ready() -> void:
 	if tab != "technique":
 		course_id = ""
 	get_viewport().size_changed.connect(queue_redraw)
-	# 첫 실행: 기본 조작 튜토리얼로 바로(28 §5.1). 파일이 없으면 홈에 남아 [배우러 가기]/[건너뛰기]로 진행.
-	if progress.is_first_run() and not game.first_run_sent and game.index.route(Progress.BASIC_TUTORIAL) != null:
+	# 처음 시작: 난이도부터 고른다(2026-11-08). 고른 뒤 첫 실행이면 기본 조작 튜토리얼로.
+	choosing_level = progress.level == ""
+	if not choosing_level:
+		_first_run_tutorial()
+	queue_redraw()
+
+
+## 첫 실행: 기본 조작 튜토리얼로 바로(28 §5.1). 파일이 없으면 홈에 남아 [배우러 가기]/[건너뛰기]로 진행.
+func _first_run_tutorial() -> void:
+	if game.progress.is_first_run() and not game.first_run_sent and game.index.route(Progress.BASIC_TUTORIAL) != null:
 		game.first_run_sent = true
 		game.play.call_deferred(Progress.BASIC_TUTORIAL)
-	queue_redraw()
 
 
 ## 열린 등급 중 가장 높은 것(없으면 첫 등급).
@@ -83,6 +95,14 @@ func _tap(pos: Vector2) -> void:
 
 func _do(action: String, arg: String) -> void:
 	match action:
+		"level":
+			game.get_flow().set_level(arg)
+			choosing_level = false
+			_first_run_tutorial()
+		"level_open":
+			choosing_level = true
+		"level_close":
+			choosing_level = game.progress.level == ""
 		"tab":
 			_set_tab(arg)
 			course_id = ""
@@ -122,6 +142,48 @@ func _draw() -> void:
 		_draw_course(size)
 	else:
 		_draw_courses(size)
+	var lv: String = game.progress.level
+	if lv != "":
+		var r := Rect2(Vector2(size.x - 250 * k, 24 * k), Vector2(220, 56) * k)
+		_button(r, "난이도: " + str(LEVEL_INFO[lv].name), "level_open", "", 22)
+	if choosing_level:
+		_draw_level_choice(size)
+
+
+## 난이도 고르기 창. 다른 버튼을 덮고(앞서 등록된 버튼은 지움) 카드 두 장만 누를 수 있다.
+func _draw_level_choice(size: Vector2) -> void:
+	_buttons = []
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.72))
+	var cur: String = game.progress.level
+	var title := "난이도를 골라 주세요" if cur == "" else "난이도 바꾸기"
+	draw_string(font, Vector2(0, size.y * 0.5 - 250 * k), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(44 * k), CREAM)
+	draw_string(font, Vector2(0, size.y * 0.5 - 200 * k), "언제든 오른쪽 위 [난이도]에서 바꿀 수 있어요", HORIZONTAL_ALIGNMENT_CENTER, size.x, int(22 * k), DIM)
+	var cw := 420.0 * k
+	var ch := 300.0 * k
+	var gap := 40.0 * k
+	var x := size.x * 0.5 - cw - gap * 0.5
+	for lv in ["beginner", "intermediate"]:
+		var r := Rect2(Vector2(x, size.y * 0.5 - 150 * k), Vector2(cw, ch))
+		var on: bool = lv == cur
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color("3b3128") if lv == "beginner" else Color("2f3036")
+		sb.border_color = CREAM if on else Color(1, 1, 1, 0.25)
+		sb.set_border_width_all(maxi(2, int((4 if on else 2) * k)))
+		sb.set_corner_radius_all(int(24 * k))
+		sb.anti_aliasing = true
+		draw_style_box(sb, r)
+		var info: Dictionary = LEVEL_INFO[lv]
+		var accent := Color("8cc8ff") if lv == "beginner" else Color("f1d59a")
+		draw_string(font, Vector2(r.position.x, r.position.y + 78 * k), ("✓ " if on else "") + str(info.name), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(52 * k), accent)
+		var y := r.position.y + 140 * k
+		for line in info.desc:
+			draw_string(font, Vector2(r.position.x, y), line, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(24 * k), Color.WHITE if line != info.desc[-1] else DIM)
+			y += 38 * k
+		_buttons.append({"rect": r, "action": "level", "arg": lv})
+		x += cw + gap
+	if cur != "":
+		var br := Rect2(Vector2(size.x * 0.5 - 100 * k, size.y * 0.5 + 180 * k), Vector2(200, 56) * k)
+		_button(br, "닫기", "level_close", "", 22)
 
 
 ## 위 탭 두 개. 고른 탭은 채운 바탕 + 아래 막대 + "●" 표시(색만으로 구분하지 않음).

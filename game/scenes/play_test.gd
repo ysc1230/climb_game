@@ -19,6 +19,7 @@ var router := InputRouter.new()
 var paused := false
 var prepare_left := 0.0
 var hud = preload("res://scenes/hud.gd").new()  # 위쪽 정보 패널·일시정지 화면(2026-11-08 사용자 참고 이미지)
+var slow := SlowMotion.new()  # 초급: 떨어지기 직전 슬로우모션(2026-11-08)
 var best_height := 0.0  # 이번 시도에서 오른 가장 높은 높이(진행 점)
 const HUD_BOTTOM := 222.0  # 위쪽 정보 패널(hud.gd) 세 줄의 아래 끝(ui_k 배율 전)
 var message := ""
@@ -76,6 +77,7 @@ func _ready() -> void:
 	else:
 		overlay.has_list = true
 	session = ClimbSession.new(route)
+	slow.enabled = game != null and game.get_flow().slow_motion_enabled()
 	_start_tutorial()
 	get_viewport().size_changed.connect(_layout)
 	_layout()
@@ -308,6 +310,11 @@ func _physics_process(_delta: float) -> void:
 		return
 	if overlay.blocking():
 		queue_redraw()
+		return
+	var ph: int = session.rules.phase
+	var danger := ph == ClimbRules.Phase.REBALANCING or ph == ClimbRules.Phase.GRACE
+	if slow.update(danger and not session.selecting, session.falling, _delta) == 0:
+		queue_redraw()  # 이번 프레임은 판정을 쉰다(슬로우모션)
 		return
 	var result := session.step()
 	best_height = maxf(best_height, _height())
@@ -559,6 +566,8 @@ func _draw_hud(size: Vector2) -> void:
 		y -= 18 * ui_k
 	if message_ticks > 0:
 		draw_string(font, Vector2(0, maxf(size.y * (0.36 if session.selecting or tutorial != null else 0.30), (HUD_BOTTOM + 70.0) * ui_k)), message, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(34 * ui_k), Color("fff2c8"))
+	if slow.scale < 0.999:
+		_draw_slow_badge(size)
 	_draw_tech_ui(size)
 	_draw_body_goal()
 	if draw_world:
@@ -570,6 +579,23 @@ func _draw_hud(size: Vector2) -> void:
 		overlay.add_buttons(hud.draw_pause(self, size, ui_k, prepare_left, overlay.has_list))
 	if draw_world and goal_key != "" and not paused and not session.selecting and not overlay.blocking():
 		_draw_goal_mark(goal_key)  # 2D 시험 장면만. 3D 화면은 목표 홀드 자체가 노랗게 깜빡인다(play_3d)
+
+
+## 초급 슬로우모션 중 표시: 화면 가장자리를 푸르게 물들이고 위쪽 패널 아래에 "천천히 · 균형을 되찾으세요".
+func _draw_slow_badge(size: Vector2) -> void:
+	var a := clampf((1.0 - slow.scale) / (1.0 - SlowMotion.SCALE), 0.0, 1.0)
+	var edge := 18.0 * ui_k
+	var tint := Color(0.35, 0.65, 1.0, 0.22 * a)
+	draw_rect(Rect2(Vector2.ZERO, Vector2(size.x, edge)), tint)
+	draw_rect(Rect2(Vector2(0, size.y - edge), Vector2(size.x, edge)), tint)
+	draw_rect(Rect2(Vector2(0, edge), Vector2(edge, size.y - 2 * edge)), tint)
+	draw_rect(Rect2(Vector2(size.x - edge, edge), Vector2(edge, size.y - 2 * edge)), tint)
+	var text := "천천히 · 균형을 되찾으세요"
+	var fs := int(24 * ui_k)
+	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 56 * ui_k
+	var r := Rect2(Vector2(size.x * 0.5 - w * 0.5, (HUD_BOTTOM + 14.0) * ui_k), Vector2(w, 46 * ui_k))
+	hud.panel(self, r, ui_k, Color(0.10, 0.22, 0.38, 0.85), Color(0.55, 0.80, 1.0, 0.9), 23.0)  # 고정 색(패널 캐시)
+	draw_string(font, Vector2(r.position.x, r.position.y + 32 * ui_k), text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, fs, Color(0.88, 0.95, 1.0, a))
 
 
 ## 끌고 있는 손발 아래에 지금 놓으면 잡히는 홀드가 있으면(세션 후보) 그 홀드를 그 팔다리 색으로 반짝이고

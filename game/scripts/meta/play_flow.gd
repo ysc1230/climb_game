@@ -78,6 +78,19 @@ func skip_basic() -> bool:
 	return SaveStore.save(progress, save_path)
 
 
+## 난이도(초급·중급)를 고르고 저장한다. 모르는 값은 무시.
+func set_level(level: String) -> void:
+	if not level in Progress.LEVELS or progress.level == level:
+		return
+	progress.level = level
+	SaveStore.save(progress, save_path)
+
+
+## 초급이면 떨어지기 직전 슬로우모션(SlowMotion)을 켠다.
+func slow_motion_enabled() -> bool:
+	return progress.level == "beginner"
+
+
 func set_last_tab(tab: String) -> void:
 	if progress.last_tab == tab:
 		return

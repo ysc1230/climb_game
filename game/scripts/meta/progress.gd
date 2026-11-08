@@ -16,6 +16,9 @@ var cleared := {}   # route_id -> {content_version, no_fall, time, best_seconds}
 var tutorials := {}   # route_id -> true
 var basic_skipped := false
 var last_tab := "general"
+## 플레이 난이도(2026-11-08): "" 아직 안 고름, "beginner" 초급(떨어지기 직전 슬로우모션), "intermediate" 중급(그대로).
+var level := ""
+const LEVELS: Array[String] = ["beginner", "intermediate"]
 
 
 ## 을/를 조사. 마지막 한글 음절에 받침이 있으면 "을", 없으면 "를".
@@ -29,7 +32,7 @@ static func object_particle(word: String) -> String:
 
 func to_dict() -> Dictionary:
 	return {"schema_version": SCHEMA_VERSION, "seq": seq, "cleared": cleared, "tutorials": tutorials,
-		"basic_skipped": basic_skipped, "last_tab": last_tab}
+		"basic_skipped": basic_skipped, "last_tab": last_tab, "level": level}
 
 
 static func from_dict(d: Dictionary) -> Progress:
@@ -39,6 +42,9 @@ static func from_dict(d: Dictionary) -> Progress:
 	p.tutorials = d.get("tutorials", {}).duplicate(true)
 	p.basic_skipped = bool(d.get("basic_skipped", false))
 	p.last_tab = str(d.get("last_tab", "general"))
+	p.level = str(d.get("level", ""))
+	if not p.level in LEVELS:
+		p.level = ""
 	return p
 
 
