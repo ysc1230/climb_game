@@ -169,3 +169,15 @@ func test_knee_never_bends_backward() -> void:
 	var sw2 := AnatomySweep.run(RouteDef.load_json(ContentIndex.route_path("G_V4_01")), 600, 5)
 	var m: int = sw2.counts.get("knee_back/LF", 0) + sw2.counts.get("knee_back/RF", 0)
 	runner.check(m <= sw2.poses / 200, "무작위 조작 무릎 뒤로 %d / %d" % [m, sw2.poses])
+
+
+## 사용자 보고(2026-11-08): 팔꿈치도 무릎처럼 이상하게 돌아간다. 손을 옆·위로 뻗을 때 팔꿈치가 위로 솟았다
+## (규칙 전 손 뻗기 5만 자세 중 2,211번). 손이 어깨보다 충분히 낮을 때(맨틀)만 팔꿈치가 위로 갈 수 있다.
+func test_elbow_not_up_when_reaching() -> void:
+	for id in ["G_V4_01", "C_ARM_LOAD_T"]:
+		var r := RouteDef.load_json(ContentIndex.route_path(id))
+		for hand in [&"LH", &"RH"]:
+			for tg in [[0.6, 0.2], [0.5, 0.0], [0.35, 0.45], [0.0, 0.7]]:
+				var sw := AnatomySweep.run_reach(r, hand, tg[0], tg[1], 1.2)
+				var n: int = sw.counts.get("elbow_up/%s" % hand, 0)
+				runner.check(n <= 3, "%s %s %s 팔꿈치 위로 %d" % [id, hand, tg, n])

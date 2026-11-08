@@ -25,6 +25,11 @@ const TORSO_CLEARANCE := 0.15                # 팔꿈치·무릎이 몸통 축(�
 ## 무릎 방향(엉덩이–발목 선에서 무릎까지의 방향)의 몸 기준 뒤쪽(카메라 쪽) 성분 상한. 무릎은 굽은 채 좌·우·앞으로는
 ## 가도 뒤로는 꺾이지 않는다(2026-11-08 사용자). 고관절 회전각만으로는 허벅지가 옆으로 벌어진 자세에서 이를 못 걸렀다.
 const KNEE_BACK_MAX := 0.25
+## 팔꿈치 방향(어깨–손 선에서 팔꿈치까지)의 몸 기준 위쪽 성분 상한. 손을 옆·위로 뻗을 때 팔꿈치는 아래·바깥·뒤로 향하고
+## 위로 솟지 않는다(2026-11-08 사용자: "팔꿈치도 무릎처럼 이상하게 돌아간다"). 손이 어깨보다 ELBOW_UP_HAND_BELOW 넘게
+## 낮으면(손으로 아래를 누르는 맨틀) 팔꿈치가 위로 가도 된다.
+const ELBOW_UP_MAX := 0.35
+const ELBOW_UP_HAND_BELOW := 0.15
 const FREE_LEG_SHIN_UP_MAX := 0.25           # 발을 들어 옮길 때 정강이(무릎→발)의 위쪽 성분 한계(무릎이 발보다 아래로 처지지 않음)
 const HEAD_CENTER_UP := 0.84                 # 머리 중심: 골반 + 위 × 0.84
 const HEAD_CLEARANCE := 0.15                 # 팔 뼈(위팔·아래팔)가 머리 중심에 이보다 가까우면 머리를 뚫음(머리 0.12 + 팔 0.035)
@@ -119,6 +124,18 @@ static func knee_back(hip: Vector3, knee: Vector3, ankle: Vector3, frame: Basis)
 	return off.normalized().dot(frame * Vector3.BACK)
 
 
+## 팔꿈치 방향의 몸 기준 위쪽 성분(−1 아래 ~ +1 위). 거의 펴졌으면 0. 손이 어깨보다 충분히 낮으면(맨틀) 검사하지 않으므로 −1.
+static func elbow_up(shoulder: Vector3, elbow: Vector3, hand: Vector3, frame: Basis) -> float:
+	var upv := frame * Vector3.UP
+	if (hand - shoulder).dot(upv) < -ELBOW_UP_HAND_BELOW:
+		return -1.0
+	var axis := (hand - shoulder).normalized()
+	var off := (elbow - shoulder) - axis * (elbow - shoulder).dot(axis)
+	if off.length() < 0.03:
+		return 0.0
+	return off.normalized().dot(upv)
+
+
 static func arm_head_distance(root: Vector3, mid: Vector3, end: Vector3, head: Vector3) -> float:
 	return minf(_seg_dist(head, root, mid), _seg_dist(head, mid, end))
 
@@ -158,6 +175,8 @@ static func check(t: Dictionary, angle_deg: float, yaw_deg: float, free := {}) -
 		var back := (mid - root).normalized().dot(post)
 		if back > (SHOULDER_EXTENSION_MAX if hand else HIP_EXTENSION_MAX):
 			out.append({"kind": "extension", "limb": limb, "value": back})
+		if hand and elbow_up(root, mid, end, frame) > ELBOW_UP_MAX:
+			out.append({"kind": "elbow_up", "limb": limb, "value": elbow_up(root, mid, end, frame)})
 		if not hand and knee_back(root, mid, end, frame) > KNEE_BACK_MAX:
 			out.append({"kind": "knee_back", "limb": limb, "value": knee_back(root, mid, end, frame)})
 		if not hand and free.get(limb, false):
