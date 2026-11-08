@@ -12,12 +12,42 @@
    "text_ko": {
     "purpose": "손과 발을 하나씩 이동하여 홀드 잡기.",
     "when": "처음 시작할 때 해 보세요. 건너뛰어도 V0 문제가 열려요.",
-    "how": "손·발 패드를 누른 채 끌어 반짝이는 홀드 위에서 손가락을 떼면 잡혀요. 한 번에 하나씩 옮겨요."
+    "how": "손·발 패드를 누른 채 끌어 노란 홀드 위로 옮기세요. 홀드가 하얗게 빛날 때 손가락을 떼면 잡혀요. 한 번에 하나씩 옮겨요."
+   }
+  },
+  {
+   "course_id": "C_BODY",
+   "order": 1,
+   "name_ko": "몸통 옮기기",
+   "kind": "pad",
+   "techniques": [],
+   "tutorial": "C_BODY_T",
+   "problems": [],
+   "phase": 1,
+   "text_ko": {
+    "purpose": "패드 사이 가운데를 끌어 몸을 원하는 곳으로 옮기기.",
+    "when": "손이 조금 모자랄 때, 발 위로 몸을 올리고 싶을 때.",
+    "how": "네 패드 사이 빈 곳을 누른 채 끌면 몸이 따라가요. 균형이 깨지는 쪽으로는 가지 않아요. 가운데를 누른 채 다른 손가락으로 손 패드를 끌면 옮긴 자세 그대로 뻗어요."
+   }
+  },
+  {
+   "course_id": "C_DANGER",
+   "order": 2,
+   "name_ko": "위험 신호와 도움",
+   "kind": "pad",
+   "techniques": [],
+   "tutorial": "C_DANGER_T",
+   "problems": [],
+   "phase": 1,
+   "text_ko": {
+    "purpose": "떨어지기 전 신호를 읽고 버티는 법 알기.",
+    "when": "패드가 노래지거나 화면이 붉게 뛸 때.",
+    "how": "노란 패드는 '지금 떼면 위험해요'예요. 화면이 붉게 뛰고 '잡아!'가 나오면 떨어지기 직전이니 손발을 다시 잡아요. 초급은 캐릭터 둘레 고리를 누르면 자동으로 도와줘요(문제마다 3번)."
    }
   },
   {
    "course_id": "C_REST",
-   "order": 1,
+   "order": 3,
    "name_ko": "쉬는 법",
    "kind": "pad",
    "techniques": [],
@@ -32,7 +62,7 @@
   },
   {
    "course_id": "C_ARM_LOAD",
-   "order": 2,
+   "order": 4,
    "name_ko": "몸 모양과 팔 힘",
    "kind": "pad",
    "techniques": [],
@@ -42,27 +72,12 @@
    "text_ko": {
     "purpose": "어떻게 매달려 있느냐에 따라 팔 힘이 빠지는 속도가 달라요.",
     "when": "팔이 빨리 지칠 때 몸 모양을 바꿔 보세요.",
-    "how": "발 하나로만 버티거나 홀드 끝을 잡으면 팔 힘이 빨리 빠져요. 두 발을 딛고 홀드 가운데를 잡으면 덜 빠져요. 위쪽 게이지와 손 하중 숫자를 보세요."
-   }
-  },
-  {
-   "course_id": "C_FALL",
-   "order": 3,
-   "name_ko": "일부러 떨어지기",
-   "kind": "pad",
-   "techniques": [],
-   "tutorial": "C_FALL_T",
-   "problems": [],
-   "phase": 1,
-   "text_ko": {
-    "purpose": "떨어져도 괜찮아요. 시작 자세로 돌아와 다시 해요.",
-    "when": "무서워하지 말고 한 번 떨어져 보세요.",
-    "how": "손을 모두 놓아 지지가 없어지면 잠시 뒤 떨어져요. 떨어지면 처음부터 다시 오를 수 있어요."
+    "how": "발 하나로만 버티거나 홀드 끝을 잡으면 팔 힘이 빨리 빠져요. 두 발을 딛고 홀드 가운데를 잡으면 덜 빠져요. 위쪽 '왼손 팔 힘'과 '손 하중'을 보세요."
    }
   },
   {
    "course_id": "C_DROP_FOOT",
-   "order": 4,
+   "order": 5,
    "name_ko": "다리 내리기 + 먼 손 뻗기",
    "kind": "pad",
    "techniques": [
@@ -79,7 +94,7 @@
   },
   {
    "course_id": "C_MATCH",
-   "order": 5,
+   "order": 6,
    "name_ko": "핸드매치",
    "kind": "pad",
    "techniques": [
@@ -96,7 +111,7 @@
   },
   {
    "course_id": "C_CROSS",
-   "order": 6,
+   "order": 7,
    "name_ko": "크로스",
    "kind": "pad",
    "techniques": [
@@ -117,7 +132,7 @@
   },
   {
    "course_id": "C_HIGH_STEP",
-   "order": 7,
+   "order": 8,
    "name_ko": "하이스텝",
    "kind": "pad",
    "techniques": [
@@ -133,7 +148,7 @@
   },
   {
    "course_id": "C_FLAG",
-   "order": 8,
+   "order": 9,
    "name_ko": "플래그(균형 발)",
    "kind": "pad",
    "techniques": [
@@ -145,7 +160,7 @@
   },
   {
    "course_id": "C_OUTSIDE_EDGE",
-   "order": 9,
+   "order": 10,
    "name_ko": "아웃사이드 엣지",
    "kind": "button",
    "techniques": [
@@ -157,7 +172,7 @@
   },
   {
    "course_id": "C_DROP_KNEE",
-   "order": 10,
+   "order": 11,
    "name_ko": "드롭니",
    "kind": "button",
    "techniques": [
@@ -169,7 +184,7 @@
   },
   {
    "course_id": "C_FOOT_SWAP",
-   "order": 11,
+   "order": 12,
    "name_ko": "풋스왑",
    "kind": "pad",
    "techniques": [
@@ -181,7 +196,7 @@
   },
   {
    "course_id": "C_LOCK_OFF",
-   "order": 12,
+   "order": 13,
    "name_ko": "락오프",
    "kind": "pad",
    "techniques": [
@@ -193,7 +208,7 @@
   },
   {
    "course_id": "C_DIRECTION",
-   "order": 13,
+   "order": 14,
    "name_ko": "방향 홀드(사이드풀·개스턴·언더클링)",
    "kind": "pad",
    "techniques": [

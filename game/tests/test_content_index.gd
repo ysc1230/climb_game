@@ -171,12 +171,13 @@ func test_step_formats_invalid() -> void:
 
 # --- 과정 목록 ---
 
-## 2026-11-04 재구성(28 §6): 1차 일곱 과정(기본 넷 + 기술 셋, 2026-11-05 데드포인트 제거), 나머지는 phase 2로 숨김.
+## 2026-11-04 재구성(28 §6): 1차 과정(2026-11-05 데드포인트 제거), 나머지는 phase 2로 숨김.
+## 2026-11-09 튜토리얼 개편(33 §4.0): 몸통 옮기기·위험 신호와 도움을 더하고 일부러 떨어지기를 없앴다(사용자 결정).
 func test_courses_json_content() -> void:
 	var data = JSON.parse_string(FileAccess.get_file_as_string("res://data/courses.json"))
 	var list: Array = data.courses
 	var first := list.filter(func(c): return int(c.phase) == 1).map(func(c): return c.course_id)
-	runner.check(first == ["C_BASIC", "C_REST", "C_ARM_LOAD", "C_FALL", "C_DROP_FOOT", "C_MATCH", "C_CROSS"], "1차 순서 %s" % [first])
+	runner.check(first == ["C_BASIC", "C_BODY", "C_DANGER", "C_REST", "C_ARM_LOAD", "C_DROP_FOOT", "C_MATCH", "C_CROSS"], "1차 순서 %s" % [first])
 	var defs := TechniqueDefs.load_all()
 	var by := {}
 	for c in list:
@@ -207,7 +208,7 @@ func test_index_real_data() -> void:
 	runner.check(idx.route("NOPE") == null, "없는 route null")
 	runner.check(idx.general("V9").is_empty(), "없는 등급 빈 배열")
 	var ids := idx.courses().map(func(c): return c.course_id)
-	runner.check(ids.size() == 7 and not ids.has("C_HIGH_STEP") and not ids.has("C_DEADPOINT"), "2차 숨김 %s" % [ids])
+	runner.check(ids.size() == 8 and not ids.has("C_FALL") and not ids.has("C_HIGH_STEP") and not ids.has("C_DEADPOINT"), "2차 숨김 %s" % [ids])
 	runner.check(idx.course("C_DROP_KNEE").kind == "button", "course 조회")
 	runner.check(idx.course("C_HIGH_STEP").phase == 2, "숨긴 과정도 id로는 조회")
 	runner.check(idx.course("C_NOPE").is_empty(), "없는 과정 빈 사전")

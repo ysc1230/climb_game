@@ -26,8 +26,6 @@ const RESCUE_PER_ATTEMPT := 3     # 위험 게이지를 눌러 쓰는 자동 도
 var rescue_left := 0
 var _rescue_anim := {}            # 자동 도움으로 옮겨 가는 중 {t, dur, pose, moves, body0, angle0, pos0, pos1}
 var _safe_pose := {}              # 마지막으로 안정(STABLE)했던 자세(자동 도움이 옮길 동작을 못 찾으면 여기로)
-var _risk_cache := {}             # limb → [release_risk, 다시 계산까지 남은 틱](눌러 둔 손발)
-const RISK_RECHECK_TICKS := 12
 var _fall_cause := ""
 var _sfx := {}                    # 이름 → AudioStreamPlayer
 var _glow: GradientTexture2D      # 화면 가장자리 빛(흰색, modulate로 색을 입힌다)
@@ -52,6 +50,21 @@ var overlay := PlayOverlay.new()
 var tutorial: TutorialRunner
 var attempt := PlayAttempt.new()  # 이번 시도 시간·추락 수, 튜토리얼 "보기" 상태
 var _tutorial_wait := false # 추락 뒤 단계 다시 시작을 추락 연출(respawn)까지 미룸
+var _tutorial_wait_next := false  # 그 추락이 목표를 채운 것(다음 단계)인가
+var _grip_label := {}       # 패드로 잡은 순간 손 옆 품질 문구 {pos, text, color, left}(docs/33 §7-5)
+var _tips_pending: Array[String] = []  # 처음 한 번 안내 대기열(docs/33 §5)
+var _saw_danger := false    # 이번 위험을 겪었는가(끝나면 TIP_DANGER)
+var _reach_fails := 0       # 이번 시도에서 "닿지 않음·체중 이동" 거부 수(TIP_BODY)
+## 처음 한 번 안내 문구(docs/33 §5). 튜토리얼 안에서는 나오지 않는다.
+const TIPS := {
+	"caution": "노란 패드: 지금 떼면 떨어질 수 있어요",
+	"danger": "붉은 화면과 두근거림은 떨어지기 직전 신호예요. 손발을 다시 잡으면 돼요",
+	"danger_beginner": "붉은 화면과 두근거림은 떨어지기 직전 신호예요. 캐릭터 둘레 고리를 누르면 자동으로 도와줘요(3번)",
+	"recover": "버텼어요! 초록빛은 다시 안전하다는 뜻이에요",
+	"body": "패드 사이 가운데를 끌면 몸을 옮길 수 있어요",
+	"match": "두 손은 파란 홀드에만 모을 수 있어요",
+	"rescue_out": "이번 시도의 자동 도움을 다 썼어요. 떨어지면 다시 3번이 생겨요",
+}
 var _swallow := {}          # 오버레이 버튼을 누른 터치(떼기 입력도 버린다)
 
 # ---------- 기술 선택 UI 상태(docs/27 §6, 05 v0.6) ----------
@@ -106,6 +119,7 @@ func _start_tutorial() -> void:
 	overlay.can_skip = false
 	if overlay.has_list and route.course_slot == "tutorial" and not route.tutorial_steps.is_empty():
 		tutorial = TutorialRunner.new(route)
+		tutorial.set_level("beginner" if beginner else "intermediate")
 		_begin_step()
 		overlay.briefing = _briefing_for(route)
 		overlay.can_skip = route.route_id == Progress.BASIC_TUTORIAL and game.progress.is_first_run()
@@ -172,10 +186,11 @@ func _after_reset(reason: String, ticks := 120) -> void:
 	router.cancel_all()
 	cam_y = session.body.pos.y + 0.12 * PLAY_H
 	danger.reset()
+	_saw_danger = false
+	_reach_fails = 0
 	rescue_left = RESCUE_PER_ATTEMPT
 	_rescue_anim = {}
 	_safe_pose = {}
-	_risk_cache = {}
 	_flash(reason, ticks)
 
 
@@ -218,34 +233,13 @@ func _vibrate(ms: int, amplitude := -1.0) -> void:
 
 
 ## 경고 상태를 한 프레임 진행하고 사건(소리·진동)을 낸다. 판정 틱이 돌았으면 stepped.
+## 튜토리얼이면 사건을 목표용으로 넘긴다(docs/33 §7-1). 처음 겪는 신호는 한 번 안내(docs/33 §5).
 func _danger_tick(real_dt: float, stepped: bool) -> void:
-	var rules := session.rules
-	var ph: int = rules.phase
-	var states := {}
-	var keys := {}
-	var hands_on := 0
-	var risks := {}
-	for limb in session.limbs:
-		var l: Dictionary = session.limbs[limb]
-		states[limb] = l.state
-		keys[limb] = l.key
-		if PoseSolver.is_hand(limb) and l.state in ["Attached", "Armed"]:
-			hands_on += 1
-		# 눌러 둔 손발: 떼면 버틸 수 있나(누른 순간 + RISK_RECHECK_TICKS마다 다시)
-		if l.state == "Armed" and not session.falling:
-			var c: Array = _risk_cache.get(limb, [&"", 0])
-			if not _risk_cache.has(limb) or (stepped and c[1] <= 0):
-				c = [session.release_risk(limb), RISK_RECHECK_TICKS]
-			elif stepped:
-				c[1] -= 1
-			_risk_cache[limb] = c
-			risks[limb] = c[0]
-		else:
-			_risk_cache.erase(limb)
-	var bl := rules.budget_left()
-	var kind: StringName = &"GRACE" if ph == ClimbRules.Phase.GRACE else (rules.imbalance_cause if rules.imbalance_cause != &"" else &"FORCE")
-	danger.update(real_dt, {"danger": ph == ClimbRules.Phase.REBALANCING or ph == ClimbRules.Phase.GRACE, "kind": kind,
-		"frac": bl[0], "ticks_left": bl[1], "falling": session.falling, "states": states, "keys": keys, "risks": risks, "hands_on": hands_on})
+	var ph: int = session.rules.phase
+	danger.observe_session(session, real_dt, stepped)
+	if tutorial != null:
+		for ev in danger.tutorial_events():
+			tutorial.note(ev)
 	for ev in danger.events:
 		match ev:
 			&"enter":
@@ -263,8 +257,35 @@ func _danger_tick(real_dt: float, stepped: bool) -> void:
 			&"recover":
 				_play("recover")
 				_vibrate(25, 0.4)
+	for ev in danger.events:
+		match ev:
+			&"caution":
+				_tip("caution")
+			&"enter":
+				_saw_danger = true
+			&"recover", &"fall":
+				if _saw_danger:
+					_saw_danger = false
+					_tip("danger_beginner" if beginner else "danger", "danger")
+				if ev == &"recover":
+					_tip("recover")
+	if not _grip_label.is_empty():
+		_grip_label.left = float(_grip_label.left) - real_dt
+		if _grip_label.left <= 0.0:
+			_grip_label = {}
+	if not _tips_pending.is_empty() and not danger.danger and message_ticks <= 0 and not session.falling:
+		_flash(TIPS[_tips_pending.pop_front()], 210)
 	if stepped and ph == ClimbRules.Phase.STABLE and not session.falling and not session.is_dragging():
 		_safe_pose = session.current_pose()
+
+
+## 처음 한 번 안내를 대기열에 넣는다(기기에 한 번, 튜토리얼 밖에서만). seen_id: 저장 키(문구 키와 다를 때).
+func _tip(id: String, seen_id := "") -> void:
+	var key := seen_id if seen_id != "" else id
+	if tutorial != null or game == null or game.progress.seen_tips.has(key) or _tips_pending.has(id):
+		return
+	game.get_flow().mark_tip(key)
+	_tips_pending.append(id)
 
 
 ## 초급 자동 도움(2026-11-09): 위험 게이지(캐릭터 둘레 고리)를 누르면 AutoRescue가 고른 최선의 동작
@@ -272,6 +293,8 @@ func _danger_tick(real_dt: float, stepped: bool) -> void:
 func _rescue() -> void:
 	if not beginner or rescue_left <= 0 or not danger.danger or session.falling or not _rescue_anim.is_empty():
 		return
+	if tutorial != null and not tutorial.rescue_allowed():
+		return  # 튜토리얼은 대신 움직이지 않는다(가르치는 단계만, docs/33 §3.1)
 	var plan := AutoRescue.plan(session)
 	var pose := {}
 	var moves: Array = []
@@ -287,7 +310,6 @@ func _rescue() -> void:
 	_apply(router.cancel_all())
 	rescue_left -= 1
 	danger.reset()
-	_risk_cache = {}
 	_play("recover")
 	_vibrate(25, 0.4)
 	var pos0 := {}
@@ -329,6 +351,10 @@ func _rescue_tick(real_dt: float) -> void:
 		return
 	session.reset_to(an.pose)
 	_rescue_anim = {}
+	if tutorial != null:
+		tutorial.note({"type": "rescue"})
+	if rescue_left <= 0:
+		_tip("rescue_out")
 	_safe_pose = {}
 	var names: Array[String] = []
 	for m in an.moves:
@@ -414,6 +440,8 @@ func _overlay_action(act: String) -> void:
 			_retry()
 		"rescue":
 			_rescue()
+		"next_course":
+			game.play(str(overlay.next_course.route_id))
 		"next":
 			game.play(str(overlay.result.next))
 		"list":
@@ -446,8 +474,11 @@ func _apply(cmds: Array) -> void:
 			was_dragging[c.limb] = session.limbs[c.limb].state == "Dragging"
 	session.apply_input(cmds)
 	for c in cmds:
-		if c.type == "release" and was_dragging.get(c.limb, false) and session.limbs[c.limb].state == "Attached" and OS.has_feature("mobile"):
-			Input.vibrate_handheld(20)
+		if c.type == "release" and was_dragging.get(c.limb, false) and session.limbs[c.limb].state == "Attached":
+			_vibrate(20)
+			var ct = session.limbs[c.limb].contact
+			if PoseSolver.is_hand(c.limb) and ct != null:  # 잡은 위치 품질을 손 옆에 1초(docs/33 §7-5)
+				_grip_label = {"pos": session.limbs[c.limb].pos, "text": _quality_label(ct.quality), "color": _quality_color(ct.quality), "left": 1.0}
 	_take_messages()
 
 
@@ -456,6 +487,12 @@ func _take_messages() -> void:
 	for m in session.messages:
 		if m == "균형이 무너지고 있어요":
 			continue  # 위험 경고(DangerFeedback)가 대신 알린다
+		if m in [GripCheck.MESSAGES[GripCheck.OUT_OF_REACH], GripCheck.MESSAGES[GripCheck.NEED_WEIGHT_SHIFT]]:
+			_reach_fails += 1
+			if _reach_fails >= 2:
+				_tip("body")
+		elif m == GripCheck.MESSAGES[GripCheck.OCCUPIED]:
+			_tip("match")
 		_flash(m)
 	session.messages.clear()
 
@@ -549,13 +586,18 @@ func _tutorial_tick(result: String, dt: float) -> bool:
 			return false
 		_tutorial_wait = false
 		_begin_step()
-		_after_reset("이 단계를 다시 해 봐요")
+		if _tutorial_wait_next:
+			_after_reset("잘했어요. 떨어져도 처음 자세로 돌아와요", 180)
+		else:  # 왜 떨어졌는지 한 줄 뒤 그 단계 다시(docs/33 §3.3)
+			_after_reset(_fall_cause if _fall_cause != "" else "이 단계를 다시 해 봐요", 180)
+		_fall_cause = ""
 		return true
 	var act := tutorial.observe(session, result, dt)
 	match act:
 		"next", "restart":
 			if result.begins_with("fall:"):
 				_tutorial_wait = true
+				_tutorial_wait_next = act == "next"
 				return false
 			_begin_step()
 			_after_reset("" if act == "next" else "이 단계를 다시 해 봐요")
@@ -563,6 +605,7 @@ func _tutorial_tick(result: String, dt: float) -> bool:
 		"done":
 			_end_tutorial_rules()
 			overlay.tutorial_done = true
+			overlay.next_course = game.get_flow().next_basic_tutorial(route.route_id) if game != null else {}
 			if overlay.has_list:
 				game.finish_tutorial()
 			_after_reset("")
@@ -758,6 +801,11 @@ func _draw_hud(size: Vector2) -> void:
 		_draw_grab_ready()  # 2D 시험 장면만. 3D 화면은 홀드 자체가 빛난다(play_3d)
 	var goal_key := _tutorial_goal_key()
 	overlay.goal_screen_y = w2s(route.slots[goal_key].pos).y if goal_key != "" else -1.0
+	overlay.dim_band = danger.danger  # 위험 동안 안내 줄을 흐리게(docs/33 §3.5)
+	if not _grip_label.is_empty() and not paused:
+		var gp := w2s(_grip_label.pos) + Vector2(0, -46 * ui_k)
+		var ga := clampf(float(_grip_label.left) * 2.0, 0.0, 1.0)
+		_outlined(Vector2(gp.x - 100 * ui_k, gp.y), str(_grip_label.text), 22, 200 * ui_k, Color(_grip_label.color, ga))
 	overlay.draw(self, size, ui_k, paused, session.selecting)
 	if paused and not overlay.blocking():
 		overlay.add_buttons(hud.draw_pause(self, size, ui_k, prepare_left, overlay.has_list))
@@ -873,7 +921,7 @@ func _ring() -> Array:
 
 ## 초급: 위험 게이지를 누르면 자동 도움. 고리 아래에 남은 횟수, 다 쓰면 "자동 도움 끝".
 func _draw_rescue_button(_size: Vector2) -> void:
-	if not beginner or not danger.danger or session.falling:
+	if not beginner or not danger.danger or session.falling or (tutorial != null and not tutorial.rescue_allowed()):
 		return
 	var ring := _ring()
 	var c: Vector2 = ring[0]

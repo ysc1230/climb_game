@@ -1,7 +1,8 @@
 extends RefCounted
-## 기본 과정 셋(docs/16 v0.7 "기본 과정 셋"): 쉬는 법 C_REST_T·몸 모양과 팔 힘 C_ARM_LOAD_T·일부러 떨어지기 C_FALL_T.
+## 기본 과정(docs/16 v0.7 "기본 과정 셋", docs/33 §4.4·§4.5): 쉬는 법 C_REST_T·몸 모양과 팔 힘 C_ARM_LOAD_T.
+## (일부러 떨어지기 C_FALL_T는 2026-11-09 사용자 결정으로 없앴다.)
 ## 실제 세션에 패드 입력을 넣어 모든 단계가 "next"(마지막은 "done") 한 번씩으로 끝나는지,
-## 팔 힘 목표가 적당한 시간(10초) 안에 차는지, 일부러 떨어진 뒤 시작 자세로 돌아오는지 확인한다.
+## 팔 힘 목표가 적당한 시간(10초) 안에 차는지 확인한다.
 
 var runner
 
@@ -12,15 +13,13 @@ const STAMINA_MAX_SECONDS := 10.0    # 팔 힘 목표 단계가 끝나야 하는
 ## 과정 → [튜토리얼, 단계 순서]
 const COURSES := {
 	"C_REST": ["C_REST_T", ["R1", "R2", "R3"]],
-	"C_ARM_LOAD": ["C_ARM_LOAD_T", ["A1", "A2", "A3"]],
-	"C_FALL": ["C_FALL_T", ["F1", "F2"]],
+	"C_ARM_LOAD": ["C_ARM_LOAD_T", ["A1", "A2", "A3", "A4"]],
 }
 
 ## 단계 규칙(16 표): [피로 감소, 시작 체력(-1이면 없음)]
 const RULES := {
 	"R1": [true, 40], "R2": [true, 40], "R3": [true, -1],
-	"A1": [true, 100], "A2": [true, -1], "A3": [true, 60],
-	"F1": [false, -1], "F2": [false, -1],
+	"A1": [true, 100], "A2": [true, -1], "A3": [true, 60], "A4": [true, -1],
 }
 
 
@@ -72,19 +71,18 @@ func test_arm_load_tutorial_reaches_done() -> void:
 		"A1": [["air", "LF", Vector2(-0.10, 0.25)]],
 		"A2": [["drag", "LF", "C_ARM_LOAD_T/F01/foot_1"]],
 		"A3": [],
+		"A4": [["drag", "LH", "C_ARM_LOAD_T/W01/hand_1"]],
 	})
 
 
-## 일부러 떨어지기: 두 손을 모두 놓으면 떨어지고(목표), 추락 연출 뒤 시작 자세에서 F2를 시작해 H03을 잡는다.
-## F1은 벽 발판(F03·F04)에 선 자세에서 시작한다. 바닥 발판에 두 발로 서 있으면 플랫폼 지지라 떨어지지 않는다.
-func test_fall_tutorial_reaches_done() -> void:
-	var d := Driver.new(_route("C_FALL_T"))
-	runner.check(not d.s.on_platform(d.s.attached()) and d.s.body.pos.y > 1.0, "F1 시작: 바닥 발판 밖(골반 %s)" % [d.s.body.pos])
-	_run(d, {
-		"F1": [["drop_hands"]],
-		"F2": [["drag", "LH", "C_FALL_T/H03/hand_1"]],
-	})
-	runner.check(d.s.falls == 1, "일부러 한 번 떨어짐(낙하 %d)" % d.s.falls)
+## 몸 모양과 팔 힘 A4: 넓은 홀드의 끝을 잡으면 목표(품질 ≥ 0.85)가 채워지지 않는다(금지 재생, docs/33 §8).
+func test_arm_load_edge_grab_does_not_count() -> void:
+	var r := _route("C_ARM_LOAD_T")
+	var t := TutorialRunner.new(r)
+	t.index = 3
+	var goal: Dictionary = t.current().goal_event
+	runner.check(not TutorialRunner.matches(goal, {"type": "grab", "limb": &"LH", "key": "C_ARM_LOAD_T/W01/hand_1", "quality": 0.4}), "끝을 잡음(0.4)은 목표 아님")
+	runner.check(TutorialRunner.matches(goal, {"type": "grab", "limb": &"LH", "key": "C_ARM_LOAD_T/W01/hand_1", "quality": 0.95}), "가운데(0.95)는 목표")
 
 
 ## 단계마다 조작을 넣고 결과를 기다린다. ["drag", limb, key] 끌어 놓기, ["air", limb, 지금 위치에서의 변위] 허공에 놓기,
@@ -102,12 +100,6 @@ func _run(d, script: Dictionary) -> void:
 		runner.check(d.t.index == n, "%s 시작(index %d)" % [id, d.t.index])
 		d.results.clear()
 		var t0: int = d.ticks
-		if id == "F2":
-			var limbs: Dictionary = d.s.limbs
-			var start_ok: bool = d.s.body.pos.distance_to(d.t.route.start_pelvis) < 0.05 and not d.s.falling
-			for limb in d.t.route.start_slots:
-				start_ok = start_ok and limbs[limb].state == "Attached" and limbs[limb].key == d.t.route.start_slots[limb]
-			runner.check(start_ok, "F2: 떨어진 뒤 시작 자세로 돌아옴(골반 %s)" % [d.s.body.pos])
 		for a in script[id]:
 			match a[0]:
 				"drag":

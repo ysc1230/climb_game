@@ -13,6 +13,8 @@ var result := {}
 var briefing := {}
 var tutorial: TutorialRunner
 var tutorial_done := false
+var next_course := {}     # 튜토리얼 완료 화면 [다음: 과정] {route_id, name}(docs/33 §4.1)
+var dim_band := false     # 위험 경고 동안 안내 줄을 흐리게(docs/33 §3.5)
 var help_open := false
 var can_skip := false     # 기본 조작 첫 실행: [건너뛰기]
 var has_list := false     # Game이 있을 때만 [목록]
@@ -128,7 +130,11 @@ func _draw_done(ci: CanvasItem, size: Vector2, k: float) -> void:
 	ci.draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.6))
 	ci.draw_string(font, Vector2(0, size.y * 0.42), "✓ 다 배웠어요", HORIZONTAL_ALIGNMENT_CENTER, size.x, int(44 * k), CREAM)
 	var acts := [["목록", "list"]] if has_list else [["다시", "retry"]]
-	_button_row(ci, Rect2(Vector2(size.x * 0.5 - 200 * k, size.y * 0.5), Vector2(400, 64) * k), acts, k)
+	var w := 400.0
+	if not next_course.is_empty():
+		acts.append(["다음: " + str(next_course.name), "next_course"])
+		w = 640.0
+	_button_row(ci, Rect2(Vector2(size.x * 0.5 - w * 0.5 * k, size.y * 0.5), Vector2(w, 64) * k), acts, k)
 
 
 ## 목표 홀드 반짝임의 밝기(0~1). 약 1.4Hz로 계속 출렁인다.
@@ -155,8 +161,9 @@ func _draw_tutorial(ci: CanvasItem, size: Vector2, k: float) -> void:
 	var top := band_on_top(goal_screen_y, size.y)
 	var band_y := 290.0 * k if top else size.y - band_h - 44.0 * k  # 위쪽 정보 패널(222)·기술 버튼 아래
 	var band := Rect2(Vector2(size.x * 0.20, band_y), Vector2(size.x * 0.60, band_h))
-	ci.draw_rect(band, Color(0.06, 0.05, 0.04, 0.94))
-	ci.draw_rect(band, Color(CREAM, 0.9), false, 2.0)
+	var a := 0.35 if dim_band else 1.0
+	ci.draw_rect(band, Color(0.06, 0.05, 0.04, 0.94 * a))
+	ci.draw_rect(band, Color(CREAM, 0.9 * a), false, 2.0)
 	var bw := 130.0 * k
 	var by := band.position.y + (band_h - 56 * k) * 0.5
 	var right := band.end.x - 12 * k
@@ -173,7 +180,7 @@ func _draw_tutorial(ci: CanvasItem, size: Vector2, k: float) -> void:
 	var fs := int(28 * k)
 	var text_x := band.position.x + 78 * k
 	ci.draw_string(font, Vector2(band.position.x + 16 * k, band.position.y + 40 * k), "%d/%d" % [tutorial.index + 1, tutorial.steps.size()], HORIZONTAL_ALIGNMENT_LEFT, -1, int(22 * k), CREAM)
-	ci.draw_multiline_string(font, Vector2(text_x, band.position.y + 40 * k), str(step.get("text_ko", "")), HORIZONTAL_ALIGNMENT_LEFT, right - text_x - 10 * k, fs, 2, Color.WHITE)
+	ci.draw_multiline_string(font, Vector2(text_x, band.position.y + 40 * k), str(step.get("text_ko", "")), HORIZONTAL_ALIGNMENT_LEFT, right - text_x - 10 * k, fs, 2, Color(1, 1, 1, a))
 	if help_open:
 		var h := help_line()
 		if h != "":

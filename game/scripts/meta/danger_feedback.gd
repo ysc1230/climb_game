@@ -29,6 +29,8 @@ var last_release := {}     # {limb, key, slip: bool, age: 실제 초} 가장 최
 var releases := {}         # limb → 같은 형식(손발마다 마지막으로 뗀 것). 해결 안내가 손을 고를 때
 var hands_were_on := 0     # 위험 동안 붙어 있던 손 수(추락 원인 문구)
 var events: Array[StringName] = []  # 이번 프레임: enter, beat, recover, caution, fall
+var _risk_cache := {}      # limb → [release_risk, 다시 계산까지 남은 틱](눌러 둔 손발)
+const RISK_RECHECK_TICKS := 12
 var _beat := 0.0
 var _beat2 := -1.0
 var _prev_states := {}
@@ -50,6 +52,56 @@ func reset() -> void:
 	_beat = 0.0
 	_beat2 = -1.0
 	_prev_states = {}
+	_risk_cache = {}
+
+
+## 세션을 보고 한 프레임 진행한다(play_test와 튜토리얼 시험 드라이버가 같이 쓴다). 판정 틱이 돌았으면 stepped.
+## 눌러 둔(Armed) 손발은 누른 순간과 그 뒤 RISK_RECHECK_TICKS 틱마다 떼면 버틸 수 있는지 다시 계산한다.
+func observe_session(session: ClimbSession, real_dt: float, stepped: bool) -> void:
+	var rules := session.rules
+	var ph: int = rules.phase
+	var states := {}
+	var keys := {}
+	var hands_on := 0
+	var risks := {}
+	for limb in session.limbs:
+		var l: Dictionary = session.limbs[limb]
+		states[limb] = l.state
+		keys[limb] = l.key
+		if PoseSolver.is_hand(limb) and l.state in ["Attached", "Armed"]:
+			hands_on += 1
+		if l.state == "Armed" and not session.falling:
+			var c: Array = _risk_cache.get(limb, [&"", 0])
+			if not _risk_cache.has(limb) or (stepped and c[1] <= 0):
+				c = [session.release_risk(limb), RISK_RECHECK_TICKS]
+			elif stepped:
+				c[1] -= 1
+			_risk_cache[limb] = c
+			risks[limb] = c[0]
+		else:
+			_risk_cache.erase(limb)
+	var bl := rules.budget_left()
+	var k: StringName = &"GRACE" if ph == ClimbRules.Phase.GRACE else (rules.imbalance_cause if rules.imbalance_cause != &"" else &"FORCE")
+	update(real_dt, {"danger": ph == ClimbRules.Phase.REBALANCING or ph == ClimbRules.Phase.GRACE, "kind": k,
+		"frac": bl[0], "ticks_left": bl[1], "falling": session.falling, "states": states, "keys": keys, "risks": risks, "hands_on": hands_on})
+
+
+## 이번 프레임 사건을 튜토리얼 목표용 사건으로(TutorialRunner.note). caution은 주의 중인 손발마다 하나.
+func tutorial_events() -> Array:
+	var out: Array = []
+	for ev in events:
+		match ev:
+			&"caution":
+				for limb in caution:
+					out.append({"type": "caution", "limb": limb})
+			&"enter":
+				out.append({"type": "danger_enter"})
+			&"recover":
+				out.append({"type": "recover"})
+				out.append({"type": "danger_end"})
+			&"fall":
+				out.append({"type": "danger_end"})
+	return out
 
 
 func update(real_dt: float, s: Dictionary) -> void:

@@ -78,6 +78,33 @@ func skip_basic() -> bool:
 	return SaveStore.save(progress, save_path)
 
 
+## 처음 한 번 안내를 봤다고 저장한다(docs/33 §5).
+func mark_tip(id: String) -> void:
+	if progress.seen_tips.has(id):
+		return
+	progress.seen_tips.append(id)
+	SaveStore.save(progress, save_path)
+
+
+## 기본 과정 순서(docs/33 §4.0). 튜토리얼 완료 화면의 [다음: 과정]이 이 순서를 따른다.
+const BASIC_SEQUENCE: Array[String] = ["C_BASIC", "C_BODY", "C_DANGER", "C_REST", "C_ARM_LOAD"]
+
+
+## route_id가 기본 과정 튜토리얼이면 다음 기본 과정 튜토리얼 {route_id, name}. 마지막이거나 아니면 {}.
+func next_basic_tutorial(route_id: String) -> Dictionary:
+	var r := index.route(route_id)
+	if r == null or r.mode != "course":
+		return {}
+	var i := BASIC_SEQUENCE.find(r.course_id)
+	if i < 0 or i + 1 >= BASIC_SEQUENCE.size():
+		return {}
+	var c := index.course(BASIC_SEQUENCE[i + 1])
+	var tid := str(c.get("tutorial", ""))
+	if tid == "" or index.route(tid) == null:
+		return {}
+	return {"route_id": tid, "name": str(c.get("name_ko", ""))}
+
+
 ## 난이도(초급·중급)를 고르고 저장한다. 모르는 값은 무시.
 func set_level(level: String) -> void:
 	if not level in Progress.LEVELS or progress.level == level:

@@ -131,7 +131,7 @@ flowchart TD
 | 2 | C_MATCH | 핸드매치 | 하나의 넓은 홀드에 양손 모으기. | 패드 | T_MATCH | C_MATCH_T(새로) | 1차 |
 | 3 | C_CROSS | 크로스 | 팔을 교차해 반대쪽 홀드 잡기. | 패드 | T_CROSS | C_CROSS_T(있음, 단계 문구만 고침) | 1차 |
 
-> **2026-11-09 튜토리얼 개편 설계(구현 전, 승인 대기):** [33](33_tutorial_redesign.md)에서 과정 순서를 C_BASIC → C_BODY(새로) → C_DANGER(새로, C_FALL 합침) → C_REST → C_ARM_LOAD → 기술 과정으로 바꾸고, 튜토리얼에서 자동 도움을 끄는 규칙 등을 정했다. 승인되면 이 표를 바꾼다.
+> **2026-11-09 튜토리얼 개편(사용자 승인, 구현됨):** [33](33_tutorial_redesign.md). 1차 과정 순서는 C_BASIC → C_BODY 몸통 옮기기(새로) → C_DANGER 위험 신호와 도움(새로) → C_REST → C_ARM_LOAD → C_DROP_FOOT → C_MATCH → C_CROSS다. **C_FALL(일부러 떨어지기)은 사용자 결정으로 없앴다.** 아래 표의 C_FALL 줄은 기록이다. 튜토리얼에서는 자동 도움을 끈다(가르치는 단계 하나만 켬).
 
 > **2026-11-05 사용자 결정으로 데드포인트 제거.** C_DEADPOINT 과정과 T_DEADPOINT를 지웠다. 1차는 위 일곱 과정이다.
 

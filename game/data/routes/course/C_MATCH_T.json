@@ -1,6 +1,6 @@
 {
   "route_id": "C_MATCH_T",
-  "content_version": 1,
+  "content_version": 2,
   "validation_status": "Draft",
   "mode": "course",
   "grade": "V0",
@@ -9,32 +9,28 @@
   "course_id": "C_MATCH",
   "course_slot": "tutorial",
   "required_techniques": [],
-  "note": "v1: docs/16 v0.7 C_MATCH_T(M1~M4), 기술 29 §3.6. 넓은 홀드 W01 (0, 2.10) 반폭 0.18. 시작은 왼손 W01, 오른손 H01 (0.75, 2.10), 발 F01 (-0.60, 0.65)·F02 (0, 0.65)로 발 가운데가 왼쪽(-0.30)이다. 오른손이 H01에 있으면 골반이 오른쪽에 묶여 왼손이 왼쪽 먼 H02 (-1.40, 2.10)에 닿지 않고, 오른손을 W01로 모으면 골반이 발 가운데 쪽(-0.55)으로 옮겨 가 닿는다. 발을 가운데(±0.30)에 두면 모아도 골반이 옮겨 가지 않아 매치가 필요 없었다. M3·M4는 x 거울 배치(H03·H04, 발 F02·F03)이고 M3 start_pose로 거울 시작 자세에 놓는다. 넓은 홀드는 거울 축(x 0)에 하나라 W2를 따로 두지 않았다.",
+  "note": "v1: docs/16 v0.7 C_MATCH_T(M1~M4), 기술 29 §3.6. 넓은 홀드 W01 (0, 2.10) 반폭 0.18. 시작은 왼손 W01, 오른손 H01 (0.75, 2.10), 발 F01 (-0.60, 0.65)·F02 (0, 0.65)로 발 가운데가 왼쪽(-0.30)이다. 오른손이 H01에 있으면 골반이 오른쪽에 묶여 왼손이 왼쪽 먼 H02 (-1.40, 2.10)에 닿지 않고, 오른손을 W01로 모으면 골반이 발 가운데 쪽(-0.55)으로 옮겨 가 닿는다. 발을 가운데(±0.30)에 두면 모아도 골반이 옮겨 가지 않아 매치가 필요 없었다. M3·M4는 x 거울 배치(H03·H04, 발 F02·F03)이고 M3 start_pose로 거울 시작 자세에 놓는다. 넓은 홀드는 거울 축(x 0)에 하나라 W2를 따로 두지 않았다. v2(2026-11-09, docs/33 §4.6): 도움말 문구.",
   "bounds": {"x_min": -1.5, "x_max": 1.5, "y_min": 0.0, "y_max": 4.0},
   "fail_line_y": -0.5,
   "holds": [
-    {"hold_id": "W01", "slots": [{"slot_id": "hand_1", "pos": [0.00, 2.10], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.18, "matchable": true}}]},
-    {"hold_id": "H01", "slots": [{"slot_id": "hand_1", "pos": [0.75, 2.10], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
-    {"hold_id": "H02", "slots": [{"slot_id": "hand_1", "pos": [-1.40, 2.10], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
-    {"hold_id": "H03", "slots": [{"slot_id": "hand_1", "pos": [-0.75, 2.10], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
-    {"hold_id": "H04", "slots": [{"slot_id": "hand_1", "pos": [1.40, 2.10], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
-    {"hold_id": "F01", "slots": [{"slot_id": "foot_1", "pos": [-0.60, 0.65], "allowed": ["LF", "RF"]}]},
-    {"hold_id": "F02", "slots": [{"slot_id": "foot_1", "pos": [0.00, 0.65], "allowed": ["LF", "RF"]}]},
-    {"hold_id": "F03", "slots": [{"slot_id": "foot_1", "pos": [0.60, 0.65], "allowed": ["LF", "RF"]}]},
-    {"hold_id": "G01", "slots": [
-      {"slot_id": "goal_left", "pos": [-0.22, 2.45], "allowed": ["LH", "RH"]},
-      {"slot_id": "goal_right", "pos": [0.22, 2.45], "allowed": ["LH", "RH"]}]}
+    {"hold_id": "W01", "slots": [{"slot_id": "hand_1", "pos": [0.0, 2.1], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.18, "matchable": true}}]},
+    {"hold_id": "H01", "slots": [{"slot_id": "hand_1", "pos": [0.75, 2.1], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
+    {"hold_id": "H02", "slots": [{"slot_id": "hand_1", "pos": [-1.4, 2.1], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
+    {"hold_id": "H03", "slots": [{"slot_id": "hand_1", "pos": [-0.75, 2.1], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
+    {"hold_id": "H04", "slots": [{"slot_id": "hand_1", "pos": [1.4, 2.1], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
+    {"hold_id": "F01", "slots": [{"slot_id": "foot_1", "pos": [-0.6, 0.65], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "F02", "slots": [{"slot_id": "foot_1", "pos": [0.0, 0.65], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "F03", "slots": [{"slot_id": "foot_1", "pos": [0.6, 0.65], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "G01", "slots": [{"slot_id": "goal_left", "pos": [-0.22, 2.45], "allowed": ["LH", "RH"]}, {"slot_id": "goal_right", "pos": [0.22, 2.45], "allowed": ["LH", "RH"]}]}
   ],
   "platforms": [],
-  "start_pose": {"pelvis": [-0.180, 1.392], "angle": 2.5, "slots": {"LH": "C_MATCH_T/W01/hand_1", "RH": "C_MATCH_T/H01/hand_1", "LF": "C_MATCH_T/F01/foot_1", "RF": "C_MATCH_T/F02/foot_1"}},
+  "start_pose": {"pelvis": [-0.18, 1.392], "angle": 2.5, "slots": {"LH": "C_MATCH_T/W01/hand_1", "RH": "C_MATCH_T/H01/hand_1", "LF": "C_MATCH_T/F01/foot_1", "RF": "C_MATCH_T/F02/foot_1"}},
   "goal_slots": ["C_MATCH_T/G01/goal_left", "C_MATCH_T/G01/goal_right"],
-  "intended_moves": [
-    ["RH", "C_MATCH_T/W01/hand_1"], ["LH", "C_MATCH_T/H02/hand_1"], ["LH", "C_MATCH_T/W01/hand_1"], ["RH", "C_MATCH_T/G01/goal_right"], ["LH", "C_MATCH_T/G01/goal_left"]
-  ],
+  "intended_moves": [["RH", "C_MATCH_T/W01/hand_1"], ["LH", "C_MATCH_T/H02/hand_1"], ["LH", "C_MATCH_T/W01/hand_1"], ["RH", "C_MATCH_T/G01/goal_right"], ["LH", "C_MATCH_T/G01/goal_left"]],
   "tutorial_steps": [
     {"step_id": "M1", "text_ko": "오른손을 왼손이 잡은 파란 홀드로 모아요. 파란 홀드만 두 손을 모을 수 있어요.", "goal_event": {"type": "grab", "limb": "RH", "slot": "C_MATCH_T/W01/hand_1"}, "help_ko": ["오른쪽 위 손 패드를 왼쪽으로 끌어요", "왼손 옆 빈자리에서 떼요"], "rules": {"fatigue_drain": false, "techniques": []}},
     {"step_id": "M2", "text_ko": "왼손을 왼쪽 먼 홀드로 옮겨요.", "goal_event": {"type": "grab", "limb": "LH", "slot": "C_MATCH_T/H02/hand_1"}, "help_ko": ["왼쪽 위 손 패드를 왼쪽으로", "두 손을 모은 덕분에 닿아요"], "rules": {"fatigue_drain": false, "techniques": []}},
-    {"step_id": "M3", "text_ko": "반대로: 왼손을 파란 홀드로 모아요.", "start_pose": {"pelvis": [0.180, 1.392], "angle": -2.5, "slots": {"LH": "C_MATCH_T/H03/hand_1", "RH": "C_MATCH_T/W01/hand_1", "LF": "C_MATCH_T/F02/foot_1", "RF": "C_MATCH_T/F03/foot_1"}}, "goal_event": {"type": "grab", "limb": "LH", "slot": "C_MATCH_T/W01/hand_1"}, "help_ko": ["왼쪽 위 손 패드를 오른쪽으로 끌어요", "오른손 옆 빈자리에서 떼요"], "rules": {"fatigue_drain": false, "techniques": []}},
-    {"step_id": "M4", "text_ko": "오른손을 오른쪽 먼 홀드로 옮겨요.", "goal_event": {"type": "grab", "limb": "RH", "slot": "C_MATCH_T/H04/hand_1"}, "help_ko": ["오른쪽 위 손 패드를 오른쪽으로", "반짝이는 홀드"], "rules": {"fatigue_drain": false, "techniques": []}}
+    {"step_id": "M3", "text_ko": "반대로: 왼손을 파란 홀드로 모아요.", "start_pose": {"pelvis": [0.18, 1.392], "angle": -2.5, "slots": {"LH": "C_MATCH_T/H03/hand_1", "RH": "C_MATCH_T/W01/hand_1", "LF": "C_MATCH_T/F02/foot_1", "RF": "C_MATCH_T/F03/foot_1"}}, "goal_event": {"type": "grab", "limb": "LH", "slot": "C_MATCH_T/W01/hand_1"}, "help_ko": ["왼쪽 위 손 패드를 오른쪽으로 끌어요", "오른손 옆 빈자리에서 떼요"], "rules": {"fatigue_drain": false, "techniques": []}},
+    {"step_id": "M4", "text_ko": "오른손을 오른쪽 먼 홀드로 옮겨요.", "goal_event": {"type": "grab", "limb": "RH", "slot": "C_MATCH_T/H04/hand_1"}, "help_ko": ["오른쪽 위 손 패드를 오른쪽으로", "노란 홀드가 하얗게 빛나면 떼요"], "rules": {"fatigue_drain": false, "techniques": []}}
   ]
 }

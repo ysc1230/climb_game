@@ -1,6 +1,6 @@
 {
   "route_id": "C_REST_T",
-  "content_version": 1,
+  "content_version": 2,
   "validation_status": "Draft",
   "mode": "course",
   "grade": "V0",
@@ -9,38 +9,33 @@
   "course_id": "C_REST",
   "course_slot": "tutorial",
   "required_techniques": [],
-  "note": "v1: docs/16 v0.7 기본 과정 셋 C_REST_T(R1~R3). 배치는 G_V0_01 사다리(홀드 ID 앞머리만 C_REST_T). 시작 자세는 두 발이 바닥 발판(P00)이라 가만히 있으면 잡은 손도 쉬어 회복한다.",
+  "note": "v1: docs/16 v0.7 기본 과정 셋 C_REST_T(R1~R3). 배치는 G_V0_01 사다리(홀드 ID 앞머리만 C_REST_T). 시작 자세는 두 발이 바닥 발판(P00)이라 가만히 있으면 잡은 손도 쉬어 회복한다. v2(2026-11-09, docs/33 §4.4): 문구만.",
   "bounds": {"x_min": -1.5, "x_max": 1.5, "y_min": 0.0, "y_max": 4.0},
   "fail_line_y": -0.5,
   "holds": [
-    {"hold_id": "H01", "slots": [{"slot_id": "hand_1", "pos": [-0.45, 1.80], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
-    {"hold_id": "H02", "slots": [{"slot_id": "hand_1", "pos": [0.45, 1.80], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
-    {"hold_id": "F01", "slots": [{"slot_id": "foot_1", "pos": [-0.30, 0.10], "allowed": ["LF", "RF"]}]},
-    {"hold_id": "F02", "slots": [{"slot_id": "foot_1", "pos": [0.30, 0.10], "allowed": ["LF", "RF"]}]},
-    {"hold_id": "H03", "slots": [{"slot_id": "hand_1", "pos": [-0.50, 2.10], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
-    {"hold_id": "H04", "slots": [{"slot_id": "hand_1", "pos": [0.50, 2.10], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
+    {"hold_id": "H01", "slots": [{"slot_id": "hand_1", "pos": [-0.45, 1.8], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
+    {"hold_id": "H02", "slots": [{"slot_id": "hand_1", "pos": [0.45, 1.8], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
+    {"hold_id": "F01", "slots": [{"slot_id": "foot_1", "pos": [-0.3, 0.1], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "F02", "slots": [{"slot_id": "foot_1", "pos": [0.3, 0.1], "allowed": ["LF", "RF"]}]},
+    {"hold_id": "H03", "slots": [{"slot_id": "hand_1", "pos": [-0.5, 2.1], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
+    {"hold_id": "H04", "slots": [{"slot_id": "hand_1", "pos": [0.5, 2.1], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
     {"hold_id": "F03", "slots": [{"slot_id": "foot_1", "pos": [-0.35, 0.65], "allowed": ["LF", "RF"]}]},
     {"hold_id": "F04", "slots": [{"slot_id": "foot_1", "pos": [0.35, 0.65], "allowed": ["LF", "RF"]}]},
-    {"hold_id": "H05", "slots": [{"slot_id": "hand_1", "pos": [-0.40, 2.55], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
-    {"hold_id": "H06", "slots": [{"slot_id": "hand_1", "pos": [0.40, 2.55], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
+    {"hold_id": "H05", "slots": [{"slot_id": "hand_1", "pos": [-0.4, 2.55], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
+    {"hold_id": "H06", "slots": [{"slot_id": "hand_1", "pos": [0.4, 2.55], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12}}]},
     {"hold_id": "F05", "slots": [{"slot_id": "foot_1", "pos": [-0.25, 1.15], "allowed": ["LF", "RF"]}]},
     {"hold_id": "F06", "slots": [{"slot_id": "foot_1", "pos": [0.25, 1.15], "allowed": ["LF", "RF"]}]},
-    {"hold_id": "G01", "slots": [
-      {"slot_id": "goal_left", "pos": [-0.22, 2.80], "allowed": ["LH", "RH"]},
-      {"slot_id": "goal_right", "pos": [0.22, 2.80], "allowed": ["LH", "RH"]}]}
+    {"hold_id": "G01", "slots": [{"slot_id": "goal_left", "pos": [-0.22, 2.8], "allowed": ["LH", "RH"]}, {"slot_id": "goal_right", "pos": [0.22, 2.8], "allowed": ["LH", "RH"]}]}
   ],
-  "platforms": [{"platform_id": "P00", "top_y": 0.10, "x_range": [-0.65, 0.65], "foot_slot_keys": ["C_REST_T/F01/foot_1", "C_REST_T/F02/foot_1"]}],
-  "start_pose": {"pelvis": [0.0, 0.744], "angle": 0.0,
-    "slots": {"LH": "C_REST_T/H01/hand_1", "RH": "C_REST_T/H02/hand_1", "LF": "C_REST_T/F01/foot_1", "RF": "C_REST_T/F02/foot_1"}},
+  "platforms": [
+    {"platform_id": "P00", "top_y": 0.1, "x_range": [-0.65, 0.65], "foot_slot_keys": ["C_REST_T/F01/foot_1", "C_REST_T/F02/foot_1"]}
+  ],
+  "start_pose": {"pelvis": [0.0, 0.744], "angle": 0.0, "slots": {"LH": "C_REST_T/H01/hand_1", "RH": "C_REST_T/H02/hand_1", "LF": "C_REST_T/F01/foot_1", "RF": "C_REST_T/F02/foot_1"}},
   "goal_slots": ["C_REST_T/G01/goal_left", "C_REST_T/G01/goal_right"],
-  "intended_moves": [
-    ["LH", "C_REST_T/H03/hand_1"], ["RH", "C_REST_T/H04/hand_1"], ["LF", "C_REST_T/F03/foot_1"], ["RF", "C_REST_T/F04/foot_1"],
-    ["LH", "C_REST_T/H05/hand_1"], ["RH", "C_REST_T/H06/hand_1"], ["LF", "C_REST_T/F05/foot_1"], ["RF", "C_REST_T/F06/foot_1"],
-    ["LH", "C_REST_T/G01/goal_left"], ["RH", "C_REST_T/G01/goal_right"]
-  ],
+  "intended_moves": [["LH", "C_REST_T/H03/hand_1"], ["RH", "C_REST_T/H04/hand_1"], ["LF", "C_REST_T/F03/foot_1"], ["RF", "C_REST_T/F04/foot_1"], ["LH", "C_REST_T/H05/hand_1"], ["RH", "C_REST_T/H06/hand_1"], ["LF", "C_REST_T/F05/foot_1"], ["RF", "C_REST_T/F06/foot_1"], ["LH", "C_REST_T/G01/goal_left"], ["RH", "C_REST_T/G01/goal_right"]],
   "tutorial_steps": [
-    {"step_id": "R1", "text_ko": "두 발로 서서 가만히 있어 보세요. 위쪽 팔 힘 게이지가 차요.", "goal_event": {"type": "stamina", "limb": "LH", "min": 70}, "help_ko": ["아무것도 누르지 말고 기다려요", "두 발로 서 있으면 쉬어져요"], "rules": {"fatigue_drain": true, "start_stamina": 40, "techniques": []}},
-    {"step_id": "R2", "text_ko": "왼손을 홀드에서 놓고 기다려 보세요. 놓은 손은 더 빨리 회복돼요.", "goal_event": {"type": "stamina", "limb": "LH", "min": 90, "free": true}, "help_ko": ["왼손 패드를 끌어 허공에서 떼요", "왼손 게이지가 차면 다음으로"], "rules": {"fatigue_drain": true, "start_stamina": 40, "techniques": []}},
-    {"step_id": "R3", "text_ko": "다시 잡고 위 홀드로 올라가요.", "goal_event": {"type": "grab", "limb": "LH", "slot": "C_REST_T/H03/hand_1"}, "help_ko": ["왼손 패드를 위 홀드로", "반짝이는 홀드"], "rules": {"fatigue_drain": true, "techniques": []}}
+    {"step_id": "R1", "text_ko": "두 발로 서서 가만히 있어 보세요. 위쪽 '왼손 팔 힘'이 차요.", "goal_event": {"type": "stamina", "limb": "LH", "min": 70}, "help_ko": ["아무것도 누르지 말고 기다려요", "두 발로 서 있으면 쉬어져요"], "rules": {"fatigue_drain": true, "start_stamina": 40, "techniques": []}},
+    {"step_id": "R2", "text_ko": "왼손을 홀드에서 놓고 기다려 보세요. 놓은 손은 더 빨리 회복돼요.", "goal_event": {"type": "stamina", "limb": "LH", "min": 90, "free": true}, "help_ko": ["왼손 패드를 끌어 허공에서 떼요", "'왼손 팔 힘'이 차면 다음으로"], "rules": {"fatigue_drain": true, "start_stamina": 40, "techniques": []}},
+    {"step_id": "R3", "text_ko": "다시 잡고 노란 홀드로 올라가요.", "goal_event": {"type": "grab", "limb": "LH", "slot": "C_REST_T/H03/hand_1"}, "help_ko": ["왼손 패드를 노란 홀드로", "하얗게 빛나면 떼요"], "rules": {"fatigue_drain": true, "techniques": []}}
   ]
 }

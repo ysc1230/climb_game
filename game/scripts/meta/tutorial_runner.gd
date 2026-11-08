@@ -4,6 +4,8 @@ extends RefCounted
 ## 단계: {step_id, text_ko, start_pose?, goal_event, help_ko: [1단계, 2단계], rules?: {fatigue_drain, start_stamina, techniques}}.
 ## 세션 틱마다 observe()를 한 번 부르고, "next"/"restart"를 받으면 begin_step()으로 그 단계를 (다시) 시작한다.
 ## 이벤트는 technique_log의 seq > 마지막으로 본 seq만 본다(Ruling D). 판정 수치는 바꾸지 않는다.
+## 2026-11-09(docs/33 §7): 화면 사건 목표(caution·danger_end·safe_again)는 note()로 받고, 몸통 위치 목표(body),
+## 잡은 품질 하한(grab의 quality_min), 난이도별 단계(only_level), 단계별 자동 도움 허용(rules.rescue)을 더했다.
 
 const HELP_SECONDS := 12.0      # 이만큼 진행이 없으면 도움말 한 단계 올림(16과 같음)
 const HELP_FAILS := 3           # 같은 단계 실패 횟수
@@ -14,8 +16,12 @@ var route: RouteDef
 var steps: Array = []
 var index := 0
 var done := false
+var level := ""            # 플레이어 난이도("beginner"/"intermediate"). only_level이 다른 단계는 건너뛴다
 
 var _last_seq := 0
+var _notes: Array = []      # 화면 사건(note) — 다음 observe에서 본다
+var _body0 := Vector2.ZERO  # 단계 시작 골반(body 목표 기준)
+var _body_t := 0.0
 var _step_pose := {}        # 지금 단계의 시작 자세(실패 시 돌아갈 곳)
 var _restart := false       # 다음 begin_step은 같은 단계 재시작
 var _help := 0
@@ -35,6 +41,29 @@ func _init(p_route: RouteDef) -> void:
 	route = p_route
 	steps = route.tutorial_steps
 	done = steps.is_empty()
+
+
+## 난이도를 정한다. 첫 단계부터 맞지 않는 단계를 건너뛴다(begin_step 전에 부른다).
+func set_level(p_level: String) -> void:
+	level = p_level
+	_skip_steps()
+
+
+func _skip_steps() -> void:
+	while index < steps.size() and steps[index].has("only_level") and str(steps[index].only_level) != level:
+		index += 1
+	if index >= steps.size():
+		done = true
+
+
+## 화면 사건(DangerFeedback.tutorial_events, 자동 도움 {"type": "rescue"})을 받는다.
+func note(ev: Dictionary) -> void:
+	_notes.append(ev)
+
+
+## 지금 단계에서 자동 도움(위험 고리 누르기)을 쓸 수 있는가. 튜토리얼에서는 rules.rescue가 true인 단계만(docs/33 §3.1).
+func rescue_allowed() -> bool:
+	return not done and bool(current().get("rules", {}).get("rescue", false))
 
 
 func current() -> Dictionary:
@@ -67,6 +96,8 @@ func begin_step(session: ClimbSession) -> void:
 		for hand in [PoseSolver.LH, PoseSolver.RH]:
 			session.rules.stamina[hand] = float(r.start_stamina)
 	_last_seq = session.event_seq
+	_notes.clear()
+	_body0 = session.body.pos
 	_reset_goal_state()
 
 
@@ -89,6 +120,8 @@ func observe(session: ClimbSession, step_result: String, dt: float) -> String:
 			events.append(ev)
 	_last_seq = session.event_seq
 	var fell := step_result.begins_with("fall:")
+	var notes := _notes.duplicate()
+	_notes.clear()
 	var hit := false
 	var failed := false
 	match str(goal.get("type", "")):
@@ -104,6 +137,12 @@ func observe(session: ClimbSession, step_result: String, dt: float) -> String:
 			failed = r == -1
 		"stamina":
 			hit = stamina_goal_met(goal, session)
+		"caution", "danger_end":
+			hit = notes.any(func(e): return matches(goal, e))
+		"safe_again":
+			hit = notes.any(func(e): return str(e.type) in ["recover", "rescue"])
+		"body":
+			hit = _observe_body(session, goal, fell, dt)
 		_:
 			hit = events.any(func(e): return matches(goal, e))
 	if hit:
@@ -155,8 +194,10 @@ static func matches(goal: Dictionary, ev: Dictionary) -> bool:
 			return false
 	elif gt != et:
 		return false
+	if goal.has("quality_min") and float(ev.get("quality", 1.0)) < float(goal.quality_min) - _EPS:
+		return false
 	for k in goal:
-		if str(k) == "type":
+		if str(k) == "type" or str(k) == "quality_min":
 			continue
 		var ek := "key" if str(k) == "slot" else str(k)
 		if not ev.has(ek) or not _same(goal[k], ev[ek]):
@@ -178,13 +219,13 @@ static func _same(a, b) -> bool:
 
 func _advance() -> String:
 	index += 1
+	_skip_steps()
 	_help = 0
 	_help_since = 0.0
 	_help_fails = 0
 	_restart = false
 	_reset_goal_state()
-	if index >= steps.size():
-		done = true
+	if done:
 		return "done"
 	return "next"
 
@@ -198,6 +239,7 @@ func _bump_help() -> void:
 
 func _reset_goal_state() -> void:
 	_still = 0.0
+	_body_t = 0.0
 	_tg_run = 0
 	_tg_ready = false
 	_tg_window = false
@@ -216,6 +258,22 @@ func _observe_still(session: ClimbSession, fell: bool, seconds: float, dt: float
 		return false
 	_still += dt
 	return _still >= seconds - _EPS
+
+
+## body: 골반이 단계 시작 골반에서 {dx_min, dx_max, dy_min, dy_max}(있는 것만) 안에 seconds 동안 이어지면 true.
+func _observe_body(session: ClimbSession, goal: Dictionary, fell: bool, dt: float) -> bool:
+	var d := session.body.pos - _body0
+	var inside := not fell and not session.falling
+	if goal.has("dx_min") and d.x < float(goal.dx_min):
+		inside = false
+	if goal.has("dx_max") and d.x > float(goal.dx_max):
+		inside = false
+	if goal.has("dy_min") and d.y < float(goal.dy_min):
+		inside = false
+	if goal.has("dy_max") and d.y > float(goal.dy_max):
+		inside = false
+	_body_t = _body_t + dt if inside else 0.0
+	return _body_t >= float(goal.get("seconds", 0.5)) - _EPS
 
 
 ## together: 지정 팔다리가 모두 ticks틱 이상 함께 Dragging이고, 그중 첫 놓기 뒤 2초 안에 모두 grab하면 1.

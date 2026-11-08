@@ -18,6 +18,7 @@ var basic_skipped := false
 var last_tab := "general"
 ## 플레이 난이도(2026-11-08): "" 아직 안 고름, "beginner" 초급(떨어지기 직전 슬로우모션), "intermediate" 중급(그대로).
 var level := ""
+var seen_tips: Array = []  # 처음 한 번 안내를 본 것(docs/33 §5). 진행 초기화 때 함께 지운다
 const LEVELS: Array[String] = ["beginner", "intermediate"]
 
 
@@ -32,7 +33,7 @@ static func object_particle(word: String) -> String:
 
 func to_dict() -> Dictionary:
 	return {"schema_version": SCHEMA_VERSION, "seq": seq, "cleared": cleared, "tutorials": tutorials,
-		"basic_skipped": basic_skipped, "last_tab": last_tab, "level": level}
+		"basic_skipped": basic_skipped, "last_tab": last_tab, "level": level, "seen_tips": seen_tips}
 
 
 static func from_dict(d: Dictionary) -> Progress:
@@ -43,6 +44,7 @@ static func from_dict(d: Dictionary) -> Progress:
 	p.basic_skipped = bool(d.get("basic_skipped", false))
 	p.last_tab = str(d.get("last_tab", "general"))
 	p.level = str(d.get("level", ""))
+	p.seen_tips = Array(d.get("seen_tips", [])).map(func(x): return str(x))
 	if not p.level in LEVELS:
 		p.level = ""
 	return p

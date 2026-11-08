@@ -90,7 +90,7 @@ func test_sweep_regression() -> void:
 	var all := 0
 	var forced := 0
 	var flips := 0
-	for id in ["C_ARM_LOAD_T", "C_CROSS_1", "G_V3_01"]:
+	for id in ["C_REST_T", "C_CROSS_1", "G_V3_01"]:  # C_REST_T = 예전 C_ARM_LOAD_T와 같은 사다리(2026-11-09 C_ARM_LOAD_T에 넓은 홀드가 생겨 입력 분포가 바뀜)
 		var sw := AnatomySweep.run(RouteDef.load_json(ContentIndex.route_path(id)), 600, 11)
 		poses += sw.poses
 		all += sw.total()

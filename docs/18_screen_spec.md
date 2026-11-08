@@ -264,7 +264,7 @@ art/sfx/*.wav (heartbeat, danger, caution, recover). art_source/sfx/make_sfx.py�
 - play_3d.gd 떨림·표정
 - 테스트: tests/test_danger_feedback.gd
 
-## 튜토리얼과 경고의 겹침·처음 한 번 안내 (2026-11-09 설계, 구현 전)
+## 튜토리얼과 경고의 겹침·처음 한 번 안내 (2026-11-09, 구현됨)
 
 [33 §3.5·§5](33_tutorial_redesign.md)를 따른다.
 - 위험 동안 튜토리얼 안내 줄을 흐리게(0.35) 하고, 머리 위 큰 글자와 고리를 우선한다.
