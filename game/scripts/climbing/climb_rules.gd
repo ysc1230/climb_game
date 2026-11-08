@@ -22,6 +22,11 @@ var feet_eligible: Array[StringName] = []
 var loaded_feet: Array[StringName] = []
 var unsupported_ticks := 0
 var imbalance_ticks := 0
+## 떨어지기까지의 예산(틱). 기본은 docs/04 값. 초급은 호출 측이 BEGINNER_BUDGET_MULT배로 늘린다
+## (2026-11-09: 시간을 늦추는 슬로우모션은 조작도 같이 늦어져 도움이 안 됐다 → 조작 속도는 그대로, 버틸 시간만 늘림).
+const BEGINNER_BUDGET_MULT := 10
+var imbalance_budget := IMBALANCE_BUDGET_TICKS
+var grace_budget := Tuning.UNSUPPORTED_GRACE_TICKS
 var balance_confirm_ticks := 0
 var rest_confirm_ticks := 0
 var phase := Phase.STABLE
@@ -229,9 +234,9 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 	else:
 		balance_confirm_ticks = 0
 		imbalance_ticks += 1
-	if unsupported_ticks >= Tuning.UNSUPPORTED_GRACE_TICKS:
+	if unsupported_ticks >= grace_budget:
 		return "NO_SUPPORT"
-	if imbalance_ticks >= IMBALANCE_BUDGET_TICKS:
+	if imbalance_ticks >= imbalance_budget:
 		return "BALANCE_LOST"
 	return ""
 
@@ -332,6 +337,20 @@ static func _signature(d: Dictionary) -> Array:
 	for limb in PoseSolver.LIMBS:
 		out.append(d.get(limb, Vector2(INF, INF)))
 	return out
+
+
+## 지금 위험 상태의 남은 예산 비율(1 → 0)과 남은 틱. 위험이 아니면 [1.0, -1].
+func budget_left() -> Array:
+	if phase == Phase.GRACE:
+		return [clampf(1.0 - float(unsupported_ticks) / grace_budget, 0.0, 1.0), maxi(0, grace_budget - unsupported_ticks)]
+	if phase == Phase.REBALANCING:
+		return [clampf(1.0 - float(imbalance_ticks) / imbalance_budget, 0.0, 1.0), maxi(0, imbalance_budget - imbalance_ticks)]
+	return [1.0, -1]
+
+
+## 지지점(손발 접점) 평균 X. 균형을 잃었을 때 몸을 옮길 방향 안내에도 쓴다.
+func support_center_x(pelvis: Vector2, angle_deg: float, attached: Dictionary, yaw_deg: float = 0.0) -> float:
+	return _support_center_x(pelvis, angle_deg, attached, yaw_deg)
 
 
 func _support_center_x(pelvis: Vector2, angle_deg: float, attached: Dictionary, yaw_deg: float = 0.0) -> float:

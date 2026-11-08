@@ -294,6 +294,38 @@ func _try_grab(limb: StringName) -> void:
 		_log_event({"type": "pad_grip", "limb": limb, "key": cand.key, "mode": contact.mode})  # 28 §4.3 5: 튜토리얼 판정용
 
 
+## 붙어 있는 limb을 지금 떼면 어떻게 되나(예고 경고, 2026-11-09). 몸은 그대로 둔 채 그 접점만 뺀 힘 계산.
+## &"" 버틸 수 있음, &"GRACE" 버틸 손·플랫폼이 없음, &"FORCE" 힘 균형이 깨짐, &"BARN_DOOR" 몸이 문처럼 돌아감.
+## 떼고 나면 몸이 지지 쪽으로 저절로 옮겨 가 회복할 수도 있다(REBALANCING) — 예고는 "위험할 수 있음"이다.
+func release_risk(limb: StringName) -> StringName:
+	var att := attached()
+	if not att.has(limb):
+		return &""
+	att.erase(limb)
+	var eps := _endpoints()
+	for l in att:
+		eps.erase(l)
+	var platform := on_platform(att)
+	if rules._eligible_hand_count(body.pos, body.angle, att, body.yaw) == 0 and not platform:
+		return &"GRACE"
+	var feet := PoseSolver.supporting_feet(body.pos, body.angle, att, rules.feet_eligible, body.yaw)
+	var r := rules.evaluate(body.pos, body.angle, att, eps, platform, feet, body.yaw)
+	if r.status != SupportSolver.Status.FEASIBLE:
+		return &"FORCE"
+	if ClimbRules.barn_exceeded(r):
+		return &"BARN_DOOR"
+	return &""
+
+
+## 지금 자세를 reset_to 형식으로(되돌리기용). 붙은 손발의 슬롯만 담고 떠 있는 손발은 쉬는 위치로 돌아간다.
+func current_pose() -> Dictionary:
+	var slots := {}
+	for limb in limbs:
+		if limbs[limb].state in ["Attached", "Armed"]:
+			slots[limb] = limbs[limb].key
+	return {"pelvis": [body.pos.x, body.pos.y], "angle": body.angle, "slots": slots, "stamina": rules.stamina.duplicate()}
+
+
 ## 네 팔다리의 실제 말단 위치.
 func _endpoints() -> Dictionary:
 	var d := {}

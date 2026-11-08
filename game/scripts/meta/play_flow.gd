@@ -86,8 +86,8 @@ func set_level(level: String) -> void:
 	SaveStore.save(progress, save_path)
 
 
-## 초급이면 떨어지기 직전 슬로우모션(SlowMotion)을 켠다.
-func slow_motion_enabled() -> bool:
+## 초급 도움(버틸 시간 10배·해결 안내·되돌리기, play_test)을 켜는가.
+func beginner_assist() -> bool:
 	return progress.level == "beginner"
 
 

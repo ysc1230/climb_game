@@ -19,7 +19,17 @@ var router := InputRouter.new()
 var paused := false
 var prepare_left := 0.0
 var hud = preload("res://scenes/hud.gd").new()  # 위쪽 정보 패널·일시정지 화면(2026-11-08 사용자 참고 이미지)
-var slow := SlowMotion.new()  # 초급: 떨어지기 직전 슬로우모션(2026-11-08)
+## 떨어지기 전 경고 3단계(주의·위험·회복)와 초급 도움(2026-11-09, docs/18). 경고는 초급·중급 모두, 도움은 초급만.
+var danger := DangerFeedback.new()
+var beginner := false             # 초급: 버틸 시간 10배·해결 안내·되돌리기
+const UNDO_PER_ATTEMPT := 3
+var undo_left := 0
+var _safe_pose := {}              # 마지막으로 안정(STABLE)했던 자세(되돌리기)
+var _risk_cache := {}             # limb → [release_risk, 다시 계산까지 남은 틱](눌러 둔 손발)
+const RISK_RECHECK_TICKS := 12
+var _fall_cause := ""
+var _sfx := {}                    # 이름 → AudioStreamPlayer
+var _glow: GradientTexture2D      # 화면 가장자리 빛(흰색, modulate로 색을 입힌다)
 var best_height := 0.0  # 이번 시도에서 오른 가장 높은 높이(진행 점)
 const HUD_BOTTOM := 222.0  # 위쪽 정보 패널(hud.gd) 세 줄의 아래 끝(ui_k 배율 전)
 var message := ""
@@ -77,7 +87,11 @@ func _ready() -> void:
 	else:
 		overlay.has_list = true
 	session = ClimbSession.new(route)
-	slow.enabled = game != null and game.get_flow().slow_motion_enabled()
+	beginner = game != null and game.get_flow().beginner_assist()
+	if beginner:
+		session.rules.imbalance_budget = ClimbRules.IMBALANCE_BUDGET_TICKS * ClimbRules.BEGINNER_BUDGET_MULT
+		session.rules.grace_budget = Tuning.UNSUPPORTED_GRACE_TICKS * ClimbRules.BEGINNER_BUDGET_MULT
+	_build_feedback()
 	_start_tutorial()
 	get_viewport().size_changed.connect(_layout)
 	_layout()
@@ -152,16 +166,119 @@ func _reset(reason: String) -> void:
 
 
 ## 세션이 다시 시작된 뒤 표시 쪽 정리(입력 초기화·카메라·문구).
-func _after_reset(reason: String) -> void:
+func _after_reset(reason: String, ticks := 120) -> void:
 	_close_ui()
 	router.cancel_all()
 	cam_y = session.body.pos.y + 0.12 * PLAY_H
-	_flash(reason)
+	danger.reset()
+	undo_left = UNDO_PER_ATTEMPT
+	_safe_pose = {}
+	_risk_cache = {}
+	_flash(reason, ticks)
 
 
-func _flash(text: String) -> void:
+func _flash(text: String, ticks := 120) -> void:
 	message = text
-	message_ticks = 120
+	message_ticks = ticks
+
+
+## 효과음과 화면 가장자리 빛 텍스처를 만든다.
+func _build_feedback() -> void:
+	for name in ["heartbeat", "heartbeat2", "danger", "caution", "recover"]:
+		var path := "res://art/sfx/%s.wav" % ("heartbeat" if name == "heartbeat2" else name)
+		if not ResourceLoader.exists(path):
+			continue
+		var pl := AudioStreamPlayer.new()
+		pl.stream = load(path)
+		pl.volume_db = {"heartbeat": -2.0, "heartbeat2": -9.0, "danger": -4.0, "caution": -8.0, "recover": -6.0}[name]
+		add_child(pl)
+		_sfx[name] = pl
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.5, 0.88])
+	g.colors = PackedColorArray([Color(1, 1, 1, 0), Color(1, 1, 1, 0), Color(1, 1, 1, 1)])
+	_glow = GradientTexture2D.new()
+	_glow.gradient = g
+	_glow.fill = GradientTexture2D.FILL_RADIAL
+	_glow.fill_from = Vector2(0.5, 0.5)
+	_glow.fill_to = Vector2(1.2, 0.5)  # 반지름 0.7(UV): 화면 옆 가운데 약 60%, 모서리 100%
+	_glow.width = 256
+	_glow.height = 256
+
+
+func _play(name: String) -> void:
+	if _sfx.has(name):
+		_sfx[name].play()
+
+
+func _vibrate(ms: int, amplitude := -1.0) -> void:
+	if OS.has_feature("mobile"):
+		Input.vibrate_handheld(ms, amplitude)
+
+
+## 경고 상태를 한 프레임 진행하고 사건(소리·진동)을 낸다. 판정 틱이 돌았으면 stepped.
+func _danger_tick(real_dt: float, stepped: bool) -> void:
+	var rules := session.rules
+	var ph: int = rules.phase
+	var states := {}
+	var keys := {}
+	var hands_on := 0
+	var risks := {}
+	for limb in session.limbs:
+		var l: Dictionary = session.limbs[limb]
+		states[limb] = l.state
+		keys[limb] = l.key
+		if PoseSolver.is_hand(limb) and l.state in ["Attached", "Armed"]:
+			hands_on += 1
+		# 눌러 둔 손발: 떼면 버틸 수 있나(누른 순간 + RISK_RECHECK_TICKS마다 다시)
+		if l.state == "Armed" and not session.falling:
+			var c: Array = _risk_cache.get(limb, [&"", 0])
+			if not _risk_cache.has(limb) or (stepped and c[1] <= 0):
+				c = [session.release_risk(limb), RISK_RECHECK_TICKS]
+			elif stepped:
+				c[1] -= 1
+			_risk_cache[limb] = c
+			risks[limb] = c[0]
+		else:
+			_risk_cache.erase(limb)
+	var bl := rules.budget_left()
+	var kind: StringName = &"GRACE" if ph == ClimbRules.Phase.GRACE else (rules.imbalance_cause if rules.imbalance_cause != &"" else &"FORCE")
+	danger.update(real_dt, {"danger": ph == ClimbRules.Phase.REBALANCING or ph == ClimbRules.Phase.GRACE, "kind": kind,
+		"frac": bl[0], "ticks_left": bl[1], "falling": session.falling, "states": states, "keys": keys, "risks": risks, "hands_on": hands_on})
+	for ev in danger.events:
+		match ev:
+			&"enter":
+				_play("danger")
+				_vibrate(140, 1.0)
+			&"beat":
+				_play("heartbeat")
+				_vibrate(70, 1.0)
+			&"beat2":
+				_play("heartbeat2")
+				_vibrate(45, 0.6)
+			&"caution":
+				_play("caution")
+				_vibrate(35, 0.5)
+			&"recover":
+				_play("recover")
+				_vibrate(25, 0.4)
+	if stepped and ph == ClimbRules.Phase.STABLE and not session.falling and not session.is_dragging():
+		_safe_pose = session.current_pose()
+
+
+## 초급 되돌리기: 마지막으로 안정했던 자세로(팔 힘은 지금 그대로). 시도마다 UNDO_PER_ATTEMPT번.
+func _undo() -> void:
+	if not beginner or undo_left <= 0 or _safe_pose.is_empty() or not danger.danger or session.falling:
+		return
+	_apply(router.cancel_all())
+	var pose := _safe_pose.duplicate(true)
+	pose["stamina"] = session.rules.stamina.duplicate()
+	session.reset_to(pose)
+	undo_left -= 1
+	danger.reset()
+	_risk_cache = {}
+	_play("recover")
+	_vibrate(25, 0.4)
+	_flash("되돌렸어요 · 남은 되돌리기 %d번" % undo_left)
 
 
 func _log(text: String) -> void:
@@ -234,6 +351,8 @@ func _overlay_action(act: String) -> void:
 			overlay.briefing = {}
 		"retry":
 			_retry()
+		"undo":
+			_undo()
 		"next":
 			game.play(str(overlay.result.next))
 		"list":
@@ -274,6 +393,8 @@ func _apply(cmds: Array) -> void:
 ## 세션이 쌓은 안내 문구를 화면 문구로 옮기고 비운다.
 func _take_messages() -> void:
 	for m in session.messages:
+		if m == "균형이 무너지고 있어요":
+			continue  # 위험 경고(DangerFeedback)가 대신 알린다
 		_flash(m)
 	session.messages.clear()
 
@@ -311,12 +432,14 @@ func _physics_process(_delta: float) -> void:
 	if overlay.blocking():
 		queue_redraw()
 		return
-	var ph: int = session.rules.phase
-	var danger := ph == ClimbRules.Phase.REBALANCING or ph == ClimbRules.Phase.GRACE
-	if slow.update(danger and not session.selecting, session.falling, _delta) == 0:
-		queue_redraw()  # 이번 프레임은 판정을 쉰다(슬로우모션)
+	if danger.hitstop_left > 0.0 and not session.selecting:
+		_danger_tick(_delta, false)  # 위험에 들어가는 순간 잠깐 멈칫(신호용, 판정 틱을 쉰다)
+		queue_redraw()
 		return
 	var result := session.step()
+	if result.begins_with("fall:"):
+		_fall_cause = danger.fall_cause(result.trim_prefix("fall:"))
+	_danger_tick(_delta, not session.selecting)
 	best_height = maxf(best_height, _height())
 	_take_messages()
 	var dt := attempt.tick(Tuning.DT, session.selecting)  # 고르는 중에는 0(시간·도움말 타이머 멈춤)
@@ -325,14 +448,9 @@ func _physics_process(_delta: float) -> void:
 		queue_redraw()
 		return
 	match result:
-		"fall:NO_SUPPORT":
+		"fall:NO_SUPPORT", "fall:BALANCE_LOST":
 			_apply(router.cancel_all())
-			_flash("지지를 잃었어요")
-			queue_redraw()
-			return
-		"fall:BALANCE_LOST":
-			_apply(router.cancel_all())
-			_flash("균형을 잃었어요")
+			_flash(_fall_cause, 300)  # 왜 떨어졌는지 한 줄(DangerFeedback.fall_cause)
 			queue_redraw()
 			return
 		"unresolved":
@@ -341,7 +459,8 @@ func _physics_process(_delta: float) -> void:
 			return
 		"respawn":
 			best_height = 0.0
-			_after_reset("떨어졌어요. 처음부터")
+			_after_reset(_fall_cause if _fall_cause != "" else "떨어졌어요. 처음부터", 240)
+			_fall_cause = ""
 			queue_redraw()
 			return
 		"clear":
@@ -541,9 +660,7 @@ func _draw_hud(size: Vector2) -> void:
 	var hu: Dictionary = session.rules.last.get("u", {})
 	var budget := -1.0
 	if ph == ClimbRules.Phase.REBALANCING or ph == ClimbRules.Phase.GRACE:
-		var total := ClimbRules.IMBALANCE_BUDGET_TICKS if ph == ClimbRules.Phase.REBALANCING else Tuning.UNSUPPORTED_GRACE_TICKS
-		var used := session.rules.imbalance_ticks if ph == ClimbRules.Phase.REBALANCING else session.rules.unsupported_ticks
-		budget = clampf(1.0 - float(used) / total, 0.0, 1.0)
+		budget = float(session.rules.budget_left()[0])
 	var move: String = session.rules.moves.korean()
 	if not session.rules.flag_ready.is_empty():
 		move += " · 놓으면 균형 발"
@@ -552,6 +669,8 @@ func _draw_hud(size: Vector2) -> void:
 	var falls := attempt.falls(session.falls)
 	if falls > 0:
 		title += "  · 추락 %d" % falls
+	if not paused:
+		_draw_danger_glow(size)  # 위쪽 정보 패널보다 먼저(패널이 붉게 흐려지지 않게)
 	overlay.pause_rect = hud.draw_top(self, size, ui_k, {
 		"title": title, "goal_height": _goal_height(), "height": _height(), "best_height": best_height,
 		"stamina": session.rules.stamina, "phase_name": names[ph], "phase_color": colors[ph],
@@ -565,9 +684,9 @@ func _draw_hud(size: Vector2) -> void:
 		draw_string(font, Vector2(size.x * 0.25, y), log_lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, int(15 * ui_k), Color(1, 1, 1, 0.6))
 		y -= 18 * ui_k
 	if message_ticks > 0:
-		draw_string(font, Vector2(0, maxf(size.y * (0.36 if session.selecting or tutorial != null else 0.30), (HUD_BOTTOM + 70.0) * ui_k)), message, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(34 * ui_k), Color("fff2c8"))
-	if slow.scale < 0.999:
-		_draw_slow_badge(size)
+		_outlined(Vector2(0, maxf(size.y * (0.36 if session.selecting or tutorial != null else 0.30), (HUD_BOTTOM + 70.0) * ui_k)), message, 34, size.x, Color("fff2c8"))
+	if not paused:
+		_draw_danger(size)
 	_draw_tech_ui(size)
 	_draw_body_goal()
 	if draw_world:
@@ -577,46 +696,131 @@ func _draw_hud(size: Vector2) -> void:
 	overlay.draw(self, size, ui_k, paused, session.selecting)
 	if paused and not overlay.blocking():
 		overlay.add_buttons(hud.draw_pause(self, size, ui_k, prepare_left, overlay.has_list))
+	elif not paused and not overlay.blocking():
+		_draw_undo_button(size)
 	if draw_world and goal_key != "" and not paused and not session.selecting and not overlay.blocking():
 		_draw_goal_mark(goal_key)  # 2D 시험 장면만. 3D 화면은 목표 홀드 자체가 노랗게 깜빡인다(play_3d)
 
 
-## 초급 슬로우모션 중 경고(2026-11-08 사용자: "왜 느려지는지 알아볼 수 있게 경고").
-## 화면 가장자리가 주황·빨강으로 깜빡이고, 아래쪽 가운데 경고 카드에 이유·남은 시간(실제 초)·줄어드는 막대를 보인다.
-func _draw_slow_badge(size: Vector2) -> void:
-	var a := clampf((1.0 - slow.scale) / (1.0 - SlowMotion.SCALE), 0.0, 1.0)
-	var ph: int = session.rules.phase
-	var grace := ph == ClimbRules.Phase.GRACE
-	var total := Tuning.UNSUPPORTED_GRACE_TICKS if grace else ClimbRules.IMBALANCE_BUDGET_TICKS
-	var used := session.rules.unsupported_ticks if grace else session.rules.imbalance_ticks
-	var frac := clampf(1.0 - float(used) / total, 0.0, 1.0)
-	var secs := minf(float(total - used) * Tuning.DT / SlowMotion.SCALE, slow.left)
-	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.012)
-	var warn := Color(1.0, 0.42, 0.25).lerp(Color(1.0, 0.75, 0.3), frac)
-	var edge := (16.0 + 10.0 * pulse) * ui_k
-	var tint := Color(warn.r, warn.g, warn.b, (0.18 + 0.22 * pulse) * a)
-	draw_rect(Rect2(Vector2.ZERO, Vector2(size.x, edge)), tint)
-	draw_rect(Rect2(Vector2(0, size.y - edge), Vector2(size.x, edge)), tint)
-	draw_rect(Rect2(Vector2(0, edge), Vector2(edge, size.y - 2 * edge)), tint)
-	draw_rect(Rect2(Vector2(size.x - edge, edge), Vector2(edge, size.y - 2 * edge)), tint)
-	if a < 0.3:
+## 경고 화면(docs/18 "떨어지기 전 경고"). 글자를 읽지 않아도 알게: 화면 가장자리 빛, 캐릭터 둘레 남은 시간 고리,
+## 머리 위 큰 글자, 패드 깜빡임. 초급은 해결 안내(다시 잡을 홀드·몸 옮길 방향)를 더 그린다.
+func _draw_danger(size: Vector2) -> void:
+	var t := Time.get_ticks_msec() / 1000.0
+	var body: Vector2 = session.body.pos
+	var head := w2s(body + Vector2(0, 1.05))
+	var top := (HUD_BOTTOM + 70.0) * ui_k
+	# ① 주의: 눌러 둔 손발을 떼면 위험
+	var blink := 0.5 + 0.5 * sin(t * TAU * 3.0)
+	for limb in danger.caution:
+		if not router.pads.has(limb):
+			continue
+		var p: Dictionary = router.pads[limb]
+		draw_circle(p.center, p.radius, Color(1.0, 0.8, 0.2, 0.25 + 0.25 * blink))
+		draw_arc(p.center, p.radius + 6 * ui_k, 0, TAU, 48, Color(1.0, 0.82, 0.25, 0.95), 7.0 * ui_k)
+		_draw_bang(p.center + Vector2(p.radius * 0.72, -p.radius * 0.72), 22.0 * ui_k, Color(1.0, 0.8, 0.2))
+		var txt := DangerFeedback.caution_text(danger.caution[limb])
+		_outlined(_pad_label_pos(p), txt, 26, 320 * ui_k, Color(1.0, 0.88, 0.4))
+	if not danger.caution.is_empty() and not danger.danger:
+		_draw_bang(Vector2(head.x, maxf(head.y - 20 * ui_k, top)), 26.0 * ui_k, Color(1.0, 0.8, 0.2))
+	# ③ 회복
+	if danger.recover_left > 0.0:
+		var a := danger.recover_left / DangerFeedback.RECOVER_SHOW
+		var y := maxf(head.y - 30 * ui_k - (1.0 - a) * 40 * ui_k, top)
+		_outlined(Vector2(head.x - 200 * ui_k, y), "휴!", 60, 400 * ui_k, Color(0.7, 1.0, 0.75, a))
+	if not danger.danger:
 		return
-	var w := 700.0 * ui_k
-	# 아래쪽 가운데(손을 뻗는 위쪽을 가리지 않게)
-	var r := Rect2(Vector2(size.x * 0.5 - w * 0.5, size.y - 112.0 * ui_k), Vector2(w, 104 * ui_k))
-	hud.panel(self, r, ui_k, Color(0.20, 0.07, 0.04, 0.88), Color(1.0, 0.55, 0.3, 0.95), 20.0)  # 고정 색(패널 캐시)
-	# 경고 삼각형
-	var c := r.position + Vector2(52, 48) * ui_k
-	var tri := PackedVector2Array([c + Vector2(0, -24) * ui_k, c + Vector2(26, 20) * ui_k, c + Vector2(-26, 20) * ui_k])
-	draw_colored_polygon(tri, warn)
-	draw_string(font, c + Vector2(-20, 15) * ui_k, "!", HORIZONTAL_ALIGNMENT_CENTER, 40 * ui_k, int(30 * ui_k), Color(0.2, 0.07, 0.04))
-	var x := r.position.x + 98 * ui_k
-	var reason := "잡거나 디딘 곳이 모자라요" if grace else "몸이 지지 밖으로 기울었어요"
-	draw_string(font, Vector2(x, r.position.y + 36 * ui_k), "떨어지기 직전! " + reason, HORIZONTAL_ALIGNMENT_LEFT, r.end.x - x - 20 * ui_k, int(26 * ui_k), Color(1, 0.93, 0.85))
-	draw_string(font, Vector2(x, r.position.y + 66 * ui_k), "초급 도움: 시간이 10배 느려졌어요 · 남은 시간 %.1f초" % secs, HORIZONTAL_ALIGNMENT_LEFT, r.end.x - x - 20 * ui_k, int(20 * ui_k), Color(1, 0.85, 0.7))
-	var bar := Rect2(Vector2(x, r.position.y + 80 * ui_k), Vector2(r.end.x - x - 28 * ui_k, 12 * ui_k))
-	draw_rect(bar, Color(1, 1, 1, 0.15))
-	draw_rect(Rect2(bar.position, Vector2(bar.size.x * frac, bar.size.y)), warn)
+	var warn := Color(1.0, 0.25, 0.15).lerp(Color(1.0, 0.7, 0.2), danger.frac)
+	# 캐릭터 둘레 남은 시간 고리
+	var c := w2s(body + Vector2(0, 0.35))
+	var r := _screen_r(body, 0.95)
+	draw_arc(c, r, 0, TAU, 64, Color(0, 0, 0, 0.35), 14 * ui_k, true)
+	draw_arc(c, r, -PI / 2, -PI / 2 + TAU * danger.frac, 64, warn, 10 * ui_k, true)
+	# 머리 위 큰 글자(튀어나오며 커졌다 줄어듦)
+	var pop := 1.0 + 0.6 * exp(-danger.danger_time * 10.0)
+	var y := maxf(head.y - 40 * ui_k, top + 30 * ui_k)
+	_outlined(Vector2(head.x - 300 * ui_k, y), DangerFeedback.shout(danger.kind), int(76 * pop), 600 * ui_k, Color(1, 0.95, 0.9), Color(0.55, 0.05, 0.02))
+	var sub := DangerFeedback.reason_short(danger.kind)
+	if beginner and danger.ticks_left >= 0:
+		sub += " · %.1f초" % (danger.ticks_left * Tuning.DT)
+	_outlined(Vector2(head.x - 300 * ui_k, y + 40 * ui_k), sub, 26, 600 * ui_k, Color(1, 0.9, 0.8))
+	if beginner:
+		_draw_rescue_hint(t)
+
+
+## 화면 가장자리 빛: 위험이면 심장 박동에 맞춰 뛰는 빨강, 회복이면 잠깐 초록.
+func _draw_danger_glow(size: Vector2) -> void:
+	if danger.danger:
+		draw_texture_rect(_glow, Rect2(Vector2.ZERO, size), false, Color(1.0, 0.1, 0.05, 0.5 + 0.45 * danger.pulse()))
+	elif danger.recover_left > 0.0:
+		draw_texture_rect(_glow, Rect2(Vector2.ZERO, size), false, Color(0.35, 1.0, 0.5, 0.6 * danger.recover_left / DangerFeedback.RECOVER_SHOW))
+
+
+## 패드 옆 안내 글자 위치: 위쪽 패드(손)는 아래에, 아래쪽 패드(발)는 위에(위쪽 정보 패널과 겹치지 않게).
+func _pad_label_pos(p: Dictionary) -> Vector2:
+	var below: bool = p.center.y < _view_size().y * 0.5
+	return Vector2(p.center.x - 160 * ui_k, p.center.y + (p.radius + 34 * ui_k if below else -p.radius - 16 * ui_k))
+
+
+## 초급 해결 안내: 방금 뗀 손발(버틸 손이 없으면 손)이 다시 잡을 홀드(그 손발 색으로 깜빡임 + "다시 잡기") + 그 패드 깜빡임,
+## 몸이 기운 경우 몸을 옮길 방향 화살표.
+func _draw_rescue_hint(t: float) -> void:
+	var blink := 0.5 + 0.5 * sin(t * TAU * 2.5)
+	var free := {}
+	for l in session.limbs:
+		free[l] = not session.limbs[l].state in ["Attached", "Armed"]
+	var rel := danger.rescue_release(free)
+	if not rel.is_empty():
+		var limb: StringName = rel.limb
+		var col: Color = LIMB_COLORS[limb]
+		var hp := w2s(route.slot_pos(str(rel.key)))
+		var hr := maxf(_screen_r(session.body.pos, 0.16), 26 * ui_k)
+		draw_circle(hp, hr, Color(col, 0.20 + 0.25 * blink))
+		draw_arc(hp, hr * (1.0 + 0.25 * blink), 0, TAU, 40, Color(col, 0.95), 6 * ui_k, true)
+		_outlined(Vector2(hp.x - 120 * ui_k, hp.y - hr - 14 * ui_k), "다시 잡기", 26, 240 * ui_k, Color.WHITE)
+		if router.pads.has(limb):
+			var p: Dictionary = router.pads[limb]
+			draw_arc(p.center, p.radius + 8 * ui_k, 0, TAU, 48, Color(col, 0.5 + 0.5 * blink), 9 * ui_k)
+			_outlined(_pad_label_pos(p), "이 패드로 다시 잡아요", 24, 320 * ui_k, Color.WHITE)
+	if danger.kind != &"GRACE":
+		var body: Vector2 = session.body.pos
+		var cx := session.rules.support_center_x(body, session.body.angle, session.attached(), session.body.yaw)
+		var dx := clampf(cx - body.x, -0.6, 0.6)
+		if absf(dx) > 0.04:
+			var a := w2s(body + Vector2(0, 0.1))
+			var b := w2s(body + Vector2(dx, 0.1))
+			var dir := (b - a).normalized()
+			var len := maxf(a.distance_to(b), 70 * ui_k)
+			b = a + dir * len
+			var col := Color(0.6, 1.0, 0.7, 0.7 + 0.3 * blink)
+			draw_line(a, b, Color(0, 0, 0, 0.5), 16 * ui_k)
+			draw_line(a, b, col, 9 * ui_k)
+			var n := Vector2(-dir.y, dir.x)
+			draw_colored_polygon(PackedVector2Array([b + dir * 26 * ui_k, b + n * 20 * ui_k, b - n * 20 * ui_k]), col)
+			_outlined(Vector2((a.x + b.x) * 0.5 - 150 * ui_k, a.y + 44 * ui_k), "몸을 이쪽으로", 24, 300 * ui_k, Color.WHITE)
+
+
+## 초급 되돌리기 버튼(위험 동안, 남은 횟수가 있을 때). 아래쪽 가운데.
+func _draw_undo_button(size: Vector2) -> void:
+	if not beginner or not danger.danger or undo_left <= 0 or _safe_pose.is_empty():
+		return
+	var r := Rect2(Vector2(size.x * 0.5 - 170 * ui_k, size.y - 104 * ui_k), Vector2(340, 80) * ui_k)
+	hud.panel(self, r, ui_k, Color(0.96, 0.84, 0.55, 0.96), Color(1, 1, 1, 0.9), 40.0)
+	draw_string(font, Vector2(r.position.x, r.position.y + 52 * ui_k), "↩ 되돌리기  %d/%d" % [undo_left, UNDO_PER_ATTEMPT], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(32 * ui_k), Color(0.19, 0.15, 0.11))
+	overlay.add_buttons([{"rect": r, "action": "undo"}])
+
+
+## 테두리 있는 가운데 정렬 글자. pos: 왼쪽 기준선, w: 폭.
+func _outlined(pos: Vector2, text: String, fs: int, w: float, col: Color, outline := Color(0, 0, 0, 0.75)) -> void:
+	var px := int(fs * ui_k)
+	draw_string_outline(font, pos, text, HORIZONTAL_ALIGNMENT_CENTER, w, px, maxi(4, int(px * 0.16)), Color(outline, outline.a * col.a))
+	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_CENTER, w, px, col)
+
+
+## 노란 원 안 "!".
+func _draw_bang(c: Vector2, r: float, col: Color) -> void:
+	draw_circle(c, r, col)
+	draw_arc(c, r, 0, TAU, 32, Color(0.25, 0.12, 0.0, 0.8), 3 * ui_k, true)
+	draw_string(font, Vector2(c.x - r, c.y + r * 0.55), "!", HORIZONTAL_ALIGNMENT_CENTER, r * 2, int(r * 1.5), Color(0.25, 0.12, 0.0))
 
 
 ## 끌고 있는 손발 아래에 지금 놓으면 잡히는 홀드가 있으면(세션 후보) 그 홀드를 그 팔다리 색으로 반짝이고

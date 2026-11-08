@@ -379,24 +379,21 @@ func _process(delta: float) -> void:
 var climber_pose := ClimberPose.new()
 
 
-var _shown := {}  # 슬로우모션 중 화면에 보인 관절 위치(판정 틱이 띄엄띄엄 돌 때 부드럽게 잇는다)
-const SLOW_SMOOTH := 9.0  # 1/s (판정이 10프레임에 한 번이라 그 간격을 덮게)
+const TREMBLE_KEYS := ["pelvis", "spine", "chest", "neck", "head", "head_top", "shoulder_L", "shoulder_R", "hip_L", "hip_R"]
 
 
 ## 판정 상태 → 표현용 3D 관절 위치(ClimberPose, docs/04 §8).
-## 초급 슬로우모션 중에는 판정이 10프레임에 한 번 돌아 몸이 뚝뚝 끊겨 보이므로 화면 위치만 부드럽게 따라가게 한다.
+## 떨어지기 직전(위험 경고 중)에는 몸통이 덜덜 떨린다(표현만, 남은 시간이 줄수록 세게).
 func _pose_targets(delta: float) -> Dictionary:
 	var t := climber_pose.compute(logic.session, delta)
-	if logic.slow.scale >= 0.999 or _shown.is_empty():
-		_shown = t.duplicate()
-		return t
-	var a := 1.0 - exp(-SLOW_SMOOTH * delta)
-	for key in t:
-		if t[key] is Vector3 and _shown.has(key):
-			_shown[key] = (_shown[key] as Vector3).lerp(t[key], a)
-		else:
-			_shown[key] = t[key]
-	return _shown.duplicate()
+	if logic.danger.danger:
+		var s := Time.get_ticks_msec() / 1000.0
+		var amp: float = 0.004 + 0.008 * (1.0 - float(logic.danger.frac))
+		var off: Vector3 = Vector3(sin(s * 71.0), sin(s * 53.0 + 1.3), 0) * amp
+		for key in TREMBLE_KEYS:
+			if t.has(key):
+				t[key] = (t[key] as Vector3) + off
+	return t
 
 
 func _pose_capsules(t: Dictionary) -> void:
@@ -456,9 +453,10 @@ var face_now := ""
 var _look := Quaternion.IDENTITY
 
 
-## 표정(표현 전용): 떨어지는 중 놀람, 정상을 잡으면 기쁨, 팔 힘이 45 아래이거나 자세가 무너지는 중이면 힘씀, 그 밖에는 평온.
-static func expression_for(falling: bool, at_goal: bool, min_stamina: float, rebalancing: bool) -> String:
-	if falling:
+## 표정(표현 전용): 떨어지는 중·떨어지기 직전(위험 경고) 놀람, 정상을 잡으면 기쁨,
+## 팔 힘이 45 아래이거나 자세가 무너지는 중이면 힘씀, 그 밖에는 평온.
+static func expression_for(falling: bool, at_goal: bool, min_stamina: float, rebalancing: bool, danger := false) -> String:
+	if falling or (danger and not at_goal):
 		return "scared"
 	if at_goal:
 		return "happy"
@@ -481,7 +479,7 @@ func _update_face() -> void:
 	var low := 100.0
 	for v in st.values():
 		low = minf(low, v)
-	_set_face(expression_for(s.falling, s.goal_ticks > 0, low, s.rules.phase == ClimbRules.Phase.REBALANCING))
+	_set_face(expression_for(s.falling, s.goal_ticks > 0, low, s.rules.phase == ClimbRules.Phase.REBALANCING, logic.danger.danger))
 
 
 ## 끌고 있는 손발(손 우선)의 말단 위치를 본다. 없으면 정면으로 돌아온다. 얼굴이 벽을 보므로 옆을 볼 때 옆얼굴이 보인다.
@@ -504,8 +502,8 @@ func _apply_look(frames: Dictionary, inv: Transform3D, delta: float) -> void:
 	var target: Variant = _look_target()
 	var body_up0: Vector3 = (head.basis * Vector3.UP).normalized()
 	var side0: Vector3 = (head.basis * Vector3.RIGHT).normalized()
-	if face_now in ["happy", "scared"]:
-		# 정상을 잡았을 때·떨어질 때는 어깨 너머로 카메라 쪽을 돌아본다(표정이 보이는 순간).
+	if face_now == "happy" or logic.session.falling:
+		# 정상을 잡았을 때·떨어질 때는(떨어지기 직전 경고 중에는 돌아보지 않는다 — 벽을 보고 버텨야 함) 어깨 너머로 카메라 쪽을 돌아본다(표정이 보이는 순간).
 		want = Quaternion(body_up0, deg_to_rad(LOOK_BACK_DEG)) * Quaternion(side0, -0.12)
 	elif target != null:
 		# 옆으로 먼저 돌리고(좌우 1m에 약 80°) 위아래는 조금만 든다. 얼굴이 벽을 보므로 옆으로 돌아야 표정이 보인다.
