@@ -233,6 +233,8 @@ static func _violation(limb: StringName, hand: bool, root: Vector3, mid: Vector3
 	var viol := 0.0
 	if free_leg:
 		viol += _free_leg_violation(limb, root, mid, end, frame)
+	if not hand:
+		viol += maxf(0.0, Anatomy.knee_back(root, mid, end, frame) - (Anatomy.KNEE_BACK_MAX - 0.1)) * 3.0
 	if true:
 		var tw := Anatomy.limb_twist(limb, root, mid, end, frame)  # 거의 펴졌으면 NAN(점검과 같은 기준)
 		if not is_nan(tw):

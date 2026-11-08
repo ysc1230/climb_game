@@ -271,3 +271,35 @@ static func run_reach(route: RouteDef, hand: StringName, dx: float, dy: float, s
 			if v.kind != "ankle" and sw._forced(t, s.body, v.limb):
 				sw.forced[key] = sw.forced.get(key, 0) + 1
 	return sw
+
+
+## 몸 밀기 시나리오(2026-11-08 사용자: "무릎이 굽은 상태에서 몸을 옆으로 옮기면 무릎이 뒤로 꺾인다"):
+## 시작 자세에서 손발을 붙인 채 가운데 영역 끌기로 몸을 (dx, dy)만큼 민다.
+static func run_body_shift(route: RouteDef, dx: float, dy: float) -> AnatomySweep:
+	var sw := AnatomySweep.new()
+	var s := ClimbSession.new(route)
+	sw.session = s
+	var pose := ClimberPose.new()
+	for i in 30:
+		s.step()
+		pose.compute(s, Tuning.DT)
+	s.apply_input([{"type": "body_start"}])
+	var left := Vector2(dx, dy)
+	for i in 150:
+		if left.length() > 0.001:
+			var d := left.limit_length(0.8 * Tuning.DT)
+			s.apply_input([{"type": "body_move", "delta": d}])
+			left -= d
+		s.step()
+		if s.falling:
+			break
+		var t := pose.compute(s, Tuning.DT)
+		sw.poses += 1
+		sw._record_flips(t, s, i)
+		sw._record_jitter(t, s)
+		for v in Anatomy.check(t, s.body.angle, s.body.yaw, _free_map(s)):
+			var key := "%s/%s" % [v.kind, v.limb]
+			sw.counts[key] = sw.counts.get(key, 0) + 1
+			if v.kind != "ankle" and sw._forced(t, s.body, v.limb):
+				sw.forced[key] = sw.forced.get(key, 0) + 1
+	return sw

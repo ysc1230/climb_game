@@ -155,3 +155,17 @@ func test_reach_no_tremble() -> void:
 				for l in sw.flips:
 					f += sw.flips[l]
 				runner.check(f == 0, "%s %s %s 뒤집힘 %d" % [id, hand, tg, f])
+
+
+## 사용자 보고(2026-11-08): 무릎이 굽은 채 몸을 옆으로 옮기면 무릎이 뒤로 꺾였다. 무릎은 좌·우·앞으로는 가도 뒤로는 꺾이지 않는다.
+## (규칙 전 몸 밀기 2만 6천 자세 중 296번)
+func test_knee_never_bends_backward() -> void:
+	for id in ["G_V4_01", "C_HIGH_STEP_T", "C_DROP_FOOT_T", "G_V0_01"]:
+		var r := RouteDef.load_json(ContentIndex.route_path(id))
+		for d in [[0.4, 0.0], [-0.4, 0.0], [0.3, -0.3], [-0.3, 0.3]]:
+			var sw := AnatomySweep.run_body_shift(r, d[0], d[1])
+			var n: int = sw.counts.get("knee_back/LF", 0) + sw.counts.get("knee_back/RF", 0)
+			runner.check(n == 0, "%s 몸 밀기 %s 무릎 뒤로 %d" % [id, d, n])
+	var sw2 := AnatomySweep.run(RouteDef.load_json(ContentIndex.route_path("G_V4_01")), 600, 5)
+	var m: int = sw2.counts.get("knee_back/LF", 0) + sw2.counts.get("knee_back/RF", 0)
+	runner.check(m <= sw2.poses / 200, "무작위 조작 무릎 뒤로 %d / %d" % [m, sw2.poses])
