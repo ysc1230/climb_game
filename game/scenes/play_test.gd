@@ -21,10 +21,11 @@ var prepare_left := 0.0
 var hud = preload("res://scenes/hud.gd").new()  # 위쪽 정보 패널·일시정지 화면(2026-11-08 사용자 참고 이미지)
 ## 떨어지기 전 경고 3단계(주의·위험·회복)와 초급 도움(2026-11-09, docs/18). 경고는 초급·중급 모두, 도움은 초급만.
 var danger := DangerFeedback.new()
-var beginner := false             # 초급: 버틸 시간 10배·해결 안내·되돌리기
-const UNDO_PER_ATTEMPT := 3
-var undo_left := 0
-var _safe_pose := {}              # 마지막으로 안정(STABLE)했던 자세(되돌리기)
+var beginner := false             # 초급: 버틸 시간 10배·해결 안내·자동 도움
+const RESCUE_PER_ATTEMPT := 3     # 위험 게이지를 눌러 쓰는 자동 도움(AutoRescue) 횟수. 다 쓰면 경고만 남는다
+var rescue_left := 0
+var _rescue_anim := {}            # 자동 도움으로 옮겨 가는 중 {t, dur, pose, moves, body0, angle0, pos0, pos1}
+var _safe_pose := {}              # 마지막으로 안정(STABLE)했던 자세(자동 도움이 옮길 동작을 못 찾으면 여기로)
 var _risk_cache := {}             # limb → [release_risk, 다시 계산까지 남은 틱](눌러 둔 손발)
 const RISK_RECHECK_TICKS := 12
 var _fall_cause := ""
@@ -171,7 +172,8 @@ func _after_reset(reason: String, ticks := 120) -> void:
 	router.cancel_all()
 	cam_y = session.body.pos.y + 0.12 * PLAY_H
 	danger.reset()
-	undo_left = UNDO_PER_ATTEMPT
+	rescue_left = RESCUE_PER_ATTEMPT
+	_rescue_anim = {}
 	_safe_pose = {}
 	_risk_cache = {}
 	_flash(reason, ticks)
@@ -265,20 +267,79 @@ func _danger_tick(real_dt: float, stepped: bool) -> void:
 		_safe_pose = session.current_pose()
 
 
-## 초급 되돌리기: 마지막으로 안정했던 자세로(팔 힘은 지금 그대로). 시도마다 UNDO_PER_ATTEMPT번.
-func _undo() -> void:
-	if not beginner or undo_left <= 0 or _safe_pose.is_empty() or not danger.danger or session.falling:
+## 초급 자동 도움(2026-11-09): 위험 게이지(캐릭터 둘레 고리)를 누르면 AutoRescue가 고른 최선의 동작
+## (손 하나·발 하나까지, 정상 홀드 제외)으로 옮겨 간다. 못 찾으면 마지막 안정 자세로 되돌린다. 시도마다 RESCUE_PER_ATTEMPT번.
+func _rescue() -> void:
+	if not beginner or rescue_left <= 0 or not danger.danger or session.falling or not _rescue_anim.is_empty():
 		return
+	var plan := AutoRescue.plan(session)
+	var pose := {}
+	var moves: Array = []
+	if not plan.is_empty():
+		pose = {"pelvis": [plan.pelvis.x, plan.pelvis.y], "angle": plan.angle, "slots": plan.slots}
+		moves = plan.moves
+	elif not _safe_pose.is_empty():
+		pose = _safe_pose.duplicate(true)
+	else:
+		_flash("지금은 도울 수 있는 동작이 없어요")
+		return
+	pose["stamina"] = session.rules.stamina.duplicate()  # 팔 힘은 그대로(쉬는 꼼수 방지)
 	_apply(router.cancel_all())
-	var pose := _safe_pose.duplicate(true)
-	pose["stamina"] = session.rules.stamina.duplicate()
-	session.reset_to(pose)
-	undo_left -= 1
+	rescue_left -= 1
 	danger.reset()
 	_risk_cache = {}
 	_play("recover")
 	_vibrate(25, 0.4)
-	_flash("되돌렸어요 · 남은 되돌리기 %d번" % undo_left)
+	var pos0 := {}
+	var pos1 := {}
+	for limb in session.limbs:
+		pos0[limb] = session.limbs[limb].pos
+	for m in moves:
+		pos1[m.limb] = route.slot_pos(m.key)
+		session.limbs[m.limb].state = "Dragging"  # 표현: 벽에서 떼어 옮긴다(판정 틱은 도는 동안 멈춤)
+	_rescue_anim = {"t": 0.0, "dur": 0.35 + 0.35 * moves.size(), "pose": pose, "moves": moves, "plan": not plan.is_empty(),
+		"body0": session.body.pos, "angle0": session.body.angle, "pos0": pos0, "pos1": pos1}
+
+
+## 자동 도움 연출 한 프레임: 골반은 전체 시간 동안, 옮기는 손발은 하나씩 차례로 목표 홀드로. 끝나면 그 자세로 확정.
+func _rescue_tick(real_dt: float) -> void:
+	var an := _rescue_anim
+	an.t = minf(float(an.t) + real_dt, float(an.dur))
+	var k: float = an.t / an.dur
+	var e := k * k * (3.0 - 2.0 * k)
+	var p1 := Vector2(an.pose.pelvis[0], an.pose.pelvis[1])
+	session.body.pos = (an.body0 as Vector2).lerp(p1, e)
+	session.body.angle = lerpf(an.angle0, float(an.pose.angle), e)
+	session.body.vel = Vector2.ZERO
+	var delta: Vector2 = session.body.pos - (an.body0 as Vector2)
+	var n: int = an.moves.size()
+	for limb in session.limbs:
+		if an.pos1.has(limb):
+			var i := 0
+			for j in n:
+				if an.moves[j].limb == limb:
+					i = j
+			var kk := clampf(k * n - i, 0.0, 1.0)
+			var ee := kk * kk * (3.0 - 2.0 * kk)
+			var lift := Vector2(0, 0.06 * sin(PI * kk))  # 살짝 들어 올리며 옮긴다
+			session.limbs[limb].pos = (an.pos0[limb] as Vector2).lerp(an.pos1[limb], ee) + lift
+		elif not session.limbs[limb].state in ["Attached", "Armed"]:
+			session.limbs[limb].pos = (an.pos0[limb] as Vector2) + delta
+	if an.t < an.dur:
+		return
+	session.reset_to(an.pose)
+	_rescue_anim = {}
+	_safe_pose = {}
+	var names: Array[String] = []
+	for m in an.moves:
+		names.append(DangerFeedback.LIMB_KO[m.limb])
+	var what := "자세를 바로잡았어요"
+	if not an.plan:
+		what = "안정했던 자세로 되돌렸어요"
+	elif not names.is_empty():
+		var joined := "·".join(names)
+		what = "%s%s 옮겼어요" % [joined, Progress.object_particle(joined)]
+	_flash("자동 도움: %s · 남은 도움 %d번" % [what, rescue_left] if rescue_left > 0 else "자동 도움: %s · 자동 도움을 다 썼어요" % what, 180)
 
 
 func _log(text: String) -> void:
@@ -302,7 +363,7 @@ func _input(event: InputEvent) -> void:
 			if not event.pressed and prepare_left <= 0.0:
 				prepare_left = 3.0
 			return
-		if session.falling:
+		if session.falling or not _rescue_anim.is_empty():
 			return
 		if _ui_event(event.index, event.position, event.pressed):
 			return
@@ -312,7 +373,7 @@ func _input(event: InputEvent) -> void:
 			_apply(router.touch_down(event.index, event.position, attached_now))
 		else:
 			_apply(router.touch_up(event.index))
-	elif event is InputEventScreenDrag and not paused and not session.falling:
+	elif event is InputEventScreenDrag and not paused and not session.falling and _rescue_anim.is_empty():
 		if session.selecting:
 			_ui_drag(event.index, event.position)
 			return
@@ -351,8 +412,8 @@ func _overlay_action(act: String) -> void:
 			overlay.briefing = {}
 		"retry":
 			_retry()
-		"undo":
-			_undo()
+		"rescue":
+			_rescue()
 		"next":
 			game.play(str(overlay.result.next))
 		"list":
@@ -430,6 +491,10 @@ func _physics_process(_delta: float) -> void:
 		queue_redraw()
 		return
 	if overlay.blocking():
+		queue_redraw()
+		return
+	if not _rescue_anim.is_empty():
+		_rescue_tick(_delta)  # 자동 도움으로 옮겨 가는 중: 판정 틱·떨어지는 시계 멈춤
 		queue_redraw()
 		return
 	if danger.hitstop_left > 0.0 and not session.selecting:
@@ -697,7 +762,7 @@ func _draw_hud(size: Vector2) -> void:
 	if paused and not overlay.blocking():
 		overlay.add_buttons(hud.draw_pause(self, size, ui_k, prepare_left, overlay.has_list))
 	elif not paused and not overlay.blocking():
-		_draw_undo_button(size)
+		_draw_rescue_button(size)
 	if draw_world and goal_key != "" and not paused and not session.selecting and not overlay.blocking():
 		_draw_goal_mark(goal_key)  # 2D 시험 장면만. 3D 화면은 목표 홀드 자체가 노랗게 깜빡인다(play_3d)
 
@@ -731,8 +796,9 @@ func _draw_danger(size: Vector2) -> void:
 		return
 	var warn := Color(1.0, 0.25, 0.15).lerp(Color(1.0, 0.7, 0.2), danger.frac)
 	# 캐릭터 둘레 남은 시간 고리
-	var c := w2s(body + Vector2(0, 0.35))
-	var r := _screen_r(body, 0.95)
+	var ring := _ring()
+	var c: Vector2 = ring[0]
+	var r: float = ring[1]
 	draw_arc(c, r, 0, TAU, 64, Color(0, 0, 0, 0.35), 14 * ui_k, true)
 	draw_arc(c, r, -PI / 2, -PI / 2 + TAU * danger.frac, 64, warn, 10 * ui_k, true)
 	# 머리 위 큰 글자(튀어나오며 커졌다 줄어듦)
@@ -799,14 +865,30 @@ func _draw_rescue_hint(t: float) -> void:
 			_outlined(Vector2((a.x + b.x) * 0.5 - 150 * ui_k, a.y + 44 * ui_k), "몸을 이쪽으로", 24, 300 * ui_k, Color.WHITE)
 
 
-## 초급 되돌리기 버튼(위험 동안, 남은 횟수가 있을 때). 아래쪽 가운데.
-func _draw_undo_button(size: Vector2) -> void:
-	if not beginner or not danger.danger or undo_left <= 0 or _safe_pose.is_empty():
+## 위험 게이지(캐릭터 둘레 고리) 중심·반지름(화면 px).
+func _ring() -> Array:
+	var body: Vector2 = session.body.pos
+	return [w2s(body + Vector2(0, 0.35)), _screen_r(body, 0.95)]
+
+
+## 초급: 위험 게이지를 누르면 자동 도움. 고리 아래에 남은 횟수, 다 쓰면 "자동 도움 끝".
+func _draw_rescue_button(_size: Vector2) -> void:
+	if not beginner or not danger.danger or session.falling:
 		return
-	var r := Rect2(Vector2(size.x * 0.5 - 170 * ui_k, size.y - 104 * ui_k), Vector2(340, 80) * ui_k)
-	hud.panel(self, r, ui_k, Color(0.96, 0.84, 0.55, 0.96), Color(1, 1, 1, 0.9), 40.0)
-	draw_string(font, Vector2(r.position.x, r.position.y + 52 * ui_k), "↩ 되돌리기  %d/%d" % [undo_left, UNDO_PER_ATTEMPT], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(32 * ui_k), Color(0.19, 0.15, 0.11))
-	overlay.add_buttons([{"rect": r, "action": "undo"}])
+	var ring := _ring()
+	var c: Vector2 = ring[0]
+	var r: float = ring[1]
+	var y := c.y + r - 18 * ui_k
+	if rescue_left <= 0:
+		_outlined(Vector2(c.x - 200 * ui_k, y), "자동 도움 끝", 22, 400 * ui_k, Color(1, 1, 1, 0.6))
+		return
+	var blink := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * 2.0)
+	var w := 300.0 * ui_k
+	var pill := Rect2(Vector2(c.x - w * 0.5, y - 32 * ui_k), Vector2(w, 46 * ui_k))
+	hud.panel(self, pill, ui_k, Color(0.96, 0.84, 0.55, 0.95), Color(1, 1, 1, 0.9), 23.0)
+	draw_string(font, Vector2(pill.position.x, pill.position.y + 32 * ui_k), "눌러서 자동 도움 %d/%d" % [rescue_left, RESCUE_PER_ATTEMPT], HORIZONTAL_ALIGNMENT_CENTER, w, int(22 * ui_k), Color(0.19, 0.15, 0.11))
+	draw_arc(c, r + 10 * ui_k, 0, TAU, 64, Color(1, 0.9, 0.6, 0.35 + 0.4 * blink), 4 * ui_k, true)
+	overlay.add_buttons([{"rect": Rect2(c - Vector2(r, r), Vector2(r, r) * 2), "circle": [c, r + 16 * ui_k], "action": "rescue"}])
 
 
 ## 테두리 있는 가운데 정렬 글자. pos: 왼쪽 기준선, w: 폭.

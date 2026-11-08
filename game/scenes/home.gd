@@ -21,7 +21,7 @@ var _buttons: Array = []  # [{rect, action, arg}]
 var _techs := TechniqueJudge.defs()
 var choosing_level := false  # 난이도(초급·중급) 고르기 창. 처음 시작할 때와 오른쪽 위 [난이도] 버튼
 const LEVEL_INFO := {
-	"beginner": {"name": "초급", "desc": ["떨어지기 전 버틸 시간 10배", "어떻게 버틸지 화면에 안내", "되돌리기 3번 · 처음이면 추천"]},
+	"beginner": {"name": "초급", "desc": ["떨어지기 전 버틸 시간 10배", "어떻게 버틸지 화면에 안내", "위험 게이지 눌러 자동 도움 3번"]},
 	"intermediate": {"name": "중급", "desc": ["원래 규칙 그대로", "경고만 보여 줘요", "손에 익은 분께"]},
 }
 

@@ -37,8 +37,12 @@ func add_buttons(list: Array) -> void:
 ## 마지막으로 그린 버튼 중 pos를 덮는 것의 동작. 없으면 "".
 func tap(pos: Vector2) -> String:
 	for i in range(_buttons.size() - 1, -1, -1):
-		if (_buttons[i].rect as Rect2).has_point(pos):
-			return _buttons[i].action
+		var b: Dictionary = _buttons[i]
+		if b.has("circle"):  # 동그란 버튼 [중심, 반지름](위험 게이지 자동 도움)
+			if pos.distance_to(b.circle[0]) <= float(b.circle[1]):
+				return b.action
+		elif (b.rect as Rect2).has_point(pos):
+			return b.action
 	return ""
 
 
