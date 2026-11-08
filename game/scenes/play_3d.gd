@@ -380,11 +380,11 @@ var climber_pose := ClimberPose.new()
 
 
 var _shown := {}  # 슬로우모션 중 화면에 보인 관절 위치(판정 틱이 띄엄띄엄 돌 때 부드럽게 잇는다)
-const SLOW_SMOOTH := 20.0  # 1/s
+const SLOW_SMOOTH := 9.0  # 1/s (판정이 10프레임에 한 번이라 그 간격을 덮게)
 
 
 ## 판정 상태 → 표현용 3D 관절 위치(ClimberPose, docs/04 §8).
-## 초급 슬로우모션 중에는 판정이 4프레임에 한 번 돌아 몸이 뚝뚝 끊겨 보이므로 화면 위치만 부드럽게 따라가게 한다.
+## 초급 슬로우모션 중에는 판정이 10프레임에 한 번 돌아 몸이 뚝뚝 끊겨 보이므로 화면 위치만 부드럽게 따라가게 한다.
 func _pose_targets(delta: float) -> Dictionary:
 	var t := climber_pose.compute(logic.session, delta)
 	if logic.slow.scale >= 0.999 or _shown.is_empty():

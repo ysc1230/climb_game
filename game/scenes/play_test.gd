@@ -581,21 +581,42 @@ func _draw_hud(size: Vector2) -> void:
 		_draw_goal_mark(goal_key)  # 2D 시험 장면만. 3D 화면은 목표 홀드 자체가 노랗게 깜빡인다(play_3d)
 
 
-## 초급 슬로우모션 중 표시: 화면 가장자리를 푸르게 물들이고 위쪽 패널 아래에 "천천히 · 균형을 되찾으세요".
+## 초급 슬로우모션 중 경고(2026-11-08 사용자: "왜 느려지는지 알아볼 수 있게 경고").
+## 화면 가장자리가 주황·빨강으로 깜빡이고, 아래쪽 가운데 경고 카드에 이유·남은 시간(실제 초)·줄어드는 막대를 보인다.
 func _draw_slow_badge(size: Vector2) -> void:
 	var a := clampf((1.0 - slow.scale) / (1.0 - SlowMotion.SCALE), 0.0, 1.0)
-	var edge := 18.0 * ui_k
-	var tint := Color(0.35, 0.65, 1.0, 0.22 * a)
+	var ph: int = session.rules.phase
+	var grace := ph == ClimbRules.Phase.GRACE
+	var total := Tuning.UNSUPPORTED_GRACE_TICKS if grace else ClimbRules.IMBALANCE_BUDGET_TICKS
+	var used := session.rules.unsupported_ticks if grace else session.rules.imbalance_ticks
+	var frac := clampf(1.0 - float(used) / total, 0.0, 1.0)
+	var secs := minf(float(total - used) * Tuning.DT / SlowMotion.SCALE, slow.left)
+	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.012)
+	var warn := Color(1.0, 0.42, 0.25).lerp(Color(1.0, 0.75, 0.3), frac)
+	var edge := (16.0 + 10.0 * pulse) * ui_k
+	var tint := Color(warn.r, warn.g, warn.b, (0.18 + 0.22 * pulse) * a)
 	draw_rect(Rect2(Vector2.ZERO, Vector2(size.x, edge)), tint)
 	draw_rect(Rect2(Vector2(0, size.y - edge), Vector2(size.x, edge)), tint)
 	draw_rect(Rect2(Vector2(0, edge), Vector2(edge, size.y - 2 * edge)), tint)
 	draw_rect(Rect2(Vector2(size.x - edge, edge), Vector2(edge, size.y - 2 * edge)), tint)
-	var text := "천천히 · 균형을 되찾으세요"
-	var fs := int(24 * ui_k)
-	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 56 * ui_k
-	var r := Rect2(Vector2(size.x * 0.5 - w * 0.5, (HUD_BOTTOM + 14.0) * ui_k), Vector2(w, 46 * ui_k))
-	hud.panel(self, r, ui_k, Color(0.10, 0.22, 0.38, 0.85), Color(0.55, 0.80, 1.0, 0.9), 23.0)  # 고정 색(패널 캐시)
-	draw_string(font, Vector2(r.position.x, r.position.y + 32 * ui_k), text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, fs, Color(0.88, 0.95, 1.0, a))
+	if a < 0.3:
+		return
+	var w := 700.0 * ui_k
+	# 아래쪽 가운데(손을 뻗는 위쪽을 가리지 않게)
+	var r := Rect2(Vector2(size.x * 0.5 - w * 0.5, size.y - 112.0 * ui_k), Vector2(w, 104 * ui_k))
+	hud.panel(self, r, ui_k, Color(0.20, 0.07, 0.04, 0.88), Color(1.0, 0.55, 0.3, 0.95), 20.0)  # 고정 색(패널 캐시)
+	# 경고 삼각형
+	var c := r.position + Vector2(52, 48) * ui_k
+	var tri := PackedVector2Array([c + Vector2(0, -24) * ui_k, c + Vector2(26, 20) * ui_k, c + Vector2(-26, 20) * ui_k])
+	draw_colored_polygon(tri, warn)
+	draw_string(font, c + Vector2(-20, 15) * ui_k, "!", HORIZONTAL_ALIGNMENT_CENTER, 40 * ui_k, int(30 * ui_k), Color(0.2, 0.07, 0.04))
+	var x := r.position.x + 98 * ui_k
+	var reason := "잡거나 디딘 곳이 모자라요" if grace else "몸이 지지 밖으로 기울었어요"
+	draw_string(font, Vector2(x, r.position.y + 36 * ui_k), "떨어지기 직전! " + reason, HORIZONTAL_ALIGNMENT_LEFT, r.end.x - x - 20 * ui_k, int(26 * ui_k), Color(1, 0.93, 0.85))
+	draw_string(font, Vector2(x, r.position.y + 66 * ui_k), "초급 도움: 시간이 10배 느려졌어요 · 남은 시간 %.1f초" % secs, HORIZONTAL_ALIGNMENT_LEFT, r.end.x - x - 20 * ui_k, int(20 * ui_k), Color(1, 0.85, 0.7))
+	var bar := Rect2(Vector2(x, r.position.y + 80 * ui_k), Vector2(r.end.x - x - 28 * ui_k, 12 * ui_k))
+	draw_rect(bar, Color(1, 1, 1, 0.15))
+	draw_rect(Rect2(bar.position, Vector2(bar.size.x * frac, bar.size.y)), warn)
 
 
 ## 끌고 있는 손발 아래에 지금 놓으면 잡히는 홀드가 있으면(세션 후보) 그 홀드를 그 팔다리 색으로 반짝이고

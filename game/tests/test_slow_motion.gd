@@ -19,13 +19,13 @@ func test_off_by_default_runs_every_tick() -> void:
 	runner.check(_run(s, true, 120) == 120 and s.scale == 1.0, "중급(꺼짐): 위험해도 매 프레임 판정")
 
 
-func test_danger_slows_to_quarter_for_two_seconds() -> void:
+func test_danger_slows_to_tenth_for_three_seconds() -> void:
 	var s := SlowMotion.new()
 	s.enabled = true
 	runner.check(_run(s, false, 30) == 30, "안정: 정상 속도")
-	var n := _run(s, true, 122)  # 실제 2초(+켜지는 프레임)
-	runner.check(n >= 30 and n <= 36, "위험 2초 동안 판정 약 0.5초(30틱) 분량: %d" % n)
-	runner.check(not s.active(), "2초 뒤 끝남")
+	var n := _run(s, true, 182)  # 실제 3초(+켜지는 프레임)
+	runner.check(n >= 18 and n <= 24, "위험 3초 동안 판정 약 0.3초(18틱) 분량: %d" % n)
+	runner.check(not s.active(), "3초 뒤 끝남")
 	var after := _run(s, true, 60)
 	runner.check(after >= 54, "끝난 뒤 계속 위험해도 다시 느려지지 않음: %d" % after)
 
