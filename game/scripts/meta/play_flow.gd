@@ -78,6 +78,14 @@ func skip_basic() -> bool:
 	return SaveStore.save(progress, save_path)
 
 
+## 캐릭터 외형을 저장한다(docs/34 §7).
+func set_look(look: Dictionary) -> void:
+	if progress.look == look:
+		return
+	progress.look = look.duplicate()
+	SaveStore.save(progress, save_path)
+
+
 ## 처음 한 번 안내를 봤다고 저장한다(docs/33 §5).
 func mark_tip(id: String) -> void:
 	if progress.seen_tips.has(id):

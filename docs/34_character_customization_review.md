@@ -296,3 +296,35 @@
   - 여성 상의·하의를 만들거나 몸통 실루엣을 남녀로 나눈다.
   - 슬롯별 대안을 2개 이상 만든다.
   - 재질 이름을 M_<슬롯>_<구역>으로 통일한다(맨살 M_skin은 공통).
+
+---
+
+## 7. 1차 구현 (2026-11-11, 사용자 "일단 진행해보자")
+
+- **모델:** `art/recovered-climber-glb`의 climber_modular.glb를 game/art/characters/modular/로 가져왔다(남·여 몸 + 파츠). climber_male.glb는 modular에 같은 메시가 있어 가져오지 않았다.
+- **파츠 목록 data/characters.json**
+  - model 경로를 둔다.
+  - bodies: male·female, 메시 이름, 몸별 기본 조합.
+  - slots: hair·top·bottom·chalk·shoes와 파츠(id, 이름, 메시 이름).
+- **조립기 scripts/presentation/character_assembler.gd (CharacterAssembler)**
+  - 노드를 만들지 않고 glb 안의 P_* 메시 중 고른 것만 보이게 한다(몸 하나 + 슬롯마다 하나).
+  - normalize: 빠지거나 모르는 값을 몸 기본값으로 채운다.
+  - cycle: 다음 파츠를 고른다.
+  - style: 툰 셰이더 + 외곽선을 씌운다. 얼굴 재질(M_eye·M_mouth·M_pupil·M_face_*)은 외곽선을 끈다.
+- **저장:** Progress.look {body, hair, top, bottom, chalk, shoes}, PlayFlow.set_look.
+- **게임(play_3d._build_model)**
+  - 목록의 모듈 모델이 있으면 저장된 외형으로 조립하고, 없으면 CH02(climber.glb)를 쓴다.
+  - 색은 glb 재질 기본색을 쓴다(CH02일 때만 CHARACTER_COLORS).
+  - 자세·IK·고개 코드는 바꾸지 않았다.
+- **표정:** 모듈 모델에는 FX_face_*가 없어 지금은 한 가지 표정이다. 메시가 생기면 이름으로 자동으로 쓴다.
+- **홈 [캐릭터] 화면**
+  - 오른쪽 위 [난이도] 왼쪽에 버튼이 있다.
+  - 왼쪽은 3D 미리보기(SubViewport, 천천히 돎), 오른쪽은 성별·헤어·상의·하의·초크백·클라이밍화 [◀ 이름 ▶]이다.
+  - 대안이 하나뿐인 슬롯은 "(1종)"으로 흐리게 보인다.
+  - 성별을 바꾸면 그 몸의 기본 헤어로 바뀐다. [저장]하면 다음 플레이부터 적용된다.
+- **테스트 tests/test_character_assembler.gd**
+  - 목록과 모델 메시가 서로 빠짐없이 맞는다.
+  - 뼈 17개가 있고 위치가 규격 ±1mm 안이다.
+  - 어떤 선택이든 몸 하나 + 슬롯마다 하나만 보인다.
+  - 기본값 채우기·다음 파츠·저장이 동작한다.
+- **확인 범위:** 맥 화면에서 미리보기 화면과 G_V3_01 여성 외형(오른손 뻗기)을 찍어 확인했다. 기기에서는 아직 확인하지 않았다.

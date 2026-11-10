@@ -517,11 +517,21 @@ func _apply_look(frames: Dictionary, inv: Transform3D, delta: float) -> void:
 	frames["head"] = Transform3D(Basis(_look) * head.basis, head.origin)
 
 
+## 캐릭터 모델: data/characters.json의 모듈 모델(남녀·파츠, docs/34 §7)이 있으면 저장된 외형으로 조립하고,
+## 없으면 CH02(climber.glb)를 쓴다. 둘 다 같은 뼈대(RigPose.BONES)라 자세 계산은 같다.
 func _build_model() -> bool:
-	if not ResourceLoader.exists("res://art/characters/climber.glb"):
-		return false
-	var model: Node3D = load("res://art/characters/climber.glb").instantiate()
+	var asm := CharacterAssembler.load_catalog()
+	var path := asm.model_path()
+	var modular := path != "" and ResourceLoader.exists(path)
+	if not modular:
+		path = "res://art/characters/climber.glb"
+		if not ResourceLoader.exists(path):
+			return false
+	var model: Node3D = load(path).instantiate()
 	add_child(model)
+	if modular:
+		var g := get_node_or_null("/root/Game")
+		asm.apply(model, g.progress.look if g != null else {})
 	var found := model.find_children("*", "Skeleton3D", true, false)
 	skeleton = found[0] if found.size() > 0 else null
 	if skeleton == null:
@@ -542,15 +552,8 @@ func _build_model() -> bool:
 		rest_joints["hand_" + s] = rest_joints["wrist_" + s] + (rest_joints["wrist_" + s] - rest_joints["elbow_" + s]).normalized() * 0.09
 		rest_joints["toe_" + s] = rest_joints["ankle_" + s] + Vector3(0, -0.05, -0.15)
 	rig.setup(rest_poses, rest_joints)
+	CharacterAssembler.style(model, toon_shader, outline_shader, INK, {} if modular else CHARACTER_COLORS)
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
-		for i in mi.mesh.get_surface_count():
-			var m: Material = mi.mesh.surface_get_material(i)
-			var mname: String = m.resource_name if m else ""
-			var c: Color = CHARACTER_COLORS.get(mname, (m as BaseMaterial3D).albedo_color if m is BaseMaterial3D else CLOTH_TEAL)
-			var face := mname.begins_with("M_face")
-			var toon := _toon(c, c.darkened(0.15 if face else 0.45))
-			toon.next_pass.set_shader_parameter("width", 0.0 if face else 0.012)
-			mi.set_surface_override_material(i, toon)
 		if String(mi.name).begins_with("FX_face_"):
 			face_meshes[String(mi.name).trim_prefix("FX_face_")] = mi
 	_set_face("calm")

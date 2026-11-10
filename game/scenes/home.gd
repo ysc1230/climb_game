@@ -19,6 +19,12 @@ var grade := ""
 var course_id := ""   # 비어 있지 않으면 기술 탭에서 그 과정 화면
 var _buttons: Array = []  # [{rect, action, arg}]
 var _techs := TechniqueJudge.defs()
+var choosing_look := false   # 캐릭터 고르기 창(docs/34 §7). 오른쪽 위 [캐릭터] 버튼
+var look := {}               # 고르는 중인 외형(저장 전)
+var _asm: CharacterAssembler
+var _pv: SubViewport         # 3D 미리보기(창이 열린 동안만)
+var _pv_model: Node3D
+const LOOK_ROWS := [["body", "성별"], ["hair", "헤어"], ["top", "상의"], ["bottom", "하의"], ["chalk", "초크백"], ["shoes", "클라이밍화"]]
 var choosing_level := false  # 난이도(초급·중급) 고르기 창. 처음 시작할 때와 오른쪽 위 [난이도] 버튼
 const LEVEL_INFO := {
 	"beginner": {"name": "초급", "desc": ["떨어지기 전 버틸 시간 10배", "어떻게 버틸지 화면에 안내", "위험 게이지 눌러 자동 도움 3번"]},
@@ -102,6 +108,19 @@ func _do(action: String, arg: String) -> void:
 			_first_run_tutorial()
 		"level_open":
 			choosing_level = true
+		"look_open":
+			_open_look()
+		"look_prev", "look_next":
+			look[arg] = _asm.cycle(look, arg, -1 if action == "look_prev" else 1)
+			if arg == "body":  # 성별을 바꾸면 그 몸의 기본 헤어로(나머지는 유지)
+				look.hair = str(_asm.body(look.body).get("defaults", {}).get("hair", look.get("hair", "")))
+			look = _asm.normalize(look)
+			_asm.apply(_pv_model, look)
+		"look_save":
+			game.get_flow().set_look(look)
+			_close_look()
+		"look_cancel":
+			_close_look()
 		"level_close":
 			choosing_level = game.progress.level == ""
 		"tab":
@@ -143,12 +162,16 @@ func _draw() -> void:
 		_draw_course(size)
 	else:
 		_draw_courses(size)
+	if not choosing_level:
+		_button(Rect2(Vector2(size.x - 490 * k, 24 * k), Vector2(220, 56) * k), "캐릭터", "look_open", "", 22)
 	var lv: String = game.progress.level
 	if lv != "":
 		var r := Rect2(Vector2(size.x - 250 * k, 24 * k), Vector2(220, 56) * k)
 		_button(r, "난이도: " + str(LEVEL_INFO[lv].name), "level_open", "", 22)
 	if choosing_level:
 		_draw_level_choice(size)
+	elif choosing_look:
+		_draw_look(size)
 
 
 ## 난이도 고르기 창. 다른 버튼을 덮고(앞서 등록된 버튼은 지움) 카드 두 장만 누를 수 있다.
@@ -447,3 +470,88 @@ func _button(r: Rect2, text: String, action: String, arg: String, fs := 24, stro
 func _lock(c: Vector2, col: Color) -> void:
 	draw_arc(c + Vector2(0, -4 * k), 5 * k, PI, TAU, 10, col, 2.0 * k)
 	draw_rect(Rect2(c + Vector2(-7, -4) * k, Vector2(14, 11) * k), col)
+
+
+# ---------- 캐릭터 고르기(docs/34 §7) ----------
+
+func _open_look() -> void:
+	_asm = CharacterAssembler.load_catalog()
+	var path := _asm.model_path()
+	if path == "" or not ResourceLoader.exists(path):
+		return
+	look = _asm.normalize(game.progress.look)
+	_pv = SubViewport.new()
+	_pv.size = Vector2i(560, 760)
+	_pv.own_world_3d = true
+	_pv.transparent_bg = true
+	_pv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(_pv)
+	var env := WorldEnvironment.new()
+	env.environment = Environment.new()
+	env.environment.background_mode = Environment.BG_CLEAR_COLOR
+	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.environment.ambient_light_color = Color.WHITE
+	env.environment.ambient_light_energy = 0.55
+	_pv.add_child(env)
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-35, 25, 0)
+	_pv.add_child(sun)
+	_pv_model = load(path).instantiate()
+	_pv.add_child(_pv_model)
+	_pv_model.rotation.y = PI  # 앞(−Z, 벽 쪽)이 카메라를 보게
+	_asm.apply(_pv_model, look)
+	CharacterAssembler.style(_pv_model, preload("res://art/shaders/toon.gdshader"), preload("res://art/shaders/outline.gdshader"), INK)
+	var cam := Camera3D.new()
+	cam.position = Vector3(0, 0.0, 3.6)
+	cam.fov = 38
+	_pv.add_child(cam)
+	cam.current = true
+	choosing_look = true
+	queue_redraw()
+
+
+func _close_look() -> void:
+	choosing_look = false
+	if _pv != null:
+		_pv.queue_free()
+	_pv = null
+	_pv_model = null
+	queue_redraw()
+
+
+func _process(delta: float) -> void:
+	if choosing_look and _pv_model != null:
+		_pv_model.rotation.y += delta * 0.6
+		queue_redraw()
+
+
+## 왼쪽 3D 미리보기(천천히 돎), 오른쪽 슬롯마다 [◀ 이름 ▶]. 대안이 하나뿐인 슬롯은 화살표를 흐리게 하고 "1종"을 붙인다.
+func _draw_look(size: Vector2) -> void:
+	_buttons = []
+	draw_rect(Rect2(Vector2.ZERO, size), BG)
+	draw_string(font, Vector2(0, 70 * k), "캐릭터", HORIZONTAL_ALIGNMENT_CENTER, size.x, int(40 * k), CREAM)
+	var pvh := size.y - 160 * k
+	var pvw := pvh * 560.0 / 760.0
+	var pr := Rect2(Vector2(size.x * 0.30 - pvw * 0.5, 100 * k), Vector2(pvw, pvh))
+	draw_rect(pr, Color(1, 1, 1, 0.05))
+	if _pv != null:
+		draw_texture_rect(_pv.get_texture(), pr, false)
+	var x := size.x * 0.52
+	var y := 130 * k
+	var rw := 560.0 * k
+	for row in LOOK_ROWS:
+		var sid: String = row[0]
+		var count: int = _asm.bodies().size() if sid == "body" else _asm.slot(sid).get("parts", []).size()
+		draw_string(font, Vector2(x, y + 38 * k), row[1], HORIZONTAL_ALIGNMENT_LEFT, -1, int(24 * k), DIM)
+		var bx := x + 150 * k
+		var one := count <= 1
+		var lb := Rect2(Vector2(bx, y), Vector2(60, 56) * k)
+		var nb := Rect2(Vector2(bx + rw - 210 * k, y), Vector2(60, 56) * k)
+		_button(lb, "◀", "look_prev" if not one else "", sid, 26)
+		_button(nb, "▶", "look_next" if not one else "", sid, 26)
+		var nm := _asm.part_name(sid, str(look.get(sid, "")))
+		draw_string(font, Vector2(lb.end.x, y + 38 * k), nm + ("  (1종)" if one else ""), HORIZONTAL_ALIGNMENT_CENTER, nb.position.x - lb.end.x, int(24 * k), DIM if one else Color.WHITE)
+		y += 76 * k
+	_button(Rect2(Vector2(x + 150 * k, y + 20 * k), Vector2(200, 60) * k), "저장", "look_save", "", 24, true)
+	_button(Rect2(Vector2(x + 370 * k, y + 20 * k), Vector2(200, 60) * k), "취소", "look_cancel", "", 24)
+	draw_string(font, Vector2(x, y + 130 * k), "상의·하의·초크백·신발은 아직 한 가지씩이에요(시제품).", HORIZONTAL_ALIGNMENT_LEFT, -1, int(18 * k), DIM)

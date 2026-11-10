@@ -1,0 +1,21 @@
+{
+ "model": "res://art/characters/modular/climber_modular.glb",
+ "note": "docs/34 §6·§7. 시제품(art/recovered-climber-glb, 2026-11-11). 메시 이름(P_*)이 glb 안 메시 노드 이름이다. 몸은 둘 중 하나, 나머지 슬롯은 슬롯마다 하나만 보인다. 아직 상의·하의·초크백·신발은 하나씩뿐이다.",
+ "bodies": [
+  {"id": "male", "name_ko": "남성", "mesh": "P_body_male", "defaults": {"hair": "tousled", "top": "tee", "bottom": "trousers", "chalk": "round", "shoes": "velcro"}},
+  {"id": "female", "name_ko": "여성", "mesh": "P_body_female", "defaults": {"hair": "crop", "top": "tee", "bottom": "trousers", "chalk": "round", "shoes": "velcro"}}
+ ],
+ "slots": [
+  {"id": "hair", "name_ko": "헤어", "parts": [
+   {"id": "tousled", "name_ko": "덥수룩한 머리", "mesh": "P_hair_tousled"},
+   {"id": "crop", "name_ko": "짧은 머리", "mesh": "P_hair_crop"}]},
+  {"id": "top", "name_ko": "상의", "parts": [
+   {"id": "tee", "name_ko": "반팔 티", "mesh": "P_top_tee"}]},
+  {"id": "bottom", "name_ko": "하의", "parts": [
+   {"id": "trousers", "name_ko": "긴 바지", "mesh": "P_bottom_trousers"}]},
+  {"id": "chalk", "name_ko": "초크백", "parts": [
+   {"id": "round", "name_ko": "둥근 초크백", "mesh": "P_chalk_bag_round"}]},
+  {"id": "shoes", "name_ko": "클라이밍화", "parts": [
+   {"id": "velcro", "name_ko": "벨크로 암벽화", "mesh": "P_shoes_velcro"}]}
+ ]
+}
