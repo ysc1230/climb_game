@@ -117,7 +117,7 @@ static func evaluate(s: ClimbSession, keys: Dictionary, move_count: int) -> Dict
 	rules.feet_eligible = feet
 	rules.loaded_feet.assign(feet)
 	var platform := _on_platform(s, keys, att, pelvis)
-	if rules._eligible_hand_count(pelvis, angle, att, 0.0) == 0 and not platform:
+	if rules._eligible_hand_count(pelvis, angle, att, 0.0) == 0 and not ClimbRules.platform_holds(platform, att):
 		return {}
 	var eps := {}
 	for limb in PoseSolver.LIMBS:

@@ -373,7 +373,7 @@ func release_risk(limb: StringName) -> StringName:
 	for l in att:
 		eps.erase(l)
 	var platform := on_platform(att)
-	if rules._eligible_hand_count(body.pos, body.angle, att, body.yaw) == 0 and not platform:
+	if rules._eligible_hand_count(body.pos, body.angle, att, body.yaw) == 0 and not ClimbRules.platform_holds(platform, att):
 		return &"GRACE"
 	var feet := PoseSolver.supporting_feet(body.pos, body.angle, att, rules.feet_eligible, body.yaw)
 	var r := rules.evaluate(body.pos, body.angle, att, eps, platform, feet, body.yaw)

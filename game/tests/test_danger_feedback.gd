@@ -145,3 +145,16 @@ func test_level_saved_and_beginner_assist() -> void:
 func test_scared_face_in_danger() -> void:
 	runner.check(PLAY_3D.expression_for(false, false, 90.0, true, true) == "scared", "떨어지기 직전 겁먹은 표정")
 	runner.check(PLAY_3D.expression_for(false, true, 90.0, true, true) == "happy", "정상에서는 기쁨 우선")
+
+
+## 바닥 발판(플랫폼)에 두 발로 서 있어도 손이 하나도 없으면 떨어진다(2026-11-10 사용자 보고).
+func test_platform_needs_a_hand() -> void:
+	var s := _session({&"LH": 1, &"RH": 1, &"LF": 1, &"RF": 1})
+	for i in 20:
+		s.step()
+	runner.check(s.on_platform(s.attached()), "시작 자세는 바닥 발판")
+	s.apply_input([{"type": "detach", "limb": &"LH"}])
+	for i in 30:
+		runner.check(not s.step().begins_with("fall:"), "한 손 + 바닥 발판은 버팀")
+	s.apply_input([{"type": "detach", "limb": &"RH"}])
+	runner.check(_ticks_to_fall(s) == Tuning.UNSUPPORTED_GRACE_TICKS, "두 손을 모두 놓으면 바닥 발판 위에서도 9틱에 떨어짐")
