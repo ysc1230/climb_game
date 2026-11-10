@@ -114,6 +114,10 @@ func set_level(level: String) -> void:
 
 
 ## 초급 도움(버틸 시간 10배·해결 안내·되돌리기, play_test)을 켜는가.
+func level() -> String:
+	return progress.level if progress.level in Progress.LEVELS else "intermediate"
+
+
 func beginner_assist() -> bool:
 	return progress.level == "beginner"
 

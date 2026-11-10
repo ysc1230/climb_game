@@ -53,8 +53,11 @@ func draw_top(ci: CanvasItem, size: Vector2, k: float, info: Dictionary) -> Dict
 	for dx in [-8.0 * k, 8.0 * k]:
 		panel(ci, Rect2(c + Vector2(dx - bw * 0.5, -bh * 0.5), Vector2(bw, bh)), k, CREAM, Color(0, 0, 0, 0), 3)
 	var det_r := Rect2(Vector2(pause_r.end.x + 8 * k, m), Vector2(h, h))
-	panel(ci, det_r, k, Color(GOLD, 0.9) if detail else PANEL, BORDER, 14)
-	ci.draw_string(font, Vector2(det_r.position.x, det_r.position.y + h * 0.5 + 9 * k), "i", HORIZONTAL_ALIGNMENT_CENTER, h, int(26 * k), Color("3a2a1c") if detail else CREAM)
+	if info.get("no_detail", false):  # 고급: 상세 정보(지지 상태 등) 버튼 없음
+		det_r = Rect2(Vector2(pause_r.end.x, m), Vector2(0, h))
+	else:
+		panel(ci, det_r, k, Color(GOLD, 0.9) if detail else PANEL, BORDER, 14)
+		ci.draw_string(font, Vector2(det_r.position.x, det_r.position.y + h * 0.5 + 9 * k), "i", HORIZONTAL_ALIGNMENT_CENTER, h, int(26 * k), Color("3a2a1c") if detail else CREAM)
 	# 한 줄 반투명 띠(이름 ~ 높이)
 	var strip := Rect2(Vector2(det_r.end.x + 8 * k, m), Vector2(size.x - m - det_r.end.x - 8 * k, h))
 	panel(ci, strip, k, Color(PANEL, 0.72), Color(BORDER, 0.35), 14)
@@ -125,12 +128,13 @@ func _progress(ci: CanvasItem, r: Rect2, k: float, best: float, now: float) -> v
 
 ## 손 패드 바로 위 팔 힘 게이지(기획 §5). 입력은 받지 않는다. 좌우는 패드 테두리 색(side_col)으로 얇게 테두리.
 ## 정상: 바만 / 힘 부족(< 45): 숫자 + "!" / 위험(< 20): 빨강 + 굵은 테두리 / 회복 중: 위 화살표.
-func draw_pad_stamina(ci: CanvasItem, pad_center: Vector2, pad_r: float, k: float, value: float, recovering: bool, side_col: Color, highlight := false) -> void:
+## plain(고급): 바만 그린다(숫자·"!"·빨간 테두리 경고 없음).
+func draw_pad_stamina(ci: CanvasItem, pad_center: Vector2, pad_r: float, k: float, value: float, recovering: bool, side_col: Color, highlight := false, plain := false) -> void:
 	var w := pad_r * 2.0
 	var bh := 14.0 * k
 	var r := Rect2(Vector2(pad_center.x - pad_r, pad_center.y - pad_r - 22 * k - bh), Vector2(w, bh))
-	var low := value < 45.0
-	var danger := value < 20.0
+	var low := value < 45.0 and not plain
+	var danger := value < 20.0 and not plain
 	panel(ci, r.grow(3 * k), k, Color(0.08, 0.06, 0.05, 0.75), Color(side_col, 0.9), 9)
 	var f := clampf(value / 100.0, 0.0, 1.0)
 	var col := GOOD if value >= 45.0 else (WARN if value >= 20.0 else BAD)
@@ -143,7 +147,7 @@ func draw_pad_stamina(ci: CanvasItem, pad_center: Vector2, pad_r: float, k: floa
 		var t := "! %d" % roundi(value)
 		ci.draw_string_outline(font, Vector2(r.position.x, ty), t, HORIZONTAL_ALIGNMENT_CENTER, w, int(20 * k), int(5 * k), Color(0.08, 0.06, 0.05, 0.9))
 		ci.draw_string(font, Vector2(r.position.x, ty), t, HORIZONTAL_ALIGNMENT_CENTER, w, int(20 * k), col)
-	if recovering and value < 99.5:
+	if recovering and value < 99.5 and not plain:
 		var a := Vector2(r.end.x + 14 * k, r.get_center().y)
 		ci.draw_colored_polygon(PackedVector2Array([a + Vector2(0, -9 * k), a + Vector2(7 * k, 2 * k), a + Vector2(-7 * k, 2 * k)]), GOOD)
 		ci.draw_rect(Rect2(a + Vector2(-2.5 * k, 2 * k), Vector2(5 * k, 6 * k)), GOOD)

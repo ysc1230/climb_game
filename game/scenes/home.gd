@@ -22,7 +22,8 @@ var _techs := TechniqueJudge.defs()
 var choosing_level := false  # 난이도(초급·중급) 고르기 창. 처음 시작할 때와 오른쪽 위 [난이도] 버튼
 const LEVEL_INFO := {
 	"beginner": {"name": "초급", "desc": ["떨어지기 전 버틸 시간 10배", "어떻게 버틸지 화면에 안내", "위험 게이지 눌러 자동 도움 3번"]},
-	"intermediate": {"name": "중급", "desc": ["원래 규칙 그대로", "경고만 보여 줘요", "손에 익은 분께"]},
+	"advanced": {"name": "고급", "desc": ["경고·알림이 없어요", "손 게이지와 몸의 균형만 보고", "스스로 판단해요"]},
+	"intermediate": {"name": "중급", "desc": ["경고와 안내를 보여 줘요", "손을 다 놓으면 1.5초 뒤 떨어져요", "손에 익은 분께"]},
 }
 
 
@@ -161,19 +162,21 @@ func _draw_level_choice(size: Vector2) -> void:
 	var cw := 420.0 * k
 	var ch := 300.0 * k
 	var gap := 40.0 * k
-	var x := size.x * 0.5 - cw - gap * 0.5
-	for lv in ["beginner", "intermediate"]:
+	var lvs := ["beginner", "intermediate", "advanced"]
+	cw = minf(cw, (size.x - 80 * k - gap * (lvs.size() - 1)) / lvs.size())
+	var x := size.x * 0.5 - (cw * lvs.size() + gap * (lvs.size() - 1)) * 0.5
+	for lv in lvs:
 		var r := Rect2(Vector2(x, size.y * 0.5 - 150 * k), Vector2(cw, ch))
 		var on: bool = lv == cur
 		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color("3b3128") if lv == "beginner" else Color("2f3036")
+		sb.bg_color = {"beginner": Color("3b3128"), "intermediate": Color("2f3036"), "advanced": Color("2a2226")}[lv]
 		sb.border_color = CREAM if on else Color(1, 1, 1, 0.25)
 		sb.set_border_width_all(maxi(2, int((4 if on else 2) * k)))
 		sb.set_corner_radius_all(int(24 * k))
 		sb.anti_aliasing = true
 		draw_style_box(sb, r)
 		var info: Dictionary = LEVEL_INFO[lv]
-		var accent := Color("8cc8ff") if lv == "beginner" else Color("f1d59a")
+		var accent: Color = {"beginner": Color("8cc8ff"), "intermediate": Color("f1d59a"), "advanced": Color("ff9a7a")}[lv]
 		draw_string(font, Vector2(r.position.x, r.position.y + 78 * k), ("✓ " if on else "") + str(info.name), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(52 * k), accent)
 		var y := r.position.y + 140 * k
 		for line in info.desc:

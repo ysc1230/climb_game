@@ -106,13 +106,12 @@ func _ticks_to_fall(s: ClimbSession) -> int:
 
 
 func test_beginner_budget_ten_times() -> void:
-	var normal := _session({&"LF": 1})
-	runner.check(_ticks_to_fall(normal) == Tuning.UNSUPPORTED_GRACE_TICKS, "중급: 지지 없음 9틱에 떨어짐")
-	var easy := _session({&"LF": 1})
-	ClimbRules.apply_beginner(easy.rules)
-	var n := _ticks_to_fall(easy)
-	runner.check(n == Tuning.UNSUPPORTED_GRACE_TICKS, "초급도 손이 없으면 바로(9틱) 떨어짐: %d" % n)
-	runner.check(easy.rules.imbalance_budget == ClimbRules.IMBALANCE_BUDGET_TICKS * 10, "초급은 균형 잃음만 10배")
+	for lv in ["beginner", "intermediate", "advanced"]:
+		var s := _session({&"LF": 1})
+		ClimbRules.apply_level(s.rules, lv)
+		var n := _ticks_to_fall(s)
+		runner.check(n == (9 if lv == "advanced" else 90), "%s: 손이 없으면 %d틱에 떨어짐(%d)" % [lv, 9 if lv == "advanced" else 90, n])
+		runner.check(s.rules.imbalance_budget == (180 if lv == "beginner" else 18), "%s 균형 잃음 예산" % lv)
 
 
 func test_current_pose_round_trip() -> void:
@@ -157,4 +156,4 @@ func test_platform_needs_a_hand() -> void:
 	for i in 30:
 		runner.check(not s.step().begins_with("fall:"), "한 손 + 바닥 발판은 버팀")
 	s.apply_input([{"type": "detach", "limb": &"RH"}])
-	runner.check(_ticks_to_fall(s) == Tuning.UNSUPPORTED_GRACE_TICKS, "두 손을 모두 놓으면 바닥 발판 위에서도 9틱에 떨어짐")
+	runner.check(_ticks_to_fall(s) == s.rules.grace_budget, "두 손을 모두 놓으면 바닥 발판 위에서도 떨어짐")

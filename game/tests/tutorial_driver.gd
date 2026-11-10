@@ -18,8 +18,7 @@ var visited: Array = []  # 시작한 단계 ID 순서
 ## level: "beginner"면 play_test처럼 버틸 시간 10배.
 func _init(route: RouteDef, level := "intermediate") -> void:
 	s = ClimbSession.new(route)
-	if level == "beginner":
-		ClimbRules.apply_beginner(s.rules)
+	ClimbRules.apply_level(s.rules, level)
 	t = TutorialRunner.new(route)
 	t.set_level(level)
 	_begin()

@@ -81,9 +81,10 @@ func test_mc14_regrab_on_last_grace_tick_counts() -> void:
 	var out := rules.tick(body, START, {}, false, false)
 	runner.check(out.is_empty(), "9번째 틱 재잡기로 지지 회복, 실제 %s" % out)
 	runner.check(rules.unsupported_ticks == 0, "무지지 카운트 0")
-	runner.check(rules.imbalance_ticks > 0, "불균형 예산은 6틱 확인 전까지 유지")
+	# 2026-11-10: 지지 없음(GRACE) 동안에는 불균형 예산을 쓰지 않는다(두 손을 놓으면 1.5초 뒤 떨어진다는 사용자 규칙과 맞춤)
+	runner.check(rules.imbalance_ticks == 0, "무지지 동안 불균형 예산은 쓰지 않음 (%d)" % rules.imbalance_ticks)
 	_run(rules, body, START, 6)
-	runner.check(rules.imbalance_ticks == 0 and rules.balance_confirmed(), "6틱 확인 후 예산 초기화")
+	runner.check(rules.imbalance_ticks == 0 and rules.balance_confirmed(), "6틱 확인 후 균형 확인")
 
 
 func test_slipped_hand_is_reported() -> void:

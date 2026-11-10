@@ -22,6 +22,9 @@ var hud = preload("res://scenes/hud.gd").new()  # 위쪽 정보 패널·일시�
 ## 떨어지기 전 경고 3단계(주의·위험·회복)와 초급 도움(2026-11-09, docs/18). 경고는 초급·중급 모두, 도움은 초급만.
 var danger := DangerFeedback.new()
 var beginner := false             # 초급: 버틸 시간 10배·해결 안내·자동 도움
+var level := "intermediate"       # beginner / intermediate / advanced
+## 경고·알림을 보이는가. 고급은 아무 경고 없이 손 게이지와 몸의 균형만 보고 판단한다(2026-11-10 사용자). 튜토리얼은 늘 보인다.
+var warnings := true
 const RESCUE_PER_ATTEMPT := 3     # 위험 게이지를 눌러 쓰는 자동 도움(AutoRescue) 횟수. 다 쓰면 경고만 남는다
 var rescue_left := 0
 var _rescue_anim := {}            # 자동 도움으로 옮겨 가는 중 {t, dur, pose, moves, body0, angle0, pos0, pos1}
@@ -109,9 +112,9 @@ func _ready() -> void:
 	else:
 		overlay.has_list = true
 	session = ClimbSession.new(route)
-	beginner = game != null and game.get_flow().beginner_assist()
-	if beginner:
-		ClimbRules.apply_beginner(session.rules)
+	level = game.get_flow().level() if game != null else "intermediate"
+	beginner = level == "beginner"
+	ClimbRules.apply_level(session.rules, level)
 	_build_feedback()
 	_start_tutorial()
 	get_viewport().size_changed.connect(_layout)
@@ -126,10 +129,11 @@ func _start_tutorial() -> void:
 	overlay.can_skip = false
 	if overlay.has_list and route.course_slot == "tutorial" and not route.tutorial_steps.is_empty():
 		tutorial = TutorialRunner.new(route)
-		tutorial.set_level("beginner" if beginner else "intermediate")
+		tutorial.set_level("beginner" if beginner else "intermediate")  # 고급도 튜토리얼은 중급 단계로
 		_begin_step()
 		overlay.briefing = _briefing_for(route)
 		overlay.can_skip = route.route_id == Progress.BASIC_TUTORIAL and game.progress.is_first_run()
+	warnings = level != "advanced" or tutorial != null
 	overlay.tutorial = tutorial
 	overlay.tutorial_done = false
 	_refresh_buttons()
@@ -243,6 +247,11 @@ func _vibrate(ms: int, amplitude := -1.0) -> void:
 ## 튜토리얼이면 사건을 목표용으로 넘긴다(docs/33 §7-1). 처음 겪는 신호는 한 번 안내(docs/33 §5).
 func _danger_tick(real_dt: float, stepped: bool) -> void:
 	var ph: int = session.rules.phase
+	if not warnings:  # 고급: 경고 상태를 만들지 않는다(소리·진동·화면·멈칫·안내 없음)
+		danger.reset()
+		if stepped and ph == ClimbRules.Phase.STABLE and not session.falling and not session.is_dragging():
+			_safe_pose = session.current_pose()
+		return
 	danger.observe_session(session, real_dt, stepped)
 	if tutorial != null:
 		for ev in danger.tutorial_events():
@@ -289,7 +298,7 @@ func _danger_tick(real_dt: float, stepped: bool) -> void:
 ## 처음 한 번 안내를 대기열에 넣는다(기기에 한 번, 튜토리얼 밖에서만). seen_id: 저장 키(문구 키와 다를 때).
 func _tip(id: String, seen_id := "") -> void:
 	var key := seen_id if seen_id != "" else id
-	if tutorial != null or game == null or game.progress.seen_tips.has(key) or _tips_pending.has(id):
+	if not warnings or tutorial != null or game == null or game.progress.seen_tips.has(key) or _tips_pending.has(id):
 		return
 	game.get_flow().mark_tip(key)
 	_tips_pending.append(id)
@@ -592,7 +601,7 @@ func _physics_process(_delta: float) -> void:
 	var result := session.step()
 	_hud_tick(_delta)
 	if result.begins_with("fall:"):
-		_fall_cause = danger.fall_cause(result.trim_prefix("fall:"))
+		_fall_cause = danger.fall_cause(result.trim_prefix("fall:")) if warnings else "떨어졌어요"
 	_danger_tick(_delta, not session.selecting)
 	best_height = maxf(best_height, _height())
 	_take_messages()
@@ -801,7 +810,7 @@ func _draw_pads(size: Vector2) -> void:
 			draw_arc(p.center, p.radius + 8 * ui_k, 0, TAU, 48, Color(1.0, 0.82, 0.3, 0.45 + 0.5 * pl), 6 * ui_k)
 		# 손 패드 바로 위 팔 힘 게이지(기획 §5)
 		if PoseSolver.is_hand(limb):
-			hud.draw_pad_stamina(self, p.center, p.radius, ui_k, float(session.rules.stamina[limb]), bool(_stam_up.get(limb, false)), col, target)
+			hud.draw_pad_stamina(self, p.center, p.radius, ui_k, float(session.rules.stamina[limb]), bool(_stam_up.get(limb, false)), col, target, not warnings)
 
 
 ## 튜토리얼 지금 단계의 목표 팔다리(없으면 &"").
@@ -849,15 +858,15 @@ func _draw_hud(size: Vector2) -> void:
 		title += "  · 추락 %d" % falls
 	if not paused:
 		_draw_danger_glow(size)  # 위쪽 정보 패널보다 먼저(패널이 붉게 흐려지지 않게)
-	var top_btns: Dictionary = hud.draw_top(self, size, ui_k, {"detail": detail_mode,
+	var top_btns: Dictionary = hud.draw_top(self, size, ui_k, {"detail": detail_mode and warnings, "no_detail": not warnings,
 		"title": title, "goal_height": _goal_height(), "height": _height(), "best_height": best_height,
 		"stamina": session.rules.stamina, "phase_name": names[ph], "phase_color": colors[ph],
 		"load_l": roundi(hu.get(&"LH", 0.0) * 100), "load_r": roundi(hu.get(&"RH", 0.0) * 100),
 		"move": move, "budget": budget,
 	})
 	overlay.pause_rect = top_btns.pause
-	overlay.detail_rect = top_btns.detail
-	if not detail_mode and not paused:
+	overlay.detail_rect = top_btns.detail if warnings else Rect2()
+	if not detail_mode and not paused and warnings:
 		_draw_notice(size, ph)
 	var y := size.y - 20 * ui_k
 	for i in range(log_lines.size() - 1, -1, -1):
@@ -902,11 +911,14 @@ func _draw_danger(size: Vector2) -> void:
 		if not router.pads.has(limb):
 			continue
 		var p: Dictionary = router.pads[limb]
-		draw_circle(p.center, p.radius, Color(1.0, 0.8, 0.2, 0.25 + 0.25 * blink))
-		draw_arc(p.center, p.radius + 6 * ui_k, 0, TAU, 48, Color(1.0, 0.82, 0.25, 0.95), 7.0 * ui_k)
-		_draw_bang(p.center + Vector2(p.radius * 0.72, -p.radius * 0.72), 22.0 * ui_k, Color(1.0, 0.8, 0.2))
-		var txt := DangerFeedback.caution_text(danger.caution[limb])
-		_outlined(_pad_label_pos(p), txt, 26, 320 * ui_k, Color(1.0, 0.88, 0.4))
+		# 떼자마자 1초 안에 떨어질 손발은 빨강(2026-11-10 사용자), 그보다 여유가 있으면 노랑
+		var fast := _fall_seconds(danger.caution[limb]) <= 1.0
+		var cc := Color(1.0, 0.25, 0.18) if fast else Color(1.0, 0.8, 0.2)
+		draw_circle(p.center, p.radius, Color(cc, 0.25 + 0.25 * blink))
+		draw_arc(p.center, p.radius + 6 * ui_k, 0, TAU, 48, Color(cc, 0.95), 7.0 * ui_k)
+		_draw_bang(p.center + Vector2(p.radius * 0.72, -p.radius * 0.72), 22.0 * ui_k, cc)
+		var txt := "떼면 바로 떨어져요" if fast else DangerFeedback.caution_text(danger.caution[limb])
+		_outlined(_pad_label_pos(p), txt, 26, 320 * ui_k, cc.lightened(0.25))
 	if not danger.caution.is_empty() and not danger.danger:
 		_draw_bang(Vector2(head.x, maxf(head.y - 20 * ui_k, top)), 26.0 * ui_k, Color(1.0, 0.8, 0.2))
 	# ③ 회복
@@ -933,6 +945,12 @@ func _draw_danger(size: Vector2) -> void:
 	_outlined(Vector2(head.x - 300 * ui_k, y + 40 * ui_k), sub, 26, 600 * ui_k, Color(1, 0.9, 0.8))
 	if beginner:
 		_draw_rescue_hint(t)
+
+
+## 주의 종류(release_risk)에 따라 떼면 떨어지기까지의 시간(초).
+func _fall_seconds(k: StringName) -> float:
+	var ticks := session.rules.grace_budget if k == &"GRACE" else session.rules.imbalance_budget
+	return ticks * Tuning.DT
 
 
 ## 화면 가장자리 빛: 위험이면 심장 박동에 맞춰 뛰는 빨강, 회복이면 잠깐 초록.

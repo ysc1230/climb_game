@@ -19,7 +19,7 @@ var last_tab := "general"
 ## 플레이 난이도(2026-11-08): "" 아직 안 고름, "beginner" 초급(떨어지기 직전 슬로우모션), "intermediate" 중급(그대로).
 var level := ""
 var seen_tips: Array = []  # 처음 한 번 안내를 본 것(docs/33 §5). 진행 초기화 때 함께 지운다
-const LEVELS: Array[String] = ["beginner", "intermediate"]
+const LEVELS: Array[String] = ["beginner", "intermediate", "advanced"]  # advanced 고급(2026-11-10): 경고·알림 없음
 
 
 ## 을/를 조사. 마지막 한글 음절에 받침이 있으면 "을", 없으면 "를".

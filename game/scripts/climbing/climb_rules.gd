@@ -233,7 +233,8 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 			imbalance_ticks = 0
 	else:
 		balance_confirm_ticks = 0
-		imbalance_ticks += 1
+		if phase == Phase.REBALANCING:
+			imbalance_ticks += 1  # 지지 없음(GRACE)은 unsupported_ticks만 센다(두 예산이 겹쳐 짧은 쪽으로 떨어지지 않게, 2026-11-10)
 	if unsupported_ticks >= grace_budget:
 		return "NO_SUPPORT"
 	if imbalance_ticks >= imbalance_budget:
@@ -339,11 +340,15 @@ static func _signature(d: Dictionary) -> Array:
 	return out
 
 
-## 초급 도움(2026-11-09): 몸이 기울어 균형을 잃는 경우(REBALANCING)만 버틸 시간 10배.
-## 손이 하나도 없는 지지 없음(GRACE)은 초급도 바로 떨어진다(2026-11-10 사용자: "두 손을 놓으면 바로 떨어져야지").
-static func apply_beginner(r: ClimbRules) -> void:
-	r.imbalance_budget = IMBALANCE_BUDGET_TICKS * BEGINNER_BUDGET_MULT
-	r.grace_budget = Tuning.UNSUPPORTED_GRACE_TICKS
+## 난이도별 떨어지기까지의 예산(2026-11-10 사용자).
+## - 손이 하나도 없음(GRACE): 초급·중급 1.5초(90틱). 고급은 원래 0.15초(9틱).
+## - 몸이 기울어 균형을 잃음(REBALANCING): 초급 10배(3초), 중급·고급 0.3초(18틱).
+const LEVEL_GRACE_SECONDS := 1.5
+
+
+static func apply_level(r: ClimbRules, level: String) -> void:
+	r.imbalance_budget = IMBALANCE_BUDGET_TICKS * (BEGINNER_BUDGET_MULT if level == "beginner" else 1)
+	r.grace_budget = Tuning.UNSUPPORTED_GRACE_TICKS if level == "advanced" else int(LEVEL_GRACE_SECONDS * Tuning.TICK_HZ)
 
 
 ## 바닥 발판(플랫폼) 지지는 손이 하나라도 홀드를 잡고 있을 때만 인정한다(2026-11-10 사용자: "아무 손 홀드도 잡고 있지
