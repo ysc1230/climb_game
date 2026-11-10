@@ -298,18 +298,31 @@ func _two_bone(root: Vector2, end: Vector2, a: float, b: float, side: float) -> 
 	return root + dir * x + perp * h
 
 
-func _draw_pads(size: Vector2) -> void:
+func _draw_pads(_size: Vector2) -> void:
+	# 네 패드의 모든 배경 레이어는 완전 불투명(alpha=1). 터치 판정 원은 기존과 동일하다.
+	var active_limbs := router.active_limbs()
 	for limb in router.pads:
 		var p: Dictionary = router.pads[limb]
-		var active := router.active_limbs().has(limb)
-		var col: Color = LIMB_COLORS[limb]
-		draw_circle(p.center, p.radius, Color(col, 0.45 if active else 0.22))
-		draw_arc(p.center, p.radius, 0, TAU, 40, Color(col, 0.9), 3.0)
-		var label := "%s %s" % [limb, "손" if PoseSolver.is_hand(limb) else "발"]
-		draw_string(font, p.center + Vector2(-p.radius, 8), label, HORIZONTAL_ALIGNMENT_CENTER, p.radius * 2, int(26 * ui_k), Color.WHITE)
-		if PoseSolver.is_hand(limb):
+		var center: Vector2 = p.center
+		var radius: float = p.radius
+		var active: bool = active_limbs.has(limb)
+		var is_left: bool = limb == &"LH" or limb == &"LF"
+		var is_hand: bool = PoseSolver.is_hand(limb)
+		var surface := Color("286f92") if active and is_left else (Color("a66638") if active else (Color("1a4d68") if is_left else Color("704123")))
+		var inset := Color("347f9f") if active and is_left else (Color("ba7946") if active else (Color("245d79") if is_left else Color("89522f")))
+		var edge := Color("a4e4ff") if is_left else Color("ffd0a0")
+		# 외곽 그림자, 테두리, 안쪽 면 모두 불투명하게 그려 월드 화면이 비치지 않도록 한다.
+		draw_circle(center + Vector2(0, 4 * ui_k), radius + 3 * ui_k, Color("101820"))
+		draw_circle(center, radius, Color("152531"))
+		draw_circle(center, radius - 4 * ui_k, surface)
+		draw_arc(center, radius - 7 * ui_k, 0, TAU, 48, edge if active else Color("7593a3") if is_left else Color("a58b75"), 4 * ui_k)
+		draw_circle(center, radius * 0.73, inset)
+		var title := ("왼" if is_left else "오른") + ("손" if is_hand else "발")
+		draw_string(font, center + Vector2(-radius, -5 * ui_k), title, HORIZONTAL_ALIGNMENT_CENTER, radius * 2, int(27 * ui_k), Color.WHITE)
+		draw_string(font, center + Vector2(-radius, 23 * ui_k), "조작 중" if active else "드래그", HORIZONTAL_ALIGNMENT_CENTER, radius * 2, int(17 * ui_k), Color("edf5f8"))
+		if is_hand:
 			var s: float = session.rules.stamina[limb]
-			draw_arc(p.center, p.radius + 8 * ui_k, -PI / 2, -PI / 2 + TAU * s / 100.0, 48, Color("f1d59a") if s > 25 else Color("ff5a4a"), 6.0 * ui_k)
+			draw_arc(center, radius + 8 * ui_k, -PI / 2, -PI / 2 + TAU * s / 100.0, 48, Color("f1d59a") if s > 25 else Color("ff5a4a"), 6.0 * ui_k)
 
 
 func _draw_hud(size: Vector2) -> void:
