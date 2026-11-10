@@ -30,7 +30,15 @@ var _fall_cause := ""
 var _sfx := {}                    # 이름 → AudioStreamPlayer
 var _glow: GradientTexture2D      # 화면 가장자리 빛(흰색, modulate로 색을 입힌다)
 var best_height := 0.0  # 이번 시도에서 오른 가장 높은 높이(진행 점)
-const HUD_BOTTOM := 222.0  # 위쪽 정보 패널(hud.gd) 세 줄의 아래 끝(ui_k 배율 전)
+## 위쪽 한 줄(hud.gd TOP_H)의 아래 끝(ui_k 배율 전). 상세 정보 모드면 상태 줄만큼 더 내려간다(2026-11-10 HUD 개선 기획).
+const HUD_BOTTOM := 80.0
+const HUD_BOTTOM_DETAIL := 132.0
+var detail_mode := false          # 상세 정보 모드(지지·손 하중·무브 상시 표시). 위쪽 [i] 버튼
+var _stam_prev := {}              # 손 → 직전 틱 팔 힘(회복 중 표시)
+var _stam_up := {}                # 손 → 회복 중인가
+var _notice := ""                 # 동작이 바뀌었을 때·부담 큼일 때 위쪽 띠 아래 잠깐 보이는 문구
+var _notice_left := 0.0
+var _last_move := ""
 var message := ""
 var message_ticks := 0
 var cam_y := 1.9
@@ -429,6 +437,8 @@ func _overlay_action(act: String) -> void:
 	match act:
 		"pause":
 			_pause(true)
+		"detail":
+			detail_mode = not detail_mode
 		"resume":
 			if paused and prepare_left <= 0.0:
 				prepare_left = 3.0
@@ -482,6 +492,44 @@ func _apply(cmds: Array) -> void:
 	_take_messages()
 
 
+func _hud_bottom() -> float:
+	return HUD_BOTTOM_DETAIL if detail_mode else HUD_BOTTOM
+
+
+## 일반 플레이(상세 정보 모드가 아닐 때): 부담 큼이면 그동안, 무브가 바뀌면 1.5초 위쪽 띠 아래 가운데에 작은 문구(기획 §6).
+## 균형 회복 중·지지 없음은 캐릭터 주변 위험 경고가 맡는다.
+func _draw_notice(size: Vector2, ph: int) -> void:
+	var text := ""
+	var col := Color("fbeedd")
+	if ph == ClimbRules.Phase.STRAINED:
+		text = "부담 큼 · 손 하중이 커요"
+		col = Color("f2c14e")
+	elif _notice_left > 0.0:
+		text = _notice
+	if text == "":
+		return
+	var fs := int(20 * ui_k)
+	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 40 * ui_k
+	var r := Rect2(Vector2(size.x * 0.5 - w * 0.5, (HUD_BOTTOM + 6.0) * ui_k), Vector2(w, 36 * ui_k))
+	hud.panel(self, r, ui_k, Color(0.17, 0.13, 0.10, 0.78), Color(0.83, 0.70, 0.52, 0.45), 18.0)
+	draw_string(font, Vector2(r.position.x, r.position.y + 25 * ui_k), text, HORIZONTAL_ALIGNMENT_CENTER, w, fs, col)
+
+
+## 팔 힘 추세(회복 중 표시)와 무브 변경 문구를 한 틱 진행한다.
+func _hud_tick(real_dt: float) -> void:
+	for hand in [PoseSolver.LH, PoseSolver.RH]:
+		var v: float = session.rules.stamina[hand]
+		_stam_up[hand] = v > float(_stam_prev.get(hand, v)) + 0.0001
+		_stam_prev[hand] = v
+	_notice_left = maxf(0.0, _notice_left - real_dt)
+	var mv: String = session.rules.moves.korean()
+	if mv != _last_move:
+		if _last_move != "" and session.rules.moves.label != MoveClassifier.REST:
+			_notice = "무브: " + mv
+			_notice_left = 1.5
+		_last_move = mv
+
+
 ## 세션이 쌓은 안내 문구를 화면 문구로 옮기고 비운다.
 func _take_messages() -> void:
 	for m in session.messages:
@@ -530,6 +578,9 @@ func _physics_process(_delta: float) -> void:
 	if overlay.blocking():
 		queue_redraw()
 		return
+	if tutorial != null and overlay.help_open:
+		queue_redraw()  # 튜토리얼 도움말을 펼친 동안 게임을 멈춘다(기획 §7)
+		return
 	if not _rescue_anim.is_empty():
 		_rescue_tick(_delta)  # 자동 도움으로 옮겨 가는 중: 판정 틱·떨어지는 시계 멈춤
 		queue_redraw()
@@ -539,6 +590,7 @@ func _physics_process(_delta: float) -> void:
 		queue_redraw()
 		return
 	var result := session.step()
+	_hud_tick(_delta)
 	if result.begins_with("fall:"):
 		_fall_cause = danger.fall_cause(result.trim_prefix("fall:"))
 	_danger_tick(_delta, not session.selecting)
@@ -739,6 +791,21 @@ func _draw_pads(size: Vector2) -> void:
 		var fs := int(26 * ui_k)
 		draw_string(font, p.center + Vector2(-p.radius, 8 * ui_k + 2 * ui_k), label, HORIZONTAL_ALIGNMENT_CENTER, p.radius * 2, fs, Color(0, 0, 0, 0.7))
 		draw_string(font, p.center + Vector2(-p.radius, 8 * ui_k), label, HORIZONTAL_ALIGNMENT_CENTER, p.radius * 2, fs, Color.WHITE)
+		# 튜토리얼: 지금 움직일 팔다리의 패드를 금색으로 깜빡여 강조(기획 §7)
+		var target: bool = _tutorial_limb() == limb
+		if target:
+			var pl := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * 1.4)
+			draw_arc(p.center, p.radius + 8 * ui_k, 0, TAU, 48, Color(1.0, 0.82, 0.3, 0.45 + 0.5 * pl), 6 * ui_k)
+		# 손 패드 바로 위 팔 힘 게이지(기획 §5)
+		if PoseSolver.is_hand(limb):
+			hud.draw_pad_stamina(self, p.center, p.radius, ui_k, float(session.rules.stamina[limb]), bool(_stam_up.get(limb, false)), col, target)
+
+
+## 튜토리얼 지금 단계의 목표 팔다리(없으면 &"").
+func _tutorial_limb() -> StringName:
+	if tutorial == null or tutorial.done:
+		return &""
+	return StringName(str(tutorial.current().get("goal_event", {}).get("limb", "")))
 
 
 ## 시작 골반에서 오른 높이(m).
@@ -779,12 +846,16 @@ func _draw_hud(size: Vector2) -> void:
 		title += "  · 추락 %d" % falls
 	if not paused:
 		_draw_danger_glow(size)  # 위쪽 정보 패널보다 먼저(패널이 붉게 흐려지지 않게)
-	overlay.pause_rect = hud.draw_top(self, size, ui_k, {
+	var top_btns: Dictionary = hud.draw_top(self, size, ui_k, {"detail": detail_mode,
 		"title": title, "goal_height": _goal_height(), "height": _height(), "best_height": best_height,
 		"stamina": session.rules.stamina, "phase_name": names[ph], "phase_color": colors[ph],
 		"load_l": roundi(hu.get(&"LH", 0.0) * 100), "load_r": roundi(hu.get(&"RH", 0.0) * 100),
 		"move": move, "budget": budget,
 	})
+	overlay.pause_rect = top_btns.pause
+	overlay.detail_rect = top_btns.detail
+	if not detail_mode and not paused:
+		_draw_notice(size, ph)
 	var y := size.y - 20 * ui_k
 	for i in range(log_lines.size() - 1, -1, -1):
 		if tutorial != null:
@@ -792,7 +863,7 @@ func _draw_hud(size: Vector2) -> void:
 		draw_string(font, Vector2(size.x * 0.25, y), log_lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, int(15 * ui_k), Color(1, 1, 1, 0.6))
 		y -= 18 * ui_k
 	if message_ticks > 0:
-		_outlined(Vector2(0, maxf(size.y * (0.36 if session.selecting or tutorial != null else 0.30), (HUD_BOTTOM + 70.0) * ui_k)), message, 34, size.x, Color("fff2c8"))
+		_outlined(Vector2(0, maxf(size.y * (0.36 if session.selecting or tutorial != null else 0.30), (_hud_bottom() + 70.0) * ui_k)), message, 34, size.x, Color("fff2c8"))
 	if not paused:
 		_draw_danger(size)
 	_draw_tech_ui(size)
@@ -821,7 +892,7 @@ func _draw_danger(size: Vector2) -> void:
 	var t := Time.get_ticks_msec() / 1000.0
 	var body: Vector2 = session.body.pos
 	var head := w2s(body + Vector2(0, 1.05))
-	var top := (HUD_BOTTOM + 70.0) * ui_k
+	var top := (_hud_bottom() + 70.0) * ui_k
 	# ① 주의: 눌러 둔 손발을 떼면 위험
 	var blink := 0.5 + 0.5 * sin(t * TAU * 3.0)
 	for limb in danger.caution:
@@ -1035,7 +1106,7 @@ func _view_size() -> Vector2:
 
 func _btn_rect(size: Vector2) -> Rect2:
 	var w := 240.0 * ui_k
-	return Rect2(Vector2(size.x * 0.5 - w * 0.5, HUD_BOTTOM * ui_k + 10.0 * ui_k), Vector2(w, 44.0 * ui_k))
+	return Rect2(Vector2(size.x * 0.5 - w * 0.5, _hud_bottom() * ui_k + 10.0 * ui_k), Vector2(w, 44.0 * ui_k))
 
 
 func _panel_rect(size: Vector2) -> Rect2:

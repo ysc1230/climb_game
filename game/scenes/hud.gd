@@ -35,50 +35,58 @@ func panel(ci: CanvasItem, r: Rect2, k: float, fill := PANEL, border := BORDER, 
 
 ## 위쪽 정보 전체. info: {title, goal_height, height, best_height, stamina: {LH, RH}, phase, phase_name, phase_color,
 ## load_l, load_r, move, flag_ready, budget(0~1 또는 −1)}. 반환: 일시정지 버튼 사각형.
-func draw_top(ci: CanvasItem, size: Vector2, k: float, info: Dictionary) -> Rect2:
-	var m := 14.0 * k
-	var pause_r := Rect2(Vector2(m, m), Vector2(84, 84) * k)
-	panel(ci, pause_r, k, PANEL, BORDER, 20)
-	var bw := 11.0 * k
-	var bh := 34.0 * k
+## 위쪽 한 줄(2026-11-10 사용자 HUD 개선 기획 §4): [일시정지][i 상세] 문제 이름 | 등반 진행 바(가운데 약 45%) | 현재/목표 높이.
+## 진행 바에는 체크포인트가 없으므로 중간 점을 그리지 않는다(시작·끝 표시만). 반환 {pause, detail} 버튼 자리.
+## info.detail이면 그 아래 상태 줄(지지·손 하중·무브)을 상시 그린다(상세 정보 모드, §6).
+const TOP_H := 56.0
+
+
+func draw_top(ci: CanvasItem, size: Vector2, k: float, info: Dictionary) -> Dictionary:
+	var m := 12.0 * k
+	var h := TOP_H * k
+	var detail: bool = info.get("detail", false)
+	var pause_r := Rect2(Vector2(m, m), Vector2(h, h))
+	panel(ci, pause_r, k, PANEL, BORDER, 14)
+	var bw := 8.0 * k
+	var bh := 24.0 * k
 	var c := pause_r.get_center()
-	for dx in [-11.0 * k, 11.0 * k]:
-		panel(ci, Rect2(c + Vector2(dx - bw * 0.5, -bh * 0.5), Vector2(bw, bh)), k, CREAM, Color(0, 0, 0, 0), 4)
-	# 현재 높이(오른쪽 위)
-	var hw := 250.0 * k
-	var hr := Rect2(Vector2(size.x - m - hw, m), Vector2(hw, 84 * k))
-	panel(ci, hr, k)
-	_icon_mountains(ci, hr.position + Vector2(40, 42) * k, 30 * k, GOLD)
-	ci.draw_string(font, hr.position + Vector2(78 * k, 32 * k), "현재 높이", HORIZONTAL_ALIGNMENT_LEFT, -1, int(19 * k), MUTED)
-	ci.draw_string(font, hr.position + Vector2(78 * k, 72 * k), "%.1f m" % info.height, HORIZONTAL_ALIGNMENT_LEFT, -1, int(36 * k), CREAM)
-	# 문제 이름·목표 높이·진행 점(가운데)
-	var sx := pause_r.end.x + m
-	var sr := Rect2(Vector2(sx, m), Vector2(hr.position.x - m - sx, 84 * k))
-	panel(ci, sr, k)
-	_icon_flag_peak(ci, sr.position + Vector2(34, 30) * k, 26 * k, GOLD)
-	var title: String = info.title
-	ci.draw_string(font, sr.position + Vector2(62 * k, 38 * k), title, HORIZONTAL_ALIGNMENT_LEFT, sr.size.x * 0.55, int(25 * k), CREAM)
-	var goal_txt := "%.1f m" % info.goal_height
-	var gx := sr.end.x - 24 * k - font.get_string_size(goal_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, int(23 * k)).x
-	ci.draw_string(font, Vector2(gx, sr.position.y + 38 * k), goal_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, int(23 * k), CREAM)
-	var lbl_w := font.get_string_size("목표 높이", HORIZONTAL_ALIGNMENT_LEFT, -1, int(19 * k)).x
-	ci.draw_string(font, Vector2(gx - lbl_w - 10 * k, sr.position.y + 37 * k), "목표 높이", HORIZONTAL_ALIGNMENT_LEFT, -1, int(19 * k), GOLD)
-	ci.draw_line(Vector2(gx - lbl_w - 24 * k, sr.position.y + 18 * k), Vector2(gx - lbl_w - 24 * k, sr.position.y + 44 * k), BORDER, maxf(1.0, 1.5 * k))
-	_progress(ci, Rect2(sr.position + Vector2(40, 58) * k, Vector2(sr.size.x - 80 * k, 16 * k)), k, info.best_height / maxf(info.goal_height, 0.01), info.height / maxf(info.goal_height, 0.01))
-	# 팔 힘(두 번째 줄)
-	var row2 := m + 84 * k + 10 * k
-	var aw := (size.x - 2 * m - 12 * k) * 0.5
-	aw = minf(aw, 560 * k)
-	for hand in [&"LH", &"RH"]:
-		var x := m if hand == &"LH" else size.x - m - aw
-		_stamina(ci, Rect2(Vector2(x, row2), Vector2(aw, 56 * k)), k, "왼손 팔 힘" if hand == &"LH" else "오른손 팔 힘", float(info.stamina[hand]), hand == &"RH")
-	# 상태 줄(세 번째 줄, 가운데)
-	var row3 := row2 + 56 * k + 10 * k
-	var stw := minf(size.x - 2 * m, 860 * k)
-	var str_r := Rect2(Vector2((size.x - stw) * 0.5, row3), Vector2(stw, 48 * k))
+	for dx in [-8.0 * k, 8.0 * k]:
+		panel(ci, Rect2(c + Vector2(dx - bw * 0.5, -bh * 0.5), Vector2(bw, bh)), k, CREAM, Color(0, 0, 0, 0), 3)
+	var det_r := Rect2(Vector2(pause_r.end.x + 8 * k, m), Vector2(h, h))
+	panel(ci, det_r, k, Color(GOLD, 0.9) if detail else PANEL, BORDER, 14)
+	ci.draw_string(font, Vector2(det_r.position.x, det_r.position.y + h * 0.5 + 9 * k), "i", HORIZONTAL_ALIGNMENT_CENTER, h, int(26 * k), Color("3a2a1c") if detail else CREAM)
+	# 한 줄 반투명 띠(이름 ~ 높이)
+	var strip := Rect2(Vector2(det_r.end.x + 8 * k, m), Vector2(size.x - m - det_r.end.x - 8 * k, h))
+	panel(ci, strip, k, Color(PANEL, 0.72), Color(BORDER, 0.35), 14)
+	var cy := strip.get_center().y
+	# 오른쪽: 현재 / 목표 높이
+	var ht := "%.1f / %.1f m" % [info.height, info.goal_height]
+	var hfs := int(24 * k)
+	var hw := font.get_string_size(ht, HORIZONTAL_ALIGNMENT_LEFT, -1, hfs).x
+	var hx := strip.end.x - 18 * k - hw
+	ci.draw_string_outline(font, Vector2(hx, cy + 8 * k), ht, HORIZONTAL_ALIGNMENT_LEFT, -1, hfs, int(5 * k), Color(0.08, 0.06, 0.05, 0.8))
+	ci.draw_string(font, Vector2(hx, cy + 8 * k), ht, HORIZONTAL_ALIGNMENT_LEFT, -1, hfs, CREAM)
+	_icon_mountains(ci, Vector2(hx - 24 * k, cy), 26 * k, GOLD)
+	# 가운데: 진행 바(화면 너비의 약 45%)
+	var pw := size.x * 0.45
+	var pr := Rect2(Vector2(size.x * 0.5 - pw * 0.5, cy - 6 * k), Vector2(pw, 12 * k))
+	pr.position.x = minf(pr.position.x, hx - 60 * k - pw)
+	_progress(ci, pr, k, info.best_height / maxf(info.goal_height, 0.01), info.height / maxf(info.goal_height, 0.01))
+	# 왼쪽: 문제 이름(남는 폭에 맞춰 자름)
+	var tx := strip.position.x + 16 * k
+	ci.draw_string(font, Vector2(tx, cy + 8 * k), str(info.title), HORIZONTAL_ALIGNMENT_LEFT, maxf(40 * k, pr.position.x - tx - 20 * k), int(21 * k), CREAM)
+	if detail:
+		_status_row(ci, size, k, info, strip.end.y + 8 * k)
+	return {"pause": pause_r, "detail": det_r}
+
+
+## 상세 정보 모드의 상태 줄(지지·손 하중·무브).
+func _status_row(ci: CanvasItem, size: Vector2, k: float, info: Dictionary, y: float) -> void:
+	var stw := minf(size.x * 0.56, 820 * k)
+	var str_r := Rect2(Vector2((size.x - stw) * 0.5, y), Vector2(stw, 44 * k))
 	panel(ci, str_r, k)
 	var seg := stw / 3.0
-	var cy := str_r.position.y + 24 * k
+	var cy := str_r.position.y + 22 * k
 	var items := [
 		["shield", "지지:", info.phase_name, info.phase_color],
 		["load", "손 하중:", "L %d%%   R %d%%" % [info.load_l, info.load_r], CREAM],
@@ -88,70 +96,57 @@ func draw_top(ci: CanvasItem, size: Vector2, k: float, info: Dictionary) -> Rect
 		var it: Array = items[i]
 		var x0 := str_r.position.x + seg * i
 		if i > 0:
-			ci.draw_line(Vector2(x0, cy - 13 * k), Vector2(x0, cy + 13 * k), BORDER, maxf(1.0, 1.5 * k))
-		var ic := Vector2(x0 + 30 * k, cy)
+			ci.draw_line(Vector2(x0, cy - 12 * k), Vector2(x0, cy + 12 * k), BORDER, maxf(1.0, 1.5 * k))
+		var ic := Vector2(x0 + 26 * k, cy)
 		match it[0]:
-			"shield": _icon_shield(ci, ic, 20 * k, CREAM)
-			"load": _icon_load(ci, ic, 20 * k, CREAM)
-			"shoe": _icon_shoe(ci, ic, 22 * k, CREAM)
-		var fs := int(19 * k)
+			"shield": _icon_shield(ci, ic, 18 * k, CREAM)
+			"load": _icon_load(ci, ic, 18 * k, CREAM)
+			"shoe": _icon_shoe(ci, ic, 20 * k, CREAM)
+		var fs := int(18 * k)
 		var lw := font.get_string_size(it[1], HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		ci.draw_string(font, Vector2(x0 + 52 * k, cy + 7 * k), it[1], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, CREAM)
-		ci.draw_string(font, Vector2(x0 + 60 * k + lw, cy + 7 * k), str(it[2]), HORIZONTAL_ALIGNMENT_LEFT, seg - 70 * k - lw, fs, it[3])
-	if float(info.budget) >= 0.0:
-		var bwid := stw * 0.3
-		var br := Rect2(Vector2(str_r.position.x + 16 * k, str_r.end.y - 7 * k), Vector2(bwid, 4 * k))
-		ci.draw_rect(br, TRACK)
-		ci.draw_rect(Rect2(br.position, Vector2(bwid * float(info.budget), br.size.y)), info.phase_color)
-	return pause_r
+		ci.draw_string(font, Vector2(x0 + 46 * k, cy + 6 * k), it[1], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, CREAM)
+		ci.draw_string(font, Vector2(x0 + 54 * k + lw, cy + 6 * k), str(it[2]), HORIZONTAL_ALIGNMENT_LEFT, seg - 64 * k - lw, fs, it[3])
 
 
-## 진행 점: 출발 → 중간 다섯 → 깃발. best까지 지난 점은 체크, 지금 위치 다음 점은 강조.
+## 진행 바: 출발 → 깃발. 가장 높이 오른 곳까지 금색, 지금 높이에 흰 점. 체크포인트가 없으므로 중간 점은 그리지 않는다.
 func _progress(ci: CanvasItem, r: Rect2, k: float, best: float, now: float) -> void:
-	var n := 7
+	panel(ci, r, k, TRACK, Color(1, 1, 1, 0.18), 6)
+	var b := clampf(best, 0.0, 1.0)
+	if b > 0.0:
+		panel(ci, Rect2(r.position, Vector2(maxf(r.size.y, r.size.x * b), r.size.y)), k, GOLD, Color(0, 0, 0, 0), 6)
 	var y := r.get_center().y
-	var x0 := r.position.x
-	var step := r.size.x / (n - 1)
-	ci.draw_line(Vector2(x0, y), Vector2(r.end.x, y), DOT_OFF, 5 * k)
-	ci.draw_line(Vector2(x0, y), Vector2(x0 + r.size.x * clampf(best, 0.0, 1.0), y), GOLD, 5 * k)
-	var cur := clampi(int(floor(clampf(now, 0.0, 1.0) * (n - 1) + 0.0001)), 0, n - 1)
-	for i in n:
-		var p := Vector2(x0 + step * i, y)
-		var passed := best >= float(i) / (n - 1) - 0.0001 and i > 0
-		if i == n - 1:
-			ci.draw_circle(p, 9 * k, GOLD if best >= 1.0 else DOT_OFF)
-			ci.draw_circle(p, 6 * k, Color.WHITE)
-			ci.draw_line(p + Vector2(0, -6 * k), p + Vector2(0, -26 * k), CREAM, 2.5 * k)
-			ci.draw_colored_polygon(PackedVector2Array([p + Vector2(0, -26 * k), p + Vector2(18 * k, -21 * k), p + Vector2(0, -15 * k)]), GOLD)
-		elif passed:
-			ci.draw_circle(p, 12 * k, GOLD)
-			ci.draw_polyline(PackedVector2Array([p + Vector2(-5, 0) * k, p + Vector2(-1, 4) * k, p + Vector2(6, -4) * k]), Color("3a2a1c"), 2.5 * k)
-		elif i == cur + 1 or (i == 0 and best <= 0.0):
-			ci.draw_circle(p, 12 * k, GOLD)
-			ci.draw_circle(p, 8 * k, Color.WHITE)
-		else:
-			ci.draw_circle(p, 9 * k, DOT_OFF)
+	var p := Vector2(r.position.x + r.size.x * clampf(now, 0.0, 1.0), y)
+	ci.draw_circle(p, 9 * k, Color("3a2a1c"))
+	ci.draw_circle(p, 7 * k, Color.WHITE)
+	var f := Vector2(r.end.x, y)
+	ci.draw_line(f + Vector2(0, -2 * k), f + Vector2(0, -22 * k), CREAM, 2.5 * k)
+	ci.draw_colored_polygon(PackedVector2Array([f + Vector2(0, -22 * k), f + Vector2(16 * k, -17 * k), f + Vector2(0, -12 * k)]), GOLD)
 
 
-func _stamina(ci: CanvasItem, r: Rect2, k: float, label: String, value: float, right: bool) -> void:
-	panel(ci, r, k)
-	var cy := r.get_center().y
-	_icon_hand(ci, Vector2(r.position.x + 32 * k, cy), 24 * k, CREAM, right)
-	var fs := int(20 * k)
-	ci.draw_string(font, Vector2(r.position.x + 58 * k, cy + 7 * k), label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, CREAM)
-	var lw := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-	var bx := r.position.x + 74 * k + lw
-	var bar := Rect2(Vector2(bx, cy - 13 * k), Vector2(r.end.x - 16 * k - bx, 26 * k))
-	panel(ci, bar, k, TRACK, Color(1, 1, 1, 0.25), 8)
+## 손 패드 바로 위 팔 힘 게이지(기획 §5). 입력은 받지 않는다. 좌우는 패드 테두리 색(side_col)으로 얇게 테두리.
+## 정상: 바만 / 힘 부족(< 45): 숫자 + "!" / 위험(< 20): 빨강 + 굵은 테두리 / 회복 중: 위 화살표.
+func draw_pad_stamina(ci: CanvasItem, pad_center: Vector2, pad_r: float, k: float, value: float, recovering: bool, side_col: Color, highlight := false) -> void:
+	var w := pad_r * 2.0
+	var bh := 14.0 * k
+	var r := Rect2(Vector2(pad_center.x - pad_r, pad_center.y - pad_r - 22 * k - bh), Vector2(w, bh))
+	var low := value < 45.0
+	var danger := value < 20.0
+	panel(ci, r.grow(3 * k), k, Color(0.08, 0.06, 0.05, 0.75), Color(side_col, 0.9), 9)
 	var f := clampf(value / 100.0, 0.0, 1.0)
+	var col := GOOD if value >= 45.0 else (WARN if value >= 20.0 else BAD)
 	if f > 0.0:
-		var col := GOOD if value >= 50.0 else (WARN if value >= 25.0 else BAD)
-		var fill := Rect2(bar.position + Vector2(2, 2) * k, Vector2((bar.size.x - 4 * k) * f, bar.size.y - 4 * k))
-		panel(ci, fill, k, col, Color(0, 0, 0, 0), 6)
-		ci.draw_rect(Rect2(fill.position + Vector2(3 * k, 2 * k), Vector2(maxf(0.0, fill.size.x - 6 * k), fill.size.y * 0.3)), Color(1, 1, 1, 0.22))
-	var t := "%d / 100%s" % [roundi(value), "  !" if value < 25.0 else ""]
-	ci.draw_string_outline(font, Vector2(bar.position.x, cy + 7 * k), t, HORIZONTAL_ALIGNMENT_CENTER, bar.size.x, int(20 * k), int(6 * k), Color(0.1, 0.07, 0.05, 0.85))
-	ci.draw_string(font, Vector2(bar.position.x, cy + 7 * k), t, HORIZONTAL_ALIGNMENT_CENTER, bar.size.x, int(20 * k), Color.WHITE)
+		panel(ci, Rect2(r.position, Vector2(maxf(4 * k, r.size.x * f), r.size.y)), k, col, Color(0, 0, 0, 0), 6)
+	if danger or highlight:
+		ci.draw_rect(r.grow(6 * k), Color(BAD, 0.9) if danger else Color(GOLD, 0.9), false, 2.5 * k)
+	var ty := r.position.y - 8 * k
+	if low:
+		var t := "! %d" % roundi(value)
+		ci.draw_string_outline(font, Vector2(r.position.x, ty), t, HORIZONTAL_ALIGNMENT_CENTER, w, int(20 * k), int(5 * k), Color(0.08, 0.06, 0.05, 0.9))
+		ci.draw_string(font, Vector2(r.position.x, ty), t, HORIZONTAL_ALIGNMENT_CENTER, w, int(20 * k), col)
+	if recovering and value < 99.5:
+		var a := Vector2(r.end.x + 14 * k, r.get_center().y)
+		ci.draw_colored_polygon(PackedVector2Array([a + Vector2(0, -9 * k), a + Vector2(7 * k, 2 * k), a + Vector2(-7 * k, 2 * k)]), GOOD)
+		ci.draw_rect(Rect2(a + Vector2(-2.5 * k, 2 * k), Vector2(5 * k, 6 * k)), GOOD)
 
 
 # ---------- 일시정지·이어하기 ----------

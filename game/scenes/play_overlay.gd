@@ -24,6 +24,7 @@ var _help_step := -1
 var _help_seen := 0       # 이 단계에서 이미 자동으로 열어 준 도움말 단계
 var _buttons: Array = []  # [{rect, action}] 마지막으로 그린 버튼
 var pause_rect := Rect2()  # 위쪽 정보 패널(hud.gd)이 그린 일시정지 버튼 자리
+var detail_rect := Rect2()  # 위쪽 [i] 상세 정보 버튼 자리
 
 
 ## 결과·완료 화면이 떠 있어 플레이를 멈추는가.
@@ -70,6 +71,8 @@ func draw(ci: CanvasItem, size: Vector2, k: float, paused: bool, selecting: bool
 		return  # 일시정지 카드·버튼은 hud.gd(draw_pause)가 그리고 add_buttons로 넘긴다
 	if pause_rect.has_area():
 		_buttons.append({"rect": pause_rect, "action": "pause"})  # 버튼 모양은 hud.gd가 그린다
+	if detail_rect.has_area():
+		_buttons.append({"rect": detail_rect, "action": "detail"})
 	if tutorial != null and not selecting:
 		_draw_tutorial(ci, size, k)
 
@@ -147,8 +150,9 @@ static func band_on_top(goal_y: float, screen_h: float) -> bool:
 	return goal_y < 0.0 or goal_y >= screen_h * 0.5
 
 
-## 안내 줄(위 가운데 또는 아래 가운데): 단계 문장 + [도움말](+[건너뛰기]). 도움말 줄은 안내 줄의 화면 안쪽에 붙인다.
-## 읽기 쉽게 진한 바탕·밝은 테두리·큰 글자(28)를 쓴다.
+## 튜토리얼 안내 카드(2026-11-10 HUD 개선 기획 §7): 양발 패드 사이 아래 가운데의 작은 카드.
+## [단계 n/N] 한 문장 [?](+첫 실행 [건너뛰기]). 캐릭터·다음 홀드를 가리지 않게 화면 아래에 둔다.
+## 도움말 단계가 오르면 [?]를 강조만 하고(자동으로 펼치지 않음), 펼치면 게임이 멈춘다(play_test).
 func _draw_tutorial(ci: CanvasItem, size: Vector2, k: float) -> void:
 	if tutorial.done:
 		return
@@ -157,38 +161,34 @@ func _draw_tutorial(ci: CanvasItem, size: Vector2, k: float) -> void:
 		help_open = false
 		_help_seen = 0
 	var step := tutorial.current()
-	var band_h := 104.0 * k
-	var top := band_on_top(goal_screen_y, size.y)
-	var band_y := 290.0 * k if top else size.y - band_h - 44.0 * k  # 위쪽 정보 패널(222)·기술 버튼 아래
-	var band := Rect2(Vector2(size.x * 0.20, band_y), Vector2(size.x * 0.60, band_h))
 	var a := 0.35 if dim_band else 1.0
-	ci.draw_rect(band, Color(0.06, 0.05, 0.04, 0.94 * a))
-	ci.draw_rect(band, Color(CREAM, 0.9 * a), false, 2.0)
-	var bw := 130.0 * k
-	var by := band.position.y + (band_h - 56 * k) * 0.5
-	var right := band.end.x - 12 * k
-	if can_skip:
-		_button(ci, Rect2(Vector2(right - bw, by), Vector2(bw, 56 * k)), "건너뛰기", "skip", k, false, 22)
-		right -= bw + 10 * k
+	var w := minf(size.x * 0.52, 860 * k)
+	var h := 78.0 * k
+	var card := Rect2(Vector2(size.x * 0.5 - w * 0.5, size.y - h - 12 * k), Vector2(w, h))
+	ci.draw_rect(card, Color(0.06, 0.05, 0.04, 0.88 * a))
+	ci.draw_rect(card, Color(CREAM, 0.8 * a), false, 2.0)
+	var chip := Rect2(card.position + Vector2(12, 12) * k, Vector2(64, h - 24 * k))
+	ci.draw_rect(chip, Color(CREAM, 0.18 * a))
+	ci.draw_string(font, Vector2(chip.position.x, chip.get_center().y + 8 * k), "%d/%d" % [tutorial.index + 1, tutorial.steps.size()], HORIZONTAL_ALIGNMENT_CENTER, chip.size.x, int(22 * k), Color(CREAM, a))
+	var right := card.end.x - 10 * k
 	var lvl := tutorial.help_level()
-	if lvl > _help_seen:  # 도움말 단계가 오르면 한 번 열어 준다. 닫을 수 있고, 강조는 남는다.
-		_help_seen = lvl
-		help_open = true
-	var help_label := "도움말 !" if lvl >= 1 else "도움말"  # 강조는 색과 "!" 함께
-	_button(ci, Rect2(Vector2(right - bw, by), Vector2(bw, 56 * k)), help_label, "help", k, lvl >= 1, 22)
-	right -= bw + 10 * k
-	var fs := int(28 * k)
-	var text_x := band.position.x + 78 * k
-	ci.draw_string(font, Vector2(band.position.x + 16 * k, band.position.y + 40 * k), "%d/%d" % [tutorial.index + 1, tutorial.steps.size()], HORIZONTAL_ALIGNMENT_LEFT, -1, int(22 * k), CREAM)
-	ci.draw_multiline_string(font, Vector2(text_x, band.position.y + 40 * k), str(step.get("text_ko", "")), HORIZONTAL_ALIGNMENT_LEFT, right - text_x - 10 * k, fs, 2, Color(1, 1, 1, a))
+	var qr := Rect2(Vector2(right - 56 * k, card.get_center().y - 28 * k), Vector2(56, 56) * k)
+	_button(ci, qr, "?!" if lvl >= 1 else "?", "help", k, lvl >= 1 or help_open, 26)
+	right = qr.position.x - 8 * k
+	if can_skip:
+		var sr := Rect2(Vector2(right - 110 * k, qr.position.y), Vector2(110 * k, 56 * k))
+		_button(ci, sr, "건너뛰기", "skip", k, false, 20)
+		right = sr.position.x - 8 * k
+	var tx := chip.end.x + 14 * k
+	ci.draw_multiline_string(font, Vector2(tx, card.position.y + 34 * k), str(step.get("text_ko", "")), HORIZONTAL_ALIGNMENT_LEFT, right - tx - 6 * k, int(22 * k), 2, Color(1, 1, 1, a))
 	if help_open:
-		var h := help_line()
-		if h != "":
+		var hl := help_line()
+		if hl != "":
 			var hh := 50.0 * k
-			var hy := band.end.y + 6 * k if top else band.position.y - hh - 6 * k
-			var hb := Rect2(Vector2(band.position.x, hy), Vector2(band.size.x, hh))
+			var hb := Rect2(Vector2(card.position.x, card.position.y - hh - 8 * k), Vector2(card.size.x, hh))
 			ci.draw_rect(hb, Color(CREAM, 0.96))
-			ci.draw_string(font, Vector2(hb.position.x, hb.position.y + 34 * k), "도움말 · " + h, HORIZONTAL_ALIGNMENT_CENTER, hb.size.x, int(24 * k), INK)
+			ci.draw_string(font, Vector2(hb.position.x, hb.position.y + 34 * k), "도움말 · " + hl + "   (탭하면 닫혀요)", HORIZONTAL_ALIGNMENT_CENTER, hb.size.x, int(22 * k), INK)
+			_buttons.append({"rect": hb, "action": "help"})
 
 
 ## 보여 줄 도움말: 단계(1 "움직일 팔다리", 2 "누를 버튼과 홀드")에 맞는 help_ko. 직접 열었는데 단계가 0이면 첫 줄.
