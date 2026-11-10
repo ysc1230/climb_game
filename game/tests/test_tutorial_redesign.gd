@@ -72,15 +72,26 @@ func test_danger_tutorial_beginner() -> void:
 	d.s.apply_input([{"type": "detach", "limb": &"LH"}, {"type": "detach", "limb": &"RH"}])
 	_expect(d, "next", "D3 두 손 놓기 → 위험이 끝남(초급은 1.5초 뒤 떨어짐)", 400)
 	runner.check(d.s.falls == 1, "D3에서 한 번 떨어짐(%d)" % d.s.falls)
-	runner.check(str(d.t.current().step_id) == "D4" and d.t.rescue_allowed(), "D4(초급만)에서 자동 도움 켜짐")
-	_settle(d)
-	d.s.apply_input([{"type": "detach", "limb": &"LH"}, {"type": "detach", "limb": &"RH"}])
-	for i in 20:
+	for sid in ["D4", "D5"]:
+		runner.check(str(d.t.current().step_id) == sid and d.t.rescue_allowed(), "%s(초급만)에서 자동 도움 켜짐" % sid)
+		for i in 20:
+			d.tick()
+		runner.check(d.fb.danger and d.s.attached().keys().all(func(l): return not PoseSolver.is_hand(l)), "%s 두 손이 없는 위험한 자세로 시작" % sid)
+		runner.check(d.rescue(), "%s 자동 도움 계획 있음" % sid)
+		_expect(d, "next" if sid == "D4" else "done", "%s 고리 누르기" % sid, 10)
+	runner.check(d.visited == ["D1", "D2", "D3", "D4", "D5"], "초급 단계 %s" % [d.visited])
+
+
+## D4: 패드로 다시 잡아 회복하면 성공이 아니라 그 단계를 다시(고리 누르기를 배우게, 2026-11-10 사용자).
+func test_rescue_step_rejects_pad_recover() -> void:
+	var d = Driver.new(_route("C_DANGER_T"), "beginner")
+	d.t.index = 3
+	d._begin()
+	for i in 10:
 		d.tick()
-	runner.check(d.fb.danger, "D4 두 손을 놓으면 위험")
-	runner.check(d.rescue(), "자동 도움 계획 있음")
-	_expect(d, "done", "D4 자동 도움 → 다시 안전", 10)
-	runner.check(d.visited == ["D1", "D2", "D3", "D4"], "초급 단계 %s" % [d.visited])
+	d.t.note({"type": "recover"})
+	runner.check(d.tick() == "restart", "패드로 회복 → 다시")
+	runner.check(not d.t.done and str(d.t.current().step_id) == "D4", "여전히 D4")
 
 
 ## 위험 신호와 도움(중급): D4(자동 도움)를 건너뛰고 D3에서 끝난다.
@@ -111,7 +122,7 @@ func test_runner_new_goals() -> void:
 	var r := _route("C_DANGER_T")
 	var t := TutorialRunner.new(r)
 	t.set_level("intermediate")
-	runner.check(t.steps.filter(func(st): return st.get("only_level", "") == "beginner").size() == 1, "초급만 단계 하나")
+	runner.check(t.steps.filter(func(st): return st.get("only_level", "") == "beginner").size() == 2, "초급만 단계 둘(D4·D5)")
 	var s := ClimbSession.new(r)
 	t.begin_step(s)
 	t.note({"type": "caution", "limb": &"LH"})
@@ -155,3 +166,23 @@ func test_next_basic_tutorial_and_tips() -> void:
 	for f in ["user://test_tips_save.json", "user://test_tips_save.json.tmp"]:
 		if FileAccess.file_exists(f):
 			DirAccess.remove_absolute(f)
+
+
+## 다른 손발이 잡은 홀드에 손발을 놓으면 그 손발을 떼고 허공(균형이 가장 좋은 곳)에 둔다(2026-11-10 사용자).
+func test_slot_swap_frees_occupant() -> void:
+	var r := _route("C_BODY_T")
+	var d = Driver.new(r)
+	_settle(d)
+	var key: String = d.s.limbs[&"RF"].key
+	d.s.apply_input([{"type": "detach", "limb": &"LF"}])
+	for i in 120:
+		var req: Vector2 = d.s.limbs[&"LF"].req
+		d.s.apply_input([{"type": "move", "limb": &"LF", "delta": (r.slot_pos(key) - req).limit_length(2.5 * Tuning.DT)}])
+		d.tick()
+	d.s.apply_input([{"type": "release", "limb": &"LF", "speed": 0.0}])
+	d.tick()
+	runner.check(d.s.limbs[&"LF"].state == "Attached" and d.s.limbs[&"LF"].key == key, "왼발이 오른발 자리를 잡음(%s %s)" % [d.s.limbs[&"LF"].state, d.s.limbs[&"LF"].key])
+	runner.check(d.s.limbs[&"RF"].state == "Flag", "오른발은 떼어 허공에(%s)" % d.s.limbs[&"RF"].state)
+	for i in 60:
+		d.tick()
+	runner.check(d.s.falls == 0, "떨어지지 않음")

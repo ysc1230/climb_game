@@ -274,6 +274,8 @@ func _try_grab(limb: StringName) -> void:
 	if cand.is_empty():
 		if not PoseSolver.is_hand(limb) and not forbid.has(&"foot_swap") and _try_pad_foot_swap(limb):
 			return
+		if forbid.is_empty() and _try_slot_swap(limb):
+			return
 		var reason := GripCheck.reject_reason(route.slots, limb, l.pos, l.req, body.pos, body.angle, attached(), occupied(), rules.feet_eligible, body.yaw)
 		var text := GripCheck.message(reason, limb)
 		if not text.is_empty():
@@ -292,6 +294,71 @@ func _try_grab(limb: StringName) -> void:
 	_attach(limb, cand.key, cand.point, contact)
 	if PoseSolver.is_hand(limb):
 		_log_event({"type": "pad_grip", "limb": limb, "key": cand.key, "mode": contact.mode})  # 28 §4.3 5: 튜토리얼 판정용
+
+
+## 다른 손발이 잡거나 밟고 있는 홀드에 손발을 놓으면(2026-11-10 사용자 규칙): 그 손발을 떼어 들어온 손발이 잡고,
+## 뗀 손발은 균형이 가장 좋은 허공 위치(flag_cost 최소)에 둔다(Flag 상태: 그 자리를 유지하며 다시 끌 수 있음).
+## 같은 종류(손↔손, 발↔발)만. 합손 가능한 파란 홀드는 이 길로 오지 않는다(후보가 이미 있음). 못 잡으면 되돌리고 false.
+func _try_slot_swap(limb: StringName) -> bool:
+	var l: Dictionary = limbs[limb]
+	var key := GripCheck.aimed_slot(route.slots, l.req)
+	if key.is_empty() or not route.slots[key].allowed.has(limb):
+		return false
+	var occ: StringName = &""
+	for o in limbs:
+		if o != limb and PoseSolver.is_hand(o) == PoseSolver.is_hand(limb) and limbs[o].state in ["Attached", "Armed"] and limbs[o].key == key:
+			occ = o
+	if occ == &"":
+		return false
+	var o: Dictionary = limbs[occ]
+	var saved := {"state": o.state, "contact": o.contact}
+	o.state = "Flag"
+	o.contact = null
+	var cand := _candidate(limb)
+	if cand.is_empty() or cand.key != key:
+		o.state = saved.state
+		o.contact = saved.contact
+		return false
+	var contact := GripCheck.contact_for_pose(cand.key, route.slots, limb, cand.point, body.pos, body.angle, body.yaw, attached(), _contact_meta(), _endpoints(), forbid.has(&"grip_auto"))
+	_attach(limb, cand.key, cand.point, contact)
+	o.flag = _best_air_point(occ)
+	o.flag_depth = 0.0
+	o.req = o.flag
+	messages.append("%s 자리를 내주고 균형 잡는 곳에 두었어요" % ("손이" if PoseSolver.is_hand(occ) else "발이"))
+	_log_event({"type": "slot_swap", "limb": limb, "freed": occ, "key": key})
+	return true
+
+
+## 떠 있는 limb을 둘 허공 위치: 관절 둘레 후보 중 지금 붙은 손발로 버틸 때 균형 비용(flag_cost)이 가장 작은 곳.
+func _best_air_point(limb: StringName) -> Vector2:
+	var att := attached()
+	var joint := PoseSolver.joint_position(body.pos, body.angle, limb, body.yaw)
+	var reach := PoseSolver.reach_of(limb)
+	var eps := _endpoints()
+	for a in att:
+		eps.erase(a)
+	var best: Vector2 = limbs[limb].pos
+	var best_c := INF
+	var feet := PoseSolver.supporting_feet(body.pos, body.angle, att, rules.feet_eligible, body.yaw)
+	# 자연스러운 범위만: 발은 고관절 아래쪽 부채꼴, 손은 어깨 옆·위 부채꼴(관절이 무리하게 꺾이는 곳에 두지 않게), 쉬는 위치도 후보
+	var side := PoseSolver.side_sign(limb)
+	var dirs: Array[Vector2] = []
+	for i in 7:
+		var t := deg_to_rad(-15.0 + 25.0 * i)  # 몸 바깥쪽 −15°~135°
+		dirs.append(Vector2(side * sin(t), cos(t)) if PoseSolver.is_hand(limb) else Vector2(side * sin(t * 0.5), -cos(t * 0.5)))
+	var cands: Array[Vector2] = [body.pos + _rest_offset(limb)]
+	for dir in dirs:
+		for f in [0.7, 0.85]:
+			cands.append(joint + dir * reach.y * f)
+	for raw in cands:
+		if true:
+			var p := _clamp_to_reach(limb, limbs[limb].pos, raw)
+			eps[limb] = p
+			var c := ClimbRules.flag_cost(rules.evaluate(body.pos, body.angle, att, eps, on_platform(att), feet, body.yaw))
+			if c < best_c - 0.0001:
+				best_c = c
+				best = p
+	return best
 
 
 ## 붙어 있는 limb을 지금 떼면 어떻게 되나(예고 경고, 2026-11-09). 몸은 그대로 둔 채 그 접점만 뺀 힘 계산.
@@ -354,8 +421,11 @@ func _try_pad_foot_swap(foot: StringName) -> bool:
 		return false
 	l.cand = {}
 	_attach(foot, key, pt.point, TechniqueJudge.contact_for(route, TechniqueJudge.T_FOOT_SWAP, foot, key, pt.point))
-	limbs[other].state = "Free"
+	limbs[other].state = "Flag"  # 뗀 발은 균형이 가장 좋은 허공에(2026-11-10 사용자 규칙, _try_slot_swap과 같음)
 	limbs[other].contact = null
+	limbs[other].flag = _best_air_point(other)
+	limbs[other].flag_depth = 0.0
+	limbs[other].req = limbs[other].flag
 	messages.append("발을 바꿔 딛었어요")
 	_log_event({"type": "pad_foot_swap", "limb": foot, "key": key})
 	return true

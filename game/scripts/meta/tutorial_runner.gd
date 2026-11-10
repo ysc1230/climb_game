@@ -22,6 +22,7 @@ var _last_seq := 0
 var _notes: Array = []      # 화면 사건(note) — 다음 observe에서 본다
 var _body0 := Vector2.ZERO  # 단계 시작 골반(body 목표 기준)
 var _body_t := 0.0
+var _base_budget: Array = []  # 처음 단계 전 예산 [불균형, 지지 없음](danger_seconds 단계 뒤 되돌림)
 var _step_pose := {}        # 지금 단계의 시작 자세(실패 시 돌아갈 곳)
 var _restart := false       # 다음 begin_step은 같은 단계 재시작
 var _help := 0
@@ -92,6 +93,16 @@ func begin_step(session: ClimbSession) -> void:
 	_restart = false
 	var r: Dictionary = step.get("rules", {})
 	session.rules.fatigue_disabled = not bool(r.get("fatigue_drain", true))
+	# danger_seconds: 이 단계에서 떨어지기까지 버틸 시간(초). 읽고 누를 시간을 준다. 없으면 원래 예산으로
+	if _base_budget.is_empty():
+		_base_budget = [session.rules.imbalance_budget, session.rules.grace_budget]
+	if r.has("danger_seconds"):
+		var t := int(float(r.danger_seconds) * Tuning.TICK_HZ)
+		session.rules.imbalance_budget = t
+		session.rules.grace_budget = t
+	else:
+		session.rules.imbalance_budget = _base_budget[0]
+		session.rules.grace_budget = _base_budget[1]
 	if r.has("start_stamina"):
 		for hand in [PoseSolver.LH, PoseSolver.RH]:
 			session.rules.stamina[hand] = float(r.start_stamina)
@@ -139,6 +150,10 @@ func observe(session: ClimbSession, step_result: String, dt: float) -> String:
 			hit = stamina_goal_met(goal, session)
 		"caution", "danger_end":
 			hit = notes.any(func(e): return matches(goal, e))
+		"rescue":
+			# 위험 고리를 눌러 자동 도움을 받아야 한다. 패드로 다시 잡아 회복하면 배운 게 아니므로 그 단계를 다시(2026-11-10 사용자)
+			hit = notes.any(func(e): return str(e.type) == "rescue")
+			failed = not hit and notes.any(func(e): return str(e.type) == "recover")
 		"safe_again":
 			hit = notes.any(func(e): return str(e.type) in ["recover", "rescue"])
 		"body":

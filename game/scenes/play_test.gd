@@ -316,7 +316,8 @@ func _rescue() -> void:
 		return
 	pose["stamina"] = session.rules.stamina.duplicate()  # 팔 힘은 그대로(쉬는 꼼수 방지)
 	_apply(router.cancel_all())
-	rescue_left -= 1
+	if tutorial == null:
+		rescue_left -= 1  # 튜토리얼 연습은 횟수를 쓰지 않는다(반복해서 익힘)
 	danger.reset()
 	_play("recover")
 	_vibrate(25, 0.4)
@@ -651,8 +652,11 @@ func _tutorial_tick(result: String, dt: float) -> bool:
 				_tutorial_wait = true
 				_tutorial_wait_next = act == "next"
 				return false
+			var again := "이 단계를 다시 해 봐요"
+			if act == "restart" and str(tutorial.current().get("goal_event", {}).get("type", "")) == "rescue":
+				again = "패드 말고 캐릭터 둘레 고리를 눌러요"
 			_begin_step()
-			_after_reset("" if act == "next" else "이 단계를 다시 해 봐요")
+			_after_reset("" if act == "next" else again, 180)
 			return true
 		"done":
 			_end_tutorial_rules()

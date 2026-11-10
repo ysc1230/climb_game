@@ -193,7 +193,7 @@ func _foot_swap_attempt(forbid: Dictionary, pose: Dictionary = {}, lf_key: Strin
 
 func test_pad_foot_swap_event() -> void:
 	var a := _foot_swap_attempt({})
-	runner.check(a[0] == "Attached" and a[1] == "Free", "풋스왑 (%s %s)" % [a[0], a[1]])
+	runner.check(a[0] == "Attached" and a[1] == "Flag", "풋스왑: 뗀 발은 허공 균형 자리(2026-11-10) (%s %s)" % [a[0], a[1]])
 	runner.check(a[2].size() == 1 and a[2][0].limb == &"RF" and a[2][0].key == F01, "pad_foot_swap limb·key (%s)" % [a[2]])
 
 
@@ -299,7 +299,7 @@ func test_forbid_match_rejects_other_hand_hold() -> void:
 func test_forbid_high_step_blocks_high_foot_swap() -> void:
 	var pose := {"pelvis": [0.0, 0.744], "angle": 0.0, "slots": {"LH": H01, "RH": H02, "LF": F03, "RF": F02}}
 	var a := _foot_swap_attempt({}, pose, F03, {}, 0.04)
-	runner.check(a[0] == "Attached" and a[1] == "Free" and a[2].size() == 1 and a[2][0].key == F03, "금지 없음: 높은 F03으로 풋스왑 (%s %s %s)" % [a[0], a[1], a[2]])
+	runner.check(a[0] == "Attached" and a[1] == "Flag" and a[2].size() == 1 and a[2][0].key == F03, "금지 없음: 높은 F03으로 풋스왑 (%s %s %s)" % [a[0], a[1], a[2]])
 	var b := _foot_swap_attempt({}, pose, F03, {&"high_step": true}, 0.04)
 	runner.check(b[0] != "Attached" and b[1] == "Attached" and b[2].is_empty(), "high_step 금지: F03 풋스왑 거부 (%s %s %s)" % [b[0], b[1], b[2]])
 

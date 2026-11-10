@@ -146,6 +146,6 @@ func test_pad_foot_swap() -> void:
 	runner.check(reached, "RF가 F01 근처에 도달")
 	s.apply_input([{"type": "release", "limb": &"RF"}])
 	runner.check(s.limbs[&"RF"].state == "Attached" and s.limbs[&"RF"].key == key, "RF가 F01에 붙음 (%s %s)" % [s.limbs[&"RF"].state, s.limbs[&"RF"].key])
-	runner.check(s.limbs[&"LF"].state == "Free", "LF 해제 (%s)" % s.limbs[&"LF"].state)
+	runner.check(s.limbs[&"LF"].state == "Flag", "LF 해제 → 균형 잡는 허공(2026-11-10 규칙) (%s)" % s.limbs[&"LF"].state)
 	var out := _run_ticks(s, 90)
 	runner.check(out == "", "균형 유지 (%s)" % out)
