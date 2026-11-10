@@ -19,8 +19,7 @@ var visited: Array = []  # 시작한 단계 ID 순서
 func _init(route: RouteDef, level := "intermediate") -> void:
 	s = ClimbSession.new(route)
 	if level == "beginner":
-		s.rules.imbalance_budget = ClimbRules.IMBALANCE_BUDGET_TICKS * ClimbRules.BEGINNER_BUDGET_MULT
-		s.rules.grace_budget = Tuning.UNSUPPORTED_GRACE_TICKS * ClimbRules.BEGINNER_BUDGET_MULT
+		ClimbRules.apply_beginner(s.rules)
 	t = TutorialRunner.new(route)
 	t.set_level(level)
 	_begin()

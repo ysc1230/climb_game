@@ -109,10 +109,10 @@ func test_beginner_budget_ten_times() -> void:
 	var normal := _session({&"LF": 1})
 	runner.check(_ticks_to_fall(normal) == Tuning.UNSUPPORTED_GRACE_TICKS, "중급: 지지 없음 9틱에 떨어짐")
 	var easy := _session({&"LF": 1})
-	easy.rules.grace_budget = Tuning.UNSUPPORTED_GRACE_TICKS * ClimbRules.BEGINNER_BUDGET_MULT
-	easy.rules.imbalance_budget = ClimbRules.IMBALANCE_BUDGET_TICKS * ClimbRules.BEGINNER_BUDGET_MULT
+	ClimbRules.apply_beginner(easy.rules)
 	var n := _ticks_to_fall(easy)
-	runner.check(n == 90, "초급: 90틱(1.5초) 버팀: %d" % n)
+	runner.check(n == Tuning.UNSUPPORTED_GRACE_TICKS, "초급도 손이 없으면 바로(9틱) 떨어짐: %d" % n)
+	runner.check(easy.rules.imbalance_budget == ClimbRules.IMBALANCE_BUDGET_TICKS * 10, "초급은 균형 잃음만 10배")
 
 
 func test_current_pose_round_trip() -> void:

@@ -25,7 +25,7 @@ var imbalance_ticks := 0
 ## 떨어지기까지의 예산(틱). 기본은 docs/04 값. 초급은 호출 측이 BEGINNER_BUDGET_MULT배로 늘린다
 ## (2026-11-09: 시간을 늦추는 슬로우모션은 조작도 같이 늦어져 도움이 안 됐다 → 조작 속도는 그대로, 버틸 시간만 늘림).
 const BEGINNER_BUDGET_MULT := 10
-var imbalance_budget := IMBALANCE_BUDGET_TICKS
+var imbalance_budget := IMBALANCE_BUDGET_TICKS  # 초급은 apply_beginner로 10배
 var grace_budget := Tuning.UNSUPPORTED_GRACE_TICKS
 var balance_confirm_ticks := 0
 var rest_confirm_ticks := 0
@@ -337,6 +337,13 @@ static func _signature(d: Dictionary) -> Array:
 	for limb in PoseSolver.LIMBS:
 		out.append(d.get(limb, Vector2(INF, INF)))
 	return out
+
+
+## 초급 도움(2026-11-09): 몸이 기울어 균형을 잃는 경우(REBALANCING)만 버틸 시간 10배.
+## 손이 하나도 없는 지지 없음(GRACE)은 초급도 바로 떨어진다(2026-11-10 사용자: "두 손을 놓으면 바로 떨어져야지").
+static func apply_beginner(r: ClimbRules) -> void:
+	r.imbalance_budget = IMBALANCE_BUDGET_TICKS * BEGINNER_BUDGET_MULT
+	r.grace_budget = Tuning.UNSUPPORTED_GRACE_TICKS
 
 
 ## 바닥 발판(플랫폼) 지지는 손이 하나라도 홀드를 잡고 있을 때만 인정한다(2026-11-10 사용자: "아무 손 홀드도 잡고 있지

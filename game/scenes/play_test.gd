@@ -111,8 +111,7 @@ func _ready() -> void:
 	session = ClimbSession.new(route)
 	beginner = game != null and game.get_flow().beginner_assist()
 	if beginner:
-		session.rules.imbalance_budget = ClimbRules.IMBALANCE_BUDGET_TICKS * ClimbRules.BEGINNER_BUDGET_MULT
-		session.rules.grace_budget = Tuning.UNSUPPORTED_GRACE_TICKS * ClimbRules.BEGINNER_BUDGET_MULT
+		ClimbRules.apply_beginner(session.rules)
 	_build_feedback()
 	_start_tutorial()
 	get_viewport().size_changed.connect(_layout)

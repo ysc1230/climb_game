@@ -70,7 +70,7 @@ func test_danger_tutorial_beginner() -> void:
 	_settle(d)
 	runner.check(not d.t.rescue_allowed(), "D3에서는 자동 도움 꺼짐")
 	d.s.apply_input([{"type": "detach", "limb": &"LH"}, {"type": "detach", "limb": &"RH"}])
-	_expect(d, "next", "D3 두 손 놓기 → 위험이 끝남(초급은 1.5초 뒤 떨어짐)", 400)
+	_expect(d, "next", "D3 두 손 놓기 → 위험이 끝남(손이 없으면 바로 떨어짐)", 400)
 	runner.check(d.s.falls == 1, "D3에서 한 번 떨어짐(%d)" % d.s.falls)
 	for sid in ["D4", "D5"]:
 		runner.check(str(d.t.current().step_id) == sid and d.t.rescue_allowed(), "%s(초급만)에서 자동 도움 켜짐" % sid)
