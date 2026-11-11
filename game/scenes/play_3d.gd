@@ -432,10 +432,10 @@ func _pose_model(t: Dictionary, delta: float) -> void:
 	var free_feet := {"L": ClimberPose._free(logic.session, &"LF"), "R": ClimberPose._free(logic.session, &"RF")}
 	var frames := rig.solve(local, logic.session.body.angle, logic.session.body.yaw, free_feet)
 	_apply_look(frames, inv, delta)
-	for entry in RigPose.BONES:
-		var idx := skeleton.find_bone(entry[0])
-		if idx >= 0 and frames.has(entry[0]):
-			skeleton.set_bone_global_pose(idx, frames[entry[0]])
+	for name in RigPose.bone_names():
+		var idx := skeleton.find_bone(name)
+		if idx >= 0 and frames.has(name):
+			skeleton.set_bone_global_pose(idx, frames[name])
 	_curl_fingers(frames, delta)
 
 
@@ -575,10 +575,10 @@ func _build_model() -> bool:
 	# 휴지 관절 위치는 관절 키로 명시한다(자식 뼈 열거 순서에 의존하지 않음, docs/04 §8.2)
 	var rest_poses := {}
 	var rest_joints := {}
-	for entry in RigPose.BONES:
-		var idx := skeleton.find_bone(entry[0])
+	for name in RigPose.bone_names():
+		var idx := skeleton.find_bone(name)
 		if idx >= 0:
-			rest_poses[entry[0]] = skeleton.get_bone_global_rest(idx)
+			rest_poses[name] = skeleton.get_bone_global_rest(idx)
 	for key in JOINT_BONE:
 		if rest_poses.has(JOINT_BONE[key]):
 			rest_joints[key] = (rest_poses[JOINT_BONE[key]] as Transform3D).origin

@@ -318,3 +318,36 @@ func test_pelvis_tilt() -> void:
 	runner.check(absf(RigPose.pelvis_tilt_deg(j, Basis.IDENTITY)) < 0.01, "앞으로 든 무릎은 기울기 0")
 	j.knee_L = j.hip_L + Vector3(-0.39, 0.05, -0.05)
 	runner.check(absf(RigPose.pelvis_tilt_deg(j, Basis.IDENTITY) + RigPose.PELVIS_TILT_MAX) < 0.01, "왼다리 수평 → −15°")
+
+
+## docs/37 4단계: 엉덩이 보조 뼈는 골반과 허벅지 회전의 중간으로 돌고, 위치는 엉덩이 관절이다.
+func test_hip_helper_halfway() -> void:
+	var j := {"pelvis": Vector3(0, 1, 0.28), "spine": Vector3(0, 1.22, 0.28), "chest": Vector3(0, 1.44, 0.28)}
+	for s in ["L", "R"]:
+		var sx := -1.0 if s == "L" else 1.0
+		j["hip_" + s] = Vector3(sx * 0.10, 1.0, 0.28)
+		j["knee_" + s] = j["hip_" + s] + Vector3(0, -0.40, 0)
+		j["ankle_" + s] = j["knee_" + s] + Vector3(0, -0.38, 0)
+		j["toe_" + s] = j["ankle_" + s] + Vector3(0, -0.05, -0.15)
+	var rest := {}
+	for entry in RigPose.BONES:
+		if j.has(entry[2]) and j.has(entry[3]):
+			rest[entry[0]] = Transform3D(Basis.IDENTITY, j[entry[2]])
+	for name in RigPose.HELPERS:
+		rest[name] = Transform3D(Basis.IDENTITY, j["hip_" + name.right(1)])
+	var rig := RigPose.new()
+	rig.setup(rest, j)
+	j.knee_R = j.hip_R + Vector3(0.40, 0.0, 0.0)
+	j.ankle_R = j.knee_R + Vector3(0.38, 0.0, 0.0)
+	var f := rig.solve(j, 0.0)
+	runner.check(f.has("hiphelp_R") and f.has("hiphelp_L"), "보조 뼈 프레임")
+	var a := Quaternion(f.pelvis.basis).angle_to(Quaternion(f.hiphelp_R.basis))
+	var b := Quaternion(f.hiphelp_R.basis).angle_to(Quaternion(f.thigh_R.basis))
+	runner.check(absf(a - b) < 0.01 and a > deg_to_rad(30), "중간 회전: 골반→보조 %.1f° 보조→허벅지 %.1f°" % [rad_to_deg(a), rad_to_deg(b)])
+	runner.check(f.hiphelp_R.origin.is_equal_approx(j.hip_R), "엉덩이 관절 위치")
+	var rig2 := RigPose.new()
+	var rest2 := rest.duplicate()
+	rest2.erase("hiphelp_L")
+	rest2.erase("hiphelp_R")
+	rig2.setup(rest2, j)
+	runner.check(not rig2.solve(j, 0.0).has("hiphelp_R"), "보조 뼈 없는 모델은 건너뜀")

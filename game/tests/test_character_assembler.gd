@@ -42,6 +42,11 @@ func test_catalog_matches_model() -> void:
 	for f in ["finger_L", "finger_R"]:
 		var i := sk.find_bone(f)
 		runner.check(i >= 0 and sk.get_bone_name(sk.get_bone_parent(i)) == "hand_" + f.right(1), "손가락 뼈 %s(부모 손)" % f)
+	for h in RigPose.HELPERS:
+		var i := sk.find_bone(h)
+		runner.check(i >= 0 and sk.get_bone_name(sk.get_bone_parent(i)) == "pelvis", "엉덩이 보조 뼈 %s(부모 골반)" % h)
+		var th := sk.find_bone(RigPose.HELPERS[h][1])
+		runner.check(i >= 0 and sk.get_bone_global_rest(i).origin.distance_to(sk.get_bone_global_rest(th).origin) < 0.001, "%s는 엉덩이 관절에" % h)
 	for b in SPEC:
 		var o := sk.get_bone_global_rest(sk.find_bone(b)).origin
 		var d := Vector2(o.x, o.y).distance_to(SPEC[b])

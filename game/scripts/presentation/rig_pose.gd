@@ -31,6 +31,11 @@ const BONES := [
 	["foot_R", "shin_R", "ankle_R", "toe_R", Mode.CHILD, Vector3.ZERO],
 ]
 const ANTIPARALLEL_DOT := -0.995
+## 엉덩이 보조 뼈(docs/37 4단계): 골반과 허벅지 회전의 HELPER_SHARE 지점(구면 보간)으로 돈다. 모델이 골반↔허벅지
+## 사이 정점을 이 뼈로 이어(build_tripo_rig.py), 다리를 크게 들어도 엉덩이·가랑이가 안으로 접히지 않는다.
+## 보조 뼈 → [부모 쪽 뼈, 자식 쪽 뼈]. 모델에 없으면 건너뛴다.
+const HELPERS := {"hiphelp_L": ["pelvis", "thigh_L"], "hiphelp_R": ["pelvis", "thigh_R"]}
+const HELPER_SHARE := 0.5
 ## 골반 기울기(docs/37 2단계): 허벅지가 옆으로 PELVIS_TILT_FROM° 넘게 벌어지면 골반 뼈가 그 다리 쪽을 들어 올린다
 ## (PELVIS_TILT_FULL°에서 최대 PELVIS_TILT_MAX°). 허리·허벅지 뼈는 관절 위치를 그대로 따르므로 가슴과 관절은 안 바뀐다.
 const PELVIS_TILT_FROM := 45.0
@@ -52,6 +57,9 @@ var _last := {}        # 뼈 -> Basis (직전 결과, 퇴화 시 유지용)
 ## rest_poses: 뼈 -> Transform3D(휴지 전역). rest_joints: 관절 키 -> 휴지 위치.
 ## 끝 관절이 rest_joints에 없으면(말단) 뼈의 Y축을 길이축으로 쓴다.
 func setup(rest_poses: Dictionary, rest_joints: Dictionary) -> void:
+	for name in HELPERS:
+		if rest_poses.has(name):
+			rest_basis[name] = (rest_poses[name] as Transform3D).basis.orthonormalized()
 	for entry in BONES:
 		var name: String = entry[0]
 		if not rest_poses.has(name):
@@ -61,6 +69,13 @@ func setup(rest_poses: Dictionary, rest_joints: Dictionary) -> void:
 		var to_key: String = entry[3]
 		var dir: Vector3 = (rest_joints[to_key] - t.origin) if rest_joints.has(to_key) else t.basis.y
 		rest_dir[name] = dir.normalized()
+
+
+## 게임이 자세를 주는 뼈 전부(BONES 순서, 그다음 보조 뼈). 부모가 자식보다 먼저 온다.
+static func bone_names() -> Array:
+	var names := RigPose.BONES.map(func(e): return e[0])
+	names.append_array(HELPERS.keys())
+	return names
 
 
 ## 단위 벡터 a를 b로 돌리는 최단 회전. 정반대이면 null 대신 항등을 반환하고 ok=false.
@@ -128,6 +143,12 @@ func solve(joints: Dictionary, roll_deg: float, yaw_deg: float = 0.0, free_feet 
 		basis = basis.orthonormalized()
 		_last[name] = basis
 		out[name] = Transform3D(basis, from_p)
+	for name in HELPERS:
+		var pair: Array = HELPERS[name]
+		if rest_basis.has(name) and out.has(pair[0]) and out.has(pair[1]):
+			var a := Quaternion((out[pair[0]].basis * rest_basis[pair[0]].inverse()).orthonormalized())
+			var b := Quaternion((out[pair[1]].basis * rest_basis[pair[1]].inverse()).orthonormalized())
+			out[name] = Transform3D(Basis(a.slerp(b, HELPER_SHARE)) * rest_basis[name], out[pair[1]].origin)
 	return out
 
 

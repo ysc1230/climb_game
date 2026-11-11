@@ -1,7 +1,7 @@
 """Tripo 기본 캐릭터 → 게임용 리깅 모델(docs/36, 2026-11-11).
 실행: blender -b --python art_source/character/tripo/build_tripo_rig.py
 입력: art_source/character/tripo/climber_tripo_base.glb(Tripo v3.1, 146만 삼각형, T자, 키 1.0, 앞 +X)
-출력: game/art/characters/climber_tripo.glb(약 1만 2천 삼각형, 뼈 17 + 손가락 2, 색 텍스처 1024)
+출력: game/art/characters/climber_tripo.glb(약 1만 2천 삼각형, 뼈 17 + 손가락 2 + 엉덩이 보조 2, 색 텍스처 1024)
 
 1. 놓기: Z +90°(앞 +X → +Y, build_climber 규약), 키 1.99m, 발바닥 z = −0.835(골반 관절 = 원점). 실측은 docs/36 §1.1.
 2. 줄이기: Decimate(접기) → TRIS 삼각형. UV 유지.
@@ -11,6 +11,10 @@
 4. 가중치: Blender 자동 가중치는 Tripo 메시에서 자주 실패하므로 부위·위치로 직접 준다(관절 경계는 선형으로 섞음).
    팔은 어깨에서 거리로(어깨 → 팔꿈치 → 손바닥은 아래팔에 고정 → 손가락 뿌리 → 손가락 끝), 다리·몸통은 높이로,
    머리카락·머리는 head, 초크백은 pelvis 고정. 정점당 뼈 2개 이하.
+   엉덩이(docs/37 4단계, 2026-11-12): 골반↔허벅지 사이는 보조 뼈 hiphelp_L/R(엉덩이 관절, 게임이 골반과 허벅지
+   회전의 중간으로 돌림)를 거쳐 pelvis → hiphelp → thigh로 잇는다. 두 뼈만 섞으면 다리를 90° 들 때 사이 정점이
+   안으로 접힌다. 가운데 선 가까운 가랑이(|x| < 0.07, z > −0.20)는 골반 쪽에 더 남겨 다리를 들어도 가랑이 꼭짓점이
+   가운데에 있게 한다(전에는 꼭짓점이 허벅지를 따라 옆으로 끌려가 Y자가 사라졌다).
 5. 재질: 색 텍스처만(2048 → 1024), 금속 0. ORM·노멀은 쓰지 않는다(게임은 툰 셰이더).
 """
 import bpy, math, os
@@ -28,6 +32,7 @@ SH_X, SH_Z, ARM_Y = 0.18, 0.67, -0.03
 HIP_X = 0.10
 SPINE, CHEST, NECK, HEAD, HEAD_TOP = 0.27, 0.54, 0.76, 0.84, 1.16
 SOLE = -0.835
+CROTCH_X = 0.07   # 가랑이 가운데 영역 반폭(골반 쪽에 더 남김)
 
 
 def place():
@@ -106,6 +111,9 @@ def armature(J):
         bone("thigh_" + s, "hip_" + s, "knee_" + s, "pelvis")
         bone("shin_" + s, "knee_" + s, "ankle_" + s, "thigh_" + s)
         bone("foot_" + s, "ankle_" + s, "toe_" + s, "shin_" + s)
+    for s in "LR":
+        J["hiphelp_end_" + s] = J["hip_" + s] + (J["knee_" + s] - J["hip_" + s]) * 0.4
+        bone("hiphelp_" + s, "hip_" + s, "hiphelp_end_" + s, "pelvis")
     bpy.ops.object.mode_set(mode="OBJECT")
     return rig
 
@@ -149,12 +157,17 @@ def weights_for(p):
         else:
             blend(w, "hand_" + s, "finger_" + s, ramp(ax, SH_X + ARM_U + ARM_L + HAND_A - 0.006, SH_X + ARM_U + ARM_L + HAND_A + 0.006))
         return w
-    # 다리: 골반↔허벅지(z 0.04~−0.10), 무릎 ±0.05, 발목(−0.76 위아래)
+    # 다리: 골반 → 엉덩이 보조 → 허벅지(z 0.04~−0.14, 가운데 가랑이는 골반 쪽에 더), 무릎 ±0.05, 발목(−0.76 위아래)
     if z < 0.04 and ax > 0.005:
         knee = -LEG_U
         ankle = -(LEG_U + LEG_L)
-        if z > -0.10:
-            blend(w, "pelvis", "thigh_" + s, ramp(-z, -0.04, 0.10))
+        if z > -0.22:
+            t = ramp(-z, -0.04, 0.14)
+            t *= 1.0 - 0.5 * (1.0 - ramp(ax, 0.0, CROTCH_X)) * (1.0 - ramp(-z, 0.08, 0.20))
+            if t < 0.5:
+                blend(w, "pelvis", "hiphelp_" + s, t * 2.0)
+            else:
+                blend(w, "hiphelp_" + s, "thigh_" + s, t * 2.0 - 1.0)
         elif z > knee - 0.05:
             blend(w, "thigh_" + s, "shin_" + s, ramp(-z, -knee - 0.05, -knee + 0.05))
         elif z > ankle + 0.03:
