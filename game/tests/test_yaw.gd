@@ -15,21 +15,22 @@ func test_right_hip_in_extends_right_reach() -> void:
 			far[[limb, yaw]] = PoseSolver.planar_range(limb, dz.x + off, dz.y + off).y
 	runner.check(far[[PoseSolver.RH, 30.0]] > far[[PoseSolver.RH, 0.0]], "ψ=30 RH 도달 %.4f > %.4f" % [far[[PoseSolver.RH, 30.0]], far[[PoseSolver.RH, 0.0]]])
 	runner.check(far[[PoseSolver.LH, 30.0]] < far[[PoseSolver.LH, 0.0]], "ψ=30 LH 도달 %.4f < %.4f" % [far[[PoseSolver.LH, 30.0]], far[[PoseSolver.LH, 0.0]]])
-	# can_reach도 같은 방향: yaw 30°의 오른 어깨 바로 위 0.773m(= ψ=0 최대 0.768m 초과, ψ=30 최대 0.778m 이내)
+	# can_reach도 같은 방향: yaw 30°의 오른 어깨 바로 위, ψ=0 최대와 ψ=30 최대의 가운데 거리(몸 치수에서 계산, 2026-11-11)
+	var mid_d: float = (far[[PoseSolver.RH, 0.0]] + far[[PoseSolver.RH, 30.0]]) * 0.5
 	var pelvis := Vector2(0, 1.0)
 	var rj := PoseSolver.joint_position(pelvis, 0.0, PoseSolver.RH, 30.0)
-	var slot := rj + Vector2(0, 0.773)
+	var slot := rj + Vector2(0, mid_d)
 	runner.check(PoseSolver.can_reach(pelvis, 0.0, PoseSolver.RH, slot, 30.0), "ψ=30에서 RH 닿음")
 	runner.check(not PoseSolver.can_reach(pelvis, 0.0, PoseSolver.RH, slot, 0.0), "ψ=0에서는 RH 닿지 않음")
 	var lj := PoseSolver.joint_position(pelvis, 0.0, PoseSolver.LH, 30.0)
-	runner.check(not PoseSolver.can_reach(pelvis, 0.0, PoseSolver.LH, lj + Vector2(0, 0.773), 30.0), "ψ=30에서 LH는 같은 거리에 닿지 않음")
+	runner.check(not PoseSolver.can_reach(pelvis, 0.0, PoseSolver.LH, lj + Vector2(0, mid_d), 30.0), "ψ=30에서 LH는 같은 거리에 닿지 않음")
 
 
 func test_joint_spacing_and_depth_signs() -> void:
-	runner.check(absf(PoseSolver.joint_offset(PoseSolver.RH, 30.0).x - 0.20 * cos(deg_to_rad(30.0))) < 1e-6, "어깨 X × cos ψ")
-	runner.check(absf(PoseSolver.joint_offset(PoseSolver.LF, 0.0).x + 0.14) < 1e-6, "yaw 0이면 기존 오프셋")
+	runner.check(absf(PoseSolver.joint_offset(PoseSolver.RH, 30.0).x - Tuning.SHOULDER_OFFSET.x * cos(deg_to_rad(30.0))) < 1e-6, "어깨 X × cos ψ")
+	runner.check(absf(PoseSolver.joint_offset(PoseSolver.LF, 0.0).x + Tuning.HIP_OFFSET.x) < 1e-6, "yaw 0이면 기존 오프셋")
 	runner.check(PoseSolver.joint_depth_offset(PoseSolver.RH, 30.0) < 0.0 and PoseSolver.joint_depth_offset(PoseSolver.LH, 30.0) > 0.0, "ψ>0 오른쪽 어깨가 벽 쪽")
-	runner.check(absf(PoseSolver.joint_depth_offset(PoseSolver.LF, 30.0) - 0.14 * 0.5) < 1e-6, "왼 고관절 +0.14·sin30")
+	runner.check(absf(PoseSolver.joint_depth_offset(PoseSolver.LF, 30.0) - Tuning.HIP_YAW_DEPTH * 0.5) < 1e-6, "왼 고관절 +깊이 계수·sin30")
 
 
 func test_yaw_clamped_and_rate_limited() -> void:
@@ -53,9 +54,12 @@ func test_yaw_clamped_and_rate_limited() -> void:
 
 
 func test_yaw_stops_at_constraint() -> void:
-	# LH가 어깨 위 0.76m 끝에 있다. 왼쪽 어깨가 벽에서 멀어지는 ψ>0에서 도달 한계를 넘으면 멈춘다.
+	# LH가 어깨 바로 위 도달 끝(ψ=0 최대 − 0.01)에 있다. 왼쪽 어깨가 벽에서 멀어지는 ψ>0에서 도달 한계를 넘으면 멈춘다.
 	var body := BodyState.new(Vector2(0, 1.0))
-	var attached := {PoseSolver.LH: PoseSolver.joint_position(body.pos, 0.0, PoseSolver.LH) + Vector2(0, 0.76)}
+	var dz := PoseSolver.contact_dz_range()
+	var off := PoseSolver.joint_depth_offset(PoseSolver.LH, 0.0)
+	var reach0 := PoseSolver.planar_range(PoseSolver.LH, dz.x + off, dz.y + off).y
+	var attached := {PoseSolver.LH: PoseSolver.joint_position(body.pos, 0.0, PoseSolver.LH) + Vector2(0, reach0 - 0.01)}
 	runner.check(PoseSolver.is_valid(body.pos, 0.0, attached, 0.0), "ψ=0 시작은 유효")
 	runner.check(not PoseSolver.is_valid(body.pos, 0.0, attached, 30.0), "ψ=30은 무효(전제)")
 	for i in 90:

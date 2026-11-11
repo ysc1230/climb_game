@@ -3,7 +3,7 @@ extends RefCounted
 ## 정상(goal) 홀드는 절대 고르지 않는다.
 
 var runner
-const ROUTES := ["res://data/routes/general/G_V0_01.json", "res://data/routes/general/G_V3_01.json", "res://data/routes/general/G_V4_01.json", "res://data/routes/general/G_V4_02.json"]
+const ROUTES := ["res://tests/fixtures/G_V0_01.json", "res://data/routes/general/G_V3_02.json"]  # 2026-11-11 콘텐츠를 지우고 B안 몸으로 바꿈
 const DROPS := [[&"LH", &"LF"], [&"RF", &"RH"], [&"LH", &"RH", &"LF"], [&"RH"]]
 
 
@@ -45,7 +45,7 @@ func test_plans_are_safe_and_limited() -> void:
 				if s.step().begins_with("fall:"):
 					fell = true
 			runner.check(not fell and s.rules.phase in [ClimbRules.Phase.STABLE, ClimbRules.Phase.STRAINED], "%s %s: 도운 뒤 안정(phase %d)" % [path.get_file(), drop, s.rules.phase])
-	runner.check(planned >= 12, "대부분의 위험 상황에서 계획을 찾음: %d/16" % planned)
+	runner.check(planned >= 6, "대부분의 위험 상황에서 계획을 찾음: %d/8" % planned)
 
 
 func test_goal_hold_never_offered() -> void:

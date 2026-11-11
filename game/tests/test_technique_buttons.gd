@@ -27,7 +27,7 @@ func test_every_entry_has_input() -> void:
 
 
 func test_removed_buttons_rejected() -> void:
-	var s := ClimbSession.new(RouteDef.load_json("res://data/routes/general/G_V0_01.json"))
+	var s := ClimbSession.new(RouteDef.load_json("res://tests/fixtures/G_V0_01.json"))
 	for id in REMOVED:
 		var why := s.runner.start(s, id, &"left")
 		runner.check(why == &"NOT_BUTTON", "%s → NOT_BUTTON (%s)" % [id, why])

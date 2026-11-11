@@ -12,7 +12,7 @@ const DT := Tuning.DT
 
 
 func _route(steps: Array) -> RouteDef:
-	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/routes/general/G_V0_01.json"))
+	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://tests/fixtures/G_V0_01.json"))
 	d.tutorial_steps = steps
 	return RouteDef.from_dict(d)
 
@@ -314,7 +314,7 @@ func test_technique_goal_drop_knee() -> void:
 
 ## 팔 힘 목표: min·max·free 조건.
 func test_stamina_goal() -> void:
-	var route := RouteDef.load_json(ContentIndex.route_path("G_V0_01"))
+	var route := RouteDef.load_json("res://tests/fixtures/G_V0_01.json")
 	var s := ClimbSession.new(route)
 	s.rules.stamina[PoseSolver.LH] = 60.0
 	runner.check(TutorialRunner.stamina_goal_met({"type": "stamina", "limb": "LH", "max": 70}, s), "60 ≤ 70")
@@ -327,6 +327,6 @@ func test_stamina_goal() -> void:
 
 ## 이벤트 목표 단계는 mark_slot으로 반짝일 홀드를 따로 준다.
 func test_mark_slot() -> void:
-	var r := RouteDef.load_json(ContentIndex.route_path("G_V0_01"))
+	var r := RouteDef.load_json("res://tests/fixtures/G_V0_01.json")
 	var key: String = r.slots.keys()[2]
 	runner.check(PlayAttempt.goal_slot({"mark_slot": key, "goal_event": {"type": "move", "label": "StandUp"}}, r) == key, "mark_slot 우선")

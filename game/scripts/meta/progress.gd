@@ -53,6 +53,12 @@ static func from_dict(d: Dictionary) -> Progress:
 	return p
 
 
+## 첫 실행 잠금: 기본 조작 튜토리얼이 있는데 아직 안 깼고 건너뛰지도 않았을 때만.
+## 튜토리얼이 없으면(2026-11-11 사용자: 튜토리얼을 모두 지우고 하나씩 다시 만듦) 잠그지 않는다.
+func first_run_locked(index: ContentIndex) -> bool:
+	return is_first_run() and index != null and index.route(BASIC_TUTORIAL) != null
+
+
 ## C_BASIC 튜토리얼 미완료이고 건너뜀도 아님.
 func is_first_run() -> bool:
 	if basic_skipped:
@@ -95,7 +101,7 @@ func grade_unlocked(grade: String, index: ContentIndex) -> bool:
 	var n := grade.substr(1).to_int()
 	var prev := prerequisite_grade(grade, index) if n > 0 else ""
 	if prev == "":
-		return not is_first_run()
+		return not first_run_locked(index)
 	return cleared_count(prev, index) >= clears_needed(prev, index)
 
 
@@ -127,7 +133,7 @@ func route_lock_text(route: RouteDef, index: ContentIndex) -> String:
 	if route.mode == "course":
 		if route.course_id == BASIC_COURSE and route.course_slot == "tutorial":
 			return ""
-		if is_first_run():
+		if first_run_locked(index):
 			return TEXT_FIRST_RUN
 		return "" if _previous_step_done(route, index) else TEXT_PREV_STEP
 	var g := grade_lock_text(route.grade, index)

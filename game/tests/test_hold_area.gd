@@ -9,7 +9,7 @@ func _slot(c: Vector2) -> Dictionary:
 
 
 func test_defaults_filled() -> void:
-	var r := RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	var r := RouteDef.load_json("res://tests/fixtures/G_V0_01.json")
 	var g: Dictionary = r.slots["G_V0_01/G01/goal_left"]
 	runner.check(is_equal_approx(g.hand_area.half_width, 0.08), "손 기본 반폭 0.08")
 	runner.check(g.hand_area.dir == Vector2(1, 0), "손 기본 방향 (1,0)")
@@ -77,17 +77,17 @@ func test_tx_tech_loads() -> void:
 
 
 func test_invalid_area_rejected() -> void:
-	var r := RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	var r := RouteDef.load_json("res://tests/fixtures/G_V0_01.json")
 	r.slots["G_V0_01/H01/hand_1"].hand_area.half_width = 0.0
 	r.errors.clear()
 	r._validate()
 	runner.check(r.errors.size() > 0, "half_width<=0 거부")
-	r = RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	r = RouteDef.load_json("res://tests/fixtures/G_V0_01.json")
 	r.slots["G_V0_01/H01/hand_1"].grip_modes = []
 	r.errors.clear()
 	r._validate()
 	runner.check(r.errors.size() > 0, "빈 grip_modes 거부")
-	r = RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	r = RouteDef.load_json("res://tests/fixtures/G_V0_01.json")
 	r.slots["G_V0_01/F01/foot_1"].foot_area.half_height = -1.0
 	r.errors.clear()
 	r._validate()
@@ -95,7 +95,7 @@ func test_invalid_area_rejected() -> void:
 
 
 func test_g_v0_01_holds_are_big() -> void:
-	var r := RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	var r := RouteDef.load_json("res://tests/fixtures/G_V0_01.json")
 	runner.check(r.content_version == 5, "G_V0_01 content_version 5")
 	for i in range(1, 7):
 		var k := "G_V0_01/H0%d/hand_1" % i

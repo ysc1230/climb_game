@@ -27,7 +27,7 @@ const PRIORITY := [HAND_MATCH, FOOT_SWAP, CROSS_REACH, HIGH_STEP, FLAG, LOCK_OFF
 const KOREAN := {REST: "휴식", REACH: "뻗기", TRAVERSE: "옆 이동", HIGH_STEP: "높게 딛기", STAND_UP: "체중 싣고 일어서기",
 	LOCK_OFF: "짧게 당기기", FLAG: "균형 발", CROSS_REACH: "손 교차", HAND_MATCH: "양손 모으기", FOOT_SWAP: "발 바꾸기", DOWN_CLIMB: "내려오기"}
 const MIN_MOVE := 0.10
-const STAND_UP_LEG_BELOW := 0.72  # 높은 발의 고관절 거리가 이보다 짧으면 아직 일어서는 중
+const STAND_UP_LEG_BELOW := 0.56  # 높은 발의 고관절 거리가 이보다 짧으면 아직 일어서는 중. 2026-11-11 B안 다리 ×0.78(이전 0.72)
 
 var label: StringName = REST
 var limb_labels := {}      # 활성 말단 → 라벨

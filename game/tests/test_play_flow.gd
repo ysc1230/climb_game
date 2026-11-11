@@ -5,7 +5,7 @@ var runner
 const PlayOverlay := preload("res://scenes/play_overlay.gd")
 const FIX := "user://test_play_flow_fixture"
 const SAVE := "user://test_play_flow_save.json"
-const G_PATH := "res://data/routes/general/G_V0_01.json"
+const G_PATH := "res://tests/fixtures/G_V0_01.json"
 const PlayTest := preload("res://scenes/play_test.gd")
 
 

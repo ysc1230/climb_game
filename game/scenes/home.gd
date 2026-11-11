@@ -19,6 +19,7 @@ var grade := ""
 var course_id := ""   # 비어 있지 않으면 기술 탭에서 그 과정 화면
 var _buttons: Array = []  # [{rect, action, arg}]
 var _techs := TechniqueJudge.defs()
+var _look_ok := false        # 지금 몸 비율에 맞는 캐릭터 모델이 있을 때만 [캐릭터] 버튼(2026-11-11)
 var choosing_look := false   # 캐릭터 고르기 창(docs/34 §7). 오른쪽 위 [캐릭터] 버튼
 var look := {}               # 고르는 중인 외형(저장 전)
 var _asm: CharacterAssembler
@@ -51,6 +52,7 @@ func _ready() -> void:
 	course_id = str(focus.get("course", ""))
 	if tab != "technique":
 		course_id = ""
+	_look_ok = CharacterAssembler.load_catalog().model_compatible()
 	get_viewport().size_changed.connect(queue_redraw)
 	# 처음 시작: 난이도부터 고른다(2026-11-08). 고른 뒤 첫 실행이면 기본 조작 튜토리얼로.
 	choosing_level = progress.level == ""
@@ -162,7 +164,7 @@ func _draw() -> void:
 		_draw_course(size)
 	else:
 		_draw_courses(size)
-	if not choosing_level:
+	if not choosing_level and _look_ok:
 		_button(Rect2(Vector2(size.x - 490 * k, 24 * k), Vector2(220, 56) * k), "캐릭터", "look_open", "", 22)
 	var lv: String = game.progress.level
 	if lv != "":
@@ -255,7 +257,7 @@ func _draw_general(size: Vector2) -> void:
 	if lock != "":
 		_lock(Vector2(72 * k, y - 8 * k), CREAM)
 		_text(Vector2(92 * k, y), lock, 24, CREAM)
-		if progress.is_first_run():  # 기본 조작 파일이 없어 바로 못 갔을 때도 길을 남긴다
+		if progress.first_run_locked(idx):  # 기본 조작 파일이 없어 바로 못 갔을 때도 길을 남긴다
 			_button(Rect2(Vector2(92 * k + font.get_string_size(lock, HORIZONTAL_ALIGNMENT_LEFT, -1, int(24 * k)).x + 24 * k, y - 34 * k), Vector2(200, 48) * k),
 				"배우러 가기", "learn", Progress.BASIC_COURSE, 22, true)
 		y += 30 * k

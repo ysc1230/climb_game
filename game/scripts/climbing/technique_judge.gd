@@ -50,8 +50,8 @@ const DROP_KNEE_YAW := 35.0          # 27 §10: 드롭니 ψ 목표(도). 그 �
 const OUTSIDE_EDGE_YAW := 30.0       # 27 §10: 아웃사이드 엣지 ψ 목표(도)
 const SHIFT_SEARCHES := 3            # 체중 이동 후 도달 판정의 목표 탐색 반복(각 ±0.30m)
 const MIN_GRIP_QUALITY := 0.5        # 27 §8.1: q < 0.5면 사이드풀·개스턴 불가
-const GASTON_SHOULDER_BAND := 0.30   # 개스턴: 홀드가 어깨 높이 ±0.30m (구현 해석)
-const HIGH_FOOT_BELOW_HIP := 0.55    # 언더클링의 "높은 발": 하중 발 Y ≥ 고관절 Y − 0.55 (25 StandUp의 높은 발 기준)
+const GASTON_SHOULDER_BAND := 0.21   # 개스턴: 홀드가 어깨 높이 ±0.21m (구현 해석). 2026-11-11 B안 팔 ×0.71(이전 0.30)
+const HIGH_FOOT_BELOW_HIP := 0.43    # 언더클링의 "높은 발": 하중 발 Y ≥ 고관절 Y − 0.43 (25 StandUp의 높은 발 기준). 2026-11-11 B안 다리 ×0.78(이전 0.55)
 
 static var _defs := {}
 

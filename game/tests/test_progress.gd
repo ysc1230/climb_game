@@ -4,7 +4,7 @@ extends RefCounted
 var runner
 const FIX := "user://test_progress_fixture"
 const SAVE := "user://test_save.json"
-const G_PATH := "res://data/routes/general/G_V0_01.json"
+const G_PATH := "res://tests/fixtures/G_V0_01.json"
 
 
 func _base() -> Dictionary:
@@ -132,7 +132,8 @@ func test_grade_unlock_skips_empty_grade() -> void:
 	p.record_clear(idx.route("G_V3_03"), 30.0, 0)
 	runner.check(p.grade_unlocked("V4", idx), "V3 2개: V4 열림")
 	var q := Progress.new()
-	runner.check(not q.grade_unlocked("V0", idx) and q.grade_lock_text("V2", idx) == "V0에서 1개 더 완등하면 열려요", "첫 실행: V0 잠김, V2 문구는 V0 기준")
+	# 2026-11-11: 기본 조작 튜토리얼이 없으면(이 색인은 과정 없음) 첫 실행이어도 V0을 잠그지 않는다(Progress.first_run_locked).
+	runner.check(q.grade_unlocked("V0", idx) and q.grade_lock_text("V2", idx) == "V0에서 1개 더 완등하면 열려요", "튜토리얼 없는 첫 실행: V0 열림, V2 문구는 V0 기준")
 	_cleanup()
 
 

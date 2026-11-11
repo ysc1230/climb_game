@@ -318,7 +318,7 @@ func _build_character() -> void:
 	var pack := _toon(Color("6b5240"), INK)
 	parts.torso = _capsule_part(0.15, cloth)
 	parts.hips = _capsule_part(0.13, pants)
-	parts.head = _mesh(_sphere(0.115), _toon(Color("3b2e26"), INK), false)  # 뒷머리
+	parts.head = _mesh(_sphere(0.115 * 1.4), _toon(Color("3b2e26"), INK), false)  # 뒷머리(B안 1.4배)
 	parts.pack = _mesh(_box(Vector3(0.30, 0.36, 0.14)), pack, true)
 	for limb in PoseSolver.LIMBS:
 		var hand := PoseSolver.is_hand(limb)
@@ -399,9 +399,9 @@ func _pose_targets(delta: float) -> Dictionary:
 func _pose_capsules(t: Dictionary) -> void:
 	var up: Vector3 = t.up
 	_place_segment(parts.hips, t.pelvis + up * -0.02, t.pelvis + up * 0.12, 0.13)
-	_place_segment(parts.torso, t.pelvis + up * 0.15, t.pelvis + up * 0.50, 0.15)
-	parts.head.position = t.head + Vector3(0, 0, 0.02)
-	parts.pack.transform = Transform3D(Basis(Vector3.BACK, deg_to_rad(logic.session.body.angle)), t.pelvis + up * 0.36 + Vector3(0, 0, 0.17))
+	_place_segment(parts.torso, t.pelvis + up * 0.18, t.pelvis + up * 0.62, 0.15)
+	parts.head.position = t.head + up * 0.16 + Vector3(0, 0, 0.02)  # 머리 1.4배(B안, 반지름 0.115 × 1.4)
+	parts.pack.transform = Transform3D(Basis(Vector3.BACK, deg_to_rad(logic.session.body.angle)), t.pelvis + up * 0.42 + Vector3(0, 0, 0.17))
 	for limb in PoseSolver.LIMBS:
 		var hand := PoseSolver.is_hand(limb)
 		var s := "L" if limb in [&"LH", &"LF"] else "R"
@@ -534,7 +534,8 @@ func _build_model() -> bool:
 		asm.apply(model, g.progress.look if g != null else {})
 	var found := model.find_children("*", "Skeleton3D", true, false)
 	skeleton = found[0] if found.size() > 0 else null
-	if skeleton == null:
+	if skeleton == null or not CharacterAssembler.compatible(skeleton):
+		skeleton = null  # 뼈 길이가 지금 몸과 다르면 캡슐 인형(2026-11-11 B안)
 		model.queue_free()
 		return false
 	# 휴지 관절 위치는 관절 키로 명시한다(자식 뼈 열거 순서에 의존하지 않음, docs/04 §8.2)

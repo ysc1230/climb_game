@@ -1,5 +1,6 @@
 extends RefCounted
 ## 패드 잡기 방향 자동 선택(docs/28 §4.3, MG09·MG10). 시험 루트 TX_GRIP.
+## 2026-11-11 B안 몸: 시험 루트와 이 파일의 좌표를 x×0.8, 높이×0.85로 줄였다(골반 높이는 −0.02 더).
 
 var runner
 
@@ -7,11 +8,11 @@ const S01 := "TX_GRIP/S01/hand_1"  # sidepull만
 const M01 := "TX_GRIP/M01/hand_1"  # pull, sidepull
 const M02 := "TX_GRIP/M02/hand_1"  # sidepull, pull (세로 영역 반폭 0.12)
 const U01 := "TX_GRIP/U01/hand_1"  # undercling, pull (어깨 아래)
-const LF0 := Vector2(-0.30, 0.10)
-const RF0 := Vector2(0.30, 0.10)
-const RF_HIGH := Vector2(0.30, 0.55)
-const LH0 := Vector2(-0.45, 1.80)
-const RH0 := Vector2(0.45, 1.80)
+const LF0 := Vector2(-0.24, 0.1)
+const RF0 := Vector2(0.24, 0.1)
+const RF_HIGH := Vector2(0.24, 0.483)
+const LH0 := Vector2(-0.36, 1.545)
+const RH0 := Vector2(0.36, 1.545)
 
 
 func _route() -> RouteDef:
@@ -98,14 +99,14 @@ func test_foot_grab_no_pad_grip_log() -> void:
 func test_pull_preferred_below_hold() -> void:
 	var r := _route()
 	var att := {&"RF": RF0, &"RH": RH0}
-	var pelvis := Vector2(-0.30, 0.90)
+	var pelvis := Vector2(-0.24, 0.76)
 	var p := r.slot_pos(M01)
 	var pull := _mode_cost(r, M01, &"LH", p, pelvis, att, 0)
 	var side := _mode_cost(r, M01, &"LH", p, pelvis, att, 1)
 	runner.check(pull.ok and side.ok and pull.cost < side.cost - GripCheck.GRIP_TIE_MARGIN, "M01 아래 자세: pull 비용이 확실히 작음 (%.3f, %.3f)" % [pull.cost, side.cost])
 	runner.check(_pick(r, M01, &"LH", p, pelvis, att) == &"pull", "M01 → pull")
 	# 순서가 [sidepull, pull]인 M02도 아래 자세면 pull
-	var pelvis2 := Vector2(-0.40, 0.90)
+	var pelvis2 := Vector2(-0.32, 0.76)
 	runner.check(_pick(r, M02, &"LH", r.slot_pos(M02), pelvis2, att) == &"pull", "M02(sidepull 먼저)도 pull")
 
 
@@ -113,7 +114,7 @@ func test_pull_preferred_below_hold() -> void:
 func test_sidepull_preferred_body_opposite() -> void:
 	var r := _route()
 	var att := {&"LF": LF0, &"RH": RH0}
-	var pelvis := Vector2(-0.20, 0.744)
+	var pelvis := Vector2(-0.16, 0.627)
 	var p := r.slot_pos(M02)
 	var side := _mode_cost(r, M02, &"LH", p, pelvis, att, 0)
 	var pull := _mode_cost(r, M02, &"LH", p, pelvis, att, 1)
@@ -125,7 +126,7 @@ func test_sidepull_preferred_body_opposite() -> void:
 func test_grip_tie_prefers_first_mode() -> void:
 	var r := _route()
 	var att := {&"LF": LF0, &"RF": RF0, &"RH": RH0}
-	var pelvis := Vector2(-0.30, 0.90)
+	var pelvis := Vector2(-0.24, 0.76)
 	var p := r.slot_pos(M01)
 	var pull := _mode_cost(r, M01, &"LH", p, pelvis, att, 0)
 	var side := _mode_cost(r, M01, &"LH", p, pelvis, att, 1)
@@ -137,7 +138,7 @@ func test_grip_tie_prefers_first_mode() -> void:
 func test_no_mode_solves_falls_back_first() -> void:
 	var r := _route()
 	var att := {}
-	var pelvis := Vector2(0.30, 0.90)
+	var pelvis := Vector2(0.24, 0.76)
 	var p := r.slot_pos(M02)
 	var side := _mode_cost(r, M02, &"LH", p, pelvis, att, 0)
 	var pull := _mode_cost(r, M02, &"LH", p, pelvis, att, 1)
@@ -150,8 +151,8 @@ func test_no_mode_solves_falls_back_first() -> void:
 func test_low_quality_excludes_sidepull() -> void:
 	var r := _route()
 	var att := {&"LF": LF0, &"RH": RH0}
-	var pelvis := Vector2(-0.20, 0.744)
-	var end := Vector2(-0.80, 1.72)  # 세로 영역 끝: q = 0
+	var pelvis := Vector2(-0.16, 0.627)
+	var end := Vector2(-0.64, 1.477)  # 세로 영역 끝: q = 0
 	runner.check(HoldArea.project_hand(r.slots[M02], end).quality < 0.5, "끝 q < 0.5")
 	var side := _mode_cost(r, M02, &"LH", end, pelvis, att, 0)
 	var pull := _mode_cost(r, M02, &"LH", end, pelvis, att, 1)
@@ -166,31 +167,31 @@ func test_low_quality_excludes_sidepull() -> void:
 
 ## 개스턴 자세 조건(27 §10): 그 손 쪽, 어깨 높이 ±0.30.
 func test_gaston_shoulder_band() -> void:
-	var pelvis := Vector2(0.0, 0.744)
+	var pelvis := Vector2(0.0, 0.627)
 	var sh := PoseSolver.joint_position(pelvis, 0.0, &"LH", 0.0)
-	runner.check(TechniqueJudge.grip_mode_ok(&"gaston", &"LH", Vector2(-0.5, sh.y + 0.29), 1.0, pelvis, 0.0, 0.0, {}, []), "어깨 +0.29 성립")
-	runner.check(not TechniqueJudge.grip_mode_ok(&"gaston", &"LH", Vector2(-0.5, sh.y + 0.31), 1.0, pelvis, 0.0, 0.0, {}, []), "어깨 +0.31 불가")
+	runner.check(TechniqueJudge.grip_mode_ok(&"gaston", &"LH", Vector2(-0.5, sh.y + TechniqueJudge.GASTON_SHOULDER_BAND - 0.01), 1.0, pelvis, 0.0, 0.0, {}, []), "어깨 + 띠 − 0.01 성립")
+	runner.check(not TechniqueJudge.grip_mode_ok(&"gaston", &"LH", Vector2(-0.5, sh.y + TechniqueJudge.GASTON_SHOULDER_BAND + 0.01), 1.0, pelvis, 0.0, 0.0, {}, []), "어깨 + 띠 + 0.01 불가")
 	runner.check(not TechniqueJudge.grip_mode_ok(&"gaston", &"LH", Vector2(0.3, sh.y), 1.0, pelvis, 0.0, 0.0, {}, []), "반대쪽 홀드 불가")
 
 
 ## 언더클링(27 §10): 어깨 아래이고 하중 받는 발이 높을 때만 후보.
 func test_undercling_needs_high_loaded_foot() -> void:
 	var r := _route()
-	var pelvis := Vector2(0.0, 0.744)
+	var pelvis := Vector2(0.0, 0.627)
 	var p := r.slot_pos(U01)
 	var low := {&"LF": LF0, &"RF": RF0, &"LH": LH0}
 	var high := {&"LF": LF0, &"RF": RF_HIGH, &"LH": LH0}
 	runner.check(_pick(r, U01, &"RH", p, pelvis, low) == &"pull", "발이 낮으면 언더클링 제외 → pull")
 	runner.check(_pick(r, U01, &"RH", p, pelvis, high) == &"undercling", "높은 하중 발 → undercling")
 	runner.check(not TechniqueJudge.grip_mode_ok(&"undercling", &"RH", p, 1.0, pelvis, 0.0, 0.0, high, []), "하중 발 없음 → 불가")
-	runner.check(not TechniqueJudge.grip_mode_ok(&"undercling", &"RH", Vector2(0.4, 1.40), 1.0, pelvis, 0.0, 0.0, high, [&"RF"]), "어깨 위 홀드 → 불가")
+	runner.check(not TechniqueJudge.grip_mode_ok(&"undercling", &"RH", PoseSolver.joint_position(pelvis, 0.0, &"RH") + Vector2(0.1, 0.05), 1.0, pelvis, 0.0, 0.0, high, [&"RF"]), "어깨 위 홀드 → 불가")
 
 
 ## forbid_auto(검증기 전용)면 항상 grip_modes[0].
 func test_forbid_auto_uses_first() -> void:
 	var r := _route()
 	var att := {&"RF": RF0, &"RH": RH0}
-	var pelvis := Vector2(-0.40, 0.90)
+	var pelvis := Vector2(-0.32, 0.76)
 	var p := r.slot_pos(M02)
 	runner.check(_pick(r, M02, &"LH", p, pelvis, att) == &"pull", "자동이면 pull")
 	runner.check(_pick(r, M02, &"LH", p, pelvis, att, true) == &"sidepull", "forbid_auto → grip_modes[0] sidepull")

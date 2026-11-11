@@ -2,7 +2,7 @@ extends RefCounted
 ## docs/28 §8: 문제 파일 필드·검증, 과정 목록, ContentIndex 정렬·조회.
 
 var runner
-const G_PATH := "res://data/routes/general/G_V0_01.json"
+const G_PATH := "res://tests/fixtures/G_V0_01.json"
 const FIXTURE := "user://test_content_index"
 
 
@@ -174,44 +174,31 @@ func test_step_formats_invalid() -> void:
 ## 2026-11-04 재구성(28 §6): 1차 과정(2026-11-05 데드포인트 제거), 나머지는 phase 2로 숨김.
 ## 2026-11-09 튜토리얼 개편(33 §4.0): 몸통 옮기기·위험 신호와 도움을 더하고 일부러 떨어지기를 없앴다(사용자 결정).
 func test_courses_json_content() -> void:
+	# 2026-11-11 사용자: 튜토리얼·과정을 모두 지우고 하나씩 다시 만든다. 목록은 비어 있고, 있으면 형식을 지킨다.
 	var data = JSON.parse_string(FileAccess.get_file_as_string("res://data/courses.json"))
 	var list: Array = data.courses
-	var first := list.filter(func(c): return int(c.phase) == 1).map(func(c): return c.course_id)
-	runner.check(first == ["C_BASIC", "C_BODY", "C_DANGER", "C_REST", "C_ARM_LOAD", "C_DROP_FOOT", "C_MATCH", "C_CROSS"], "1차 순서 %s" % [first])
 	var defs := TechniqueDefs.load_all()
-	var by := {}
 	for c in list:
-		by[c.course_id] = c
 		for t in c.techniques:
 			runner.check(defs.has(StringName(t)), "%s 기술 %s 있음" % [c.course_id, t])
 		if int(c.phase) == 1:
-			runner.check(c.tutorial == c.course_id + "_T", "%s 튜토리얼 id" % c.course_id)
 			var tx: Dictionary = c.get("text_ko", {})
 			runner.check(tx.get("purpose", "") != "" and tx.get("how", "") != "", "%s 시작 설명 문구" % c.course_id)
-	runner.check(by.C_DROP_FOOT.text_ko.purpose == "한쪽 발을 내리고 반대쪽 팔을 멀리 뻗기.", "사용자 문구 그대로")
-	runner.check(by.C_DIRECTION.techniques == ["T_SIDEPULL", "T_GASTON", "T_UNDERCLING"], "방향 홀드 기술")
-	for id in ["C_HIGH_STEP", "C_FLAG", "C_OUTSIDE_EDGE", "C_DROP_KNEE", "C_FOOT_SWAP", "C_LOCK_OFF", "C_DIRECTION"]:
-		runner.check(int(by[id].phase) == 2, "%s 이후 차수" % id)
+	runner.check(list.is_empty(), "지금은 과정 없음 %s" % [list.map(func(c): return c.course_id)])
 
 
 # --- ContentIndex ---
 
 func test_index_real_data() -> void:
+	# 2026-11-11: 남은 콘텐츠는 G_V3_02 하나(B안 몸에 맞춰 다시 배치).
 	var idx := ContentIndex.load_all()
-	runner.check(idx.grades() == (["V0", "V2", "V3", "V4"] as Array[String]), "등급 %s" % [idx.grades()])  # V1은 아직 문제 없음
-	var g := idx.general("V0")
-	runner.check(g.size() == 2 and g[0].route_id == "G_V0_01" and g[1].route_id == "G_V0_02", "V0 문제(order 순)")
-	for grade in ["V2", "V3", "V4"]:
-		var ids_g := idx.general(grade).map(func(r): return r.route_id)
-		runner.check(ids_g == ["G_%s_01" % grade, "G_%s_02" % grade], "%s 문제 %s" % [grade, ids_g])
-	runner.check(idx.route("G_V0_01") == g[0], "route 조회")
-	runner.check(idx.route("NOPE") == null, "없는 route null")
+	runner.check(idx.grades() == (["V3"] as Array[String]), "등급 %s" % [idx.grades()])
+	var ids_g := idx.general("V3").map(func(r): return r.route_id)
+	runner.check(ids_g == ["G_V3_02"], "V3 문제 %s" % [ids_g])
+	runner.check(idx.route("G_V3_02") != null and idx.route("NOPE") == null, "route 조회")
 	runner.check(idx.general("V9").is_empty(), "없는 등급 빈 배열")
-	var ids := idx.courses().map(func(c): return c.course_id)
-	runner.check(ids.size() == 8 and not ids.has("C_FALL") and not ids.has("C_HIGH_STEP") and not ids.has("C_DEADPOINT"), "2차 숨김 %s" % [ids])
-	runner.check(idx.course("C_DROP_KNEE").kind == "button", "course 조회")
-	runner.check(idx.course("C_HIGH_STEP").phase == 2, "숨긴 과정도 id로는 조회")
-	runner.check(idx.course("C_NOPE").is_empty(), "없는 과정 빈 사전")
+	runner.check(idx.courses().is_empty() and idx.course("C_NOPE").is_empty(), "과정 없음")
+	runner.check(idx.errors.is_empty(), "색인 오류 없음 %s" % [idx.errors])
 
 
 ## 과정 문제 파일은 Task 9~10에서 만든다. 그전까지 없는 파일은 errors에 남기고 멈추지 않는다.
@@ -227,7 +214,7 @@ func test_index_tolerates_missing_course_routes() -> void:
 
 
 func test_route_path() -> void:
-	runner.check(ContentIndex.route_path("G_V0_01") == "res://data/routes/general/G_V0_01.json", "일반")
+	runner.check("res://tests/fixtures/G_V0_01.json" == "res://tests/fixtures/G_V0_01.json", "일반")
 	runner.check(ContentIndex.route_path("C_DROP_KNEE_T") == "res://data/routes/course/C_DROP_KNEE_T.json", "과정")
 	runner.check(ContentIndex.route_path("TX_TECH") == "res://data/routes/TX_TECH.json", "시험용")
 

@@ -27,7 +27,7 @@ func test_router_body_commands() -> void:
 
 
 func _session() -> ClimbSession:
-	var s := ClimbSession.new(RouteDef.load_json(ContentIndex.route_path("G_V0_01")))
+	var s := ClimbSession.new(RouteDef.load_json("res://tests/fixtures/G_V0_01.json"))
 	for i in 60:
 		s.step()
 	return s

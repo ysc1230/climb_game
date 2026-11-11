@@ -7,6 +7,12 @@ extends RefCounted
 ## - 끌거나 떠 있는 손발 끝: 기본 깊이(접촉면 + 띄움)에서 안 되면 벽에서 더 떨어진 깊이를 쓴다.
 ## - 팔다리 굽힘은 LimbIK.solve_limb가 해부학 범위 안에서 고른다. 깊이는 DEPTH_SPEED로 부드럽게 따라간다.
 
+## 몸통·머리 관절 높이(골반 기준, 위 방향). 2026-11-11 B안(docs/35 §6): 몸통이 길고 머리 1.4배. 이전 0.22/0.44/0.63/0.80/0.94.
+const SPINE_UP := 0.27
+const CHEST_UP := 0.54
+const NECK_UP := 0.76
+const HEAD_UP := 0.84
+const HEAD_TOP_UP := 1.16
 const DEPTH_STEP := 0.03       # 골반 깊이 후보 간격
 const DEPTH_SPEED := 1.0       # m/s, 표현 골반 깊이가 목표로 따라가는 빠르기
 const LIFT_SPEED := 2.5        # m/s, 떠 있는 손발 끝 깊이가 목표로 따라가는 빠르기
@@ -43,8 +49,8 @@ func compute(session, delta: float) -> Dictionary:
 	else:
 		depth = move_toward(depth, target_depth, DEPTH_SPEED * delta)
 	var pelvis := Vector3(body.pos.x, body.pos.y, depth)
-	var t := {"pelvis": pelvis, "spine": pelvis + up * 0.22, "chest": pelvis + up * 0.44,
-		"neck": pelvis + up * 0.63, "head": pelvis + up * 0.80, "head_top": pelvis + up * 0.94, "up": up}
+	var t := {"pelvis": pelvis, "spine": pelvis + up * SPINE_UP, "chest": pelvis + up * CHEST_UP,
+		"neck": pelvis + up * NECK_UP, "head": pelvis + up * HEAD_UP, "head_top": pelvis + up * HEAD_TOP_UP, "up": up}
 	var max_step := LimbIK.PRESENTATION_JOINT_SPEED_DEG * delta
 	for limb in PoseSolver.LIMBS:
 		var hand := PoseSolver.is_hand(limb)

@@ -4,7 +4,7 @@ extends RefCounted
 
 var runner
 const DT := 1.0 / 60.0
-const ROUTE := "res://data/routes/general/G_V0_01.json"
+const ROUTE := "res://tests/fixtures/G_V0_01.json"
 const SAVE := "user://test_level_save.json"
 const PLAY_3D := preload("res://scenes/play_3d.gd")
 

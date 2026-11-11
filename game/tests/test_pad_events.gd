@@ -15,7 +15,14 @@ const F04 := "G_V0_01/F04/foot_1"
 
 
 func _g_v0_01() -> RouteDef:
-	return RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	return RouteDef.load_json("res://tests/fixtures/G_V0_01.json")
+
+
+## 높은 발 시험용: F03을 0.68로 올린 판(2026-11-11 B안 몸: 고관절 − HIGH_STEP_BELOW_HIP(0.16) 위가 확실하게).
+func _g_v0_01_high() -> RouteDef:
+	var r := _g_v0_01()
+	r.slots[F03].pos = Vector2(-0.315, 0.68)
+	return r
 
 
 func _session(r: RouteDef, forbid := {}, settle: int = 30) -> ClimbSession:
@@ -106,9 +113,12 @@ func test_high_step_then_stand_up_events() -> void:
 func _cross_attempt(forbid: Dictionary) -> ClimbSession:
 	var r := _g_v0_01()
 	r.slots[H04].hand_area.half_width = 0.04  # 홀드 어느 점을 잡아도 오른손 X 너머(교차)가 되게
+	# 2026-11-11 B안 몸(팔 0.555): 오른손을 가운데 가까이(H02), 교차 목표 H04를 그 바로 오른쪽 위에 두어 왼손이 닿게 한다
+	r.slots[H02].pos = Vector2(0.12, 1.82)
+	r.slots[H04].pos = Vector2(0.28, 1.98)
 	var s := ClimbSession.new(r)
 	s.forbid = forbid
-	s.reset_to({"pelvis": [0.15, 1.1], "angle": 0.0, "slots": {"LH": H01, "RH": H02, "LF": F03, "RF": F04}})
+	s.reset_to({"pelvis": [0.0, 1.05], "angle": 0.0, "slots": {"LH": H01, "RH": H02, "LF": F03, "RF": F04}})
 	for i in 30:
 		s.step()
 	s.apply_input([{"type": "detach", "limb": &"LH"}])
@@ -133,7 +143,7 @@ func _flag_attempt(forbid: Dictionary, release_at: int) -> Array:
 	var s := _session(_g_v0_01(), forbid)
 	s.apply_input([{"type": "detach", "limb": &"RF"}])
 	for i in 120:
-		var tgt: Vector2 = s.body.pos + Vector2(-0.7, 0.0)  # 발판(F01)에서 떨어진 왼쪽 허공: 풋스왑 아님
+		var tgt: Vector2 = s.body.pos + Vector2(-0.5, -0.3)  # 발판(F01·F03)에서 떨어진 왼쪽 허공: 풋스왑·자리 넘기기 아님(2026-11-11 B안 다리)
 		var req: Vector2 = s.limbs[&"RF"].req
 		s.apply_input([{"type": "move", "limb": &"RF", "delta": (tgt - req).limit_length(2.5 * Tuning.DT)}])
 		s.step()
@@ -168,8 +178,8 @@ func test_fall_event() -> void:
 ## 패드 풋스왑(test_final_review 7과 같은 입력): RF를 LF가 딛은 발판으로 끌어 놓는다. 반환: [RF 상태, LF 상태, 이벤트들].
 ## pose가 있으면 그 자세(reset_to)에서, lf_key는 LF가 딛은 발판. 놓기 직전에 forbid를 release_forbid로 바꾸고(null이면 그대로)
 ## 골반을 release_drop(m)만큼 낮춘다.
-func _foot_swap_attempt(forbid: Dictionary, pose: Dictionary = {}, lf_key: String = F01, release_forbid = null, release_drop: float = 0.0) -> Array:
-	var s := _session(_g_v0_01(), forbid)
+func _foot_swap_attempt(forbid: Dictionary, pose: Dictionary = {}, lf_key: String = F01, release_forbid = null, release_drop: float = 0.0, high := false) -> Array:
+	var s := _session(_g_v0_01_high() if high else _g_v0_01(), forbid)
 	if not pose.is_empty():
 		s.reset_to(pose)
 		for i in 30:
@@ -186,7 +196,7 @@ func _foot_swap_attempt(forbid: Dictionary, pose: Dictionary = {}, lf_key: Strin
 		s.forbid = release_forbid
 	s.body.pos.y -= release_drop
 	var hip := PoseSolver.joint_position(s.body.pos, s.body.angle, &"RF", s.body.yaw)
-	runner.check(release_drop == 0.0 or target.y >= hip.y - Tuning.HIGH_STEP_BELOW_HIP, "전제: 놓는 순간 목표가 고관절−0.20 위 (목표 %.3f, 고관절 %.3f)" % [target.y, hip.y])
+	runner.check(release_drop == 0.0 or target.y >= hip.y - Tuning.HIGH_STEP_BELOW_HIP, "전제: 놓는 순간 목표가 고관절 − HIGH_STEP_BELOW_HIP 위 (목표 %.3f, 고관절 %.3f)" % [target.y, hip.y])
 	s.apply_input([{"type": "release", "limb": &"RF"}])
 	return [s.limbs[&"RF"].state, s.limbs[&"LF"].state, _events(s, "pad_foot_swap")]
 
@@ -241,9 +251,9 @@ func test_forbid_defaults_empty() -> void:
 
 
 func test_forbid_high_step_rejects_high_foot() -> void:
-	runner.check(_drag_to(_session(_g_v0_01()), &"LF", F03), "금지 없음: F03 딛기")
-	var s := _session(_g_v0_01(), {&"high_step": true})
-	runner.check(not _drag_to(s, &"LF", F03, 200), "high_step 금지: F03(고관절−0.20 위) 후보 아님")
+	runner.check(_drag_to(_session(_g_v0_01_high()), &"LF", F03), "금지 없음: 높은 F03 딛기")
+	var s := _session(_g_v0_01_high(), {&"high_step": true})
+	runner.check(not _drag_to(s, &"LF", F03, 200), "high_step 금지: F03(고관절 − HIGH_STEP_BELOW_HIP 위) 후보 아님")
 	runner.check(s.limbs[&"LF"].state != "Attached" or s.limbs[&"LF"].key != F03, "F03에 붙지 않음")
 
 
@@ -298,9 +308,9 @@ func test_forbid_match_rejects_other_hand_hold() -> void:
 ## 금지 없음/있음을 비교한다. 두 시도는 놓기 직전 상태가 같다.
 func test_forbid_high_step_blocks_high_foot_swap() -> void:
 	var pose := {"pelvis": [0.0, 0.744], "angle": 0.0, "slots": {"LH": H01, "RH": H02, "LF": F03, "RF": F02}}
-	var a := _foot_swap_attempt({}, pose, F03, {}, 0.04)
+	var a := _foot_swap_attempt({}, pose, F03, {}, 0.04, true)
 	runner.check(a[0] == "Attached" and a[1] == "Flag" and a[2].size() == 1 and a[2][0].key == F03, "금지 없음: 높은 F03으로 풋스왑 (%s %s %s)" % [a[0], a[1], a[2]])
-	var b := _foot_swap_attempt({}, pose, F03, {&"high_step": true}, 0.04)
+	var b := _foot_swap_attempt({}, pose, F03, {&"high_step": true}, 0.04, true)
 	runner.check(b[0] != "Attached" and b[1] == "Attached" and b[2].is_empty(), "high_step 금지: F03 풋스왑 거부 (%s %s %s)" % [b[0], b[1], b[2]])
 
 

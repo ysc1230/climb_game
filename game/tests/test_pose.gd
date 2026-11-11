@@ -11,16 +11,18 @@ func _near(a: float, b: float, eps: float = 0.0005) -> bool:
 func test_reach_ranges_follow_joint_limits() -> void:
 	var leg := Tuning.leg_range()
 	var arm := Tuning.arm_range()
-	runner.check(_near(leg.x, 0.303), "다리 최소 %.4f, 04는 약 0.303" % leg.x)
-	runner.check(_near(arm.y, 0.779), "팔 최대 %.4f" % arm.y)
-	runner.check(_near(arm.x, 0.20), "팔 최소는 명목값 0.20")
+	# 2026-11-11 B안 몸(팔 0.285/0.27, 다리 0.41/0.375): 무릎 145°에서 다리 최소 0.2384, 팔꿈치 5°에서 팔 최대 0.5545
+	runner.check(_near(leg.x, 0.2384), "다리 최소 %.4f" % leg.x)
+	runner.check(_near(arm.y, 0.55), "팔 최대는 명목값 0.55(팔꿈치 5°의 0.5545보다 작음) %.4f" % arm.y)
+	runner.check(_near(arm.x, 0.14), "팔 최소는 명목값 0.14")
 
 
 func test_doc19_start_pose_arithmetic() -> void:
+	# 2026-11-11 B안 몸 + 테스트용 사다리(tests/fixtures/G_V0_01.json) 시작 홀드
 	var p := Vector2(0, 0.83)
-	runner.check(_near(PoseSolver.limb_distance(p, 0, PoseSolver.LH, Vector2(-0.45, 1.80)), 0.488774, 0.000001), "어깨→손 0.488774")
-	runner.check(_near(PoseSolver.limb_distance(p, 0, PoseSolver.LF, Vector2(-0.30, 0.10)), 0.747329, 0.000001), "고관절→발 0.747329")
-	runner.check(PoseSolver.is_foot_supporting(p, 0, PoseSolver.LF, Vector2(-0.30, 0.10)), "시작 발은 지지 발")
+	runner.check(_near(PoseSolver.limb_distance(p, 0, PoseSolver.LH, Vector2(-0.405, 1.8)), 0.375000, 0.000001), "어깨→손 0.375000")
+	runner.check(_near(PoseSolver.limb_distance(p, 0, PoseSolver.LF, Vector2(-0.27, 0.1)), 0.749533, 0.000001), "고관절→발 0.749533")
+	runner.check(PoseSolver.is_foot_supporting(p, 0, PoseSolver.LF, Vector2(-0.27, 0.1)), "시작 발은 지지 발")
 
 
 func test_dt16_v05_common_depth_required() -> void:
@@ -41,17 +43,17 @@ func test_foot_above_hip_is_not_support() -> void:
 
 func test_fixed_contacts_converge_without_drift() -> void:
 	# PH02 성격: 접점 고정 30초 동안 몸통이 수렴하고 계속 상승하지 않는다.
-	var attached := {PoseSolver.LH: Vector2(-0.45, 1.80), PoseSolver.RH: Vector2(0.45, 1.80), PoseSolver.LF: Vector2(-0.30, 0.10), PoseSolver.RF: Vector2(0.30, 0.10)}
-	var body := BodyState.new(Vector2(0, 0.95))
+	var attached := {PoseSolver.LH: Vector2(-0.405, 1.8), PoseSolver.RH: Vector2(0.405, 1.8), PoseSolver.LF: Vector2(-0.27, 0.1), PoseSolver.RF: Vector2(0.27, 0.1)}
+	var body := BodyState.new(Vector2(0, 0.80))  # B안 몸·테스트용 사다리
 	var feet := PoseSolver.supporting_feet(body.pos, body.angle, attached)
 	var y_at_5s := 0.0
 	for i in 30 * Tuning.TICK_HZ:
 		PoseSolver.step_body(body, attached, feet)
 		feet = PoseSolver.supporting_feet(body.pos, body.angle, attached, feet)
 		runner.check(PoseSolver.is_valid(body.pos, body.angle, attached), "틱 %d 제약 위반" % i)
-		if i == 5 * Tuning.TICK_HZ:
+		if i == 10 * Tuning.TICK_HZ:  # B안 몸은 약 8초에 수렴(쪼그려 앉았다가 한 번 옆으로 옮김, 2026-11-11 측정)
 			y_at_5s = body.pos.y
-	runner.check(absf(body.pos.y - y_at_5s) < 0.001, "5초 이후 상하 이동 %.4f" % (body.pos.y - y_at_5s))
+	runner.check(absf(body.pos.y - y_at_5s) < 0.001, "10초 이후 상하 이동 %.4f" % (body.pos.y - y_at_5s))
 	runner.check(body.vel.length() < 0.001, "30초 뒤 속도 %.4f" % body.vel.length())
 
 

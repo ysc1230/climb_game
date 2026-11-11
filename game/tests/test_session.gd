@@ -5,7 +5,7 @@ var runner
 
 
 func _route() -> RouteDef:
-	return RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	return RouteDef.load_json("res://tests/fixtures/G_V0_01.json")
 
 
 ## limb을 target 쪽으로 끌어(요청 목표 이동) 후보가 key가 되면 놓는다. 성공하면 true.
@@ -75,8 +75,9 @@ func test_all_hands_off_falls() -> void:
 	var result := ""
 	var n := 0
 	while result == "" and n < 20:
-		s.apply_input([{"type": "move", "limb": &"LH", "delta": Vector2(-1, 0) * 2.5 * Tuning.DT},
-			{"type": "move", "limb": &"RH", "delta": Vector2(1, 0) * 2.5 * Tuning.DT}])
+		# 아래로 끌어 홀드에서 멀리(2026-11-11 B안 몸: 팔이 짧아 옆으로는 홀드 잡기 반경 밖까지 못 감)
+		s.apply_input([{"type": "move", "limb": &"LH", "delta": Vector2(0, -1) * 2.5 * Tuning.DT},
+			{"type": "move", "limb": &"RH", "delta": Vector2(0, -1) * 2.5 * Tuning.DT}])
 		result = s.step()
 		n += 1
 		if n == 7:  # 허공에서 두 손 모두 놓기

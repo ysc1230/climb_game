@@ -4,7 +4,7 @@ extends RefCounted
 var runner
 const START := {&"LH": Vector2(-0.45, 1.80), &"RH": Vector2(0.45, 1.80), &"LF": Vector2(-0.30, 0.10), &"RF": Vector2(0.30, 0.10)}
 const LINE := {&"LH": Vector2(-0.40, 1.75), &"LF": Vector2(-0.38, 0.35)}
-const PELVIS := Vector2(0.20, 1.0)  # 힘 해가 FEASIBLE인 높이(이 테스트가 확인)
+const PELVIS := Vector2(0.05, 0.95)  # 힘 해가 FEASIBLE인 높이(이 테스트가 확인). 2026-11-11 B안 몸: 다리가 짧아 (0.20, 1.0)에서는 LF가 닿지 않음
 
 
 func _eval(rules: ClimbRules, eps: Dictionary, pelvis: Vector2 = PELVIS) -> Dictionary:

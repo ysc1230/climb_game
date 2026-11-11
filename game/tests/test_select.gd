@@ -5,7 +5,7 @@ var runner
 
 
 func _session() -> ClimbSession:
-	var s := ClimbSession.new(RouteDef.load_json("res://data/routes/general/G_V0_01.json"))
+	var s := ClimbSession.new(RouteDef.load_json("res://tests/fixtures/G_V0_01.json"))
 	for i in 30:
 		s.step()
 	return s

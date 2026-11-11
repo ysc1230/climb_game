@@ -5,7 +5,7 @@ extends RefCounted
 var runner
 
 func _g_v0_01() -> RouteDef:
-	return RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	return RouteDef.load_json("res://tests/fixtures/G_V0_01.json")
 
 
 func _session(r: RouteDef, settle: int = 30) -> ClimbSession:
@@ -170,7 +170,9 @@ func test_outside_edge_sets_yaw() -> void:
 
 ## Review Focus 3: 드롭니 중 다른 패드를 써도 유지, 그 발 패드를 누르면 취소·복귀.
 func test_drop_knee_survives_other_pad_moves() -> void:
-	var s := _session(_g_v0_01())
+	var r0 := _g_v0_01()
+	r0.slots["G_V0_01/H03/hand_1"].pos = Vector2(-0.36, 1.9)  # 2026-11-11 B안 팔: 드롭니(ψ −35°)로 왼 어깨가 벽에서 멀어도 닿는 거리
+	var s := _session(r0)
 	runner.check(s.runner.start(s, &"T_DROP_KNEE", &"left") == &"", "시작")
 	_run_ticks(s, 90)
 	runner.check(absf(s.body.yaw + 35.0) <= 1.0, "전제: yaw -35")

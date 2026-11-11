@@ -7,7 +7,7 @@ const PHASE1_SIDES := [&"left", &"right"]
 
 
 func _g_v0_01() -> RouteDef:
-	return RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	return RouteDef.load_json("res://tests/fixtures/G_V0_01.json")
 
 
 func _tx() -> RouteDef:

@@ -7,7 +7,7 @@ const FAR := Vector2(3.0, 3.8)
 
 
 func _g_v0_01() -> RouteDef:
-	return RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	return RouteDef.load_json("res://tests/fixtures/G_V0_01.json")
 
 
 func _session(r: RouteDef, settle: int = 30) -> ClimbSession:
@@ -63,10 +63,10 @@ func test_edge_change_invalidates_eval_cache() -> void:
 	rules._ctx_endpoints = {PoseSolver.RF: Vector2(0.20, 0.30), PoseSolver.RH: Vector2(0.20, 1.60)}
 	rules._ctx_platform = false
 	rules._ctx_yaw = 0.0
-	var a := rules._evaluate_cached(Vector2(0.20, 1.0), 0.0)
+	var a := rules._evaluate_cached(Vector2(0.05, 0.95), 0.0)  # 2026-11-11 B안 몸: barn door가 성립하는 골반(test_barn_door와 같음)
 	var cap_inside: float = a.barn.capacity
 	rules.contact_meta[PoseSolver.LF].edge = &"drop_knee"
-	var b := rules._evaluate_cached(Vector2(0.20, 1.0), 0.0)
+	var b := rules._evaluate_cached(Vector2(0.05, 0.95), 0.0)
 	runner.check(absf(b.barn.capacity - cap_inside) > 1e-6, "용량 변화 (%.4f → %.4f)" % [cap_inside, b.barn.capacity])
 
 

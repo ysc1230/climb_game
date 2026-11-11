@@ -5,29 +5,31 @@ var runner
 
 
 func test_g_v0_01_content_valid() -> void:
-	var r := RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	var r := RouteDef.load_json("res://tests/fixtures/G_V0_01.json")
 	runner.check(r.errors.is_empty(), "저작 오류: %s" % [r.errors])
 	runner.check(r.slots.size() == 14, "G_V0_01 슬롯 14개, 실제 %d" % r.slots.size())
 	runner.check(r.intended_moves.size() == 10, "G_V0_01 의도 이동 10회")
 
 
 func test_g_v0_01_intended_path_both_orders() -> void:
-	var r := RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	var r := RouteDef.load_json("res://tests/fixtures/G_V0_01.json")
+	# 2026-11-11: 옛 정적 봇(RouteBot)은 B안 몸에서 첫 손 동작 전에 몸을 충분히 올리지 못한다. 콘텐츠 검증에 쓰는
+	# SessionBot(실제 세션·패드 입력)으로 본다.
 	for moves in [r.intended_moves, RouteBot.swapped_pairs(r.intended_moves)]:
-		var bot := RouteBot.run(r, moves)
+		var bot := SessionBot.run(r, moves)
 		runner.check(bot.ok(), bot.failure)
-		runner.check(bot.ticks <= int(r.time_medal_seconds * Tuning.TICK_HZ), "봇 시간이 메달 기준보다 김")
+		runner.check(bot.metrics.seconds <= r.time_medal_seconds, "봇 시간이 메달 기준보다 김 %.1f" % bot.metrics.seconds)
 
 
 func test_g_v0_01_requires_moving_feet() -> void:
 	# 16 수락 조건: 발을 전혀 움직이지 않으면 정상에 갈 수 없다.
-	var r := RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	var r := RouteDef.load_json("res://tests/fixtures/G_V0_01.json")
 	var hands_only := r.intended_moves.filter(func(m): return PoseSolver.is_hand(m[0]))
 	runner.check(not RouteBot.run(r, hands_only).ok(), "손만으로 완등되면 G_V0_01 목적 위반")
 
 
 func test_validator_catches_bad_reference() -> void:
-	var r := RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	var r := RouteDef.load_json("res://tests/fixtures/G_V0_01.json")
 	r.intended_moves.append([PoseSolver.LF, "G_V0_01/H01/hand_1"])
 	r.errors.clear()
 	r._validate()

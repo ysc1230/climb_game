@@ -7,7 +7,7 @@ const G_V0_01_H03 := "G_V0_01/H03/hand_1"
 
 
 func _g_v0_01() -> RouteDef:
-	return RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	return RouteDef.load_json("res://tests/fixtures/G_V0_01.json")
 
 
 func _tx() -> RouteDef:
@@ -96,7 +96,7 @@ func test_match_needs_matchable_hold() -> void:
 
 
 func test_routes_mark_match_holds() -> void:
-	for id in ["C_MATCH_T", "G_V3_01", "G_V3_02", "G_V4_01", "G_V4_02"]:
+	for id in ["G_V3_02"]:  # 2026-11-11 남은 콘텐츠
 		var r := RouteDef.load_json(ContentIndex.route_path(id))
 		var n := 0
 		for key in r.slots:

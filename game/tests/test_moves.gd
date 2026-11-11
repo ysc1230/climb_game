@@ -14,7 +14,7 @@ func _settle(rules: ClimbRules, body: BodyState, att: Dictionary, ticks: int, in
 
 
 func _route() -> RouteDef:
-	return RouteDef.load_json("res://data/routes/general/G_V0_01.json")
+	return RouteDef.load_json("res://tests/fixtures/G_V0_01.json")
 
 
 ## MC06·T02-C: 발이 낮으면 먼 손홀드(H05)에 닿지 않는다 → 두 발을 높이고 체중을 실으면 골반이 오르고 닿는다
