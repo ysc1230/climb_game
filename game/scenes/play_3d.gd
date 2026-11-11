@@ -429,7 +429,8 @@ func _pose_model(t: Dictionary, delta: float) -> void:
 	for key in t:
 		if t[key] is Vector3 and key != "up":
 			local[key] = inv * (t[key] as Vector3)
-	var frames := rig.solve(local, logic.session.body.angle, logic.session.body.yaw)
+	var free_feet := {"L": ClimberPose._free(logic.session, &"LF"), "R": ClimberPose._free(logic.session, &"RF")}
+	var frames := rig.solve(local, logic.session.body.angle, logic.session.body.yaw, free_feet)
 	_apply_look(frames, inv, delta)
 	for entry in RigPose.BONES:
 		var idx := skeleton.find_bone(entry[0])

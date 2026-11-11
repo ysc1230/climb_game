@@ -237,3 +237,84 @@ func test_hip_lift_limit() -> void:
 	var knee := hip + Vector3(0.3, 0.27, -0.05)
 	var tw := Anatomy.limb_twist(&"RF", hip, knee, knee + Vector3(0.05, -0.37, 0.0), F)
 	runner.check(Anatomy.twist_ok(&"RF", tw) and absf(tw) < 45.0, "옆 하이스텝 회전 %.0f°" % tw)
+
+
+func _unit_rig() -> RigPose:
+	var j := {"pelvis": Vector3(0, 1, 0.28), "spine": Vector3(0, 1.22, 0.28), "chest": Vector3(0, 1.44, 0.28)}
+	for s in ["L", "R"]:
+		var sx := -1.0 if s == "L" else 1.0
+		j["hip_" + s] = Vector3(sx * 0.10, 1.0, 0.28)
+		j["knee_" + s] = j["hip_" + s] + Vector3(0, -0.40, 0)
+		j["ankle_" + s] = j["knee_" + s] + Vector3(0, -0.38, 0)
+		j["toe_" + s] = j["ankle_" + s] + Vector3(0, -0.05, -0.15)
+	var rest := {}
+	for entry in RigPose.BONES:
+		if j.has(entry[2]) and j.has(entry[3]):
+			rest[entry[0]] = Transform3D(Basis.IDENTITY, j[entry[2]])
+	var rig := RigPose.new()
+	rig.setup(rest, j)
+	return rig
+
+
+## docs/37 3단계: 허벅지 앞면(휴지 때 벽 쪽)이 실제 굽는 방향을 보고, 발등이 옆으로 눕지 않는다.
+## 휴지 프레임이 항등인 리그로 재므로 앞면 = basis·FORWARD, 발등 = basis·UP.
+func _check_leg_twist(t: Dictionary, s: ClimbSession, where: String) -> void:
+	var free := {"L": ClimberPose._free(s, &"LF"), "R": ClimberPose._free(s, &"RF")}
+	var f := _unit_rig().solve(t, s.body.angle, s.body.yaw, free)
+	var up: Vector3 = Basis(Vector3.UP, deg_to_rad(s.body.yaw)) * Basis(Vector3.BACK, deg_to_rad(s.body.angle)) * Vector3.UP
+	for sd in ["L", "R"]:
+		var hip: Vector3 = t["hip_" + sd]
+		var knee: Vector3 = t["knee_" + sd]
+		var ankle: Vector3 = t["ankle_" + sd]
+		var dir := (knee - hip).normalized()
+		var bend := knee - (hip + ankle) * 0.5
+		bend -= dir * bend.dot(dir)
+		if bend.length() >= RigPose.TWIST_BEND_FULL:
+			var front: Vector3 = f["thigh_" + sd].basis * Vector3.FORWARD
+			var a := rad_to_deg(front.angle_to(bend))
+			runner.check(a <= 15.0, "%s 허벅지_%s 앞면-굽힘 %.1f°" % [where, sd, a])
+		var fd: Vector3 = (t["toe_" + sd] - ankle).normalized()
+		var top: Vector3 = f["foot_" + sd].basis * Vector3.UP
+		var shin := (ankle - knee).normalized()
+		runner.check(top.dot(shin) <= 0.5, "%s 발_%s 발등이 정강이 아래쪽을 봄 %.2f" % [where, sd, top.dot(shin)])
+		if not free[sd]:
+			var level := up - fd * up.dot(fd)
+			if level.length() > 0.5:
+				var tilt := rad_to_deg(top.angle_to(level))
+				runner.check(tilt <= 30.0, "%s 발_%s 발바닥 기울기 %.1f°" % [where, sd, tilt])
+
+
+func test_leg_bone_twist() -> void:
+	for id in ROUTES:
+		var s := ClimbSession.new(RouteDef.load_json(id))
+		_check_leg_twist(ClimberPose.new().compute(s, Tuning.DT), s, id.get_file() + " 시작")
+		for foot in [&"LF", &"RF"]:
+			for ix in [1, 3, 5]:
+				for iy in [0, 3, 5, 7]:
+					var r := AnatomySweep.foot_place(RouteDef.load_json(id), 0, foot, ix * 0.15, -0.75 + iy * 0.15)
+					if not r.is_empty():
+						_check_leg_twist(r.t, r.session, "%s %s (%d,%d)" % [id.get_file(), foot, ix, iy])
+	for o in [[0.42, 0.0], [0.75, 0.02], [0.3, 0.15]]:
+		var r := AnatomySweep.foot_place(RouteDef.load_json(ROUTES[1]), 12, &"RF", o[0], o[1])
+		if not r.is_empty():
+			_check_leg_twist(r.t, r.session, "12동작 뒤 RF %s" % [o])
+
+
+## docs/37 2단계: 허벅지가 옆으로 45° 넘게 벌어지면 골반 뼈만 그 다리 쪽이 올라간다(최대 15°). 허리 뼈는 그대로.
+func test_pelvis_tilt() -> void:
+	var rig := _unit_rig()
+	var j := {"pelvis": Vector3(0, 1, 0.28), "spine": Vector3(0, 1.22, 0.28), "chest": Vector3(0, 1.44, 0.28),
+		"hip_L": Vector3(-0.1, 1, 0.28), "knee_L": Vector3(-0.1, 0.6, 0.2), "ankle_L": Vector3(-0.1, 0.25, 0.28), "toe_L": Vector3(-0.1, 0.2, 0.13),
+		"hip_R": Vector3(0.1, 1, 0.28), "knee_R": Vector3(0.1, 0.6, 0.2), "ankle_R": Vector3(0.1, 0.25, 0.28), "toe_R": Vector3(0.1, 0.2, 0.13)}
+	runner.check(absf(RigPose.pelvis_tilt_deg(j, Basis.IDENTITY)) < 0.01, "다리가 아래면 기울기 0")
+	var f0 := rig.solve(j, 0.0)
+	j.knee_R = j.hip_R + Vector3(0.39, 0.05, -0.05)
+	j.ankle_R = j.knee_R + Vector3(0.37, -0.05, 0.0)
+	runner.check(absf(RigPose.pelvis_tilt_deg(j, Basis.IDENTITY) - RigPose.PELVIS_TILT_MAX) < 0.01, "오른다리 수평 → +15° (%.1f)" % RigPose.pelvis_tilt_deg(j, Basis.IDENTITY))
+	var f := rig.solve(j, 0.0)
+	runner.check((f.pelvis.basis * Vector3.RIGHT).y > 0.2 and f.pelvis.origin.is_equal_approx(f0.pelvis.origin), "골반 오른쪽이 올라가고 위치는 그대로")
+	runner.check(f.spine.basis.is_equal_approx(f0.spine.basis) and f.chest.basis.is_equal_approx(f0.chest.basis), "허리·가슴은 그대로")
+	j.knee_R = j.hip_R + Vector3(0.0, 0.1, -0.39)
+	runner.check(absf(RigPose.pelvis_tilt_deg(j, Basis.IDENTITY)) < 0.01, "앞으로 든 무릎은 기울기 0")
+	j.knee_L = j.hip_L + Vector3(-0.39, 0.05, -0.05)
+	runner.check(absf(RigPose.pelvis_tilt_deg(j, Basis.IDENTITY) + RigPose.PELVIS_TILT_MAX) < 0.01, "왼다리 수평 → −15°")

@@ -31,6 +31,18 @@ const BONES := [
 	["foot_R", "shin_R", "ankle_R", "toe_R", Mode.CHILD, Vector3.ZERO],
 ]
 const ANTIPARALLEL_DOT := -0.995
+## 골반 기울기(docs/37 2단계): 허벅지가 옆으로 PELVIS_TILT_FROM° 넘게 벌어지면 골반 뼈가 그 다리 쪽을 들어 올린다
+## (PELVIS_TILT_FULL°에서 최대 PELVIS_TILT_MAX°). 허리·허벅지 뼈는 관절 위치를 그대로 따르므로 가슴과 관절은 안 바뀐다.
+const PELVIS_TILT_FROM := 45.0
+const PELVIS_TILT_FULL := 90.0
+const PELVIS_TILT_MAX := 15.0
+## 뼈 비틀림(docs/37 3단계). 허벅지: 무릎 앞면(휴지 때 벽 쪽)이 실제 굽는 방향을 본다. 굽힘이 TWIST_BEND_MIN보다
+## 작으면(거의 펴짐) 돌리지 않고 TWIST_BEND_FULL까지 서서히 켠다. 발: 발등이 정강이 반대쪽·몸 위쪽을 본다
+## (붙은 발은 위쪽 비중이 커서 발바닥이 아래, 뗀 발은 정강이를 따라 늘어뜨림).
+const TWIST_BEND_MIN := 0.02
+const TWIST_BEND_FULL := 0.08
+const FOOT_UP_WEIGHT_STUCK := 2.0
+const FOOT_UP_WEIGHT_FREE := 0.5
 
 var rest_basis := {}   # 뼈 -> Basis (휴지 전역)
 var rest_dir := {}     # 뼈 -> Vector3 (휴지 길이축, 단위)
@@ -63,8 +75,9 @@ static func arc(a: Vector3, b: Vector3) -> Dictionary:
 
 ## joints: 관절 키 -> 위치(같은 좌표계), roll_deg: 몸통 벽면 roll, yaw_deg: 골반 yaw(Y축, ψ>0 = 오른쪽이 벽 쪽).
 ## 합성 순서는 벽 기준 yaw → roll(04 §3)이라 몸통 기준 프레임은 roll × yaw이다.
+## free_feet: "L"/"R" → 발이 떠 있는가(발바닥 방향용, 없으면 붙은 발).
 ## 반환: 뼈 -> Transform3D(그 좌표계의 전역 프레임).
-func solve(joints: Dictionary, roll_deg: float, yaw_deg: float = 0.0) -> Dictionary:
+func solve(joints: Dictionary, roll_deg: float, yaw_deg: float = 0.0, free_feet := {}) -> Dictionary:
 	var out := {}
 	var roll := Basis(Vector3.BACK, deg_to_rad(roll_deg)) * Basis(Vector3.UP, deg_to_rad(yaw_deg))
 	for entry in BONES:
@@ -79,6 +92,8 @@ func solve(joints: Dictionary, roll_deg: float, yaw_deg: float = 0.0) -> Diction
 		match entry[4]:
 			Mode.BODY:
 				basis = roll * rest_basis[name]
+				if name == "pelvis":
+					basis = Basis(roll * Vector3.BACK, deg_to_rad(pelvis_tilt_deg(joints, roll))) * basis
 			Mode.SWING:
 				# 휴지 길이축을 부모 기준축으로 옮긴 프레임 → 현재 방향으로 최단 회전
 				var ref_local: Vector3 = entry[5]
@@ -101,7 +116,42 @@ func solve(joints: Dictionary, roll_deg: float, yaw_deg: float = 0.0) -> Diction
 					basis = _last.get(name, parent_delta * rest_basis[name])
 				else:
 					basis = Basis(to_dir.q) * parent_delta * Basis(align_rest.q) * rest_basis[name]
+		if name.begins_with("thigh_"):
+			var side := name.right(1)
+			var bend: Vector3 = joints["knee_" + side] - (from_p + joints["ankle_" + side]) * 0.5
+			basis = _twist(basis, name, dir, Vector3.FORWARD, bend, smoothstep(TWIST_BEND_MIN, TWIST_BEND_FULL, (bend - dir * bend.dot(dir)).length()))
+		elif name.begins_with("foot_"):
+			var side := name.right(1)
+			var shin: Vector3 = (from_p - joints["knee_" + side]).normalized()
+			var w := FOOT_UP_WEIGHT_FREE if free_feet.get(side, false) else FOOT_UP_WEIGHT_STUCK
+			basis = _twist(basis, name, dir, Vector3.UP, roll * Vector3.UP * w - shin, 1.0)
 		basis = basis.orthonormalized()
 		_last[name] = basis
 		out[name] = Transform3D(basis, from_p)
 	return out
+
+
+## 뼈를 길이축(dir) 둘레로 돌려, 휴지 때 rest_ref(휴지 좌표)를 보던 면이 want 쪽을 보게 한다. amount 0~1.
+func _twist(basis: Basis, name: String, dir: Vector3, rest_ref: Vector3, want: Vector3, amount: float) -> Basis:
+	var now: Vector3 = basis * rest_basis[name].inverse() * rest_ref
+	now -= dir * now.dot(dir)
+	want -= dir * want.dot(dir)
+	if amount <= 0.0 or now.length() < 0.01 or want.length() < 0.001:
+		return basis
+	return Basis(dir, now.normalized().signed_angle_to(want.normalized(), dir) * amount) * basis
+
+
+## 골반 기울기(도, 몸 기준 뒤쪽 축 둘레: +면 오른쪽이 올라감). 벌어진 각 = 허벅지가 아래에서 벗어난 각 × 바깥쪽 비중.
+static func pelvis_tilt_deg(joints: Dictionary, frame: Basis) -> float:
+	var tilt := 0.0
+	for side in ["L", "R"]:
+		if not (joints.has("hip_" + side) and joints.has("knee_" + side)):
+			continue
+		var sgn := -1.0 if side == "L" else 1.0
+		var p: Vector3 = frame.inverse() * (joints["knee_" + side] - joints["hip_" + side]).normalized()
+		var flat := Vector2(p.x, p.z).length()
+		if flat < 0.001:
+			continue
+		var abd := rad_to_deg(acos(clampf(-p.y, -1.0, 1.0))) * maxf(p.x * sgn, 0.0) / flat
+		tilt += sgn * PELVIS_TILT_MAX * smoothstep(PELVIS_TILT_FROM, PELVIS_TILT_FULL, abd)
+	return tilt
