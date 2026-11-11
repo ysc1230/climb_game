@@ -237,6 +237,42 @@ static func run_lift(route: RouteDef, foot: StringName, offset_x: float, rise: f
 	return sw
 
 
+## 발 놓기(docs/37): 의도 경로의 앞 moves개 동작을 한 뒤 발 하나를 떼어 엉덩이 기준 (offset_x 바깥, rise 위)로 끌고 멈춘
+## 마지막 자세. 반환 {t: ClimberPose 결과, session, free: 떠 있는 손발}. 떨어지면 {}.
+static func foot_place(route: RouteDef, moves: int, foot: StringName, offset_x: float, rise: float) -> Dictionary:
+	var s := ClimbSession.new(route)
+	var pose := ClimberPose.new()
+	for i in 30:
+		s.step()
+		pose.compute(s, Tuning.DT)
+	for m in moves:
+		var mv: Array = route.intended_moves[m]
+		var limb := StringName(mv[0])
+		var slot := route.slot_pos(mv[1])
+		s.apply_input([{"type": "detach", "limb": limb}])
+		for i in 300:
+			s.apply_input([{"type": "move", "limb": limb, "delta": (slot - s.limbs[limb].req).limit_length(2.5 * Tuning.DT)}])
+			s.step()
+			pose.compute(s, Tuning.DT)
+			if s.limbs[limb].cand.get("key", "") == mv[1]:
+				s.apply_input([{"type": "release", "limb": limb}])
+				break
+		for i in 90:
+			s.step()
+			pose.compute(s, Tuning.DT)
+	var hip := PoseSolver.joint_position(s.body.pos, s.body.angle, foot, s.body.yaw)
+	var target := Vector2(hip.x + offset_x * PoseSolver.side_sign(foot), hip.y + rise)
+	s.apply_input([{"type": "detach", "limb": foot}])
+	var t := {}
+	for i in 150:
+		s.apply_input([{"type": "move", "limb": foot, "delta": (target - s.limbs[foot].req).limit_length(1.2 * Tuning.DT)}])
+		s.step()
+		if s.falling:
+			return {}
+		t = pose.compute(s, Tuning.DT)
+	return {"t": t, "session": s, "free": _free_map(s)}
+
+
 ## 손 뻗기 시나리오(2026-11-08 사용자: "팔 움직임이 부자연스럽고 기괴한 각도로 꺾인다, 움직일 때 팔이 심각하게 떨린다"):
 ## 시작 자세에서 한 손을 떼어 어깨 기준 (dx, dy)까지 speed로 끈 뒤 hold틱 동안 그대로 둔다. dx는 바깥(+)·안쪽(−).
 static func run_reach(route: RouteDef, hand: StringName, dx: float, dy: float, speed: float, hold := 40) -> AnatomySweep:

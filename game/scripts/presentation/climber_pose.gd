@@ -16,7 +16,8 @@ const HEAD_TOP_UP := 1.16
 const DEPTH_STEP := 0.03       # 골반 깊이 후보 간격
 const DEPTH_SPEED := 1.0       # m/s, 표현 골반 깊이가 목표로 따라가는 빠르기
 const LIFT_SPEED := 2.5        # m/s, 떠 있는 손발 끝 깊이가 목표로 따라가는 빠르기
-const FREE_END_DEPTHS := [0.0, 0.12, 0.25]  # 떠 있는 발 끝의 추가 깊이 후보(기본 띄움에 더함). 벽 평면 위치는 판정 그대로
+const FREE_END_DEPTHS := [0.0, 0.06, 0.12]  # 떠 있는 발 끝의 추가 깊이 후보(기본 띄움에 더함). 벽 평면 위치는 판정 그대로
+const FREE_FOOT_FRONT := 0.05  # 떠 있는 발 끝은 골반보다 이만큼 이상 벽 쪽(발이 몸 뒤로 나오는 "뒤차기" 방지, docs/37)
 const FREE_HAND_DEPTHS := [0.0, -0.06, -0.12]  # 떠 있는 손 끝: 벽 쪽으로 붙이기(−0.12면 접촉면 깊이)
 const LIFT_HOLD_TICKS := 20   # 떠 있는 발의 추가 깊이를 한 번 바꾸면 이만큼은 유지(오락가락 방지)
 const HYSTERESIS := 0.02       # 새 깊이 후보는 지금 목표보다 점수가 이만큼 이상 나을 때만 바꾼다
@@ -57,7 +58,7 @@ func compute(session, delta: float) -> Dictionary:
 		var lift_now: float = free_lift.get(limb, 0.0)
 		free_lift[limb] = move_toward(lift_now, float(want.lift[limb]), LIFT_SPEED * delta)
 		var root := _root(body, limb, depth)
-		var end := _end(session, limb, float(free_lift[limb]))
+		var end := _end(session, limb, float(free_lift[limb]), depth)
 		var ik := LimbIK.solve_circle(_circle(limb, root, end, frame, pelvis, up, true, _free(session, limb)), bends.get(limb, Vector3.ZERO), max_step)
 		bends[limb] = ik.bend
 		var mid: Vector3 = ik.mid
@@ -85,10 +86,12 @@ static func _root(body, limb: StringName, pelvis_depth: float) -> Vector3:
 	return Vector3(j2.x, j2.y, pelvis_depth + PoseSolver.joint_depth_offset(limb, body.yaw))
 
 
-static func _end(session, limb: StringName, lift: float) -> Vector3:
+static func _end(session, limb: StringName, lift: float, pelvis_depth: float) -> Vector3:
 	var e2: Vector2 = session.limbs[limb].pos
 	var stuck: bool = session.limbs[limb].state in ["Attached", "Armed"]
 	var z := Tuning.CONTACT_DEPTH if stuck else Tuning.CONTACT_DEPTH + Tuning.FREE_ENDPOINT_LIFT + lift
+	if not stuck and not PoseSolver.is_hand(limb):
+		z = maxf(Tuning.CONTACT_DEPTH, minf(z, pelvis_depth - FREE_FOOT_FRONT))
 	return Vector3(e2.x, e2.y, z)
 
 
@@ -167,7 +170,7 @@ func _score_depth(session, body, frame: Basis, up: Vector3, dpt: float, lifts: D
 				options = FREE_HAND_DEPTHS if PoseSolver.is_hand(limb) else FREE_END_DEPTHS
 		var lv := INF
 		for extra in options:
-			var c := _circle(limb, root, _end(session, limb, extra), frame, pelvis, up, fine, free)
+			var c := _circle(limb, root, _end(session, limb, extra, dpt), frame, pelvis, up, fine, free)
 			if c.is_empty():
 				break
 			var v := LimbIK.local_violation(c, bends.get(limb, Vector3.ZERO))

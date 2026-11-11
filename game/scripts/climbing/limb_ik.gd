@@ -32,6 +32,9 @@ const BODY_POLE := {  # 몸 기준(X 오른쪽, Y 위, +Z 등 쪽). s는 오른�
 	&"foot": Vector3(0.8, 0.1, -0.6),     # 무릎: 바깥·벽 쪽(앞). 무릎은 뒤로 접히지 않는다
 	&"free_foot": Vector3(0.6, 0.6, -0.5), # 발을 들어 옮길 때 무릎: 바깥·위·벽 쪽(들어 올림)
 }
+const LEG_POLE_HIGH := Vector3(0.7, 0.6, -0.3)  # 발이 엉덩이 높이 근처(하이스텝): 무릎 바깥·위
+const LEG_POLE_HIGH_FROM := -0.40  # 발 높이(엉덩이 기준, m)가 이보다 높으면 바깥·위로 섞기 시작
+const LEG_POLE_HIGH_FULL := -0.10  # 이 높이부터는 바깥·위만
 const WALL_MIN_Z := 0.05      # 팔꿈치·무릎 중심의 최소 Z(벽면 z=0 + 관절 반지름)
 const TORSO_MIN_DIST := 0.18  # 몸통 축(골반+0.05 ~ +0.50)에서 팔꿈치·무릎 중심까지 최소 거리
 const HEAD_MIN_DIST := 0.17   # 팔 뼈(위팔·아래팔)에서 머리 중심까지 최소 거리
@@ -166,6 +169,13 @@ static func arm_pole(hand_dir_body: Vector3) -> Vector3:
 	return low.lerp(high, smoothstep(-0.3, 0.6, up)).normalized()
 
 
+## 무릎 선호 방향(몸 기준, 오른다리 기준 X+ = 바깥). foot_body: 엉덩이→발(몸 기준, m). 발이 엉덩이 높이 근처면
+## 붙은 발도 무릎을 바깥·위로 든다(docs/37: 벽 쪽 선호만 쓰면 무릎이 발보다 아래로 처졌다).
+static func leg_pole(foot_body: Vector3, free: bool) -> Vector3:
+	var low: Vector3 = BODY_POLE[&"free_foot" if free else &"foot"]
+	return low.lerp(LEG_POLE_HIGH, smoothstep(LEG_POLE_HIGH_FROM, LEG_POLE_HIGH_FULL, foot_body.y)).normalized()
+
+
 ## 굽힘 원: 중심·반지름 h·기준 축 n, t와 BEND_SAMPLES개 후보의 위반량(bad), 가장 좋은 후보(best).
 static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3, samples := BEND_SAMPLES, free := false) -> Dictionary:
 	var hand := PoseSolver.is_hand(limb)
@@ -185,9 +195,7 @@ static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis,
 		n = (frame * Vector3.UP) - dir * (frame * Vector3.UP).dot(dir)
 	n = n.normalized()
 	var t := dir.cross(n).normalized()
-	var pl: Vector3 = BODY_POLE[&"hand" if hand else (&"free_foot" if free else &"foot")]
-	if hand:
-		pl = arm_pole(frame.inverse() * dir)
+	var pl: Vector3 = arm_pole(frame.inverse() * dir) if hand else leg_pole(frame.inverse() * v, free)
 	var free_leg := free and not hand
 	var pole := frame * Vector3(pl.x * sgn, pl.y, pl.z)
 	var pole_th := atan2(pole.dot(t), pole.dot(n))
@@ -253,8 +261,7 @@ static func _violation(limb: StringName, hand: bool, root: Vector3, mid: Vector3
 	var lim := Anatomy.SHOULDER_EXTENSION_MAX if hand else Anatomy.HIP_EXTENSION_MAX
 	viol += maxf(0.0, back - (lim - 0.1))
 	if not hand:
-		var flex := Anatomy.hip_flexion_deg((mid - root).normalized(), frame)
-		viol += (maxf(0.0, flex - (Anatomy.HIP_FLEXION.y - 10.0)) + maxf(0.0, (Anatomy.HIP_FLEXION.x + 10.0) - flex)) / 90.0
+		viol += Anatomy.hip_lift_excess((mid - root).normalized(), frame, 10.0) / 90.0
 	return viol
 
 

@@ -18,6 +18,13 @@ const LEG_TWIST := Vector2(-70.0, 90.0)      # 고관절 안돌림 70°(드롭�
 ## 고관절 굴곡각(허벅지-몸통 사이) 범위: 뒤로 젖힘 30°, 앞으로 들기 160°. 몸통이 한 덩어리라 골반 뒤 기울기(20~30°)가
 ## 따로 없으므로, 유연한 사람의 고관절 굴곡 135~145°에 골반 기울기를 더한 값으로 잡는다(무릎을 가슴까지 올리는 락오버).
 const HIP_FLEXION := Vector2(-30.0, 160.0)
+## 허벅지를 든 높이(수평 위 각, 도)의 한계. 방향에 따라 다르다: 앞(벽 쪽)으로는 70°(굴곡 160°), 옆으로는 60°
+## (무릎을 겨드랑이 쪽으로 드는 하이스텝·개구리 자세), 뒤로는 −60°(뒤로 젖힘 30°). 사이 방향은 이어서 보간한다.
+## 2026-11-11(docs/37): 굴곡각을 옆에서 본 각으로만 재면 옆·위로 든 무릎이 180°로 계산되어 하이스텝이 막혔다.
+const HIP_TWIST_HIGH_FROM := -0.5  # 허벅지 위쪽 성분이 이보다 크면 고관절 회전 기준을 "앞으로 든 자세"로 섞기 시작(수평부터는 그것만)
+const HIP_LIFT_FRONT := 70.0
+const HIP_LIFT_SIDE := 60.0
+const HIP_LIFT_BACK := -60.0
 const SHOULDER_EXTENSION_MAX := 0.60         # 위팔의 뒤쪽 성분(sin 37°)
 const HIP_EXTENSION_MAX := 0.50              # 허벅지의 뒤쪽 성분(sin 30°)
 const ANKLE_RANGE := Vector2(40.0, 130.0)    # 정강이(무릎→발목)와 발(발목→발끝) 사이 각
@@ -73,6 +80,20 @@ static func hip_flexion_deg(p: Vector3, frame: Basis) -> float:
 	return rad_to_deg(atan2(ant, down))
 
 
+## 허벅지 방향 p가 든 높이 한계(HIP_LIFT_*)를 넘은 각(도). 0이면 범위 안.
+## margin: 한계를 이만큼 안쪽으로 당겨 잰다(IK가 경계에서 여유를 두고 고를 때).
+static func hip_lift_excess(p: Vector3, frame: Basis, margin := 0.0) -> float:
+	var elev := rad_to_deg(asin(clampf(p.dot(frame * Vector3.UP), -1.0, 1.0)))
+	var ant := -p.dot(frame * Vector3.BACK)
+	var lat := p.dot(frame * Vector3.RIGHT)
+	var flat := Vector2(ant, lat).length()
+	if flat < 0.0001:
+		return maxf(0.0, elev - (HIP_LIFT_SIDE - margin))
+	var w := ant / flat  # 1 앞, 0 옆, −1 뒤
+	var lim := lerpf(HIP_LIFT_SIDE, HIP_LIFT_FRONT, w) if w >= 0.0 else lerpf(HIP_LIFT_SIDE, HIP_LIFT_BACK, -w)
+	return maxf(0.0, elev - (lim - margin))
+
+
 static func hip_twist_deg(p: Vector3, q: Vector3, frame: Basis, side: float) -> float:
 	var act := q - p * q.dot(p)
 	if act.length() < STRAIGHT_EPS * q.length():
@@ -84,7 +105,17 @@ static func hip_twist_deg(p: Vector3, q: Vector3, frame: Basis, side: float) -> 
 	var r2 := Quaternion.IDENTITY if v1.dot(p) > 0.99999 or v1.dot(p) < -0.995 else Quaternion(v1, p)
 	var ref: Vector3 = r2 * (r1 * (frame * Vector3.BACK))
 	ref = (ref - p * ref.dot(p)).normalized()
-	return rad_to_deg(ref.signed_angle_to(act.normalized(), p)) * side
+	var low := ref.signed_angle_to(act.normalized(), p) * side
+	# 허벅지가 수평 위로 들리면(하이스텝) 옆에서 본 굴곡각이 불안정해진다(옆·위는 ±180° 근처). 그때는 앞으로 든 자세
+	# (허벅지 앞, 정강이 아래)에서 최단 회전으로 옮긴 기준으로 잰다: 든 무릎에서 정강이가 아래로 내려오면 0°(docs/37).
+	var w := smoothstep(HIP_TWIST_HIGH_FROM, 0.0, p.dot(frame * Vector3.UP))
+	var fwd := frame * Vector3.FORWARD
+	if w <= 0.0 or p.dot(fwd) < -0.995:
+		return rad_to_deg(low)
+	var ref_h: Vector3 = (Quaternion(fwd, p) if p.dot(fwd) < 0.99999 else Quaternion.IDENTITY) * (frame * Vector3.DOWN)
+	ref_h = (ref_h - p * ref_h.dot(p)).normalized()
+	var high := ref_h.signed_angle_to(act.normalized(), p) * side
+	return rad_to_deg(low + angle_difference(low, high) * w)
 
 
 static func twist_ok(limb: StringName, twist: float) -> bool:
@@ -185,9 +216,9 @@ static func check(t: Dictionary, angle_deg: float, yaw_deg: float, free := {}) -
 			if shin_up > FREE_LEG_SHIN_UP_MAX:
 				out.append({"kind": "free_drop_knee", "limb": limb, "value": shin_up})
 		if not hand:
-			var flex := hip_flexion_deg((mid - root).normalized(), frame)
-			if flex < HIP_FLEXION.x or flex > HIP_FLEXION.y:
-				out.append({"kind": "flexion", "limb": limb, "value": flex})
+			var over := hip_lift_excess((mid - root).normalized(), frame)
+			if over > 0.0:
+				out.append({"kind": "flexion", "limb": limb, "value": over})
 		if not hand:
 			var toe: Vector3 = t["toe_" + s]
 			var ankle_deg := rad_to_deg((end - mid).angle_to(toe - end))

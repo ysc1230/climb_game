@@ -192,3 +192,48 @@ func test_elbow_not_up_when_reaching() -> void:
 				var sw := AnatomySweep.run_reach(r, hand, tg[0], tg[1], 1.2)
 				var n: int = sw.counts.get("elbow_up/%s" % hand, 0)
 				runner.check(n <= 3, "%s %s %s 팔꿈치 위로 %d" % [id, hand, tg, n])
+
+
+## 사용자 보고(2026-11-11, docs/37): 뗀 발이 몸 뒤로 나와 "뒤차기"처럼 보이고, 발을 엉덩이 높이로 들면 무릎이 발보다 아래로 처졌다.
+## 발을 엉덩이 기준 격자(바깥 0~0.75, 위 −0.75~+0.30)로 끌어 멈춘 자세마다: 발목은 골반보다 벽 쪽이고,
+## 다리가 굽어 있으면(거의 펴진 자세 제외) 무릎이 발보다 아래로 처지지 않는다.
+func _check_foot_place(id: String, moves: int, foot: StringName, ox: float, oy: float) -> void:
+	var r := AnatomySweep.foot_place(RouteDef.load_json(id), moves, foot, ox, oy)
+	if r.is_empty():
+		return
+	var t: Dictionary = r.t
+	var sd := "L" if foot == &"LF" else "R"
+	var hip: Vector3 = t["hip_" + sd]
+	var knee: Vector3 = t["knee_" + sd]
+	var ankle: Vector3 = t["ankle_" + sd]
+	var where := "%s %d동작 뒤 %s (%.2f, %.2f)" % [id.get_file(), moves, foot, ox, oy]
+	runner.check(ankle.z <= t.pelvis.z - ClimberPose.FREE_FOOT_FRONT + 0.001, "%s 발목이 골반보다 벽 쪽: 발목 %.2f 골반 %.2f" % [where, ankle.z, t.pelvis.z])
+	if hip.distance_to(ankle) < 0.74:
+		runner.check(knee.y >= ankle.y - 0.03 or ankle.y - hip.y < -0.25, "%s 무릎이 발보다 아래: 무릎 %.2f 발 %.2f" % [where, knee.y - hip.y, ankle.y - hip.y])
+		var drop := Anatomy.check(t, r.session.body.angle, r.session.body.yaw, r.free).any(func(v): return v.limb == foot and v.kind == "free_drop_knee")
+		runner.check(not drop, "%s 무릎 처짐 없음" % where)
+
+
+func test_free_foot_grid() -> void:
+	for id in ROUTES:
+		for foot in [&"LF", &"RF"]:
+			for ix in 6:
+				for iy in 8:
+					_check_foot_place(id, 0, foot, ix * 0.15, -0.75 + iy * 0.15)
+	# 팔이 펴져 골반이 벽에 붙은 자세(기기 화면): G_V3_02 12번째 동작 뒤 오른발
+	for o in [[0.42, 0.0], [0.4, -0.15], [0.3, 0.15], [0.75, 0.02], [0.05, -0.75]]:
+		_check_foot_place(ROUTES[1], 12, &"RF", o[0], o[1])
+
+
+## 든 높이 한계(docs/37): 옆·위로 든 무릎(하이스텝)은 되고, 위·뒤나 곧장 위는 안 된다.
+func test_hip_lift_limit() -> void:
+	runner.check(Anatomy.hip_lift_excess(Vector3(0.75, 0.65, -0.1).normalized(), F) == 0.0, "옆·위 40°: 가능")
+	runner.check(Anatomy.hip_lift_excess(Vector3(0, 0.5, -0.87).normalized(), F) == 0.0, "앞·위 30°: 가능")
+	runner.check(Anatomy.hip_lift_excess(Vector3(0.1, 0.99, 0).normalized(), F) > 20.0, "곧장 위: 불가능")
+	runner.check(Anatomy.hip_lift_excess(Vector3(0, 0.98, 0.2).normalized(), F) > 60.0, "위·뒤: 불가능")
+	runner.check(Anatomy.hip_lift_excess(Vector3(0, -0.9, 0.43).normalized(), F) == 0.0 and Anatomy.hip_lift_excess(Vector3(0, -0.7, 0.71).normalized(), F) > 0.0, "뒤로 젖힘 25°는 되고 45°는 안 됨")
+	# 옆으로 든 무릎에서 정강이가 아래로 내려오면 회전 0° 근처(하이스텝)
+	var hip := Vector3(0.1, 1.0, 0.2)
+	var knee := hip + Vector3(0.3, 0.27, -0.05)
+	var tw := Anatomy.limb_twist(&"RF", hip, knee, knee + Vector3(0.05, -0.37, 0.0), F)
+	runner.check(Anatomy.twist_ok(&"RF", tw) and absf(tw) < 45.0, "옆 하이스텝 회전 %.0f°" % tw)
