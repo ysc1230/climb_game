@@ -544,6 +544,8 @@ func _draw_look(size: Vector2) -> void:
 	for row in LOOK_ROWS:
 		var sid: String = row[0]
 		var count: int = _asm.bodies().size() if sid == "body" else _asm.slot(sid).get("parts", []).size()
+		if count == 0:  # 파츠가 없는 슬롯(통짜 모델, docs/36)은 줄을 그리지 않는다
+			continue
 		draw_string(font, Vector2(x, y + 38 * k), row[1], HORIZONTAL_ALIGNMENT_LEFT, -1, int(24 * k), DIM)
 		var bx := x + 150 * k
 		var one := count <= 1
@@ -556,4 +558,4 @@ func _draw_look(size: Vector2) -> void:
 		y += 76 * k
 	_button(Rect2(Vector2(x + 150 * k, y + 20 * k), Vector2(200, 60) * k), "저장", "look_save", "", 24, true)
 	_button(Rect2(Vector2(x + 370 * k, y + 20 * k), Vector2(200, 60) * k), "취소", "look_cancel", "", 24)
-	draw_string(font, Vector2(x, y + 130 * k), "상의·하의·초크백·신발은 아직 한 가지씩이에요(시제품).", HORIZONTAL_ALIGNMENT_LEFT, -1, int(18 * k), DIM)
+	draw_string(font, Vector2(x, y + 130 * k), "옷·머리·신발 바꾸기와 여성 캐릭터는 다음 단계에서 나와요.", HORIZONTAL_ALIGNMENT_LEFT, -1, int(18 * k), DIM)

@@ -6,7 +6,7 @@ extends RefCounted
 ## 조정 버전(docs/09 tuning_version). 판정 수치·규칙이 바뀌면 올린다.
 ## 1: v0.4 거리 기반, 2: v0.5 방향·3D 거리·지지 하중, 3: v0.5 무브별 선호·의도 비용, 4: v0.6 접점 품질·그립 방식
 ## 7: 데드포인트 규칙 제거(2026-11-05 사용자 결정)
-const TUNING_VERSION := 8  # 2026-11-11 B안 몸(Tripo 비율, docs/35 §6)
+const TUNING_VERSION := 9  # 2026-11-11 B안 몸(Tripo 비율, docs/35 §6), 팔 나눔을 모델 실측으로(docs/36 §3)
 
 const TICK_HZ := 60
 const DT := 1.0 / TICK_HZ
@@ -14,8 +14,8 @@ const DT := 1.0 / TICK_HZ
 # 체형 (좌표·크기 계약)
 # 2026-11-11 사용자 결정 B안(docs/35 §6): Tripo 캐릭터 비율에 게임 몸을 맞춤. 키 1.99m 유지, 팔 ×0.71, 다리 ×0.78,
 # 몸통 김(어깨가 골반 위 0.67), 머리 1.4배. 이전 값: 팔 0.40/0.38, 다리 0.52/0.48, 어깨 (0.20, 0.55), 고관절 0.14.
-const ARM_UPPER := 0.285
-const ARM_LOWER := 0.27
+const ARM_UPPER := 0.20   # 2026-11-11 Tripo 모델 실측(docs/36 §3): 어깨→팔꿈치 0.20
+const ARM_LOWER := 0.35   # 팔꿈치→손 접점(모델 손가락 뿌리). 아래팔 0.195 + 손바닥 0.155. 합 0.55는 B안과 같음
 const LEG_UPPER := 0.41
 const LEG_LOWER := 0.375
 const SHOULDER_OFFSET := Vector2(0.18, 0.67) # X는 좌우 부호 적용

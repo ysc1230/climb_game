@@ -11,10 +11,10 @@ func _near(a: float, b: float, eps: float = 0.0005) -> bool:
 func test_reach_ranges_follow_joint_limits() -> void:
 	var leg := Tuning.leg_range()
 	var arm := Tuning.arm_range()
-	# 2026-11-11 B안 몸(팔 0.285/0.27, 다리 0.41/0.375): 무릎 145°에서 다리 최소 0.2384, 팔꿈치 5°에서 팔 최대 0.5545
+	# 2026-11-11 B안 몸(팔 0.285/0.27, 다리 0.41/0.375): 무릎 145°에서 다리 최소 0.2384, 팔 나눔 0.20/0.35(2026-11-11 모델 실측)
 	runner.check(_near(leg.x, 0.2384), "다리 최소 %.4f" % leg.x)
 	runner.check(_near(arm.y, 0.55), "팔 최대는 명목값 0.55(팔꿈치 5°의 0.5545보다 작음) %.4f" % arm.y)
-	runner.check(_near(arm.x, 0.14), "팔 최소는 명목값 0.14")
+	runner.check(_near(arm.x, 0.1887), "팔 최소는 팔꿈치 155°의 0.1887(명목 0.14보다 큼, 위팔 0.20·아래팔 0.35) %.4f" % arm.x)
 
 
 func test_doc19_start_pose_arithmetic() -> void:

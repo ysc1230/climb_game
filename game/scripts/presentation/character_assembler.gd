@@ -114,13 +114,21 @@ static func style(model: Node, toon_shader: Shader, outline_shader: Shader, ink:
 			var face := is_face_material(mname)
 			var t := ShaderMaterial.new()
 			t.shader = toon_shader
-			t.set_shader_parameter("albedo", c)
-			t.set_shader_parameter("shade", c.darkened(0.15 if face else 0.45))
 			t.set_shader_parameter("wall_pattern", false)
+			var tex: Texture2D = (m as BaseMaterial3D).albedo_texture if m is BaseMaterial3D else null
+			if tex != null:  # 텍스처 캐릭터(Tripo, docs/36): 색은 텍스처, 그늘은 밝기 비율
+				t.set_shader_parameter("use_texture", true)
+				t.set_shader_parameter("albedo_tex", tex)
+				t.set_shader_parameter("albedo", Color.WHITE)
+			else:
+				t.set_shader_parameter("albedo", c)
+				t.set_shader_parameter("shade", c.darkened(0.15 if face else 0.45))
 			var o := ShaderMaterial.new()
 			o.shader = outline_shader
 			o.set_shader_parameter("ink", ink)
 			o.set_shader_parameter("width", 0.0 if face else 0.012)
+			if tex != null:
+				o.set_shader_parameter("depth_push", 0.025)
 			t.next_pass = o
 			mi.set_surface_override_material(i, t)
 
@@ -138,7 +146,10 @@ static func compatible(sk: Skeleton3D) -> bool:
 		if absf(sk.get_bone_global_rest(a).origin.distance_to(sk.get_bone_global_rest(b).origin) - float(pr[2])) > 0.01:
 			return false
 	var sh := sk.find_bone("upperarm_R")
-	return sh >= 0 and sk.get_bone_global_rest(sh).origin.distance_to(Vector3(Tuning.SHOULDER_OFFSET.x, Tuning.SHOULDER_OFFSET.y, 0)) <= 0.02
+	if sh < 0:
+		return false
+	var o := sk.get_bone_global_rest(sh).origin  # 벽면(x, y)만 본다. 깊이는 모델 팔 중심선을 따른다(Tripo y −0.03)
+	return Vector2(o.x, o.y).distance_to(Tuning.SHOULDER_OFFSET) <= 0.02
 
 
 ## 파츠 목록의 모델(없으면 path)이 지금 몸과 맞는가. 화면에서 쓸 수 있는 모델인지 미리 볼 때.

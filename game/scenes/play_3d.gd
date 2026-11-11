@@ -435,6 +435,39 @@ func _pose_model(t: Dictionary, delta: float) -> void:
 		var idx := skeleton.find_bone(entry[0])
 		if idx >= 0 and frames.has(entry[0]):
 			skeleton.set_bone_global_pose(idx, frames[entry[0]])
+	_curl_fingers(frames, delta)
+
+
+## 손가락 말아 쥐기(docs/36, 2026-11-11 사용자 결정 b): 홀드를 잡은 손(Attached·Armed)은 손(손등 → 손가락 마디)과
+## 손가락 뼈를 벽 쪽(-Z)으로 접는다. 손가락 뼈(finger_L/R)가 없는 모델이면 아무것도 하지 않는다.
+const CURL_HAND_DEG := 35.0   # 손 뼈를 벽 쪽으로 접는 각(손가락 첫 마디)
+const CURL_FINGER_DEG := 60.0 # 손가락 뼈를 더 접는 각(끝 마디, 손 뼈 기준)
+const CURL_SPEED := 10.0      # 1/s
+var finger_rest := {}         # "L"/"R" -> {idx, hand_idx, rest(손 기준 손가락 휴지 Transform), len}
+var curl := {"L": 0.0, "R": 0.0}
+
+
+func _curl_fingers(frames: Dictionary, delta: float) -> void:
+	for s in finger_rest:
+		var hand_key: String = "hand_" + s
+		if not frames.has(hand_key):
+			continue
+		var l: Dictionary = logic.session.limbs[StringName(s + "H")]
+		var want := 1.0 if l.state in ["Attached", "Armed"] else 0.0
+		curl[s] = move_toward(curl[s], want, CURL_SPEED * delta)
+		var fr: Dictionary = finger_rest[s]
+		var hand: Transform3D = frames[hand_key]
+		var dir: Vector3 = (hand.basis * fr.hand_axis).normalized()
+		var axis := dir.cross(Vector3.FORWARD)
+		if axis.length() > 0.05 and curl[s] > 0.001:
+			var q := Basis(axis.normalized(), deg_to_rad(CURL_HAND_DEG) * curl[s])
+			hand = Transform3D(q * hand.basis, hand.origin)
+			skeleton.set_bone_global_pose(fr.hand_idx, hand)
+			var finger: Transform3D = hand * fr.rest
+			var fq := Basis(axis.normalized(), deg_to_rad(CURL_FINGER_DEG) * curl[s])
+			skeleton.set_bone_global_pose(fr.idx, Transform3D(fq * finger.basis, finger.origin))
+		else:
+			skeleton.set_bone_global_pose(fr.idx, hand * fr.rest)
 
 
 ## CH02 캐릭터 시트(2026-11-07, art_source/character/build_climber.py PALETTE와 같은 값).
@@ -550,9 +583,18 @@ func _build_model() -> bool:
 			rest_joints[key] = (rest_poses[JOINT_BONE[key]] as Transform3D).origin
 	rest_joints["head_top"] = rest_joints["head"] + Vector3(0, 0.14, 0)
 	for s in ["L", "R"]:
-		rest_joints["hand_" + s] = rest_joints["wrist_" + s] + (rest_joints["wrist_" + s] - rest_joints["elbow_" + s]).normalized() * 0.09
+		rest_joints["hand_" + s] = rest_joints["wrist_" + s] + (rest_joints["wrist_" + s] - rest_joints["elbow_" + s]).normalized() * Anatomy.HAND_LENGTH
 		rest_joints["toe_" + s] = rest_joints["ankle_" + s] + Vector3(0, -0.05, -0.15)
 	rig.setup(rest_poses, rest_joints)
+	finger_rest.clear()
+	for s in ["L", "R"]:
+		var fi := skeleton.find_bone("finger_" + s)
+		var hi := skeleton.find_bone("hand_" + s)
+		if fi >= 0 and hi >= 0:
+			var hr := skeleton.get_bone_global_rest(hi)
+			var frt := skeleton.get_bone_global_rest(fi)
+			finger_rest[s] = {"idx": fi, "hand_idx": hi, "rest": hr.affine_inverse() * frt,
+				"hand_axis": hr.basis.inverse() * (frt.origin - hr.origin).normalized()}
 	CharacterAssembler.style(model, toon_shader, outline_shader, INK, {} if modular else CHARACTER_COLORS)
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
 		if String(mi.name).begins_with("FX_face_"):

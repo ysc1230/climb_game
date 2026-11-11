@@ -108,7 +108,9 @@ func test_sweep_regression() -> void:
 	# 강제된 위반 30.9%(in_head·발 비틀림·떠 있는 발 무릎 처짐). 테스트용 판을 다시 맞춘 뒤(2026-11-11) IK가 놓친 위반 20.5%,
 	# 강제 31.3%로 다시 쟀다(대부분 오른팔 in_head). 알려진 문제: 팔이 머리를 스치는 자세가 많다(docs/35 §6). 회귀 감시 상한(이전 몸 5%·30%).
 	runner.check(all - forced <= poses * 22 / 100, "IK가 놓친 위반 %d / %d" % [all - forced, poses])
-	runner.check(forced <= poses * 34 / 100, "강제된 위반 %d / %d" % [forced, poses])
+	# 팔 나눔을 Tripo 모델 실측(위팔 0.20·팔꿈치→손 접점 0.35, docs/36 §3)으로 바꾼 뒤 강제된 위반 38.6%(in_head가 늘어남:
+	# 짧은 위팔로 손을 머리 위로 올리면 아래팔이 머리 옆을 지난다). 상한 42%.
+	runner.check(forced <= poses * 42 / 100, "강제된 위반 %d / %d" % [forced, poses])
 
 
 ## 사용자 보고(2026-11-08): 다리를 낮은 곳에서 높은 곳으로 올릴 때 관절이 갑자기 반대로 꺾였다(0.9.5에서 6만 6천 자세 중 319번).

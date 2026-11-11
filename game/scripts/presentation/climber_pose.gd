@@ -66,7 +66,7 @@ func compute(session, delta: float) -> Dictionary:
 			t["shoulder_" + s] = root
 			t["elbow_" + s] = mid
 			t["wrist_" + s] = end
-			t["hand_" + s] = end + (end - mid).normalized() * 0.09
+			t["hand_" + s] = end + (end - mid).normalized() * Anatomy.HAND_LENGTH
 		else:
 			t["hip_" + s] = root
 			t["knee_" + s] = mid

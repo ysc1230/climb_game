@@ -1,0 +1,20 @@
+{
+  "task_id": "55ccacf0-88b0-48d9-af9c-d3f7b1d20e23",
+  "type": "multiview_to_model",
+  "model": "v3.1-20260211",
+  "status": "success",
+  "credits_consumed": 30,
+  "bytes": 43981332,
+  "meshes": 1,
+  "materials": 1,
+  "textures": 3,
+  "skins": 0,
+  "animations": 0,
+  "validation": "GLB v2 header and declared byte length valid",
+  "reference_order": [
+    "front",
+    "left",
+    "back",
+    "right"
+  ]
+}

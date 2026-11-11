@@ -6,6 +6,10 @@ uniform vec4 albedo : source_color = vec4(0.65, 0.42, 0.29, 1.0);
 uniform vec4 shade : source_color = vec4(0.37, 0.38, 0.28, 1.0);
 uniform float bands = 3.0;
 uniform bool wall_pattern = false;
+// 텍스처 캐릭터(Tripo, docs/36): 색은 텍스처 × albedo, 그늘은 밝기 × shade_mult(색별 shade 대신).
+uniform bool use_texture = false;
+uniform sampler2D albedo_tex : source_color, filter_linear_mipmap;
+uniform float shade_mult = 0.6;
 uniform float bolt_spacing = 0.2;
 uniform vec4 bolt_color : source_color = vec4(0.19, 0.16, 0.13, 1.0);
 
@@ -19,6 +23,9 @@ void vertex() {
 
 void fragment() {
 	vec3 c = albedo.rgb;
+	if (use_texture) {
+		c = texture(albedo_tex, UV).rgb * albedo.rgb;
+	}
 	if (wall_pattern) {
 		vec2 g = wpos.xy / bolt_spacing;
 		vec2 cell = fract(g) - 0.5;
@@ -34,6 +41,6 @@ void light() {
 	float ndl = dot(NORMAL, LIGHT) * 0.5 + 0.5;
 	float q = floor(ndl * bands) / (bands - 1.0);
 	q = clamp(q, 0.0, 1.0);
-	vec3 tint = mix(shade.rgb / max(albedo.rgb, vec3(0.05)), vec3(1.0), q);
+	vec3 tint = use_texture ? mix(vec3(shade_mult), vec3(1.0), q) : mix(shade.rgb / max(albedo.rgb, vec3(0.05)), vec3(1.0), q);
 	DIFFUSE_LIGHT += tint * LIGHT_COLOR * ATTENUATION * 0.9;
 }
