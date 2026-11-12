@@ -58,6 +58,9 @@ static func foot_half_width(slot: Dictionary) -> float:
 	return float(slot.get("foot_area", {}).get("half_width", FOOT_HOLD_HALF_WIDTH))
 
 
+const FOOT_MATCH_OFFSET := 0.05  # 합발 때 두 번째 발을 옆으로 비키는 거리(m)
+
+
 ## 합손(v0.9.3): 반대 손이 이미 잡은 손홀드는 hand_area.matchable(파란 홀드)일 때만 같이 잡을 수 있다.
 static func match_blocked(slot: Dictionary, limb: StringName, entries: Array) -> bool:
 	if not PoseSolver.is_hand(limb) or slot.hand_area.get("matchable", false):
@@ -73,26 +76,33 @@ static func overlaps(a: Vector2, b: Vector2) -> bool:
 ## 이 슬롯에서 limb이 쓸 수 있는 접점. 영역에 투영하고, 손은 점유 구간과 겹치면 가장 가까운 빈 구간으로 옮긴다.
 ## 반환 {point, quality} 또는 {}(빈 자리 없음). max_dist: 말단에서 접점까지 허용 거리(INF면 제한 없음).
 static func contact_point(slot: Dictionary, limb: StringName, endpoint: Vector2, entries: Array, max_dist: float) -> Dictionary:
+	var others := entries.filter(func(e): return e.limb != limb)
 	if not PoseSolver.is_hand(limb):
-		for e in entries:
-			if e.limb != limb:
-				return {}
-		var pf := HoldArea.project_foot(slot, endpoint)
-		if endpoint.distance_to(pf.point) > max_dist:
+		# 합발(2026-11-13): 합손이 되는 홀드(matchable)는 두 발이 같이 딛는다. 손이 잡고 있으면 딛지 않는다.
+		if others.any(func(e): return PoseSolver.is_hand(e.limb)):
 			return {}
-		return {"point": pf.point, "quality": pf.quality}
+		if not others.is_empty() and not slot.get("hand_area", {}).get("matchable", false):
+			return {}
+		var pf := HoldArea.project_foot(slot, endpoint)
+		var fp: Vector2 = pf.point
+		if not others.is_empty():  # 두 번째 발은 옆으로 비켜 딛는다(왼발 왼쪽, 오른발 오른쪽)
+			fp += Vector2(PoseSolver.side_sign(limb) * minf(FOOT_MATCH_OFFSET, foot_half_width(slot)), 0)
+		if endpoint.distance_to(fp) > max_dist:
+			return {}
+		return {"point": fp, "quality": pf.quality}
+	if others.any(func(e): return not PoseSolver.is_hand(e.limb)):
+		return {}  # 발이 딛고 있는 홀드는 손으로 잡지 않는다
 	if match_blocked(slot, limb, entries):
 		return {}
 	var area: Dictionary = slot.hand_area
 	var hw: float = area.half_width
 	var base := HoldArea.project_hand(slot, endpoint)
 	var s0: float = (base.point - slot.pos).dot(area.dir)
-	var others: Array = []
-	for e in entries:
-		if e.limb != limb:
-			others.append(e.interval)
+	var taken: Array = []
+	for e in others:
+		taken.append(e.interval)
 	var options: Array = [s0]
-	for iv in others:
+	for iv in taken:
 		options.append(iv.y + HoldArea.HAND_INTERVAL_HALF)
 		options.append(iv.x - HoldArea.HAND_INTERVAL_HALF)
 	var best := {}
@@ -102,7 +112,7 @@ static func contact_point(slot: Dictionary, limb: StringName, endpoint: Vector2,
 			continue
 		var iv := Vector2(s - HoldArea.HAND_INTERVAL_HALF, s + HoldArea.HAND_INTERVAL_HALF)
 		var free := true
-		for o in others:
+		for o in taken:
 			if overlaps(iv, o):
 				free = false
 				break

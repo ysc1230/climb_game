@@ -22,7 +22,9 @@ func test_defaults_filled() -> void:
 	runner.check(f.pivot_allowed == true, "pivot 기본 허용")
 	runner.check(f.hook == false, "hook 기본 false")
 	runner.check(not f.has("hand_area"), "발 전용 슬롯에 hand_area 없음")
-	runner.check(not g.has("foot_area"), "손 전용 슬롯에 foot_area 없음")
+	# 발은 모든 홀드를 딛는다(2026-11-13): 손홀드에도 LF·RF와 손 영역 폭의 발 영역
+	runner.check(g.allowed.has(&"LF") and g.allowed.has(&"RF") and g.has("foot_area"), "손홀드에 발 허용·발 영역")
+	runner.check(is_equal_approx(g.foot_area.half_width, maxf(0.04, g.hand_area.half_width)), "손홀드 발 영역 폭 = 손 영역 폭")
 
 
 func test_hand_quality_center_and_edge() -> void:
@@ -100,3 +102,21 @@ func test_g_v0_01_holds_are_big() -> void:
 	for i in range(1, 7):
 		var k := "G_V0_01/H0%d/hand_1" % i
 		runner.check(is_equal_approx(r.slots[k].hand_area.half_width, 0.12), "%s 반폭 0.12" % k)
+
+
+## 발은 모든 홀드(2026-11-13): 손홀드에도 딛고, 합손 되는 홀드(matchable)는 두 발이 같이 딛는다(두 번째 발은 옆으로).
+## 합손이 안 되는 홀드에는 한 발만. 발이 딛은 홀드는 손으로 잡지 않고, 손이 잡은 홀드는 발로 딛지 않는다.
+func test_feet_on_any_hold_and_match_feet() -> void:
+	var r := RouteDef.from_dict({"route_id": "X", "holds": [
+		{"hold_id": "M", "slots": [{"slot_id": "h", "pos": [0, 1], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.12, "matchable": true}}]},
+		{"hold_id": "N", "slots": [{"slot_id": "h", "pos": [1, 1], "allowed": ["LH", "RH"], "hand_area": {"dir": [1, 0], "half_width": 0.08}}]}]})
+	var m: Dictionary = r.slots["X/M/h"]
+	var n: Dictionary = r.slots["X/N/h"]
+	var p := Vector2(0, 1.02)
+	var first := GripCheck.contact_point(m, &"LF", p, [], INF)
+	runner.check(not first.is_empty(), "발이 손홀드를 딛는다")
+	var second := GripCheck.contact_point(m, &"RF", p, [{"limb": &"LF", "interval": Vector2.ZERO}], INF)
+	runner.check(not second.is_empty() and second.point.x > first.point.x + 0.04, "합손 홀드는 합발, 오른발은 오른쪽으로 %s" % [second])
+	runner.check(GripCheck.contact_point(n, &"RF", Vector2(1, 1.02), [{"limb": &"LF", "interval": Vector2.ZERO}], INF).is_empty(), "합손 안 되는 홀드는 한 발만")
+	runner.check(GripCheck.contact_point(m, &"LH", p, [{"limb": &"LF", "interval": Vector2.ZERO}], INF).is_empty(), "발이 딛은 홀드는 손으로 안 잡음")
+	runner.check(GripCheck.contact_point(m, &"LF", p, [{"limb": &"RH", "interval": Vector2(-0.04, 0.04)}], INF).is_empty(), "손이 잡은 홀드는 발로 안 딛음")

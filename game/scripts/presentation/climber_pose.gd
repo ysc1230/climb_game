@@ -90,10 +90,19 @@ static func _root(body, limb: StringName, pelvis_depth: float) -> Vector3:
 	return Vector3(j2.x, j2.y, pelvis_depth + PoseSolver.joint_depth_offset(limb, body.yaw))
 
 
-static func _end(session, limb: StringName, lift: float, pelvis_depth: float) -> Vector3:
+## 붙은 손발은 홀드 겉면(surface_depth[슬롯 키], 화면이 홀드 메시에서 채움)에 둔다(2026-11-13 사용자: "손이 홀드 안으로
+## 묻힌다. 등 뒤에서 보니 홀드 겉을 잡아도 된다"). 없으면 판정 접촉 깊이. 판정은 그대로(표현만).
+var surface_depth := {}
+const HAND_ON_SURFACE := 0.065   # 손 접점(손가락 뿌리)을 홀드 겉면에서 띄우는 거리(말아 쥔 손가락 길이만큼, 손가락 끝이 겉면에 닿음)
+const FOOT_ON_SURFACE := 0.03
+
+
+func _end(session, limb: StringName, lift: float, pelvis_depth: float) -> Vector3:
 	var e2: Vector2 = session.limbs[limb].pos
 	var stuck: bool = session.limbs[limb].state in ["Attached", "Armed"]
 	var z := Tuning.CONTACT_DEPTH if stuck else Tuning.CONTACT_DEPTH + Tuning.FREE_ENDPOINT_LIFT + lift
+	if stuck and surface_depth.has(session.limbs[limb].key):
+		z = maxf(z, float(surface_depth[session.limbs[limb].key]) + (HAND_ON_SURFACE if PoseSolver.is_hand(limb) else FOOT_ON_SURFACE))
 	if not stuck and not PoseSolver.is_hand(limb):
 		z = maxf(Tuning.CONTACT_DEPTH, minf(z, pelvis_depth - FREE_FOOT_FRONT))
 	return Vector3(e2.x, e2.y, z)

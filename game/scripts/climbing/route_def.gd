@@ -111,14 +111,20 @@ static func _vec(a, fallback: Vector2) -> Vector2:
 
 
 ## 슬롯 JSON을 읽고 영역·그립 방식 기본값(docs/19 v0.6)을 채운다. 손 허용 슬롯만 hand_area, 발 허용 슬롯만 foot_area.
+## 발은 모든 홀드를 딛는다(2026-11-13 사용자): 손홀드 슬롯에도 LF·RF를 더하고, 발 영역은 손 영역 폭을 따른다.
 func _read_slot(s: Dictionary, allowed: Array[StringName]) -> Dictionary:
+	var hand := allowed.any(func(l): return PoseSolver.is_hand(l))
+	if hand:
+		for f in [PoseSolver.LF, PoseSolver.RF]:
+			if not allowed.has(f):
+				allowed.append(f)
 	var slot := {"pos": Vector2(s.pos[0], s.pos[1]), "allowed": allowed}
-	if allowed.any(func(l): return PoseSolver.is_hand(l)):
+	if hand:
 		var ha: Dictionary = s.get("hand_area", {})
 		slot.hand_area = {"dir": _vec(ha.get("dir"), Vector2(1, 0)).normalized(), "half_width": float(ha.get("half_width", 0.08)), "matchable": bool(ha.get("matchable", false))}
-	if allowed.any(func(l): return not PoseSolver.is_hand(l)):
-		var fa: Dictionary = s.get("foot_area", {})
-		slot.foot_area = {"up": _vec(fa.get("up"), Vector2(0, 1)).normalized(), "half_height": float(fa.get("half_height", 0.04)), "half_width": float(fa.get("half_width", 0.06))}
+	var fa: Dictionary = s.get("foot_area", {})
+	var fw := float(fa.get("half_width", maxf(0.04, float(slot.hand_area.half_width)) if hand else 0.06))
+	slot.foot_area = {"up": _vec(fa.get("up"), Vector2(0, 1)).normalized(), "half_height": float(fa.get("half_height", 0.04)), "half_width": fw}
 	var modes: Array = []
 	for g in s.get("grip_modes", [{"mode": "pull", "axis": [0, 1], "half_angle": 65}]):
 		modes.append({"mode": StringName(g.get("mode", "")), "axis": _vec(g.get("axis"), Vector2(0, 1)).normalized(), "half_angle": float(g.get("half_angle", 65))})

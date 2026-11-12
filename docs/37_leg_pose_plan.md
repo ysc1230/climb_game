@@ -138,7 +138,7 @@ G_V3_02에서 12번째 동작까지 올라간 뒤(왼발 F07, 두 손 H07·H08) 
 ### 7.2 모델(`build_tripo_rig.py`, `TRIPO_CHAR=male|female`)
 | | 남성 v2 | 여성 |
 |---|---|---|
-| 원본 | `art_source/character/tripo_v2`(그림자 지운 그림으로 재생성) | `art_source/character/tripo_female`(사용자 그림) |
+| 원본 | `art_source/character/male`(그림자 지운 그림으로 재생성) | `art_source/character/female`(사용자 그림) |
 | 크기 | ×1.9877(키 1.99m) | ×2.0845(키 약 2.08m, 올림머리 포함) |
 | 화면 다리 관절 | 판정 고관절 위 0.10 | 0.11 |
 | 허벅지 / 정강이 | 0.458 / 0.427 | 0.437 / 0.460 |

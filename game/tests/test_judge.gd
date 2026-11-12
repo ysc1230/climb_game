@@ -60,7 +60,7 @@ func test_unsupported_techniques_marked() -> void:
 		runner.check(not j.left.available and j.left.reason == TechniqueJudge.MOVE_NOT_SUPPORTED, "%s 미지원 표시 %s" % [id, j.left])
 
 
-## 아웃사이드 엣지 후보는 pivot 가능한 발판만, 손홀드 탭은 TYPE_MISMATCH, 이미 딛은 발판도 후보가 된다.
+## 아웃사이드 엣지 후보는 pivot 가능한 발판만, 손이 잡고 있는 손홀드 탭은 OCCUPIED(발은 모든 홀드, 2026-11-13), 이미 딛은 발판도 후보가 된다.
 func test_outside_edge_hold_checks() -> void:
 	var r := _g_v0_01()
 	r.slots["G_V0_01/F04/foot_1"].pivot_allowed = false
@@ -71,7 +71,7 @@ func test_outside_edge_hold_checks() -> void:
 	var c := TechniqueJudge.check_hold(snap, &"T_OUTSIDE_EDGE", &"right", "G_V0_01/F04/foot_1", Vector2.INF)
 	runner.check(not c.ok and c.reason == TechniqueJudge.PIVOT_NOT_ALLOWED, "pivot 불가 탭 거부: %s" % [c])
 	var h := TechniqueJudge.check_hold(snap, &"T_OUTSIDE_EDGE", &"right", "G_V0_01/H01/hand_1", Vector2.INF)
-	runner.check(not h.ok and h.reason == GripCheck.TYPE_MISMATCH, "손홀드 탭 거부: %s" % [h])
+	runner.check(not h.ok and h.reason == GripCheck.OCCUPIED, "손이 잡은 손홀드 탭 거부: %s" % [h])
 
 
 ## TA11: 패드로 만든 자세와 세션 필드를 직접 설정한 같은 자세의 판단이 같다(이력에 의존하지 않음).

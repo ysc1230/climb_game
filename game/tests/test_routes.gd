@@ -30,7 +30,7 @@ func test_g_v0_01_requires_moving_feet() -> void:
 
 func test_validator_catches_bad_reference() -> void:
 	var r := RouteDef.load_json("res://tests/fixtures/G_V0_01.json")
-	r.intended_moves.append([PoseSolver.LF, "G_V0_01/H01/hand_1"])
+	r.intended_moves.append([PoseSolver.LH, "G_V0_01/F01/foot_1"])
 	r.errors.clear()
 	r._validate()
-	runner.check(r.errors.size() > 0, "발이 손 슬롯을 쓰는 경로를 잡아내야 함")
+	runner.check(r.errors.size() > 0, "손이 발판을 쓰는 경로를 잡아내야 함")

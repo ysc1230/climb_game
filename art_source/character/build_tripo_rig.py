@@ -1,7 +1,7 @@
 """Tripo 기본 캐릭터 → 게임용 리깅 모델(docs/36, 2026-11-11).
-실행: blender -b --python art_source/character/tripo/build_tripo_rig.py   (여성: TRIPO_CHAR=female 앞에 붙임)
-입력: art_source/character/tripo/climber_tripo_base.glb(Tripo v3.1, 146만 삼각형, T자, 키 1.0, 앞 +X)
-출력: game/art/characters/climber_tripo.glb(약 1만 2천 삼각형, 뼈 17 + 손가락 2 + 엉덩이 보조 2, 색 텍스처 1024)
+실행: blender -b --python art_source/character/build_tripo_rig.py   (여성: TRIPO_CHAR=female 앞에 붙임)
+입력: art_source/character/male|female/*_base.glb(Tripo v3.1, 약 146만 삼각형, T자, 키 1.0, 앞 +X)
+출력: game/art/characters/climber_tripo.glb / climber_tripo_female.glb(약 1만 2천 삼각형, 뼈 17 + 손가락 2 + 엉덩이 보조 2, 색 텍스처 1024)
 
 1. 놓기: Z +90°(앞 +X → +Y, build_climber 규약), 키 1.99m, 발바닥 z = −0.835(골반 관절 = 원점). 실측은 docs/36 §1.1.
 2. 줄이기: 같은 위치 정점 붙이기(UV 경계 틈 방지) → Decimate(접기) → TRIS 삼각형. UV 유지.
@@ -34,10 +34,10 @@ REPO = os.path.expanduser("~/Projects/climb_game")
 # 캐릭터(TRIPO_CHAR): male(기본) / female(2026-11-12 추가). 값이 없는 항목은 남성 값.
 CHAR = os.environ.get("TRIPO_CHAR", "male")
 CFG = {
-    # 남성 v2(2026-11-13, task a621f6bb): 바지·셔츠 그림자를 지운 참고 그림(art_source/character/tripo_v2)으로 다시 만든 모델.
+    # 남성 v2(2026-11-13, task a621f6bb): 바지·셔츠 그림자를 지운 참고 그림(art_source/character/male)으로 다시 만든 모델.
     # 실측(정규화 높이): 팔 중심선 0.762, 발목 관절 0.03, 가랑이 0.405, 무릎 0.245, 손끝 ±0.409, 초크백 오른쪽 뒤 허리.
     # ×1.9877(키 1.99m). 가랑이를 7cm 올려 엉덩이 바로 아래에서 갈라지게 한다(docs/37 §7).
-    "male": {"src": "art_source/character/tripo_v2/climber_male_v2_base.glb", "out": "game/art/characters/climber_tripo.glb",
+    "male": {"src": "art_source/character/male/climber_male_v2_base.glb", "out": "game/art/characters/climber_tripo.glb",
              "mesh": "P_body_male", "tex": "climber_tripo_color",
              "scale": 1.9877, "sole": -0.8446, "hip_raise": 0.10, "hip_y": 0.006,
              "knee": (0.116, -0.011, -0.358), "ankle": (0.136, -0.01, -0.785), "arm_y": -0.027,
@@ -46,7 +46,7 @@ CFG = {
     # 여성: Tripo v3.1(task e606f7d8), 키 1(올림머리 포함). 실측(정규화 높이): 팔 중심선 0.743, 발목 관절 0.045,
     # 가랑이 0.44, 엉덩이 가장 넓은 곳 0.475, 무릎 0.265, 손끝 ±0.434, 초크백 왼쪽 허리(x < −0.095, 0.50~0.60).
     # 어깨(0.67)~발목(−0.785) 1.455m에 맞춰 ×2.0845(키 약 2.08m, 머리 위 올림머리 포함). 팔은 손끝이 0.80에 오게 줄인다.
-    "female": {"src": "art_source/character/tripo_female/climber_female_base.glb",
+    "female": {"src": "art_source/character/female/climber_female_base.glb",
                "out": "game/art/characters/climber_tripo_female.glb", "mesh": "P_body_female", "tex": "climber_female_color",
                "scale": 2.0845, "sole": -0.879, "hip_raise": 0.11, "hip_y": 0.03,
                "knee": (0.119, 0.017, -0.326), "ankle": (0.152, 0.015, -0.785), "arm_y": -0.021,

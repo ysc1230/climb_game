@@ -151,3 +151,17 @@ func test_look_saved() -> void:
 	for f in ["user://test_look_save.json", "user://test_look_save.json.tmp"]:
 		if FileAccess.file_exists(f):
 			DirAccess.remove_absolute(f)
+
+
+## 손이 홀드 안에 묻히지 않게(2026-11-13): 붙은 손발은 홀드 겉면(surface_depth) 위에 놓는다. 겉면 정보가 없으면 판정 깊이.
+func test_hand_on_hold_surface() -> void:
+	var s := ClimbSession.new(RouteDef.load_json("res://tests/fixtures/G_V0_01.json"))
+	var pose := ClimberPose.new()
+	var t := pose.compute(s, Tuning.DT)
+	runner.check(absf(t.wrist_L.z - Tuning.CONTACT_DEPTH) < 0.001, "겉면 정보 없으면 판정 깊이 %.3f" % t.wrist_L.z)
+	pose = ClimberPose.new()
+	pose.surface_depth[s.limbs[&"LH"].key] = 0.09
+	pose.surface_depth[s.limbs[&"LF"].key] = 0.05
+	t = pose.compute(s, Tuning.DT)
+	runner.check(absf(t.wrist_L.z - (0.09 + ClimberPose.HAND_ON_SURFACE)) < 0.001, "손은 홀드 겉면 위 %.3f" % t.wrist_L.z)
+	runner.check(absf(t.ankle_L.z - (0.05 + ClimberPose.FOOT_ON_SURFACE)) < 0.001, "발도 겉면 위 %.3f" % t.ankle_L.z)

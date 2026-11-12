@@ -15,7 +15,7 @@ const PlayOverlay := preload("res://scenes/play_overlay.gd")
 
 var session: ClimbSession
 var route: RouteDef
-var router := InputRouter.new()
+var router := InputRouter.new()  # D패드 방식(stick_mode)은 _ready에서 켠다
 var paused := false
 var prepare_left := 0.0
 var hud = preload("res://scenes/hud.gd").new()  # 위쪽 정보 패널·일시정지 화면(2026-11-08 사용자 참고 이미지)
@@ -99,6 +99,7 @@ var _techs := TechniqueJudge.defs()
 
 
 func _ready() -> void:
+	router.stick_mode = true
 	var sf := SystemFont.new()
 	sf.font_names = PackedStringArray(["Noto Sans CJK KR", "Noto Sans KR", "Apple SD Gothic Neo", "sans-serif"])
 	font = sf
@@ -598,6 +599,7 @@ func _physics_process(_delta: float) -> void:
 		_danger_tick(_delta, false)  # 위험에 들어가는 순간 잠깐 멈칫(신호용, 판정 틱을 쉰다)
 		queue_redraw()
 		return
+	_apply(router.tick(_delta))  # D패드: 누르고 있는 방향으로 손발을 계속 움직인다
 	var result := session.step()
 	_hud_tick(_delta)
 	if result.begins_with("fall:"):
@@ -799,6 +801,7 @@ func _draw_pads(size: Vector2) -> void:
 		draw_circle(p.center, p.radius, Color(col, 0.45 if ready else (0.30 if active else 0.08)))
 		draw_arc(p.center, p.radius, 0, TAU, 48, Color(0.08, 0.07, 0.10, 0.6), 7.0 * ui_k)
 		draw_arc(p.center, p.radius, 0, TAU, 48, Color(col, 0.95), 3.5 * ui_k)
+		_draw_dpad(p, col, router.stick_knob(limb))
 		var label := "%s%s" % ["왼" if limb in [&"LH", &"LF"] else "오른", "손" if PoseSolver.is_hand(limb) else "발"]
 		var fs := int(26 * ui_k)
 		draw_string(font, p.center + Vector2(-p.radius, 8 * ui_k + 2 * ui_k), label, HORIZONTAL_ALIGNMENT_CENTER, p.radius * 2, fs, Color(0, 0, 0, 0.7))
@@ -811,6 +814,25 @@ func _draw_pads(size: Vector2) -> void:
 		# 손 패드 바로 위 팔 힘 게이지(기획 §5)
 		if PoseSolver.is_hand(limb):
 			hud.draw_pad_stamina(self, p.center, p.radius, ui_k, float(session.rules.stamina[limb]), bool(_stam_up.get(limb, false)), col, target, not warnings)
+
+
+## D패드 표시: 네 방향 화살표와 가운데(멈춤) 원, 누르고 있으면 손잡이가 손가락 쪽으로 간다.
+func _draw_dpad(p: Dictionary, col: Color, knob) -> void:
+	var r: float = p.radius
+	var c: Vector2 = p.center
+	var ink := Color(0.08, 0.07, 0.10, 0.55)
+	for i in 4:
+		var d := Vector2.RIGHT.rotated(i * PI / 2.0)
+		var tip := c + d * r * 0.86
+		var base := c + d * r * 0.66
+		var side := d.orthogonal() * r * 0.13
+		draw_colored_polygon(PackedVector2Array([tip, base + side, base - side]), Color(1, 1, 1, 0.75))
+		draw_polyline(PackedVector2Array([tip, base + side, base - side, tip]), ink, 2.0 * ui_k)
+	draw_arc(c, r * InputRouter.STICK_DEAD, 0, TAU, 32, Color(1, 1, 1, 0.35), 2.0 * ui_k)
+	if knob != null:
+		var kp: Vector2 = c + (knob as Vector2)
+		draw_circle(kp, r * 0.24, Color(col.lightened(0.3), 0.85))
+		draw_arc(kp, r * 0.24, 0, TAU, 32, ink, 3.0 * ui_k)
 
 
 ## 튜토리얼 지금 단계의 목표 팔다리(없으면 &"").

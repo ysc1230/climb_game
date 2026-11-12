@@ -269,6 +269,7 @@ func _build_holds() -> void:
 		hold.rotation = Vector3(0, 0, ang + deg_to_rad(rng.randf_range(-8, 8)))
 		hold.scale = Vector3.ONE * hold_view_scale(slot, mesh, is_goal) * rng.randf_range(0.95, 1.05)
 		add_child(hold)
+		climber_pose.surface_depth[key] = mesh.get_aabb().end.z * hold.scale.z  # 홀드 겉면(손발을 여기 얹는다)
 		var glow := MeshInstance3D.new()
 		glow.mesh = mesh
 		var gm := _overlay(Color(1, 1, 1, 0.0))
@@ -471,14 +472,6 @@ func _curl_fingers(frames: Dictionary, delta: float) -> void:
 			skeleton.set_bone_global_pose(fr.idx, hand * fr.rest)
 
 
-## CH02 캐릭터 시트(2026-11-07, art_source/character/build_climber.py PALETTE와 같은 값).
-const CHARACTER_COLORS := {
-	"M_hair": Color("6b4129"), "M_skin": Color("e8b48e"), "M_shirt": Color("f1ebe0"), "M_pants": Color("4f6b9e"),
-	"M_belt": Color("3a393b"), "M_buckle": Color("8c8c8c"), "M_chalk": Color("7a7472"), "M_chalk_rim": Color("4a4645"),
-	"M_shoe": Color("a39c94"), "M_strap": Color("c4beb5"), "M_rubber": Color("3d3a38"),
-	"M_face_eye": Color("2a1d18"), "M_face_hi": Color("ffffff"), "M_face_mouth": Color("8a3a34"), "M_face_brow": Color("4a2c1c"),
-	"M_face_cheek": Color("f29a8a"), "M_face_teeth": Color("fbf7f0"),
-}
 const LOOK_MAX_DEG := 80.0   # 머리를 돌리는 최대 각
 const LOOK_BACK_DEG := 125.0 # 정상·추락 때 어깨 너머로 돌아보는 각
 const LOOK_SPEED := 6.0      # 1/s, 목표 방향으로 따라가는 빠르기
@@ -551,23 +544,19 @@ func _apply_look(frames: Dictionary, inv: Transform3D, delta: float) -> void:
 	frames["head"] = Transform3D(Basis(_look) * head.basis, head.origin)
 
 
-## 캐릭터 모델: data/characters.json의 모듈 모델(남녀·파츠, docs/34 §7)이 있으면 저장된 외형으로 조립하고,
-## 없으면 CH02(climber.glb)를 쓴다. 둘 다 같은 뼈대(RigPose.BONES)라 자세 계산은 같다.
+## 캐릭터 모델: data/characters.json에서 저장된 외형의 몸(남성·여성) 모델을 쓴다(docs/37 §7).
+## 모델이 없거나 뼈대가 맞지 않으면 캡슐 인형. 2026-11-13 옛 CH02·모듈 시제품은 지웠다.
 func _build_model() -> bool:
 	var asm := CharacterAssembler.load_catalog()
 	var g := get_node_or_null("/root/Game")
 	var look: Dictionary = asm.normalize(g.progress.look if g != null else {})
 	var path := asm.model_path(str(look.body))
-	var modular := path != "" and ResourceLoader.exists(path)
 	LimbIK.reset_leg_shape()
-	if not modular:
-		path = "res://art/characters/climber.glb"
-		if not ResourceLoader.exists(path):
-			return false
+	if path == "" or not ResourceLoader.exists(path):
+		return false
 	var model: Node3D = load(path).instantiate()
 	add_child(model)
-	if modular:
-		asm.apply(model, look)
+	asm.apply(model, look)
 	var found := model.find_children("*", "Skeleton3D", true, false)
 	skeleton = found[0] if found.size() > 0 else null
 	if skeleton == null or not CharacterAssembler.compatible(skeleton):
@@ -600,7 +589,7 @@ func _build_model() -> bool:
 			var frt := skeleton.get_bone_global_rest(fi)
 			finger_rest[s] = {"idx": fi, "hand_idx": hi, "rest": hr.affine_inverse() * frt,
 				"hand_axis": hr.basis.inverse() * (frt.origin - hr.origin).normalized()}
-	CharacterAssembler.style(model, toon_shader, outline_shader, INK, {} if modular else CHARACTER_COLORS)
+	CharacterAssembler.style(model, toon_shader, outline_shader, INK)
 	for mi in model.find_children("*", "MeshInstance3D", true, false):
 		if String(mi.name).begins_with("FX_face_"):
 			face_meshes[String(mi.name).trim_prefix("FX_face_")] = mi

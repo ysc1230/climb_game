@@ -64,3 +64,29 @@ func test_in10_cancel_is_not_release() -> void:
 	runner.check(cmds[0].type == "cancel", "취소는 cancel")
 	runner.check(r.touch_up(1).is_empty(), "취소 뒤 늦은 up 무시")
 	runner.check(r.touch_drag(1, Vector2(0, 0)).is_empty(), "취소 뒤 늦은 drag로 소유권 부활 없음")
+
+
+## D패드(2026-11-13): 가운데를 누르면 준비(arm), 가운데 밖을 누르면 바로 떼고, 누르고 있는 동안 그 방향으로 계속 움직인다.
+func test_stick_mode_moves_toward_pressed_direction() -> void:
+	var r := InputRouter.new()
+	r.stick_mode = true
+	r.set_pad(&"LH", Vector2(100, 100), 200)
+	runner.check(r.touch_down(0, Vector2(102, 101), true)[0].type == "arm", "가운데 누르면 준비")
+	runner.check(r.tick(1.0 / 60.0, 0.0).is_empty(), "가운데에서는 안 움직임")
+	var d := r.touch_drag(0, Vector2(195, 100), 0.0)
+	runner.check(d.size() == 1 and d[0].type == "detach", "가운데를 벗어나면 뗀다")
+	var total := Vector2.ZERO
+	for i in 60:
+		for c in r.tick(1.0 / 60.0, i / 60.0):
+			total += c.delta
+	runner.check(total.x > 0.9 and absf(total.y) < 0.001, "오른쪽으로 1초 → 약 %.2fm" % total.x)
+	r.touch_drag(0, Vector2(100, 40), 1.0)
+	var up := Vector2.ZERO
+	for c in r.tick(0.5, 1.0):
+		up += c.delta
+	runner.check(up.y > 0.0 and absf(up.x) < 0.001, "화면 위로 기울이면 월드 위로")
+	var u := r.touch_up(0, 1.1)
+	runner.check(u[0].type == "release" and r.stick_knob(&"LH") == null, "떼면 놓기")
+	runner.check(r.touch_down(1, Vector2(30, 100), true)[0].type == "detach", "붙은 손을 가장자리부터 누르면 바로 뗀다")
+	var k = r.stick_knob(&"LH")
+	runner.check(k != null and (k as Vector2).is_equal_approx(Vector2(-70, 0)), "손잡이 위치 %s" % [k])

@@ -151,7 +151,7 @@ func test_step_formats_invalid() -> void:
 		"없는 기술": ["LF", "T_NOPE"],
 		"홀드로 옮기는 없는 기술": ["LF", "T_NOPE", "G_V0_01/F04/foot_1"],
 		"기술 대상 슬롯 없음": ["RF", "T_OUTSIDE_EDGE", "G_V0_01/F99/foot_1"],
-		"기술 대상 슬롯 팔다리 비허용": ["RF", "T_OUTSIDE_EDGE", "G_V0_01/H04/hand_1"],
+		"기술 대상 슬롯 팔다리 비허용": ["RH", "T_OUTSIDE_EDGE", "G_V0_01/F04/foot_1"],
 		"데드포인트 형식은 없음(2026-11-05 제거)": ["RH", "G_V0_01/H04/hand_1", "deadpoint"],
 		"플래그는 발만": ["LH", "flag", [0.0, 1.0]],
 		"플래그 좌표 형식": ["LF", "flag", [0.0]],
@@ -159,7 +159,7 @@ func test_step_formats_invalid() -> void:
 		"모르는 팔다리": ["XX", "G_V0_01/H03/hand_1"],
 		"짧은 단계": ["LH"],
 		"알 수 없는 3항목": ["LH", "G_V0_01/H03/hand_1", "dyno"],
-		"패드 이동 비허용": ["LF", "G_V0_01/H01/hand_1"],
+		"패드 이동 비허용": ["LH", "G_V0_01/F01/foot_1"],  # 손은 발판을 못 잡는다(발은 모든 홀드, 2026-11-13)
 		"너무 긴 단계": ["LF", "T_OUTSIDE_EDGE", "G_V0_01/F04/foot_1", 1],
 	}
 	for label in bad:
