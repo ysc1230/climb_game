@@ -1,0 +1,65 @@
+[
+  {
+    "label": "Original / left high step",
+    "edges": 2552,
+    "over2": 36,
+    "over3": 0,
+    "maxRatio": 2.639834454380916
+  },
+  {
+    "label": "Repair / left high step",
+    "edges": 2552,
+    "over2": 2,
+    "over3": 0,
+    "maxRatio": 2.0067595100639406
+  },
+  {
+    "label": "Repair / high step side",
+    "edges": 2552,
+    "over2": 2,
+    "over3": 0,
+    "maxRatio": 2.0067595100639406
+  },
+  {
+    "label": "Original / right high step",
+    "edges": 2552,
+    "over2": 33,
+    "over3": 0,
+    "maxRatio": 2.72474928250243
+  },
+  {
+    "label": "Repair / right high step",
+    "edges": 2552,
+    "over2": 0,
+    "over3": 0,
+    "maxRatio": 1.9622355825225768
+  },
+  {
+    "label": "Repair / right 90",
+    "edges": 2552,
+    "over2": 0,
+    "over3": 0,
+    "maxRatio": 1.7649811042709205
+  },
+  {
+    "label": "Original / squat",
+    "edges": 2552,
+    "over2": 46,
+    "over3": 0,
+    "maxRatio": 2.834095334865791
+  },
+  {
+    "label": "Repair / squat",
+    "edges": 2552,
+    "over2": 4,
+    "over3": 0,
+    "maxRatio": 2.1090202451821676
+  },
+  {
+    "label": "Repair / rest",
+    "edges": 2552,
+    "over2": 0,
+    "over3": 0,
+    "maxRatio": 1.0000022187513917
+  }
+]

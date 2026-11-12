@@ -1,0 +1,37 @@
+{
+  "source": {
+    "sha256": "cdf7859e83ca1ed10a84450b8c4b29105f315445d73124aa04e431790af9d54d",
+    "bytes": 617612,
+    "errors": 0,
+    "warnings": 1,
+    "messages": [
+      {
+        "code": "NODE_SKINNED_MESH_NON_ROOT",
+        "message": "Node with a skinned mesh is not root. Parent transforms will not affect a skinned mesh.",
+        "severity": 1,
+        "pointer": "/nodes/21"
+      }
+    ]
+  },
+  "repaired": {
+    "sha256": "c46b952315271030c46e8cad33c01251c525a7100e2fe0222459e3231d74f184",
+    "bytes": 617640,
+    "errors": 0,
+    "warnings": 1,
+    "messages": [
+      {
+        "code": "NODE_SKINNED_MESH_NON_ROOT",
+        "message": "Node with a skinned mesh is not root. Parent transforms will not affect a skinned mesh.",
+        "severity": 1,
+        "pointer": "/nodes/21"
+      }
+    ]
+  },
+  "checks": {
+    "samePositionsNormalsUVsIndicesTextureAndBones": true,
+    "normalizedWeights": true,
+    "maxWeightSumError": 3.993045538663864e-8,
+    "helperInfluences": 0,
+    "triangles": 12000
+  }
+}

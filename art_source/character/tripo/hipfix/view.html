@@ -1,0 +1,30 @@
+<!doctype html><meta charset="utf-8"><style>body{margin:0;background:#e7e9ed;font:16px Arial;color:#222}#grid{display:grid;grid-template-columns:repeat(3,480px);gap:8px;padding:8px}.panel{background:white}.label{padding:8px;font-weight:bold}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}</script>
+<div id="grid"></div><script type="module">
+import * as T from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+const extended=new URLSearchParams(location.search).has('extended');
+const configs=extended?[
+['Original / left high step',-110,0,'texture','source','L',-100,25],['Repair / left high step',-110,0,'texture','repaired','L',-100,25],['Repair / high step side',-110,0,'clay','repaired','L',-100,25,'side'],
+['Original / right high step',110,0,'texture','source','R',100,25],['Repair / right high step',110,0,'texture','repaired','R',100,25],['Repair / right 90',90,0,'clay','repaired','R',0,0],
+['Original / squat',-55,0,'texture','source','both',-100,55],['Repair / squat',-55,0,'texture','repaired','both',-100,55],['Repair / rest',0,0,'texture','repaired']
+]:[['Original / leg 70',-70,0,'texture','source'],['Repair / leg 70',-70,0,'texture','repaired'],['Repair / rest weights',0,0,'weights','repaired'],['Original / leg 90',-90,0,'clay','source'],['Repair / leg 90',-90,0,'clay','repaired'],['Repair / rest',0,0,'texture','repaired']];
+const all=[];
+for(const [label,angle,follow,mode,file,side='L',knee=0,flex=0,view='rear'] of configs){
+ const wrap=document.createElement('div');wrap.className='panel';document.querySelector('#grid').append(wrap);const title=document.createElement('div');title.className='label';title.textContent=label;wrap.append(title);
+ const renderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setSize(480,560);renderer.setPixelRatio(1);renderer.setClearColor(0xe7e9ed);renderer.outputColorSpace=T.SRGBColorSpace;wrap.append(renderer.domElement);
+ const scene=new T.Scene(); const gltf=await new GLTFLoader().loadAsync('/'+file+'.glb');scene.add(gltf.scene);
+ const mesh=gltf.scene.getObjectByName('P_body_male');
+ const colors={'pelvis':0xf6cf49,'hiphelp_L':0xef44b0,'hiphelp_R':0xe85a3e,'thigh_L':0x31a6f2,'thigh_R':0x38c59a,'spine':0xb0b0b0};
+ if(mode==='clay')mesh.material=new T.MeshStandardMaterial({color:0x93a8c2,roughness:1,side:T.DoubleSide});
+ if(mode==='weights'){
+ const a=mesh.geometry.attributes,arr=new Float32Array(a.position.count*3);for(let i=0;i<a.position.count;i++){const c=new T.Color(0,0,0);for(let k=0;k<4;k++){const name=mesh.skeleton.bones[a.skinIndex.array[i*4+k]].name;const b=new T.Color(colors[name]||0xc3c3c3);c.add(b.multiplyScalar(a.skinWeight.array[i*4+k]));}arr.set(c.toArray(),i*3);}mesh.geometry.setAttribute('color',new T.BufferAttribute(arr,3));mesh.material=new T.MeshBasicMaterial({vertexColors:true,side:T.DoubleSide});
+ }
+ const sides=side==='both'?['L','R']:[side];for(const s of sides){const sign=side==='both'&&s==='R'?-1:1;const rad=T.MathUtils.degToRad(angle*sign);const bone=gltf.scene.getObjectByName('thigh_'+s),helper=gltf.scene.getObjectByName('hiphelp_'+s);const q=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,0,1),rad);q.premultiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1,0,0),T.MathUtils.degToRad(flex)));bone.quaternion.premultiply(q);helper.quaternion.premultiply(new T.Quaternion().slerp(q,follow));gltf.scene.getObjectByName('shin_'+s).quaternion.premultiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,0,1),T.MathUtils.degToRad(knee*sign)));}
+ scene.add(new T.HemisphereLight(0xffffff,0x697180,2));const light=new T.DirectionalLight(0xffffff,2.0);light.position.set(-2,3,4);scene.add(light);
+ const camera=new T.OrthographicCamera(-.64,.64,.747,-.747,.01,20);camera.position.set(0,.02,4);camera.lookAt(0,.02,0);
+ if(view==='side'){camera.position.set(-4,.02,1);camera.lookAt(0,.02,0);}
+ scene.updateMatrixWorld(true);mesh.skeleton.update();renderer.render(scene,camera);all.push({scene,mesh,camera,renderer,label});
+}
+window.review=all;window.ready=true;
+</script>

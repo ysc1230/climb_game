@@ -1,0 +1,11 @@
+import fs from 'node:fs';import assert from 'node:assert/strict';import crypto from 'node:crypto';import validator from 'gltf-validator';import {readGLB} from './glb.mjs';
+const base=new URL('./',import.meta.url),original=readGLB(new URL('source.glb',base)),fixed=readGLB(new URL('repaired.glb',base));
+const report={};
+for(const name of ['source','repaired']){const bytes=fs.readFileSync(new URL(name+'.glb',base));const v=await validator.validateBytes(new Uint8Array(bytes),{uri:name+'.glb',maxIssues:100});report[name]={sha256:crypto.createHash('sha256').update(bytes).digest('hex'),bytes:bytes.length,errors:v.issues.numErrors,warnings:v.issues.numWarnings,messages:v.issues.messages};if(name==='repaired')assert.equal(v.issues.numErrors,0);}
+assert.deepEqual(original.j.nodes,fixed.j.nodes);assert.deepEqual(original.j.skins,fixed.j.skins);assert.deepEqual(original.j.materials,fixed.j.materials);
+const op=original.j.meshes[0].primitives[0],fp=fixed.j.meshes[0].primitives[0];for(const a of ['POSITION','NORMAL','TEXCOORD_0'])assert.deepEqual(original.accessor(op.attributes[a]).array,fixed.accessor(fp.attributes[a]).array);assert.deepEqual(original.accessor(op.indices).array,fixed.accessor(fp.indices).array);
+for(const img of original.j.images){const bv=original.j.bufferViews[img.bufferView];assert.deepEqual(original.bin.subarray(bv.byteOffset,bv.byteOffset+bv.byteLength),fixed.bin.subarray(bv.byteOffset,bv.byteOffset+bv.byteLength));}
+const w=fixed.accessor(fp.attributes.WEIGHTS_0).array,j=fixed.accessor(fp.attributes.JOINTS_0).array,names=fixed.j.skins[0].joints.map(n=>fixed.j.nodes[n].name);let helperInfluences=0,maxError=0;
+for(let i=0;i<w.length;i++){const sum=w[i].reduce((a,b)=>a+b,0);maxError=Math.max(maxError,Math.abs(sum-1));assert(Math.abs(sum-1)<1e-5);for(let k=0;k<4;k++){assert(Number.isFinite(w[i][k])&&w[i][k]>=0&&w[i][k]<=1);assert(j[i][k]>=0&&j[i][k]<names.length);if(w[i][k]>1e-6&&names[j[i][k]].startsWith('hiphelp'))helperInfluences++;}}
+assert.equal(helperInfluences,0);report.checks={samePositionsNormalsUVsIndicesTextureAndBones:true,normalizedWeights:true,maxWeightSumError:maxError,helperInfluences,triangles:original.accessor(op.indices).array.length/3};
+fs.writeFileSync(new URL('validation.json',base),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));

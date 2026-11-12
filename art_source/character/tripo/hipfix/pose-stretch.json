@@ -1,0 +1,44 @@
+[
+  {
+    "label": "Original / leg 70",
+    "edges": 2552,
+    "over2": 7,
+    "over3": 0,
+    "maxRatio": 2.126706316118586
+  },
+  {
+    "label": "Repair / leg 70",
+    "edges": 2552,
+    "over2": 0,
+    "over3": 0,
+    "maxRatio": 1.5952421638342489
+  },
+  {
+    "label": "Repair / rest weights",
+    "edges": 2552,
+    "over2": 0,
+    "over3": 0,
+    "maxRatio": 1.0000022187513917
+  },
+  {
+    "label": "Original / leg 90",
+    "edges": 2552,
+    "over2": 20,
+    "over3": 0,
+    "maxRatio": 2.4205816110367286
+  },
+  {
+    "label": "Repair / leg 90",
+    "edges": 2552,
+    "over2": 0,
+    "over3": 0,
+    "maxRatio": 1.7669165017265547
+  },
+  {
+    "label": "Repair / rest",
+    "edges": 2552,
+    "over2": 0,
+    "over3": 0,
+    "maxRatio": 1.0000022187513917
+  }
+]
