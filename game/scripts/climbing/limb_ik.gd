@@ -5,6 +5,27 @@ extends RefCounted
 ## 다시 투영해 이어 쓴다(같은 반구 유지). 완전히 펴짐/접힘을 지나 관절이 반대로 뒤집히지 않는다.
 
 const PRESENTATION_JOINT_SPEED_DEG := 180.0  # docs/04 §3
+## 화면 다리 회전 중심(docs/37 §7, 2026-11-12 사용자 참고 그림): Tripo 모델은 엉덩이 관절이 판정 고관절보다
+## HIP_RAISE 위(뒷주머니 가운데)에 있다. 화면 다리는 판정 고관절에서 몸 위쪽으로 HIP_RAISE 올린 점에서 시작하고
+## 허벅지를 그만큼 길게 그린다. 발끝(판정 접점)은 그대로라 홀드 위치는 같다. 판정 고관절이 닿는 범위(허벅지+정강이)
+## 안의 발은 올린 점에서도 항상 닿는다(삼각부등식).
+## 캐릭터마다 다르다(2026-11-12 여성 추가): 화면이 모델을 불러올 때 뼈대에서 읽어 set_leg_shape로 바꾼다.
+## 허벅지+정강이 = 판정 다리(LEG_UPPER+LEG_LOWER) + hip_raise. 기본값은 남성 모델.
+const HIP_RAISE := 0.10
+const LEG_UPPER_SHOWN := Tuning.LEG_UPPER + HIP_RAISE
+static var hip_raise := HIP_RAISE
+static var leg_upper_shown := LEG_UPPER_SHOWN
+static var leg_lower_shown := Tuning.LEG_LOWER
+
+
+static func set_leg_shape(raise: float, upper: float, lower: float) -> void:
+	hip_raise = raise
+	leg_upper_shown = upper
+	leg_lower_shown = lower
+
+
+static func reset_leg_shape() -> void:
+	set_leg_shape(HIP_RAISE, LEG_UPPER_SHOWN, Tuning.LEG_LOWER)
 const ELBOW_FRONT_MARGIN := 0.03  # 팔꿈치는 어깨 평면보다 이만큼 벽 쪽(몸통 앞)에 둔다
 
 
@@ -179,8 +200,8 @@ static func leg_pole(foot_body: Vector3, free: bool) -> Vector3:
 ## 굽힘 원: 중심·반지름 h·기준 축 n, t와 BEND_SAMPLES개 후보의 위반량(bad), 가장 좋은 후보(best).
 static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3, samples := BEND_SAMPLES, free := false) -> Dictionary:
 	var hand := PoseSolver.is_hand(limb)
-	var a := Tuning.ARM_UPPER if hand else Tuning.LEG_UPPER
-	var b := Tuning.ARM_LOWER if hand else Tuning.LEG_LOWER
+	var a := Tuning.ARM_UPPER if hand else leg_upper_shown
+	var b := Tuning.ARM_LOWER if hand else leg_lower_shown
 	var sgn := PoseSolver.side_sign(limb)
 	var v := end - root
 	var length := v.length()

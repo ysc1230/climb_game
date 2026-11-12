@@ -555,8 +555,11 @@ func _apply_look(frames: Dictionary, inv: Transform3D, delta: float) -> void:
 ## 없으면 CH02(climber.glb)를 쓴다. 둘 다 같은 뼈대(RigPose.BONES)라 자세 계산은 같다.
 func _build_model() -> bool:
 	var asm := CharacterAssembler.load_catalog()
-	var path := asm.model_path()
+	var g := get_node_or_null("/root/Game")
+	var look: Dictionary = asm.normalize(g.progress.look if g != null else {})
+	var path := asm.model_path(str(look.body))
 	var modular := path != "" and ResourceLoader.exists(path)
+	LimbIK.reset_leg_shape()
 	if not modular:
 		path = "res://art/characters/climber.glb"
 		if not ResourceLoader.exists(path):
@@ -564,14 +567,15 @@ func _build_model() -> bool:
 	var model: Node3D = load(path).instantiate()
 	add_child(model)
 	if modular:
-		var g := get_node_or_null("/root/Game")
-		asm.apply(model, g.progress.look if g != null else {})
+		asm.apply(model, look)
 	var found := model.find_children("*", "Skeleton3D", true, false)
 	skeleton = found[0] if found.size() > 0 else null
 	if skeleton == null or not CharacterAssembler.compatible(skeleton):
 		skeleton = null  # 뼈 길이가 지금 몸과 다르면 캡슐 인형(2026-11-11 B안)
 		model.queue_free()
 		return false
+	var leg := CharacterAssembler.leg_shape(skeleton)  # 화면 다리 관절·길이는 모델마다(docs/37 §7)
+	LimbIK.set_leg_shape(float(leg.raise), float(leg.upper), float(leg.lower))
 	# 휴지 관절 위치는 관절 키로 명시한다(자식 뼈 열거 순서에 의존하지 않음, docs/04 §8.2)
 	var rest_poses := {}
 	var rest_joints := {}

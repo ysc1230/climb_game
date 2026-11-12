@@ -1,0 +1,15 @@
+{
+  "task_id": "a621f6bb-6e4c-4688-bc12-c6c515f8d26b",
+  "type": "multiview_to_model",
+  "model": "v3.1-20260211",
+  "texture": true,
+  "pbr": true,
+  "credits_consumed": 30,
+  "reference_order": [
+    "front",
+    "left",
+    "back",
+    "right"
+  ],
+  "references": "기존 남성 참고 그림 4장에서 바지·셔츠 그림자를 지운 것(clean_refs.py)"
+}

@@ -117,6 +117,8 @@ func _do(action: String, arg: String) -> void:
 			if arg == "body":  # 성별을 바꾸면 그 몸의 기본 헤어로(나머지는 유지)
 				look.hair = str(_asm.body(look.body).get("defaults", {}).get("hair", look.get("hair", "")))
 			look = _asm.normalize(look)
+			if arg == "body":  # 몸마다 모델이 다르다(여성 2026-11-12)
+				_load_preview_model()
 			_asm.apply(_pv_model, look)
 		"look_save":
 			game.get_flow().set_look(look)
@@ -478,10 +480,10 @@ func _lock(c: Vector2, col: Color) -> void:
 
 func _open_look() -> void:
 	_asm = CharacterAssembler.load_catalog()
-	var path := _asm.model_path()
+	look = _asm.normalize(game.progress.look)
+	var path := _asm.model_path(str(look.body))
 	if path == "" or not ResourceLoader.exists(path):
 		return
-	look = _asm.normalize(game.progress.look)
 	_pv = SubViewport.new()
 	_pv.size = Vector2i(560, 760)
 	_pv.own_world_3d = true
@@ -498,11 +500,7 @@ func _open_look() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-35, 25, 0)
 	_pv.add_child(sun)
-	_pv_model = load(path).instantiate()
-	_pv.add_child(_pv_model)
-	_pv_model.rotation.y = PI  # 앞(−Z, 벽 쪽)이 카메라를 보게
-	_asm.apply(_pv_model, look)
-	CharacterAssembler.style(_pv_model, preload("res://art/shaders/toon.gdshader"), preload("res://art/shaders/outline.gdshader"), INK)
+	_load_preview_model()
 	var cam := Camera3D.new()
 	cam.position = Vector3(0, 0.0, 3.6)
 	cam.fov = 38
@@ -510,6 +508,22 @@ func _open_look() -> void:
 	cam.current = true
 	choosing_look = true
 	queue_redraw()
+
+
+## 고른 몸의 모델로 미리보기를 (다시) 만든다. 돌던 각도는 이어 간다.
+func _load_preview_model() -> void:
+	var path := _asm.model_path(str(look.body))
+	if path == "" or not ResourceLoader.exists(path):
+		return
+	var rot := PI  # 앞(−Z, 벽 쪽)이 카메라를 보게
+	if _pv_model != null:
+		rot = _pv_model.rotation.y
+		_pv_model.queue_free()
+	_pv_model = load(path).instantiate()
+	_pv.add_child(_pv_model)
+	_pv_model.rotation.y = rot
+	_asm.apply(_pv_model, look)
+	CharacterAssembler.style(_pv_model, preload("res://art/shaders/toon.gdshader"), preload("res://art/shaders/outline.gdshader"), INK)
 
 
 func _close_look() -> void:

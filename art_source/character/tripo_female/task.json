@@ -1,0 +1,15 @@
+{
+  "task_id": "e606f7d8-0f46-4a5d-9479-5f7208ea5dab",
+  "type": "multiview_to_model",
+  "model": "v3.1-20260211",
+  "texture": true,
+  "pbr": true,
+  "credits_consumed": 30,
+  "reference_order": [
+    "front",
+    "left",
+    "back",
+    "right"
+  ],
+  "references": "사용자 그림 4장(2026-11-12)"
+}

@@ -1,11 +1,18 @@
 {
  "model": "res://art/characters/climber_tripo.glb",
- "note": "docs/36(2026-11-11): Tripo 기본 캐릭터를 B안 몸에 리깅한 통짜 모델(art_source/character/tripo/build_tripo_rig.py). 남성 1종, 파츠 교체·여성·표정은 이후 단계(사용자 결정). 이전 시제품(climber_modular.glb)은 옛 비율이라 쓰지 않는다.",
+ "note": "docs/36(2026-11-11): Tripo 기본 캐릭터를 B안 몸에 리깅한 통짜 모델(art_source/character/tripo/build_tripo_rig.py). 2026-11-12 여성 추가(TRIPO_CHAR=female, 몸마다 model). 파츠 교체·표정은 이후 단계.",
  "bodies": [
   {
    "id": "male",
    "name_ko": "남성",
    "mesh": "P_body_male",
+   "defaults": {}
+  },
+  {
+   "id": "female",
+   "name_ko": "여성",
+   "mesh": "P_body_female",
+   "model": "res://art/characters/climber_tripo_female.glb",
    "defaults": {}
   }
  ],

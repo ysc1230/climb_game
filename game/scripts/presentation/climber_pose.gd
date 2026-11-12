@@ -81,8 +81,12 @@ static func _free(session, limb: StringName) -> bool:
 	return not (session.limbs[limb].state in ["Attached", "Armed"])
 
 
+## 다리는 판정 고관절에서 몸 위쪽으로 LimbIK.hip_raise 올린 화면 회전 중심에서 시작한다.
 static func _root(body, limb: StringName, pelvis_depth: float) -> Vector3:
 	var j2 := PoseSolver.joint_position(body.pos, body.angle, limb, body.yaw)
+	if not PoseSolver.is_hand(limb):
+		var ang := deg_to_rad(body.angle)
+		j2 += Vector2(-sin(ang), cos(ang)) * LimbIK.hip_raise
 	return Vector3(j2.x, j2.y, pelvis_depth + PoseSolver.joint_depth_offset(limb, body.yaw))
 
 

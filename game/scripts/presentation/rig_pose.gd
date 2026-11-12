@@ -146,9 +146,14 @@ func solve(joints: Dictionary, roll_deg: float, yaw_deg: float = 0.0, free_feet 
 	for name in HELPERS:
 		var pair: Array = HELPERS[name]
 		if rest_basis.has(name) and out.has(pair[0]) and out.has(pair[1]):
+			# 골반 회전 + (골반 기준 휴지 허벅지 방향 → 지금 허벅지 방향) 최단 회전의 HELPER_SHARE. 허벅지 길이축 비틀림은
+			# 따르지 않는다(비틀림까지 절반 받으면 다리를 앞·옆·위로 크게 들 때 엉덩이 아랫부분이 아래로 돌아 처진다).
 			var a := Quaternion((out[pair[0]].basis * rest_basis[pair[0]].inverse()).orthonormalized())
-			var b := Quaternion((out[pair[1]].basis * rest_basis[pair[1]].inverse()).orthonormalized())
-			out[name] = Transform3D(Basis(a.slerp(b, HELPER_SHARE)) * rest_basis[name], out[pair[1]].origin)
+			var d0: Vector3 = (a * rest_dir[pair[1]]).normalized()
+			var d1: Vector3 = (out[pair[1]].basis * rest_basis[pair[1]].inverse() * rest_dir[pair[1]]).normalized()
+			var sw: Dictionary = arc(d0, d1)
+			var half: Quaternion = Quaternion.IDENTITY.slerp(sw.q, HELPER_SHARE) if sw.ok else Quaternion.IDENTITY
+			out[name] = Transform3D(Basis(half * a) * rest_basis[name], out[pair[1]].origin)
 	return out
 
 

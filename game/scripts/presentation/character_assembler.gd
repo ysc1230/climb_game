@@ -20,8 +20,10 @@ static func load_catalog(path := CATALOG_PATH) -> CharacterAssembler:
 	return a
 
 
-func model_path() -> String:
-	return str(data.get("model", ""))
+## 몸(body)마다 model이 있으면 그것, 없으면 목록의 기본 model.
+func model_path(body_id := "") -> String:
+	var b := body(body_id) if body_id != "" else {}
+	return str(b.get("model", data.get("model", "")))
 
 
 func bodies() -> Array:
@@ -129,6 +131,7 @@ static func style(model: Node, toon_shader: Shader, outline_shader: Shader, ink:
 			o.set_shader_parameter("width", 0.0 if face else 0.012)
 			if tex != null:
 				o.set_shader_parameter("depth_push", 0.025)
+				o.set_shader_parameter("use_vertex_width", true)
 			t.next_pass = o
 			mi.set_surface_override_material(i, t)
 
@@ -136,8 +139,7 @@ static func style(model: Node, toon_shader: Shader, outline_shader: Shader, ink:
 ## 모델 뼈 길이가 지금 판정 몸(Tuning)과 맞는가(±1cm). 다르면 관절에서 메시가 벌어지므로 쓰지 않는다
 ## (2026-11-11 B안으로 몸 비율을 바꾼 뒤, 옛 비율 모델 CH02·시제품은 캡슐 인형으로 대신한다).
 static func compatible(sk: Skeleton3D) -> bool:
-	var pairs := [["upperarm_L", "forearm_L", Tuning.ARM_UPPER], ["forearm_L", "hand_L", Tuning.ARM_LOWER],
-		["thigh_L", "shin_L", Tuning.LEG_UPPER], ["shin_L", "foot_L", Tuning.LEG_LOWER]]
+	var pairs := [["upperarm_L", "forearm_L", Tuning.ARM_UPPER], ["forearm_L", "hand_L", Tuning.ARM_LOWER]]
 	for pr in pairs:
 		var a := sk.find_bone(pr[0])
 		var b := sk.find_bone(pr[1])
@@ -145,6 +147,14 @@ static func compatible(sk: Skeleton3D) -> bool:
 			return false
 		if absf(sk.get_bone_global_rest(a).origin.distance_to(sk.get_bone_global_rest(b).origin) - float(pr[2])) > 0.01:
 			return false
+	var leg := leg_shape(sk)
+	if leg.is_empty():
+		return false
+	# 다리(docs/37 §7): 화면 다리 관절은 판정 고관절보다 raise 위, 허벅지+정강이 = 판정 다리 + raise, 발목은 판정 높이
+	if leg.raise < -0.001 or absf(float(leg.upper) + float(leg.lower) - (Tuning.LEG_UPPER + Tuning.LEG_LOWER + float(leg.raise))) > 0.01:
+		return false
+	if absf(float(leg.ankle_y) + Tuning.LEG_UPPER + Tuning.LEG_LOWER) > 0.02:
+		return false
 	var sh := sk.find_bone("upperarm_R")
 	if sh < 0:
 		return false
@@ -152,9 +162,18 @@ static func compatible(sk: Skeleton3D) -> bool:
 	return Vector2(o.x, o.y).distance_to(Tuning.SHOULDER_OFFSET) <= 0.02
 
 
+## 모델 다리 모양(왼다리 휴지 뼈대): raise(골반 관절 위 화면 다리 관절 높이), upper(허벅지), lower(정강이), ankle_y.
+static func leg_shape(sk: Skeleton3D) -> Dictionary:
+	var ids := ["pelvis", "thigh_L", "shin_L", "foot_L"].map(func(n): return sk.find_bone(n))
+	if ids.has(-1):
+		return {}
+	var p: Array = ids.map(func(i): return sk.get_bone_global_rest(i).origin)
+	return {"raise": p[1].y - p[0].y, "upper": p[1].distance_to(p[2]), "lower": p[2].distance_to(p[3]), "ankle_y": p[3].y - p[0].y}
+
+
 ## 파츠 목록의 모델(없으면 path)이 지금 몸과 맞는가. 화면에서 쓸 수 있는 모델인지 미리 볼 때.
-func model_compatible() -> bool:
-	var path := model_path()
+func model_compatible(body_id := "") -> bool:
+	var path := model_path(body_id)
 	if path == "" or not ResourceLoader.exists(path):
 		return false
 	var m: Node3D = load(path).instantiate()
