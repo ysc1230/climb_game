@@ -6,32 +6,34 @@ extends RefCounted
 ## 조정 버전(docs/09 tuning_version). 판정 수치·규칙이 바뀌면 올린다.
 ## 1: v0.4 거리 기반, 2: v0.5 방향·3D 거리·지지 하중, 3: v0.5 무브별 선호·의도 비용, 4: v0.6 접점 품질·그립 방식
 ## 7: 데드포인트 규칙 제거(2026-11-05 사용자 결정)
-const TUNING_VERSION := 9  # 2026-11-11 B안 몸(Tripo 비율, docs/35 §6), 팔 나눔을 모델 실측으로(docs/36 §3)
+const TUNING_VERSION := 10  # 2026-11-13 더미 몸(docs/39). 9: B안 몸(docs/35 §6)
 
 const TICK_HZ := 60
 const DT := 1.0 / TICK_HZ
 
 # 체형 (좌표·크기 계약)
+# 2026-11-13 더미 몸(docs/39, 사용자 더미 temp/reference_climber.glb): 키 1.71m, 어깨 골반 위 0.49, 팔 0.35/0.38(손 접점),
+# 다리 0.41/0.40. B안 값: 팔 0.20/0.35, 다리 0.41/0.375, 어깨 (0.18, 0.67), 고관절 0.10.
 # 2026-11-11 사용자 결정 B안(docs/35 §6): Tripo 캐릭터 비율에 게임 몸을 맞춤. 키 1.99m 유지, 팔 ×0.71, 다리 ×0.78,
 # 몸통 김(어깨가 골반 위 0.67), 머리 1.4배. 이전 값: 팔 0.40/0.38, 다리 0.52/0.48, 어깨 (0.20, 0.55), 고관절 0.14.
-const ARM_UPPER := 0.20   # 2026-11-11 Tripo 모델 실측(docs/36 §3): 어깨→팔꿈치 0.20
-const ARM_LOWER := 0.35   # 팔꿈치→손 접점(모델 손가락 뿌리). 아래팔 0.195 + 손바닥 0.155. 합 0.55는 B안과 같음
+const ARM_UPPER := 0.35   # 어깨→팔꿈치
+const ARM_LOWER := 0.38   # 팔꿈치→손 접점(손가락 뿌리). 아래팔 0.29 + 손바닥 0.09
 const LEG_UPPER := 0.41
-const LEG_LOWER := 0.375
-const SHOULDER_OFFSET := Vector2(0.18, 0.67) # X는 좌우 부호 적용
-const HIP_OFFSET := Vector2(0.10, 0.0)
-const ARM_REACH_NOMINAL := Vector2(0.14, 0.55)
-const LEG_REACH_NOMINAL := Vector2(0.20, 0.78)
+const LEG_LOWER := 0.40
+const SHOULDER_OFFSET := Vector2(0.175, 0.49) # X는 좌우 부호 적용
+const HIP_OFFSET := Vector2(0.095, 0.0)
+const ARM_REACH_NOMINAL := Vector2(0.16, 0.73)
+const LEG_REACH_NOMINAL := Vector2(0.24, 0.81)
 const ELBOW_BEND_DEG := Vector2(5.0, 155.0)
 const KNEE_BEND_DEG := Vector2(5.0, 145.0)
 const BODY_ANGLE_LIMIT_DEG := 25.0
 const PELVIS_YAW_LIMIT_DEG := 40.0   # 04 §3, §10.1
-const SHOULDER_YAW_DEPTH := 0.16     # 04 §10.1 어깨 깊이 계수
-const HIP_YAW_DEPTH := 0.10          # 04 §10.1 고관절 깊이 계수
+const SHOULDER_YAW_DEPTH := 0.155    # 04 §10.1 어깨 깊이 계수
+const HIP_YAW_DEPTH := 0.095         # 04 §10.1 고관절 깊이 계수
 
 # 목표 자세 비용
-const PREF_ARM := 0.37
-const PREF_LEG := 0.61
+const PREF_ARM := 0.49
+const PREF_LEG := 0.63
 const W_HAND := 1.00
 const W_FOOT := 1.25
 const W_ANGLE := 0.20
@@ -44,18 +46,18 @@ const W_ANGLE_V05 := 0.2    # 몸통 각도 여유
 const W_CHANGE := 0.1       # 직전 자세와의 변화
 const CHANGE_POS_SCALE := 0.30
 const CHANGE_ANGLE_SCALE := 15.0
-const PREF_ARM_REST := 0.46  # B안: 벽면 도달 최대 약 0.51(3D 0.555, 어깨-벽 깊이 0.21)보다 여유를 두게(이전 몸 0.70 / 0.75)
-const PREF_ARM_REACH := 0.43
-const PREF_ARM_LOCKOFF := 0.30
-const PREF_LEG_DEFAULT := 0.61
-const PREF_LEG_STAND := 0.67
+const PREF_ARM_REST := 0.60  # 더미: 벽면 도달 최대 약 0.70(3D 0.73, 어깨-벽 깊이 0.21)보다 여유를 두게(B안 0.46)
+const PREF_ARM_REACH := 0.57
+const PREF_ARM_LOCKOFF := 0.39
+const PREF_LEG_DEFAULT := 0.63
+const PREF_LEG_STAND := 0.69
 # 손 하중 u² 항의 저비용 대체(구현 편차, docs/23): 골반이 하중 발 X 범위(StandUp이면 올린 발) 위에 있도록
 const W_LOAD_PROXY := 1.0
 const LOAD_PROXY_SCALE := 0.30
 const LOAD_PROXY_MARGIN := 0.05
 
 # 무브 판별(docs/04 §5 표)
-const HIGH_STEP_BELOW_HIP := 0.16  # 2026-11-11 B안 다리 ×0.78(이전 0.20)
+const HIGH_STEP_BELOW_HIP := 0.17  # 더미 다리(B안 0.16)
 const FLAG_COST_IMPROVEMENT := 0.02
 # v0.9 몸통 끌기(docs/03): 가운데 영역을 끌어 정한 골반 목표 쪽으로 당기는 비용 가중치(1/m²)와 최대 거리(m)
 const BODY_GOAL_WEIGHT := 30.0
@@ -103,7 +105,7 @@ const CONTACT_DEPTH := 0.07       # 홀드 접촉면의 Z
 const FREE_ENDPOINT_LIFT := 0.12  # 자유 말단은 벽에서 이만큼 더 떨어짐
 
 # v0.5 하중 자격(docs/04 §4): 손 접점이 어깨보다 이 값 이상 낮으면 하중을 받지 못함
-const HAND_LOAD_MAX_BELOW_SHOULDER := 0.07  # 2026-11-11 B안 팔 ×0.71(이전 0.10)
+const HAND_LOAD_MAX_BELOW_SHOULDER := 0.09  # 더미 팔(B안 0.07)
 
 # 잡기
 const HAND_CANDIDATE_RADIUS := 0.17  # v6(2026-11-04): 0.12 → 0.17, 잡기 여유(사용자 요청)

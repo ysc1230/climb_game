@@ -319,7 +319,7 @@ func _build_character() -> void:
 	var pack := _toon(Color("6b5240"), INK)
 	parts.torso = _capsule_part(0.15, cloth)
 	parts.hips = _capsule_part(0.13, pants)
-	parts.head = _mesh(_sphere(0.115 * 1.4), _toon(Color("3b2e26"), INK), false)  # 뒷머리(B안 1.4배)
+	parts.head = _mesh(_sphere(0.11), _toon(Color("3b2e26"), INK), false)  # 뒷머리(더미 머리, docs/39)
 	parts.pack = _mesh(_box(Vector3(0.30, 0.36, 0.14)), pack, true)
 	for limb in PoseSolver.LIMBS:
 		var hand := PoseSolver.is_hand(limb)
@@ -400,8 +400,8 @@ func _pose_targets(delta: float) -> Dictionary:
 func _pose_capsules(t: Dictionary) -> void:
 	var up: Vector3 = t.up
 	_place_segment(parts.hips, t.pelvis + up * -0.02, t.pelvis + up * 0.12, 0.13)
-	_place_segment(parts.torso, t.pelvis + up * 0.18, t.pelvis + up * 0.62, 0.15)
-	parts.head.position = t.head + up * 0.16 + Vector3(0, 0, 0.02)  # 머리 1.4배(B안, 반지름 0.115 × 1.4)
+	_place_segment(parts.torso, t.pelvis + up * 0.16, t.pelvis + up * 0.45, 0.15)
+	parts.head.position = t.head + up * 0.125 + Vector3(0, 0, 0.02)  # 더미 머리 가운데(목 위 0.125)
 	parts.pack.transform = Transform3D(Basis(Vector3.BACK, deg_to_rad(logic.session.body.angle)), t.pelvis + up * 0.42 + Vector3(0, 0, 0.17))
 	for limb in PoseSolver.LIMBS:
 		var hand := PoseSolver.is_hand(limb)

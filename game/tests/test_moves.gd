@@ -50,7 +50,9 @@ func test_mc06_high_step_then_stand_up_enables_reach() -> void:
 				ok = true
 				break
 		# 첫 발은 HighStep. 일어선 뒤 두 번째 발은 고관절이 올라가 문턱(고관절−0.20) 아래면 Reach가 맞다
-		runner.check(label == MoveClassifier.HIGH_STEP or (foot == &"RF" and label == MoveClassifier.REACH), "%s 라벨 %s" % [foot, label])
+		# 2026-11-13 더미 몸(docs/39): 어깨가 낮아 같은 손홀드에서 골반이 더 높이 매달려, 사다리 F03(0.595)은 첫 발도
+		# 고관절 아래 0.17보다 낮을 수 있다(Reach). 하이스텝 판정 자체는 test_pad_events의 높은 발판으로 본다.
+		runner.check(label in [MoveClassifier.HIGH_STEP, MoveClassifier.REACH], "%s 라벨 %s" % [foot, label])
 		runner.check(ok, "%s 높은 발판 접촉 가능" % foot)
 		att = with_new
 		_settle(rules, body, att, 180)

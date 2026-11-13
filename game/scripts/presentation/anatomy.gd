@@ -10,7 +10,7 @@ extends RefCounted
 ##   최단 회전으로 재면 무릎을 높이 든 자세(하이스텝·드롭니)에서 회전각이 부풀려진다(Codman 역설).
 
 const HAND_LENGTH := 0.07   # 손 접점(손가락 뿌리) → 손끝. Tripo 모델 실측(docs/36 §3), 이전 0.09
-const FOOT_LENGTH := 0.135  # B안 발(2026-11-11, 이전 0.158)
+const FOOT_LENGTH := 0.20   # 더미 발목→발끝(앞 0.19, 아래 0.09, docs/39). B안 0.135
 
 ## 비틀림 허용 범위(도). 유연한 사람 기준의 바깥 한계로, 이를 넘으면 해부학적으로 불가능한 자세로 본다.
 const ARM_TWIST := Vector2(-100.0, 110.0)    # 어깨 안돌림 100°, 바깥돌림 110°
@@ -29,7 +29,7 @@ const SHOULDER_EXTENSION_MAX := 0.60         # 위팔의 뒤쪽 성분(sin 37°)
 const HIP_EXTENSION_MAX := 0.50              # 허벅지의 뒤쪽 성분(sin 30°)
 const ANKLE_RANGE := Vector2(40.0, 130.0)    # 정강이(무릎→발목)와 발(발목→발끝) 사이 각
 const WALL_CLEARANCE := 0.01                 # 팔꿈치·무릎은 벽면(z = 0)보다 이만큼 앞
-const TORSO_CLEARANCE := 0.15                # 팔꿈치·무릎이 몸통 축(골반+0.06 ~ +0.62)에 이보다 가까우면 몸을 뚫음(B안 몸통, 2026-11-11)
+const TORSO_CLEARANCE := 0.15                # 팔꿈치·무릎이 몸통 축(골반+0.04 ~ +0.45)에 이보다 가까우면 몸을 뚫음(더미 몸통, docs/39)
 ## 무릎 방향(엉덩이–발목 선에서 무릎까지의 방향)의 몸 기준 뒤쪽(카메라 쪽) 성분 상한. 무릎은 굽은 채 좌·우·앞으로는
 ## 가도 뒤로는 꺾이지 않는다(2026-11-08 사용자). 고관절 회전각만으로는 허벅지가 옆으로 벌어진 자세에서 이를 못 걸렀다.
 const KNEE_BACK_MAX := 0.25
@@ -39,8 +39,8 @@ const KNEE_BACK_MAX := 0.25
 const ELBOW_UP_MAX := 0.35
 const ELBOW_UP_HAND_BELOW := 0.15
 const FREE_LEG_SHIN_UP_MAX := 0.25           # 발을 들어 옮길 때 정강이(무릎→발)의 위쪽 성분 한계(무릎이 발보다 아래로 처지지 않음)
-const HEAD_CENTER_UP := 1.00                 # 머리 중심: 골반 + 위 × 1.00(B안 머리 1.4배, 2026-11-11. 이전 0.84)
-const HEAD_CLEARANCE := 0.20                 # 팔 뼈가 머리 중심에 이보다 가까우면 머리를 뚫음(머리 0.165 + 팔 0.035, B안. 이전 0.15)
+const HEAD_CENTER_UP := 0.685                # 머리 중심: 골반 + 위 × 0.685(더미 머리 덩어리, docs/39. B안 1.00)
+const HEAD_CLEARANCE := 0.15                 # 팔 뼈가 머리 중심에 이보다 가까우면 머리를 뚫음(더미 머리 약 0.11 + 팔 0.035. B안 0.20)
 const STRAIGHT_EPS := 0.06                   # 굽힘(아래 뼈의 수직 성분 비)이 이보다 작으면(약 3°, 거의 펴짐) 비틀림을 재지 않음
 
 
@@ -185,8 +185,8 @@ static func check(t: Dictionary, angle_deg: float, yaw_deg: float, free := {}) -
 	var frame := body_basis(angle_deg, yaw_deg)
 	var post := frame * Vector3.BACK
 	var up: Vector3 = t.up
-	var torso_a: Vector3 = t.pelvis + up * 0.06
-	var torso_b: Vector3 = t.pelvis + up * 0.62
+	var torso_a: Vector3 = t.pelvis + up * 0.04
+	var torso_b: Vector3 = t.pelvis + up * 0.45
 	for limb in PoseSolver.LIMBS:
 		var hand := PoseSolver.is_hand(limb)
 		var s := "L" if PoseSolver.side_sign(limb) < 0 else "R"

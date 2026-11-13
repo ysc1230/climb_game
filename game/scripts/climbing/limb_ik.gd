@@ -11,7 +11,7 @@ const PRESENTATION_JOINT_SPEED_DEG := 180.0  # docs/04 §3
 ## 안의 발은 올린 점에서도 항상 닿는다(삼각부등식).
 ## 캐릭터마다 다르다(2026-11-12 여성 추가): 화면이 모델을 불러올 때 뼈대에서 읽어 set_leg_shape로 바꾼다.
 ## 허벅지+정강이 = 판정 다리(LEG_UPPER+LEG_LOWER) + hip_raise. 기본값은 남성 모델.
-const HIP_RAISE := 0.10
+const HIP_RAISE := 0.0   # 더미는 고관절에서 바로 돈다(docs/39). Tripo 남녀(B안 몸)는 0.10·0.11이었다
 const LEG_UPPER_SHOWN := Tuning.LEG_UPPER + HIP_RAISE
 static var hip_raise := HIP_RAISE
 static var leg_upper_shown := LEG_UPPER_SHOWN
@@ -57,8 +57,8 @@ const LEG_POLE_HIGH := Vector3(0.7, 0.6, -0.3)  # 발이 엉덩이 높이 근처
 const LEG_POLE_HIGH_FROM := -0.40  # 발 높이(엉덩이 기준, m)가 이보다 높으면 바깥·위로 섞기 시작
 const LEG_POLE_HIGH_FULL := -0.10  # 이 높이부터는 바깥·위만
 const WALL_MIN_Z := 0.05      # 팔꿈치·무릎 중심의 최소 Z(벽면 z=0 + 관절 반지름)
-const TORSO_MIN_DIST := 0.18  # 몸통 축(골반+0.05 ~ +0.50)에서 팔꿈치·무릎 중심까지 최소 거리
-const HEAD_MIN_DIST := 0.17   # 팔 뼈(위팔·아래팔)에서 머리 중심까지 최소 거리
+const TORSO_MIN_DIST := 0.18  # 몸통 축(골반+0.04 ~ +0.45, 더미)에서 팔꿈치·무릎 중심까지 최소 거리
+const HEAD_MIN_DIST := 0.12   # 팔 뼈(위팔·아래팔)에서 머리 중심까지 최소 거리(더미, B안 0.17)
 const POLE_WEIGHT := 0.02     # 선호 방향과의 각(라디안)당 비용. 제약 위반(미터·도 환산)보다 훨씬 작다
 
 
@@ -220,8 +220,8 @@ static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis,
 	var free_leg := free and not hand
 	var pole := frame * Vector3(pl.x * sgn, pl.y, pl.z)
 	var pole_th := atan2(pole.dot(t), pole.dot(n))
-	var torso_a := pelvis + up * 0.05
-	var torso_b := pelvis + up * 0.50
+	var torso_a := pelvis + up * 0.04
+	var torso_b := pelvis + up * 0.45
 	var head := pelvis + up * Anatomy.HEAD_CENTER_UP
 	var bad: Array[float] = []
 	var best := 0

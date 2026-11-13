@@ -1,18 +1,11 @@
 {
- "model": "res://art/characters/climber_tripo.glb",
- "note": "docs/36(2026-11-11): Tripo 기본 캐릭터를 B안 몸에 리깅한 통짜 모델(art_source/character/build_tripo_rig.py). 2026-11-12 여성 추가(TRIPO_CHAR=female, 몸마다 model). 파츠 교체·표정은 이후 단계.",
+ "model": "res://art/characters/climber_dummy.glb",
+ "note": "2026-11-13 더미 1종(docs/39, art_source/character/dummy/build_dummy.py). 남녀 Tripo 모델(B안 몸)은 게임에서 뺐다(원본은 art_source/character/male·female). 파츠·얼굴은 이후 단계.",
  "bodies": [
   {
-   "id": "male",
-   "name_ko": "남성",
-   "mesh": "P_body_male",
-   "defaults": {}
-  },
-  {
-   "id": "female",
-   "name_ko": "여성",
-   "mesh": "P_body_female",
-   "model": "res://art/characters/climber_tripo_female.glb",
+   "id": "dummy",
+   "name_ko": "더미",
+   "mesh": "P_body_dummy",
    "defaults": {}
   }
  ],

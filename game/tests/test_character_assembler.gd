@@ -1,17 +1,16 @@
 extends RefCounted
 ## 캐릭터(docs/34 §7, docs/36): 목록과 glb가 맞는지, 뼈대 규격(B안 관절 위치), 예산, 고른 것만 보이는지, 저장.
-## 2026-11-11: 게임 모델은 Tripo 통짜(파츠 없음). 2026-11-13: 남성(climber_tripo.glb)·여성(climber_tripo_female.glb) 2종,
-## 몸마다 model. 파츠 교체 논리는 가짜 목록으로 시험한다.
+## 2026-11-13: 게임 모델은 더미 1종(climber_dummy.glb, docs/39). 몸마다 model을 둘 수 있다. 파츠 교체 논리는 가짜 목록으로 시험한다.
 
 var runner
 
 const TRI_BUDGET := 12500
 ## 뼈 → B안 관절(벽면 x, y). 깊이(z)는 모델 팔·다리 중심선을 따르므로 보지 않는다.
-const SPEC := {"pelvis": Vector2(0, 0), "spine": Vector2(0, 0.27), "chest": Vector2(0, 0.54), "neck": Vector2(0, 0.76), "head": Vector2(0, 0.84),
-	"upperarm_R": Vector2(0.18, 0.67), "forearm_R": Vector2(0.38, 0.67), "hand_R": Vector2(0.73, 0.67), "finger_R": Vector2(0.765, 0.67),
-	"upperarm_L": Vector2(-0.18, 0.67), "hand_L": Vector2(-0.73, 0.67)}
-const MODELS := {"male": ["res://art/characters/climber_tripo.glb", "P_body_male"],
-	"female": ["res://art/characters/climber_tripo_female.glb", "P_body_female"]}
+## 2026-11-13 더미 몸(docs/39): 어깨 (0.175, 0.49), 팔 0.35/0.38(손 접점 = 손가락 뿌리), 손가락 뼈 +0.035.
+const SPEC := {"pelvis": Vector2(0, 0), "spine": Vector2(0, 0.16), "chest": Vector2(0, 0.37), "neck": Vector2(0, 0.49), "head": Vector2(0, 0.56),
+	"upperarm_R": Vector2(0.175, 0.49), "forearm_R": Vector2(0.525, 0.49), "hand_R": Vector2(0.905, 0.49), "finger_R": Vector2(0.94, 0.49),
+	"upperarm_L": Vector2(-0.175, 0.49), "hand_L": Vector2(-0.905, 0.49), "thigh_R": Vector2(0.095, 0), "shin_R": Vector2(0.095, -0.41), "foot_R": Vector2(0.095, -0.81)}
+const MODELS := {"dummy": ["res://art/characters/climber_dummy.glb", "P_body_dummy"]}
 
 ## 파츠 교체 논리용 가짜 목록(옛 모듈 시제품과 같은 모양).
 const FAKE := {"model": "", "bodies": [
@@ -22,7 +21,7 @@ const FAKE := {"model": "", "bodies": [
 		{"id": "chalk", "parts": [{"id": "bag", "mesh": "P_chalk_bag"}]}, {"id": "shoes", "parts": [{"id": "velcro", "mesh": "P_shoes_velcro"}]}]}
 
 
-func _model(asm: CharacterAssembler, body := "male") -> Node3D:
+func _model(asm: CharacterAssembler, body := "dummy") -> Node3D:
 	return load(asm.model_path(body)).instantiate()
 
 
@@ -34,8 +33,8 @@ func _fake() -> CharacterAssembler:
 
 func test_catalog_matches_model() -> void:
 	var asm := CharacterAssembler.load_catalog()
-	runner.check(asm.bodies().map(func(b): return b.id) == ["male", "female"] and asm.data.get("slots", []).is_empty(), "남성·여성 2종, 파츠 없음(통짜)")
-	runner.check(asm.model_path() == MODELS.male[0], "기본 모델은 남성")
+	runner.check(asm.bodies().map(func(b): return b.id) == ["dummy"] and asm.data.get("slots", []).is_empty(), "더미 1종, 파츠 없음")
+	runner.check(asm.model_path() == MODELS.dummy[0], "기본 모델은 더미")
 	for body in MODELS:
 		var path: String = MODELS[body][0]
 		runner.check(asm.model_path(body) == path and ResourceLoader.exists(path), "%s 모델 %s" % [body, asm.model_path(body)])
@@ -59,7 +58,7 @@ func test_catalog_matches_model() -> void:
 			runner.check(d <= 0.001, "%s 뼈 %s 위치 규격 ±1mm (%.4f)" % [body, b, d])
 		# 다리(docs/37 §7): 화면 다리 관절은 판정 고관절 위, 허벅지+정강이 = 판정 다리 + 올린 높이, 발목은 판정 높이
 		var leg := CharacterAssembler.leg_shape(sk)
-		runner.check(leg.raise >= 0.05 and leg.raise <= 0.15, "%s 화면 다리 관절 높이 %.3f" % [body, leg.raise])
+		runner.check(absf(leg.raise) < 0.001, "%s 다리는 고관절에서 바로 돈다 %.3f" % [body, leg.raise])
 		runner.check(absf(leg.upper + leg.lower - (Tuning.LEG_UPPER + Tuning.LEG_LOWER + leg.raise)) <= 0.01, "%s 다리 길이 %.3f+%.3f" % [body, leg.upper, leg.lower])
 		runner.check(absf(leg.ankle_y + Tuning.LEG_UPPER + Tuning.LEG_LOWER) <= 0.02, "%s 발목 높이 %.3f" % [body, leg.ankle_y])
 		runner.check(CharacterAssembler.compatible(sk) and asm.model_compatible(body), "%s 지금 몸(뼈 길이·어깨)과 호환" % body)
@@ -68,68 +67,53 @@ func test_catalog_matches_model() -> void:
 		var tris: int = arr[Mesh.ARRAY_INDEX].size() / 3
 		runner.check(tris <= TRI_BUDGET, "%s 삼각형 예산 %d ≤ %d" % [body, tris, TRI_BUDGET])
 		runner.check(arr[Mesh.ARRAY_BONES].size() == arr[Mesh.ARRAY_VERTEX].size() * 4, "%s 정점당 뼈 4개 이하" % body)
-		# 엉덩이골 윤곽선 굵기(정점 색 R): 가랑이 가운데는 0, 팔·머리는 1
-		var colors: PackedColorArray = arr[Mesh.ARRAY_COLOR]
-		runner.check(colors.size() == arr[Mesh.ARRAY_VERTEX].size(), "%s 윤곽선 굵기(정점 색)" % body)
-		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
-		var zero := 0
-		var far_ok := true
-		for vi in verts.size():
-			var v := verts[vi]
-			if absf(v.x) < 0.02 and v.y > -0.05 and v.y < 0.15 and colors[vi].r < 0.01:
-				zero += 1
-			if absf(v.x) > 0.3 and colors[vi].r < 0.99:
-				far_ok = false
-		runner.check(zero > 10 and far_ok, "%s 가랑이 가운데만 윤곽선 0 (%d개)" % [body, zero])
 		var mat := mesh.surface_get_material(0) as BaseMaterial3D
-		runner.check(mat != null and mat.resource_name == "M_body_main" and mat.albedo_texture != null, "%s 재질 M_body_main + 색 텍스처" % body)
+		runner.check(mat != null and mat.resource_name == "M_body_main", "%s 재질 M_body_main" % body)
 		m.free()
 
 
-## 텍스처 재질은 툰 셰이더의 텍스처 입력으로 넘어간다.
-func test_style_passes_texture() -> void:
+## 더미는 텍스처 없이 단색(M_body_main 색)으로 툰 셰이더에 넘어가고, 윤곽선 굵기는 정점 색을 쓰지 않는다.
+func test_style_dummy_color() -> void:
 	var asm := CharacterAssembler.load_catalog()
 	var m := _model(asm)
 	CharacterAssembler.style(m, load("res://art/shaders/toon.gdshader"), load("res://art/shaders/outline.gdshader"), Color.BLACK)
-	var mi: MeshInstance3D = m.find_children("P_body_male", "MeshInstance3D", true, false)[0]
+	var mi: MeshInstance3D = m.find_children("P_body_dummy", "MeshInstance3D", true, false)[0]
 	var t := mi.get_surface_override_material(0) as ShaderMaterial
-	if t == null:
-		t = mi.mesh.surface_get_material(0) as ShaderMaterial
-	runner.check(t != null and t.get_shader_parameter("use_texture") == true and t.get_shader_parameter("albedo_tex") != null, "툰 셰이더에 텍스처")
+	runner.check(t != null and t.get_shader_parameter("use_texture") != true, "단색(텍스처 없음)")
 	var o := t.next_pass as ShaderMaterial
-	runner.check(o != null and o.get_shader_parameter("use_vertex_width") == true, "윤곽선 굵기는 정점 색으로(엉덩이골 검은 선 방지)")
+	runner.check(o != null and o.get_shader_parameter("use_vertex_width") != true, "윤곽선 굵기 고정")
 	m.free()
 
 
-## 화면 다리 모양은 모델마다(docs/37 §7): 여성 다리로 바꾸면 화면 무릎이 그 길이를 따르고, 되돌리면 남성 기본.
+## 화면 다리 모양은 모델마다(docs/37 §7): 다른 다리 모양으로 바꾸면 화면 무릎이 그 길이를 따르고, 되돌리면 기본(더미: 올림 0).
 func test_leg_shape_per_model() -> void:
-	var asm := CharacterAssembler.load_catalog()
-	var m := _model(asm, "female")
-	var leg := CharacterAssembler.leg_shape(m.find_children("*", "Skeleton3D", true, false)[0])
-	m.free()
 	var s := ClimbSession.new(RouteDef.load_json("res://tests/fixtures/G_V0_01.json"))
-	LimbIK.set_leg_shape(leg.raise, leg.upper, leg.lower)
+	var raise := 0.10
+	var upper := Tuning.LEG_UPPER + raise + 0.02
+	var lower := Tuning.LEG_LOWER - 0.02
+	LimbIK.set_leg_shape(raise, upper, lower)
 	var t := ClimberPose.new().compute(s, Tuning.DT)
-	var up := absf(t.hip_R.distance_to(t.knee_R) - leg.upper)
-	var lo := absf(t.knee_R.distance_to(t.ankle_R) - leg.lower)
-	runner.check(up < 0.002 and lo < 0.002, "여성 다리 허벅지 %.3f 정강이 %.3f" % [t.hip_R.distance_to(t.knee_R), t.knee_R.distance_to(t.ankle_R)])
+	runner.check(absf(t.hip_R.distance_to(t.knee_R) - upper) < 0.002 and absf(t.knee_R.distance_to(t.ankle_R) - lower) < 0.002, "바꾼 다리 허벅지 %.3f 정강이 %.3f" % [t.hip_R.distance_to(t.knee_R), t.knee_R.distance_to(t.ankle_R)])
 	var pelvis_hip: float = (t.hip_R - t.pelvis).dot(t.up)
-	runner.check(absf(pelvis_hip - leg.raise) < 0.002, "화면 다리 관절은 골반 위 %.3f" % pelvis_hip)
+	runner.check(absf(pelvis_hip - raise) < 0.002, "화면 다리 관절은 골반 위 %.3f" % pelvis_hip)
 	LimbIK.reset_leg_shape()
 	t = ClimberPose.new().compute(s, Tuning.DT)
-	runner.check(absf(t.hip_R.distance_to(t.knee_R) - LimbIK.LEG_UPPER_SHOWN) < 0.002, "되돌리면 기본 다리")
+	runner.check(absf(t.hip_R.distance_to(t.knee_R) - Tuning.LEG_UPPER) < 0.002 and absf((t.hip_R - t.pelvis).dot(t.up)) < 0.002, "되돌리면 더미 다리(고관절에서 바로)")
+	var m := _model(CharacterAssembler.load_catalog())
+	var leg := CharacterAssembler.leg_shape(m.find_children("*", "Skeleton3D", true, false)[0])
+	m.free()
+	runner.check(absf(leg.raise - LimbIK.HIP_RAISE) < 0.001 and absf(leg.upper - LimbIK.LEG_UPPER_SHOWN) < 0.002 and absf(leg.lower - Tuning.LEG_LOWER) < 0.002, "더미 모델 다리 = 기본값 %s" % [leg])
 
 
-func test_apply_tripo_shows_body() -> void:
+func test_apply_shows_body() -> void:
 	var asm := CharacterAssembler.load_catalog()
-	for body in MODELS:
-		var m := _model(asm, body)
-		for look in [{"body": body}, {"body": body, "hair": "crop"}]:
-			runner.check(asm.apply(m, look) == 1, "%s %s: 몸 하나만" % [body, look])
-		m.free()
-	runner.check(asm.normalize({"hair": "crop"}) == {"body": "male", "hair": "", "top": "", "bottom": "", "chalk": "", "shoes": ""}, "파츠 없는 슬롯은 빈 값")
-	runner.check(asm.cycle({"body": "male"}, "body", 1) == "female" and asm.cycle({"body": "female"}, "body", 1) == "male" and asm.cycle({"body": "male"}, "hair", 1) == "", "성별 바꾸기, 파츠 없는 슬롯은 그대로")
-	runner.check(asm.model_path("female") == MODELS.female[0] and asm.model_path("nope") == MODELS.male[0], "몸마다 모델, 모르는 몸은 기본")
+	var m := _model(asm)
+	for look in [{}, {"body": "dummy"}, {"body": "male", "hair": "crop"}]:
+		runner.check(asm.apply(m, look) == 1, "%s: 몸 하나만" % [look])
+	m.free()
+	runner.check(asm.normalize({"hair": "crop"}) == {"body": "dummy", "hair": "", "top": "", "bottom": "", "chalk": "", "shoes": ""}, "모르는 몸은 더미, 파츠 없는 슬롯은 빈 값")
+	runner.check(asm.cycle({"body": "dummy"}, "body", 1) == "dummy", "1종이면 그대로")
+	runner.check(asm.model_path("nope") == MODELS.dummy[0], "모르는 몸은 기본 모델")
 
 
 func test_normalize_and_cycle_parts() -> void:

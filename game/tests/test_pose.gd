@@ -11,17 +11,17 @@ func _near(a: float, b: float, eps: float = 0.0005) -> bool:
 func test_reach_ranges_follow_joint_limits() -> void:
 	var leg := Tuning.leg_range()
 	var arm := Tuning.arm_range()
-	# 2026-11-11 B안 몸(팔 0.285/0.27, 다리 0.41/0.375): 무릎 145°에서 다리 최소 0.2384, 팔 나눔 0.20/0.35(2026-11-11 모델 실측)
-	runner.check(_near(leg.x, 0.2384), "다리 최소 %.4f" % leg.x)
-	runner.check(_near(arm.y, 0.55), "팔 최대는 명목값 0.55(팔꿈치 5°의 0.5545보다 작음) %.4f" % arm.y)
-	runner.check(_near(arm.x, 0.1887), "팔 최소는 팔꿈치 155°의 0.1887(명목 0.14보다 큼, 위팔 0.20·아래팔 0.35) %.4f" % arm.x)
+	# 2026-11-13 더미 몸(docs/39, 팔 0.35/0.38, 다리 0.41/0.40): 무릎 145°에서 다리 최소 0.2438
+	runner.check(_near(leg.x, 0.2438), "다리 최소 %.4f" % leg.x)
+	runner.check(_near(arm.y, 0.7293), "팔 최대는 팔꿈치 5°의 0.7293(명목 0.73보다 작음) %.4f" % arm.y)
+	runner.check(_near(arm.x, 0.1607), "팔 최소는 팔꿈치 155°의 0.1607(명목 0.16보다 큼) %.4f" % arm.x)
 
 
 func test_doc19_start_pose_arithmetic() -> void:
-	# 2026-11-11 B안 몸 + 테스트용 사다리(tests/fixtures/G_V0_01.json) 시작 홀드
+	# 2026-11-13 더미 몸(어깨 (0.175, 0.49), 고관절 0.095) + 테스트용 사다리(tests/fixtures/G_V0_01.json) 시작 홀드
 	var p := Vector2(0, 0.83)
-	runner.check(_near(PoseSolver.limb_distance(p, 0, PoseSolver.LH, Vector2(-0.405, 1.8)), 0.375000, 0.000001), "어깨→손 0.375000")
-	runner.check(_near(PoseSolver.limb_distance(p, 0, PoseSolver.LF, Vector2(-0.27, 0.1)), 0.749533, 0.000001), "고관절→발 0.749533")
+	runner.check(_near(PoseSolver.limb_distance(p, 0, PoseSolver.LH, Vector2(-0.405, 1.8)), 0.532259, 0.000001), "어깨→손 0.532259")
+	runner.check(_near(PoseSolver.limb_distance(p, 0, PoseSolver.LF, Vector2(-0.27, 0.1)), 0.750683, 0.000001), "고관절→발 0.750683")
 	runner.check(PoseSolver.is_foot_supporting(p, 0, PoseSolver.LF, Vector2(-0.27, 0.1)), "시작 발은 지지 발")
 
 
