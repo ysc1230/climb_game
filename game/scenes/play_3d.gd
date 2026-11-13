@@ -433,6 +433,7 @@ func _pose_model(t: Dictionary, delta: float) -> void:
 	var free_feet := {"L": ClimberPose._free(logic.session, &"LF"), "R": ClimberPose._free(logic.session, &"RF")}
 	var frames := rig.solve(local, logic.session.body.angle, logic.session.body.yaw, free_feet)
 	_apply_look(frames, inv, delta)
+	_grip_hands(frames, delta)
 	for name in RigPose.bone_names():
 		var idx := skeleton.find_bone(name)
 		if idx >= 0 and frames.has(name):
@@ -440,27 +441,44 @@ func _pose_model(t: Dictionary, delta: float) -> void:
 	_curl_fingers(frames, delta)
 
 
-## 손가락 말아 쥐기(docs/36, 2026-11-11 사용자 결정 b): 홀드를 잡은 손(Attached·Armed)은 손(손등 → 손가락 마디)과
-## 손가락 뼈를 벽 쪽(-Z)으로 접는다. 손가락 뼈(finger_L/R)가 없는 모델이면 아무것도 하지 않는다.
-const CURL_HAND_DEG := 35.0   # 손 뼈를 벽 쪽으로 접는 각(손가락 첫 마디)
-const CURL_FINGER_DEG := 60.0 # 손가락 뼈를 더 접는 각(끝 마디, 손 뼈 기준)
-const CURL_SPEED := 10.0      # 1/s
+## 손가락 말아 쥐기(docs/36, 2026-11-13 사용자: "홀드를 잡고 있으면 손가락을 구부리는 모션으로"):
+## 홀드를 잡은 손(Attached·Armed)은 아래팔·손을 길이축으로 돌려 손바닥(휴지 T자에서 아래)이 벽을 보게 하고(_grip_hands),
+## 손 뼈(손가락 첫 마디)와 손가락 뼈(끝 마디)를 손바닥 쪽으로 접는다(_curl_fingers). 떼면 펴진다(1/s 8로 부드럽게).
+## 손가락 뼈(finger_L/R)가 없는 모델이면 아무것도 하지 않는다.
+const CURL_HAND_DEG := 60.0   # 손 뼈를 손바닥 쪽으로 접는 각(손가락 첫 마디)
+const CURL_FINGER_DEG := 75.0 # 손가락 뼈를 더 접는 각(끝 마디, 손 뼈 기준)
+const CURL_SPEED := 8.0       # 1/s
+const PALM_REST := Vector3.DOWN  # 휴지 T자 손바닥 방향
 var finger_rest := {}         # "L"/"R" -> {idx, hand_idx, rest(손 기준 손가락 휴지 Transform), len}
 var curl := {"L": 0.0, "R": 0.0}
 
 
-func _curl_fingers(frames: Dictionary, delta: float) -> void:
+## 잡은 정도(0~1)를 갱신하고, 잡은 손은 아래팔·손을 손바닥이 벽(−Z)을 보게 돌린다(잡은 정도만큼).
+func _grip_hands(frames: Dictionary, delta: float) -> void:
+	for s in ["L", "R"]:
+		var l: Dictionary = logic.session.limbs[StringName(s + "H")]
+		var want := 1.0 if l.state in ["Attached", "Armed"] else 0.0
+		curl[s] = move_toward(curl[s], want, CURL_SPEED * delta)
+		if curl[s] <= 0.001:
+			continue
+		for name in ["forearm_" + s, "hand_" + s]:
+			if not frames.has(name) or not rig.rest_basis.has(name):
+				continue
+			var f: Transform3D = frames[name]
+			var dir: Vector3 = (f.basis * rig.rest_basis[name].inverse() * rig.rest_dir[name]).normalized()
+			frames[name] = Transform3D(rig._twist(f.basis, name, dir, PALM_REST, Vector3.FORWARD, curl[s]), f.origin)
+
+
+func _curl_fingers(frames: Dictionary, _delta: float) -> void:
 	for s in finger_rest:
 		var hand_key: String = "hand_" + s
 		if not frames.has(hand_key):
 			continue
-		var l: Dictionary = logic.session.limbs[StringName(s + "H")]
-		var want := 1.0 if l.state in ["Attached", "Armed"] else 0.0
-		curl[s] = move_toward(curl[s], want, CURL_SPEED * delta)
 		var fr: Dictionary = finger_rest[s]
 		var hand: Transform3D = frames[hand_key]
 		var dir: Vector3 = (hand.basis * fr.hand_axis).normalized()
-		var axis := dir.cross(Vector3.FORWARD)
+		var palm: Vector3 = (hand.basis * rig.rest_basis[hand_key].inverse() * PALM_REST).normalized()
+		var axis := dir.cross(palm)
 		if axis.length() > 0.05 and curl[s] > 0.001:
 			var q := Basis(axis.normalized(), deg_to_rad(CURL_HAND_DEG) * curl[s])
 			hand = Transform3D(q * hand.basis, hand.origin)
