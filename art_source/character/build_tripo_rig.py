@@ -1,81 +1,89 @@
-"""Tripo 기본 캐릭터 → 게임용 리깅 모델(docs/36, 2026-11-11).
-실행: blender -b --python art_source/character/build_tripo_rig.py   (여성: TRIPO_CHAR=female 앞에 붙임)
-입력: art_source/character/male|female/*_base.glb(Tripo v3.1, 약 146만 삼각형, T자, 키 1.0, 앞 +X)
-출력: game/art/characters/climber_tripo.glb / climber_tripo_female.glb(약 1만 2천 삼각형, 뼈 17 + 손가락 2 + 엉덩이 보조 2, 색 텍스처 1024)
+"""Tripo 캐릭터 → 게임용 리깅 모델. 2026-11-13 더미 몸 기준(docs/39)으로 고침.
+실행: TRIPO_CHAR=male|female blender -b --python art_source/character/build_tripo_rig.py
+입력: CFG의 Tripo 원본 glb(키 1.0으로 정규화된 T자, 앞 +X). 출력: CFG의 game/art/characters/*.glb
 
-1. 놓기: Z +90°(앞 +X → +Y, build_climber 규약), 키 1.99m, 발바닥 z = −0.835(골반 관절 = 원점). 실측은 docs/36 §1.1.
+게임 몸(더미, docs/39 — Tuning·ClimberPose와 같아야 한다. 골반 관절 = 원점, 위 +Z, 앞 +Y, m):
+  어깨 (±0.175, 0.49) · 위팔 0.35 · 팔꿈치→손 접점(손가락 뿌리) 0.38 · 손가락 0.07(hand 0.035 + finger 0.035)
+  고관절 (±0.095, 0) · 허벅지 0.41 · 정강이 0.40(발목 −0.81) · 발목→발끝 0.20(앞 0.19, 아래 0.09)
+  척추 0.16 · 가슴 0.37 · 목 0.49 · 머리 0.56 · 머리 꼭대기 0.81
+원본마다 정규화 높이로 잰 기준점(CFG landmarks: 팔 중심선, 발목 관절, 무릎, 손끝, 가랑이)으로 맞춘다:
+1. 놓기: Z +90°(앞 +X → +Y). 어깨~발목(1.30m)이 맞게 크기를 정하고, 어깨가 0.49에 오게 올린다.
 2. 줄이기: 같은 위치 정점 붙이기(UV 경계 틈 방지) → Decimate(접기) → TRIS 삼각형. UV 유지.
-3. 뼈대: RigPose.BONES 17개 + finger_L/R(손 아래). 판정 몸(Tuning)과 같은 길이:
-   위팔 0.20, 팔꿈치→손 접점(손가락 뿌리) 0.35, 손가락 0.07(hand 0.035 + finger 0.035), 허벅지 0.41, 정강이 0.375, 발 0.135.
-   T자 기준 자세(팔 수평). 팔 중심선은 모델 실측(y −0.03).
-4. 가중치: Blender 자동 가중치는 Tripo 메시에서 자주 실패하므로 부위·위치로 직접 준다(관절 경계는 선형으로 섞음).
-   팔은 어깨에서 거리로(어깨 → 팔꿈치 → 손바닥은 아래팔에 고정 → 손가락 뿌리 → 손가락 끝), 다리·몸통은 높이로,
-   머리카락·머리는 head, 초크백은 pelvis 고정. 정점당 뼈 2개 이하(가랑이 가운데만 4개 이하).
-   엉덩이(docs/37 4단계, 2026-11-12): 골반↔허벅지 사이는 보조 뼈 hiphelp_L/R(엉덩이 관절, 게임이 골반과 허벅지
-   회전의 중간으로 돌림)를 거쳐 pelvis → hiphelp → thigh로 잇는다. 두 뼈만 섞으면 다리를 90° 들 때 사이 정점이
-   안으로 접힌다. 가운데 선 가까운 가랑이(|x| < 0.07, z > −0.20)는 골반 쪽에 더 남겨 다리를 들어도 가랑이 꼭짓점이
-   가운데에 있게 한다(전에는 꼭짓점이 허벅지를 따라 옆으로 끌려가 Y자가 사라졌다).
-5. 재질: 색 텍스처만(2048 → 1024), 금속 0. ORM·노멀은 쓰지 않는다(게임은 툰 셰이더).
-6. 엉덩이·바지(docs/37 §7, 2026-11-12): Tripo 원본은 밑위가 길어 다리 관절이 엉덩이 아래에 있고,
-   텍스처에 구운 음영이 엉덩이 아래·가운데·가랑이에 진하게 몰려 엉덩이가 주머니 아래에서 시작하는 것처럼 보였다.
-   - 다리 관절 올리기: 다리 뼈(허벅지)는 판정 고관절(z 0)보다 HIP_RAISE 위(뒷주머니 가운데)에서 시작하고 그만큼 길다
-     (게임 LimbIK.HIP_RAISE와 같은 값). 다리가 엉덩이에서 돌아 갈라지는 점이 주머니 바로 아래에 온다(사용자 참고 그림).
-     골반↔허벅지 가중치 구간도 HIP_RAISE만큼 위로 옮긴다. 허리·바지 바깥 선은 그대로.
-   - lift_crotch: 원본 가랑이는 올린 다리 관절보다 17cm 아래라, 다리를 들면 가랑이 천이 늘어진 조각처럼 남는다.
-     다리 안쪽만 가랑이를 CROTCH_LIFT 올려 엉덩이 바로 아래에서 갈라지게 한다.
-   - delight_pants: 바지 영역(UV) 텍스처에서 큰 음영(흐린 밝기)을 바지 평균 쪽으로 펴고, 가는 진한 주름선도 조금 누그러뜨린다.
-     주머니·솔기 같은 무늬는 남는다. 게임은 툰 셰이더가 명암을 따로 주므로 구운 음영이 겹치면 지나치게 어둡다.
+3. 다리 맞추기: 고관절(0)~발목 사이 높이를 구간별로 옮겨 원본 무릎이 −0.41에 오게 한다(발목은 1에서 맞음).
+   가랑이 올리기(crotch_lift, 선택): 다리 안쪽만 가랑이 꼭짓점을 올린다.
+4. 팔 맞추기: 손끝이 0.975에 오게 |x| ≥ 0.14인 팔 부분을 길이 방향으로만 늘이거나 줄인다.
+5. 뼈대: RigPose.BONES 17개 + finger_L/R + 엉덩이 보조 hiphelp_L/R. 팔·다리 뼈의 앞뒤(y)는 메시에서 잰 중심선.
+6. 가중치: 부위·위치로 직접 준다(관절 경계는 선형으로 섞음). 팔은 어깨에서 거리로(손바닥은 아래팔), 다리·몸통은 높이로,
+   머리카락·머리는 head, 초크백은 pelvis. 골반 → 엉덩이 보조 → 허벅지로 잇고, 가랑이 가운데는 두 다리가 반씩 따른다.
+7. 재질: 색 텍스처만(1024), 금속 0. 윤곽선 굵기(정점 색 R): 엉덩이골·가랑이 가운데는 0(docs/37 §7).
+참고 그림은 그림자·주름 없이 단색 + 외곽선으로(구운 음영이 엉덩이 얼룩이 된다, docs/37 §7).
 """
 import bpy, math, os
 import numpy as np
 from mathutils import Vector
 
 REPO = os.path.expanduser("~/Projects/climb_game")
-# 캐릭터(TRIPO_CHAR): male(기본) / female(2026-11-12 추가). 값이 없는 항목은 남성 값.
 CHAR = os.environ.get("TRIPO_CHAR", "male")
+# landmarks: 정규화 높이(발바닥 0, 키 1)에서 잰 값. shoulder = 팔 중심선 높이, ankle = 발목 관절 높이, knee = 무릎 높이,
+# tip = 손끝 |x|, crotch = 가랑이 높이. chalk: 정규화 좌표(x 오른쪽, y 앞, z 위)로 초크백 정점 판별.
 CFG = {
-    # 남성 v2(2026-11-13, task a621f6bb): 바지·셔츠 그림자를 지운 참고 그림(art_source/character/male)으로 다시 만든 모델.
-    # 실측(정규화 높이): 팔 중심선 0.762, 발목 관절 0.03, 가랑이 0.405, 무릎 0.245, 손끝 ±0.409, 초크백 오른쪽 뒤 허리.
-    # ×1.9877(키 1.99m). 가랑이를 7cm 올려 엉덩이 바로 아래에서 갈라지게 한다(docs/37 §7).
-    "male": {"src": "art_source/character/male/climber_male_v2_base.glb", "out": "game/art/characters/climber_tripo.glb",
-             "mesh": "P_body_male", "tex": "climber_tripo_color",
-             "scale": 1.9877, "sole": -0.8446, "hip_raise": 0.10, "hip_y": 0.006,
-             "knee": (0.116, -0.011, -0.358), "ankle": (0.136, -0.01, -0.785), "arm_y": -0.027,
-             "arm_fit": (0.12, 0.813), "crotch_lift": 0.07, "crotch_apex": -0.04, "delight": False,
-             "chalk": lambda x, y, z: 0.06 < z < 0.26 and (x > 0.185 or (x > 0.12 and y < -0.12))},
-    # 여성: Tripo v3.1(task e606f7d8), 키 1(올림머리 포함). 실측(정규화 높이): 팔 중심선 0.743, 발목 관절 0.045,
-    # 가랑이 0.44, 엉덩이 가장 넓은 곳 0.475, 무릎 0.265, 손끝 ±0.434, 초크백 왼쪽 허리(x < −0.095, 0.50~0.60).
-    # 어깨(0.67)~발목(−0.785) 1.455m에 맞춰 ×2.0845(키 약 2.08m, 머리 위 올림머리 포함). 팔은 손끝이 0.80에 오게 줄인다.
-    "female": {"src": "art_source/character/female/climber_female_base.glb",
-               "out": "game/art/characters/climber_tripo_female.glb", "mesh": "P_body_female", "tex": "climber_female_color",
-               "scale": 2.0845, "sole": -0.879, "hip_raise": 0.11, "hip_y": 0.03,
-               "knee": (0.119, 0.017, -0.326), "ankle": (0.152, 0.015, -0.785), "arm_y": -0.021,
-               "arm_fit": (0.12, 0.905), "crotch_lift": 0.0, "delight": False,
-               "chalk": lambda x, y, z: 0.17 < z < 0.38 and (x < -0.195 or (x < -0.12 and y < -0.155))},
+    # 남성 v2(2026-11-13, task a621f6bb, art_source/character/male)
+    "male": {"src": "art_source/character/male/climber_male_v2_base.glb", "out": "game/art/characters/climber_male.glb",
+             "mesh": "P_body_male", "tex": "climber_male_color",
+             "landmarks": {"shoulder": 0.762, "ankle": 0.03, "knee": 0.245, "tip": 0.409, "crotch": 0.405},
+             "crotch_lift": 0.05,
+             "chalk": lambda x, y, z: 0.46 < z < 0.55 and (x > 0.093 or (x > 0.06 and y < -0.06))},
+    # 여성(2026-11-12, task e606f7d8, art_source/character/female). 초크백은 왼쪽 허리
+    "female": {"src": "art_source/character/female/climber_female_base.glb", "out": "game/art/characters/climber_female.glb",
+               "mesh": "P_body_female", "tex": "climber_female_color",
+               "landmarks": {"shoulder": 0.743, "ankle": 0.045, "knee": 0.265, "tip": 0.434, "crotch": 0.44},
+               "crotch_lift": 0.0,
+               "chalk": lambda x, y, z: 0.50 < z < 0.60 and (x < -0.094 or (x < -0.06 and y < -0.075))},
 }[CHAR]
+LM = CFG["landmarks"]
 SRC = os.path.join(REPO, CFG["src"])
 OUT = os.environ.get("TRIPO_OUT", os.path.join(REPO, CFG["out"]))
 TRIS = 12000
 TEX = 1024
 
-ARM_U, ARM_L, HAND_A, HAND_B = 0.20, 0.35, 0.035, 0.035
-LEG_U, LEG_L, FOOT = 0.41, 0.375, 0.135
-SH_X, SH_Z, ARM_Y = 0.18, 0.67, CFG.get("arm_y", -0.03)
-HIP_X = 0.10
-HIP_RAISE = CFG.get("hip_raise", 0.10)   # 화면 다리 관절을 판정 고관절보다 올리는 높이(게임은 뼈대에서 읽는다)
-SPINE, CHEST, NECK, HEAD, HEAD_TOP = 0.27, 0.54, 0.76, 0.84, 1.16
-SOLE = CFG.get("sole", -0.835)
-SCALE = CFG.get("scale", 1.99)
-CROTCH_X = 0.07   # 가랑이 가운데 영역 반폭(골반 쪽에 더 남김)
-PANTS_Z = (-0.72, 0.085)   # 바지 높이(신발 위 ~ 벨트 아래)
+# 게임 몸(더미, docs/39)
+ARM_U, ARM_L, HAND_A, HAND_B = 0.35, 0.38, 0.035, 0.035
+LEG_U, LEG_L = 0.41, 0.40
+SH_X, SH_Z = 0.175, 0.49
+HIP_X = 0.095
+HIP_RAISE = 0.0
+KNEE_Z, ANKLE_Z = -LEG_U, -(LEG_U + LEG_L)
+FOOT, TOE_DIR = 0.20, Vector((0, 0.19, -0.09))
+SPINE, CHEST, NECK, HEAD, HEAD_TOP = 0.16, 0.37, 0.49, 0.56, 0.81
+TIP = SH_X + ARM_U + ARM_L + HAND_A + HAND_B   # 0.975
+ARM_X0 = 0.14   # 이보다 바깥(|x|)만 팔 길이 맞추기
+
+SCALE = (SH_Z - ANKLE_Z) / (LM["shoulder"] - LM["ankle"])
+SOLE = SH_Z - SCALE * LM["shoulder"]
+
+
+def m_z(zn):
+    """정규화 높이 → 놓은 뒤 높이(m, 다리 맞추기 전)."""
+    return SOLE + SCALE * zn
+
+
+KNEE_SRC = m_z(LM["knee"])
+
+
+def leg_map(z):
+    """다리 맞추기: 고관절(0)~발목 사이에서 원본 무릎(KNEE_SRC)을 KNEE_Z로. 배열·스칼라 모두."""
+    return np.where((z < 0.0) & (z > ANKLE_Z), np.interp(z, [ANKLE_Z, KNEE_SRC, 0.0], [ANKLE_Z, KNEE_Z, 0.0]), z)
+
+
+CROTCH_X = 0.07   # 가랑이 가운데 영역 반폭
+PANTS_Z = (ANKLE_Z + 0.05, 0.12)   # 바지 높이(delight용)
 DELIGHT_SIGMA, DELIGHT_K, DELIGHT_DETAIL = 14, 0.6, 0.25
-CROTCH_SHARE = float(os.environ.get("CROTCH_SHARE", "0.04"))   # 가랑이 가운데를 두 다리가 나눠 따르는 반폭
-BLEND_BELOW = float(os.environ.get("BLEND_BELOW", "0.07"))   # 골반↔허벅지 잇는 구간이 다리 관절 아래로 내려가는 길이
-SHARE_BOTTOM = float(os.environ.get("SHARE_BOTTOM", "0.0"))     # 나눠 따르는 가장 낮은 높이(올린 가랑이 꼭짓점 근처)
-# 가랑이 올리기: 다리 안쪽(|x| < CROTCH_IN 전부, CROTCH_OUT까지 줄어듦)의 가랑이 꼭짓점(CROTCH_APEX)을 CROTCH_LIFT 올린다.
-# 위(CROTCH_TOP = 다리 관절)·아래(CROTCH_BOTTOM) 끝에서는 0. 바깥 엉덩이 선·허리는 그대로.
-CROTCH_LIFT = float(os.environ.get("CROTCH_LIFT", CFG.get("crotch_lift", 0.11)))
-CROTCH_APEX, CROTCH_TOP, CROTCH_BOTTOM, CROTCH_IN, CROTCH_OUT = CFG.get("crotch_apex", -0.07), 0.12, -0.36, 0.03, 0.12
+CROTCH_SHARE = 0.04   # 가랑이 가운데를 두 다리가 나눠 따르는 반폭
+BLEND_BELOW = 0.07    # 골반↔허벅지 잇는 구간이 다리 관절 아래로 내려가는 길이
+SHARE_BOTTOM = -0.12  # 나눠 따르는 가장 낮은 높이
+CROTCH_LIFT = float(CFG.get("crotch_lift", 0.0))
+CROTCH_APEX = float(leg_map(m_z(LM["crotch"])))
+CROTCH_TOP, CROTCH_BOTTOM, CROTCH_IN, CROTCH_OUT = 0.12, -0.36, 0.03, 0.12
 
 
 def place():
@@ -119,29 +127,52 @@ def decimate(ob):
 
 
 def is_chalk(x, y, z):
-    if "chalk" in CFG:
-        return CFG["chalk"](x, y, z)
-    return x > 0.04 and y < -0.11 and -0.14 < z < 0.10
+    """놓은 뒤 좌표(다리·팔 맞추기 전)를 정규화로 되돌려 CFG chalk로 판별."""
+    return CFG["chalk"](x / SCALE, y / SCALE, (z - SOLE) / SCALE)
+
+
+def fit_legs(ob):
+    n = len(ob.data.vertices)
+    co = np.empty(n * 3)
+    ob.data.vertices.foreach_get("co", co)
+    co = co.reshape(n, 3)
+    co[:, 2] = leg_map(co[:, 2])
+    ob.data.vertices.foreach_set("co", co.ravel())
+    ob.data.update()
+    print("LEGS: 무릎 %.3f → %.3f" % (KNEE_SRC, KNEE_Z))
 
 
 def fit_arms(ob):
-    """팔 길이 맞추기(여성): 손끝이 게임 손끝(0.80)에 오게 |x| ≥ x0인 팔 부분을 길이 방향으로만 줄인다.
-    팔 높이(0.58~0.76)에서 다 적용하고 위·아래 0.03에 걸쳐 줄여 몸통 옆선과 이어지게 한다."""
-    if "arm_fit" not in CFG:
-        return
-    x0, tip = CFG["arm_fit"]
-    k = (SH_X + ARM_U + ARM_L + HAND_A + HAND_B - x0) / (tip - x0)
+    """팔 길이 맞추기: 손끝(정규화 tip)이 게임 손끝(TIP)에 오게 |x| ≥ ARM_X0인 팔 부분을 길이 방향으로만 바꾼다.
+    팔 높이(어깨 −0.15 ~ +0.08)에서 다 적용하고 위·아래 0.04에 걸쳐 줄여 몸통 옆선·머리카락과 이어지게 한다."""
+    tip = LM["tip"] * SCALE
+    k = (TIP - ARM_X0) / (tip - ARM_X0)
     n = len(ob.data.vertices)
     co = np.empty(n * 3)
     ob.data.vertices.foreach_get("co", co)
     co = co.reshape(n, 3)
     ax, z = np.abs(co[:, 0]), co[:, 2]
-    band = np.clip((z - 0.55) / 0.03, 0, 1) * np.clip((0.79 - z) / 0.03, 0, 1)
-    nx = np.where(ax > x0, x0 + (ax - x0) * k, ax)
+    band = np.clip((z - (SH_Z - 0.19)) / 0.04, 0, 1) * np.clip(((SH_Z + 0.12) - z) / 0.04, 0, 1)
+    nx = np.where(ax > ARM_X0, ARM_X0 + (ax - ARM_X0) * k, ax)
     co[:, 0] = np.sign(co[:, 0]) * (ax + (nx - ax) * band)
     ob.data.vertices.foreach_set("co", co.ravel())
     ob.data.update()
-    print("ARMS: ×%.3f (손끝 %.3f → %.3f)" % (k, tip, x0 + (tip - x0) * k))
+    print("ARMS: ×%.3f (손끝 %.3f → %.3f)" % (k, tip, TIP))
+
+
+def centerline_y(ob):
+    """팔·다리 뼈 앞뒤 위치: 메시 중심선(위팔 가운데, 허벅지·무릎 높이)의 y 중앙값."""
+    n = len(ob.data.vertices)
+    co = np.empty(n * 3)
+    ob.data.vertices.foreach_get("co", co)
+    co = co.reshape(n, 3)
+    ax, z = np.abs(co[:, 0]), co[:, 2]
+    arm = co[(ax > SH_X + 0.1) & (ax < SH_X + ARM_U + 0.2) & (np.abs(z - SH_Z) < 0.06)]
+    leg = co[(ax > 0.03) & (ax < 0.2) & (z < -0.15) & (z > KNEE_Z - 0.1)]
+    ay = float((arm[:, 1].min() + arm[:, 1].max()) / 2) if len(arm) else 0.0
+    ly = float((leg[:, 1].min() + leg[:, 1].max()) / 2) if len(leg) else 0.0
+    print("CENTER: 팔 y %.3f, 다리 y %.3f" % (ay, ly))
+    return ay, ly
 
 
 ORIG = {}   # 정점 번호 → 고치기 전 위치(초크백·바지 판별은 원래 모양으로)
@@ -235,28 +266,20 @@ def delight_pants(ob, img):
     print("DELIGHT: 바지 %d px, 기준 밝기 %.3f, 이득 %.2f~%.2f" % (int(m.sum()), ref, float(gain[m > 0.5].min()), float(gain[m > 0.5].max())))
 
 
-def joints():
+def joints(arm_y, leg_y):
     J = {"pelvis": Vector((0, 0, 0)), "spine": Vector((0, 0, SPINE)), "chest": Vector((0, 0, CHEST)),
          "neck": Vector((0, 0, NECK)), "head": Vector((0, 0, HEAD)), "head_top": Vector((0, 0, HEAD_TOP))}
     for s, sx in (("L", -1), ("R", 1)):
-        sh = Vector((sx * SH_X, ARM_Y, SH_Z))
+        sh = Vector((sx * SH_X, arm_y, SH_Z))
         J["shoulder_" + s] = sh
         J["elbow_" + s] = sh + Vector((sx * ARM_U, 0, 0))
         J["wrist_" + s] = J["elbow_" + s] + Vector((sx * ARM_L, 0, 0))   # 게임의 손 접점 = 손가락 뿌리
         J["finger_" + s] = J["wrist_" + s] + Vector((sx * HAND_A, 0, 0))
         J["hand_" + s] = J["finger_" + s] + Vector((sx * HAND_B, 0, 0))
-        hip = Vector((sx * HIP_X, CFG.get("hip_y", -0.02), HIP_RAISE))
-        J["hip_" + s] = hip
-        if "knee" in CFG:   # 실측 무릎·발목(허벅지+정강이 = 판정 다리 0.785 + HIP_RAISE)
-            kx, ky, kz = CFG["knee"]
-            fx, fy, fz = CFG["ankle"]
-            J["knee_" + s] = Vector((sx * kx, ky, kz))
-            J["ankle_" + s] = Vector((sx * fx, fy, fz))
-        else:
-            leg = Vector((sx * 0.03, 0, -0.785 - HIP_RAISE)).normalized()
-            J["knee_" + s] = hip + leg * (LEG_U + HIP_RAISE)
-            J["ankle_" + s] = J["knee_" + s] + leg * LEG_L
-        J["toe_" + s] = J["ankle_" + s] + Vector((0, 0.125, -0.05)).normalized() * FOOT
+        J["hip_" + s] = Vector((sx * HIP_X, leg_y, HIP_RAISE))
+        J["knee_" + s] = Vector((sx * HIP_X, leg_y, KNEE_Z))
+        J["ankle_" + s] = Vector((sx * HIP_X, leg_y, ANKLE_Z))
+        J["toe_" + s] = J["ankle_" + s] + TOE_DIR.normalized() * FOOT
     return J
 
 
@@ -315,15 +338,15 @@ def weights_for(p):
     s = "L" if x < 0 else "R"
     w = {}
     # 머리·머리카락
-    if z > 0.79 and ax < 0.26:
+    if z > HEAD - 0.01 and ax < 0.26:
         return {"head": 1.0}
-    if z > 0.70 and ax < 0.11:
-        blend(w, "neck", "head", ramp(z, 0.74, 0.80))
+    if z > NECK - 0.04 and ax < 0.07:
+        blend(w, "neck", "head", ramp(z, HEAD - 0.03, HEAD + 0.02))
         return w
-    # 팔(어깨부터): 어깨 0.15~0.24 가슴↔위팔, 팔꿈치 ±0.04, 손바닥은 아래팔, 손가락 뿌리·끝
-    if ax > 0.15 and z > 0.55:
-        if ax < 0.24:
-            blend(w, "chest", "upperarm_" + s, ramp(ax, 0.15, 0.24))
+    # 팔(어깨부터): 어깨 0.13~0.22 가슴↔위팔, 팔꿈치 ±0.04, 손바닥은 아래팔, 손가락 뿌리·끝
+    if ax > 0.13 and z > SH_Z - 0.15:
+        if ax < 0.22:
+            blend(w, "chest", "upperarm_" + s, ramp(ax, 0.13, 0.22))
         elif ax < SH_X + ARM_U + 0.04:
             blend(w, "upperarm_" + s, "forearm_" + s, ramp(ax, SH_X + ARM_U - 0.04, SH_X + ARM_U + 0.04))
         elif ax < SH_X + ARM_U + ARM_L:
@@ -337,9 +360,9 @@ def weights_for(p):
     # 가랑이 가운데(|x| < CROTCH_SHARE, 관절 아래)는 왼·오른 다리를 x에 따라 나눠 따른다(가운데 = 반반):
     # 한쪽 다리를 들면 가랑이 천이 절반만큼 같이 올라가 늘어진 조각이 남지 않는다.
     if z < 0.04 + HIP_RAISE and (ax > 0.005 or z < HIP_RAISE - 0.02):
-        knee = CFG["knee"][2] if "knee" in CFG else -LEG_U
-        ankle = CFG["ankle"][2] if "ankle" in CFG else -(LEG_U + LEG_L)
-        if z > -0.22:
+        knee = KNEE_Z
+        ankle = ANKLE_Z
+        if z > KNEE_Z / 2:
             t = ramp(HIP_RAISE - z, -0.04, BLEND_BELOW)
             share = CROTCH_SHARE > 0.0 and SHARE_BOTTOM < z < HIP_RAISE
             fr = 0.5 + 0.5 * max(-1.0, min(1.0, x / CROTCH_SHARE)) if share else (1.0 if x > 0 else 0.0)
@@ -362,9 +385,9 @@ def weights_for(p):
         return w
     # 몸통: 골반 → 척추 → 가슴(높이)
     if z < (SPINE + CHEST) / 2:
-        blend(w, "pelvis", "spine", ramp(z, 0.08, 0.20))
+        blend(w, "pelvis", "spine", ramp(z, SPINE - 0.08, SPINE + 0.04))
     else:
-        blend(w, "spine", "chest", ramp(z, 0.36, 0.48))
+        blend(w, "spine", "chest", ramp(z, CHEST - 0.09, CHEST + 0.03))
     return w
 
 
@@ -418,7 +441,7 @@ def material(ob):
                     img = n.image
                     break
     img.scale(TEX, TEX)
-    if CFG.get("delight", True):
+    if CFG.get("delight", False):
         delight_pants(ob, img)
     img.name = CFG["tex"]
     mat = bpy.data.materials.new("M_body_main")
@@ -439,6 +462,7 @@ def main():
     weld(ob)
     decimate(ob)
     remember(ob)
+    fit_legs(ob)
     lift_crotch(ob)
     fit_arms(ob)
     material(ob)
@@ -447,7 +471,7 @@ def main():
     for p in ob.data.polygons:
         p.use_smooth = True
     outline_mask(ob)
-    J = joints()
+    J = joints(*centerline_y(ob))
     rig = armature(J)
     skin(ob, rig)
     bpy.ops.object.select_all(action="DESELECT")
@@ -461,7 +485,7 @@ def main():
     if os.environ.get("TRIPO_BLEND"):
         bpy.ops.wm.save_as_mainfile(filepath=os.environ["TRIPO_BLEND"])
     tris = sum(len(p.vertices) - 2 for p in ob.data.polygons)
-    print("TRIPO_RIG: 삼각형 %d, 뼈 %d, 출력 %s (%.0fKB)" % (tris, len(rig.data.bones), OUT, os.path.getsize(OUT) / 1024))
+    print("TRIPO_RIG: ×%.4f 키 %.3fm, 삼각형 %d, 뼈 %d, 출력 %s (%.0fKB)" % (SCALE, SCALE, tris, len(rig.data.bones), OUT, os.path.getsize(OUT) / 1024))
 
 
 main()
