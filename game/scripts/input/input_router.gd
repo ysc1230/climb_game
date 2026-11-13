@@ -17,13 +17,6 @@ var _gesture_seq := 0
 var body_area := Rect2()
 const BODY := &"BODY"
 const SPEED_WINDOW := 0.1  # 속도를 재는 구간(초)
-## D패드(방향 스틱) 방식(2026-11-13 사용자: "손발 버튼을 D패드처럼, 조작하는 방향에 맞춰 움직이게"):
-## 패드 가운데에서 손가락이 있는 방향으로, 누르고 있는 동안 계속 움직인다(tick). 가운데 STICK_DEAD 안이면 멈춤
-## (붙은 손발은 준비 상태). 가운데에서 멀수록 빠르고, 테두리에서 STICK_SPEED m/s. 끄면 예전 끌기 방식(시험용).
-var stick_mode := false
-const STICK_DEAD := 0.22    # 반지름에 대한 비율
-const STICK_SPEED := 1.1    # m/s(감도 1, 테두리)
-const STICK_CURVE := 1.5    # 세기 곡선(작게 기울이면 미세 조정)
 
 
 func set_pad(limb: StringName, center: Vector2, diameter_px: float) -> void:
@@ -64,48 +57,16 @@ func touch_down(index: int, pos: Vector2, attached_now: bool) -> Array:
 	if limb == &"" or _limb_bound(limb):
 		return []
 	_gesture_seq += 1
-	_bindings[index] = {"limb": limb, "origin": pos, "last": pos, "dragging": not attached_now, "moves": [], "pad_px": pads[limb].radius * 2.0, "gesture": _gesture_seq, "stick": stick_mode}
-	if stick_mode and attached_now and _stick_vec(_bindings[index]).length() > 0.0:
-		_bindings[index].dragging = true  # 가운데가 아닌 곳을 누르면 바로 떼고 그 방향으로
-		return [{"type": "detach", "limb": limb}]
+	_bindings[index] = {"limb": limb, "origin": pos, "last": pos, "dragging": not attached_now, "moves": [], "pad_px": pads[limb].radius * 2.0, "gesture": _gesture_seq}
 	return [{"type": "arm" if attached_now else "detach", "limb": limb}]
 
 
-## 스틱 기울기(−1~1, 화면 좌표). 가운데 데드존 안이면 ZERO.
-func _stick_vec(b: Dictionary) -> Vector2:
-	var p: Dictionary = pads[b.limb]
-	var off: Vector2 = b.last - p.center
-	var dead: float = p.radius * STICK_DEAD
-	if off.length() <= dead:
-		return Vector2.ZERO
-	var mag := clampf((off.length() - dead) / (p.radius - dead), 0.0, 1.0)
-	return off.normalized() * pow(mag, STICK_CURVE)
-
-
-## 화면에 그릴 스틱 손잡이 위치(패드 가운데 기준 px, 반지름 안). 그 팔다리를 누르고 있지 않으면 null.
-func stick_knob(limb: StringName):
+## 패드 그림의 손잡이 위치(패드 가운데 기준 px, 반지름 안): 그 패드를 누르고 있는 손가락. 없으면 null. 표시만.
+func knob(limb: StringName):
 	for b in _bindings.values():
-		if b.limb == limb and b.get("stick", false):
+		if b.limb == limb:
 			return (b.last - pads[limb].center).limit_length(pads[limb].radius)
 	return null
-
-
-## 매 틱: 스틱으로 누르고 있는 손발을 기울인 방향으로 움직인다. 반환: move 명령들.
-func tick(dt: float, time_s: float = -1.0) -> Array:
-	var out := []
-	var now := _now(time_s)
-	for b in _bindings.values():
-		if not b.get("stick", false) or not b.dragging:
-			continue
-		var v := _stick_vec(b)
-		if v == Vector2.ZERO:
-			continue
-		var world := Vector2(v.x, -v.y) * STICK_SPEED * sensitivity * dt
-		b.moves.append({"t": now, "len": world.length()})
-		while b.moves.size() > 0 and b.moves[0].t < now - 1.0:
-			b.moves.pop_front()
-		out.append({"type": "move", "limb": b.limb, "delta": world})
-	return out
 
 
 ## time_s: 이벤트 시각(초). 생략하면 엔진 시계를 쓴다(시험은 직접 넣는다).
@@ -114,12 +75,6 @@ func touch_drag(index: int, pos: Vector2, time_s: float = -1.0) -> Array:
 		return []
 	var b: Dictionary = _bindings[index]
 	var out := []
-	if b.get("stick", false):  # 스틱: 위치만 기억하고 움직임은 tick이 만든다. 가운데를 벗어나면 뗀다.
-		b.last = pos
-		if not b.dragging and _stick_vec(b) != Vector2.ZERO:
-			b.dragging = true
-			out.append({"type": "detach", "limb": b.limb})
-		return out
 	var screen_delta := Vector2.ZERO
 	if not b.dragging:
 		var from_origin: Vector2 = pos - b.origin
