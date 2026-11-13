@@ -190,11 +190,12 @@ func test_courses_json_content() -> void:
 # --- ContentIndex ---
 
 func test_index_real_data() -> void:
-	# 2026-11-11: 남은 콘텐츠는 G_V3_02 하나(B안 몸에 맞춰 다시 배치).
+	# 2026-11-11: G_V3_02(B안 몸에 맞춰 다시 배치). 2026-11-14: G_V5_01(더미 몸, 크로스·하이스텝·매치).
 	var idx := ContentIndex.load_all()
-	runner.check(idx.grades() == (["V3"] as Array[String]), "등급 %s" % [idx.grades()])
+	runner.check(idx.grades() == (["V3", "V5"] as Array[String]), "등급 %s" % [idx.grades()])
 	var ids_g := idx.general("V3").map(func(r): return r.route_id)
 	runner.check(ids_g == ["G_V3_02"], "V3 문제 %s" % [ids_g])
+	runner.check(idx.general("V5").map(func(r): return r.route_id) == ["G_V5_01"], "V5 문제")
 	runner.check(idx.route("G_V3_02") != null and idx.route("NOPE") == null, "route 조회")
 	runner.check(idx.general("V9").is_empty(), "없는 등급 빈 배열")
 	runner.check(idx.courses().is_empty() and idx.course("C_NOPE").is_empty(), "과정 없음")
