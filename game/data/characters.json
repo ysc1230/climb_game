@@ -1,11 +1,19 @@
 {
- "model": "res://art/characters/climber_dummy.glb",
- "note": "2026-11-13 더미 1종(docs/39, art_source/character/dummy/build_dummy.py). 남녀 Tripo 모델(B안 몸)은 게임에서 뺐다(원본은 art_source/character/male·female). 파츠·얼굴은 이후 단계.",
+ "model": "res://art/characters/climber_smooth.glb",
+ "note": "2026-11-13: 남성(매끈한 모델, Tripo P1 1f0174d2, art_source/character/smooth, build_tripo_rig.py TRIPO_CHAR=smooth)을 기본으로, 더미(docs/39)는 시험용으로 남김. 몸 판정은 더미 몸.",
  "bodies": [
+  {
+   "id": "male",
+   "name_ko": "남성",
+   "mesh": "P_body_smooth",
+   "model": "res://art/characters/climber_smooth.glb",
+   "defaults": {}
+  },
   {
    "id": "dummy",
    "name_ko": "더미",
    "mesh": "P_body_dummy",
+   "model": "res://art/characters/climber_dummy.glb",
    "defaults": {}
   }
  ],

@@ -115,3 +115,15 @@ v0.1 (2026-11-13) — 사용자 지시: "무조건 이 더미 기준으로 모�
 | 옆에서 | 뒤에서(게임 시점) |
 |---|---|
 | ![](images/grip_curl_side.png) | ![](images/grip_curl_back.png) |
+
+## 7. 남성 캐릭터 (0.9.32-preview)
+
+사용자 모델 `climber_smooth_base.glb`(main 15f44d9)를 더미 몸에 맞춰 게임 기본 캐릭터로 넣었다(`art_source/character/smooth/README.md`). 더미는 시험용으로 홈 [캐릭터]에서 고를 수 있다.
+- 팔: 원본 팔이 짧아(팔 벌린 길이 ÷ 키 약 0.82) 손목까지만 늘렸다. 처음에 손까지 같이 1.41배 늘려 손가락이 길고, 손가락 뿌리가 손 뼈보다 4cm 안쪽이라 손가락 절반이 아래팔에 붙어 접히지 않았다. 손바닥은 원래 크기, 손가락은 늘린 길이의 절반(5.8cm, 사용자 요청), 손가락 뿌리 = 손 접점으로 고쳐 잡으면 말려 쥔다.
+- 초크백: 앞뒤 두 겹으로 생성된 것 중 뒤쪽만 남겼다.
+
+| 위로 뻗기 | 하이스텝 | 옆으로 다리 | 잡은 손(뒤) | 잡은 손(옆) |
+|---|---|---|---|---|
+| ![](images/male_smooth_reach.png) | ![](images/male_smooth_high.png) | ![](images/male_smooth_side.png) | ![](images/male_grip_back.png) | ![](images/male_grip_side.png) |
+
+남은 것: 하이스텝·옆 뻗기에서 허리띠 아래가 다리에 끌리는 변형(가중치), 기기 확인.

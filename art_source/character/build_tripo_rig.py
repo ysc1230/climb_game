@@ -39,6 +39,18 @@ CFG = {
                "landmarks": {"shoulder": 0.743, "ankle": 0.045, "knee": 0.265, "tip": 0.434, "crotch": 0.44},
                "crotch_lift": 0.0,
                "chalk": lambda x, y, z: 0.50 < z < 0.60 and (x < -0.094 or (x < -0.06 and y < -0.075))},
+    # 매끈한 남성(2026-11-13, main 15f44d9, Tripo P1 task 1f0174d2): game/art/characters/climber_smooth_base.glb.
+    # 초크백은 따로 떨어진 덩어리(앞뒤 주머니 두 겹으로 생성됨) → 뒤쪽(y < −0.02)만 남긴다.
+    "smooth": {"src": "art_source/character/smooth/climber_smooth_base.glb", "out": "game/art/characters/climber_smooth.glb",
+               "mesh": "P_body_smooth", "tex": "climber_smooth_color",
+               "landmarks": {"shoulder": 0.775, "ankle": 0.065, "knee": 0.322, "tip": 0.399, "crotch": 0.46,
+                             "wrist": 0.300, "knuckle": 0.355},
+               # 손(2026-11-13 사용자: "손가락이 왜 이렇게 길어, 절반 길이로"): 팔만 손목까지 늘리고 손바닥은 원래 크기,
+               # 손가락은 늘린 길이(약 0.116)의 절반 0.058.
+               "finger_len": 0.058,
+               "crotch_lift": 0.0,
+               "chalk_box": ((0.04, 0.11), (-0.11, 0.06), (0.48, 0.60)),
+               "chalk_keep": lambda x, y, z: y < -0.02},
 }[CHAR]
 LM = CFG["landmarks"]
 SRC = os.path.join(REPO, CFG["src"])
@@ -47,7 +59,8 @@ TRIS = 12000
 TEX = 1024
 
 # 게임 몸(더미, docs/39)
-ARM_U, ARM_L, HAND_A, HAND_B = 0.35, 0.38, 0.035, 0.035
+ARM_U, ARM_L = 0.35, 0.38
+HAND_A = HAND_B = CFG.get("finger_len", 0.07) / 2   # 손가락 뿌리 → 손가락 뼈 → 손끝
 LEG_U, LEG_L = 0.41, 0.40
 SH_X, SH_Z = 0.175, 0.49
 HIP_X = 0.095
@@ -127,8 +140,84 @@ def decimate(ob):
 
 
 def is_chalk(x, y, z):
-    """놓은 뒤 좌표(다리·팔 맞추기 전)를 정규화로 되돌려 CFG chalk로 판별."""
+    """놓은 뒤 좌표(다리·팔 맞추기 전)를 정규화로 되돌려 CFG chalk로 판별. chalk_box를 쓰는 모델은 CHALK 그룹으로(skin)."""
+    if "chalk" not in CFG:
+        return False
     return CFG["chalk"](x / SCALE, y / SCALE, (z - SOLE) / SCALE)
+
+
+def split_chalk(ob):
+    """초크백이 몸과 떨어진 덩어리인 모델(chalk_box): 상자 안의 작은 연결 성분을 찾아 chalk_keep 밖은 지우고
+    정점 그룹 CHALK로 표시한다(skin이 pelvis에 고정). 몸 덩어리는 건드리지 않는다."""
+    if "chalk_box" not in CFG:
+        return
+    import bmesh
+    (x0, x1), (y0, y1), (z0, z1) = CFG["chalk_box"]
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    bm.verts.ensure_lookup_table()
+    norm = lambda co: (co.x / SCALE, co.y / SCALE, (co.z - SOLE) / SCALE)
+    seen, chalk = set(), []
+    for v in bm.verts:
+        if v.index in seen:
+            continue
+        comp, st = [], [v]
+        seen.add(v.index)
+        while st:
+            a = st.pop()
+            comp.append(a)
+            for e in a.link_edges:
+                b = e.other_vert(a)
+                if b.index not in seen:
+                    seen.add(b.index)
+                    st.append(b)
+        if len(comp) < 2000 and all(x0 <= n[0] <= x1 and y0 <= n[1] <= y1 and z0 <= n[2] <= z1 for n in map(lambda q: norm(q.co), comp)):
+            chalk.extend(comp)
+    drop = [v for v in chalk if not CFG["chalk_keep"](*norm(v.co))]
+    keep_idx = {v.index for v in chalk if v not in drop}
+    bmesh.ops.delete(bm, geom=drop, context="VERTS")
+    bm.verts.ensure_lookup_table()
+    # 지운 뒤 번호가 바뀌므로 좌표로 다시 찾는다
+    tag = bm.verts.layers.int.new("chalk_tag")
+    for v in bm.verts:
+        n = norm(v.co)
+        if x0 <= n[0] <= x1 and y0 <= n[1] <= y1 and z0 <= n[2] <= z1 and CFG["chalk_keep"](*n):
+            v[tag] = 1
+    bm.to_mesh(ob.data)
+    bm.free()
+    ob.data.update()
+    print("CHALK: 초크백 정점 %d개 중 %d개 지움" % (len(chalk), len(drop)))
+
+
+def chalk_group(ob):
+    """split_chalk가 남긴 표시(chalk_tag)로 CHALK 정점 그룹을 만든다(줄인 뒤 호출). 표시는 몸 덩어리와 이어지지 않은 정점만."""
+    if "chalk_box" not in CFG:
+        return set()
+    import bmesh
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    bm.verts.ensure_lookup_table()
+    tag = bm.verts.layers.int.get("chalk_tag")
+    # 연결 성분으로: 표시된 정점이 과반인 작은 성분 전체
+    seen, out = set(), set()
+    for v in bm.verts:
+        if v.index in seen:
+            continue
+        comp, st = [], [v]
+        seen.add(v.index)
+        while st:
+            a = st.pop()
+            comp.append(a)
+            for e in a.link_edges:
+                b = e.other_vert(a)
+                if b.index not in seen:
+                    seen.add(b.index)
+                    st.append(b)
+        if tag is not None and len(comp) < 2000 and sum(q[tag] for q in comp) * 2 > len(comp):
+            out.update(q.index for q in comp)
+    bm.free()
+    print("CHALK: 골반 고정 정점 %d개" % len(out))
+    return out
 
 
 def fit_legs(ob):
@@ -143,21 +232,30 @@ def fit_legs(ob):
 
 
 def fit_arms(ob):
-    """팔 길이 맞추기: 손끝(정규화 tip)이 게임 손끝(TIP)에 오게 |x| ≥ ARM_X0인 팔 부분을 길이 방향으로만 바꾼다.
-    팔 높이(어깨 −0.15 ~ +0.08)에서 다 적용하고 위·아래 0.04에 걸쳐 줄여 몸통 옆선·머리카락과 이어지게 한다."""
+    """팔 길이 맞추기. 손목·손가락 뿌리를 잰 모델(landmarks wrist·knuckle): 팔(ARM_X0~손목)만 늘리고, 손바닥은 원래 크기로
+    손가락 뿌리가 게임 손 접점(SH_X+ARM_U+ARM_L)에 오게, 손가락은 손끝이 TIP에 오게 줄이거나 늘린다(|x| 구간별 선형).
+    그 밖의 모델: 손끝이 TIP에 오게 |x| ≥ ARM_X0 전체를 같은 배율로. 팔 높이(어깨 −0.15 ~ +0.08)에서 다 적용하고
+    위·아래 0.04에 걸쳐 줄여 몸통 옆선·머리카락과 이어지게 한다."""
     tip = LM["tip"] * SCALE
-    k = (TIP - ARM_X0) / (tip - ARM_X0)
+    contact = SH_X + ARM_U + ARM_L
+    if "wrist" in LM:
+        wr, kn = LM["wrist"] * SCALE, LM["knuckle"] * SCALE
+        w_new = contact - (kn - wr)
+        src, dst = [ARM_X0, wr, kn, tip], [ARM_X0, w_new, contact, TIP]
+    else:
+        src, dst = [ARM_X0, tip], [ARM_X0, TIP]
     n = len(ob.data.vertices)
     co = np.empty(n * 3)
     ob.data.vertices.foreach_get("co", co)
     co = co.reshape(n, 3)
     ax, z = np.abs(co[:, 0]), co[:, 2]
     band = np.clip((z - (SH_Z - 0.19)) / 0.04, 0, 1) * np.clip(((SH_Z + 0.12) - z) / 0.04, 0, 1)
-    nx = np.where(ax > ARM_X0, ARM_X0 + (ax - ARM_X0) * k, ax)
+    k_end = (dst[-1] - dst[-2]) / (src[-1] - src[-2])
+    nx = np.where(ax > ARM_X0, np.where(ax > tip, dst[-1] + (ax - tip) * k_end, np.interp(ax, src, dst)), ax)
     co[:, 0] = np.sign(co[:, 0]) * (ax + (nx - ax) * band)
     ob.data.vertices.foreach_set("co", co.ravel())
     ob.data.update()
-    print("ARMS: ×%.3f (손끝 %.3f → %.3f)" % (k, tip, TIP))
+    print("ARMS: |x| %s → %s" % (["%.3f" % v for v in src], ["%.3f" % v for v in dst]))
 
 
 def centerline_y(ob):
@@ -391,6 +489,9 @@ def weights_for(p):
     return w
 
 
+CHALK_IDX = set()
+
+
 def skin(ob, rig):
     ob.parent = rig
     mod = ob.modifiers.new("Armature", "ARMATURE")
@@ -399,7 +500,7 @@ def skin(ob, rig):
     for b in rig.data.bones:
         groups[b.name] = ob.vertex_groups.new(name=b.name)
     for v in ob.data.vertices:
-        w = {"pelvis": 1.0} if is_chalk(*orig(v)) else weights_for(v.co)   # 초크백 판별은 원래 모양으로
+        w = {"pelvis": 1.0} if (v.index in CHALK_IDX or is_chalk(*orig(v))) else weights_for(v.co)   # 초크백 판별은 원래 모양으로
         tot = sum(w.values())
         for name, val in w.items():
             if val / tot > 0.001:
@@ -460,7 +561,9 @@ def material(ob):
 def main():
     ob = place()
     weld(ob)
+    split_chalk(ob)
     decimate(ob)
+    CHALK_IDX.update(chalk_group(ob))
     remember(ob)
     fit_legs(ob)
     lift_crotch(ob)
