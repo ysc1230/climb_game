@@ -1,0 +1,67 @@
+{
+  "concurrency": 2,
+  "defaults": {
+    "out": "climb_game/temp/characters/wardrobe_v1",
+    "params": {
+      "face_limit": 6000,
+      "texture": true,
+      "pbr": false
+    }
+  },
+  "jobs": [
+    {
+      "name": "top_mint_tee",
+      "input": "Mint green crewneck short sleeve climbing T-shirt, narrow pale cream sleeve hems. Sleeves extend sideways horizontally in T-pose, torso natural slim fit and hip length, open neck sleeve and bottom hems. Standalone wearable garment for a slim adult female cartoon climber. No person, no mannequin, no skin or body parts, no hanger. Smooth wrinkle-free matte fabric, simple clean geometry, no logos, no floor. Symmetrical neutral T-pose fit, front facing.",
+      "params": {
+        "face_limit": 6000,
+        "texture": true,
+        "pbr": false
+      }
+    },
+    {
+      "name": "top_coral_long",
+      "input": "Muted coral red long sleeve climbing athletic shirt, small charcoal collar and cuffs. Both long sleeves straight sideways horizontal T-pose, slim natural torso hip length, open neck cuffs and bottom hem. Standalone wearable garment for a slim adult female cartoon climber. No person, no mannequin, no skin or body parts, no hanger. Smooth wrinkle-free matte fabric, simple clean geometry, no logos, no floor. Symmetrical neutral T-pose fit, front facing.",
+      "params": {
+        "face_limit": 6000,
+        "texture": true,
+        "pbr": false
+      }
+    },
+    {
+      "name": "pants_charcoal",
+      "input": "Charcoal gray full length climbing trousers with subtle muted teal knee panels. Both straight slim legs slightly apart, continuous rounded pelvis, no deep crotch groove. Open waist and ankle hems, no belt no shoes. Standalone wearable garment for a slim adult female cartoon climber. No person, no mannequin, no skin or body parts, no hanger. Smooth wrinkle-free matte fabric, simple clean geometry, no logos, no floor. Symmetrical neutral T-pose fit, front facing.",
+      "params": {
+        "face_limit": 6000,
+        "texture": true,
+        "pbr": false
+      }
+    },
+    {
+      "name": "pants_olive_crop",
+      "input": "Muted olive green cropped climbing trousers ending mid calf, plain subtle cream side seam. Both straight slim legs slightly apart, continuous rounded pelvis no deep crotch groove. Open waist and leg hems, no belt no shoes. Standalone wearable garment for a slim adult female cartoon climber. No person, no mannequin, no skin or body parts, no hanger. Smooth wrinkle-free matte fabric, simple clean geometry, no logos, no floor. Symmetrical neutral T-pose fit, front facing.",
+      "params": {
+        "face_limit": 6000,
+        "texture": true,
+        "pbr": false
+      }
+    },
+    {
+      "name": "shoes_gray_pair",
+      "input": "One matching LEFT AND RIGHT PAIR of low-profile climbing shoes side by side, gray upper, two muted coral velcro straps per shoe, charcoal thin rubber sole and rubber toe cap, ankle openings empty. Stylized matte cartoon game equipment, anatomically fitted curved foot shape, no feet legs body or mannequin, no laces, no thick sneaker soles, no floor or text.",
+      "params": {
+        "face_limit": 6000,
+        "texture": true,
+        "pbr": false
+      }
+    },
+    {
+      "name": "shoes_teal_pair",
+      "input": "One matching LEFT AND RIGHT PAIR of low-profile climbing shoes side by side, muted teal upper, two pale cream velcro straps per shoe, charcoal thin rubber sole and rubber toe cap, ankle openings empty. Stylized matte cartoon game equipment, anatomically fitted curved foot shape, no feet legs body or mannequin, no laces, no thick sneaker soles, no floor or text.",
+      "params": {
+        "face_limit": 6000,
+        "texture": true,
+        "pbr": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "tasks": [
+    {
+      "name": "top_mint_tee",
+      "type": "text_to_model",
+      "task_id": "81628861-666d-456f-9fc9-aeb8aaa7b842",
+      "credits_consumed": 40
+    },
+    {
+      "name": "top_coral_long",
+      "type": "text_to_model",
+      "task_id": "0b5a3f33-0aec-47f7-a289-f11789e3e909",
+      "credits_consumed": 40
+    },
+    {
+      "name": "pants_charcoal",
+      "type": "text_to_model",
+      "task_id": "154da6de-ba3c-4d8c-b320-66241f7026f6",
+      "credits_consumed": 40
+    },
+    {
+      "name": "pants_olive_crop",
+      "type": "text_to_model",
+      "task_id": "ab8506f6-b5bb-4521-ba50-d56d77639d78",
+      "credits_consumed": 40
+    },
+    {
+      "name": "shoes_gray_pair",
+      "type": "text_to_model",
+      "task_id": "462f8752-0759-4e9a-a98b-72bd3898866e",
+      "credits_consumed": 40
+    },
+    {
+      "name": "shoes_teal_pair",
+      "type": "text_to_model",
+      "task_id": "30c5164c-d6e4-4cb4-b07f-0ae6915a5159",
+      "credits_consumed": 40
+    }
+  ],
+  "total": 240,
+  "balance": 390,
+  "rejected_initial_pants_inputs": {
+    "charged": 0
+  }
+}
