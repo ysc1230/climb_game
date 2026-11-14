@@ -190,16 +190,23 @@ func test_courses_json_content() -> void:
 # --- ContentIndex ---
 
 func test_index_real_data() -> void:
-	# 2026-11-11: G_V3_02(B안 몸에 맞춰 다시 배치). 2026-11-14: G_V5_01(더미 몸, 크로스·하이스텝·매치).
+	# 2026-11-11: G_V3_02(B안 몸에 맞춰 다시 배치). 2026-11-14: G_V3_03(더미 몸, 하이스텝. 처음 G_V5_01이었으나 체감으로 V3, docs/41).
 	var idx := ContentIndex.load_all()
-	runner.check(idx.grades() == (["V3", "V5"] as Array[String]), "등급 %s" % [idx.grades()])
+	runner.check(idx.grades() == (["V3"] as Array[String]), "등급 %s" % [idx.grades()])
 	var ids_g := idx.general("V3").map(func(r): return r.route_id)
-	runner.check(ids_g == ["G_V3_02"], "V3 문제 %s" % [ids_g])
-	runner.check(idx.general("V5").map(func(r): return r.route_id) == ["G_V5_01"], "V5 문제")
+	runner.check(ids_g == ["G_V3_02", "G_V3_03"], "V3 문제 %s" % [ids_g])
 	runner.check(idx.route("G_V3_02") != null and idx.route("NOPE") == null, "route 조회")
 	runner.check(idx.general("V9").is_empty(), "없는 등급 빈 배열")
 	runner.check(idx.courses().is_empty() and idx.course("C_NOPE").is_empty(), "과정 없음")
 	runner.check(idx.errors.is_empty(), "색인 오류 없음 %s" % [idx.errors])
+
+
+## 배치 수치(docs/41 §5 도구 A): 정상 제외, 손홀드도 발 디딜 곳으로 센다.
+func test_placement_metrics() -> void:
+	var m := PlacementMetrics.measure(RouteDef.load_json(ContentIndex.route_path("G_V3_03")))
+	runner.check(m.hand_holds == 9 and m.foot_only == 10 and m.foot_places == 19 and m.unused == 0, "홀드 수 %s" % [m])
+	runner.check(is_equal_approx(m.height, 3.62) and absf(m.hand_per_m - 9 / 3.62) < 0.001, "높이·밀도 %s" % [m])
+	runner.check(PlacementMetrics.low_feet_moves(["LF a 성공 하중발=[&\"RF\"] x", "RH b 성공 하중발=[&\"LF\", &\"RF\"] x", "완등"]) == ([1, 2] as Array[int]), "한 발 이동 세기")
 
 
 ## 과정 문제 파일은 Task 9~10에서 만든다. 그전까지 없는 파일은 errors에 남기고 멈추지 않는다.

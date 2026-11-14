@@ -6,6 +6,16 @@ const FREE_HAND_RATE := 15.0
 const STABLE_SPEED := 0.10
 const WARNING_ENTER := 25.0
 const WARNING_EXIT := 35.0
+## 작은 홀드 배율(docs/41 §7, 2026-11-14): 손홀드 반폭이 SIZE_REF보다 작을수록 음수 변화율이 커진다.
+const SIZE_REF := 0.08
+const SIZE_MULT_MAX := 2.5
+
+
+## 반폭 0.08 이상 ×1, 0.06 ×1.33, 0.05 ×1.6, 0.04 ×2, 0.032 이하 ×2.5. 0(모름)은 ×1.
+static func size_multiplier(half_width: float) -> float:
+	if half_width <= 0.0:
+		return 1.0
+	return clampf(SIZE_REF / half_width, 1.0, SIZE_MULT_MAX)
 
 
 ## docs/04 §7 붙은 손의 변화율(초당). 위에서부터 첫 조건을 적용한다.

@@ -1,23 +1,19 @@
 {
- "route_id": "G_V5_01",
- "content_version": 1,
+ "route_id": "G_V3_03",
+ "content_version": 2,
  "validation_status": "Draft",
  "mode": "general",
- "grade": "V5",
- "order": 1,
+ "grade": "V3",
+ "order": 2,
  "name_ko": "가는 사선",
  "required_techniques": [
-  "T_CROSS",
-  "T_HIGH_STEP",
-  "T_MATCH"
+  "T_HIGH_STEP"
  ],
  "crux_steps": {
-  "T_CROSS": 4,
-  "T_HIGH_STEP": 8,
-  "T_MATCH": 12
+  "T_HIGH_STEP": 8
  },
  "check_swapped": false,
- "note": "v1(2026-11-14, 더미 몸 docs/39): 사용자 요청 \"굉장히 어려운 문제\". 왼쪽 위로 사선을 타고 올라가 가운데 위 정상으로 돌아오는 길. 손홀드 반폭 0.04~0.05(시작·파란 홀드 제외), 발판 반폭 0.04. 필수 기술 3개: #4 크로스(오른손이 왼손 너머 H04), #8 하이스텝(왼발을 고관절 높이 F07 1.55m에 올려 일어서기), #12 매치(파란 H08에 두 손). 봇 완등 33.4초, 이동 18, 도달 여유 최소 0.025m, 최대 손 사용률 0.77(하이스텝 뒤 일어설 때). 국소 검사만 통과: 발은 모든 홀드를 딛을 수 있어(docs/38 §2) 다른 길은 기기 플레이로 확인한다.",
+ "note": "v1(2026-11-14, 더미 몸 docs/39): 사용자 요청 \"굉장히 어려운 문제\". 왼쪽 위로 사선을 타고 올라가 가운데 위 정상으로 돌아오는 길. 손홀드 반폭 0.04~0.05(시작·파란 홀드 제외), 발판 반폭 0.04. 필수 기술 3개: #4 크로스(오른손이 왼손 너머 H04), #8 하이스텝(왼발을 고관절 높이 F07 1.55m에 올려 일어서기), #12 매치(파란 H08에 두 손). 봇 완등 33.4초, 이동 18, 도달 여유 최소 0.025m, 최대 손 사용률 0.77(하이스텝 뒤 일어설 때). 국소 검사만 통과: 발은 모든 홀드를 딛을 수 있어(docs/38 §2) 다른 길은 기기 플레이로 확인한다. v2(2026-11-14): 사용자 체감 V2, 결정으로 V3로 내리고 이름을 G_V5_01에서 G_V3_03으로 바꿨다. 크로스·매치는 손 순서를 바꾸면 필요 없어(docs/41 §1) 필수 기술에서 뺐다.",
  "bounds": {
   "x_min": -1.5,
   "x_max": 1.5,
@@ -34,8 +30,8 @@
     0.6
    ],
    "foot_slot_keys": [
-    "G_V5_01/F01/foot_1",
-    "G_V5_01/F02/foot_1"
+    "G_V3_03/F01/foot_1",
+    "G_V3_03/F02/foot_1"
    ]
   }
  ],
@@ -46,89 +42,89 @@
   ],
   "angle": 0.0,
   "slots": {
-   "LH": "G_V5_01/H01/hand_1",
-   "RH": "G_V5_01/H02/hand_1",
-   "LF": "G_V5_01/F01/foot_1",
-   "RF": "G_V5_01/F02/foot_1"
+   "LH": "G_V3_03/H01/hand_1",
+   "RH": "G_V3_03/H02/hand_1",
+   "LF": "G_V3_03/F01/foot_1",
+   "RF": "G_V3_03/F02/foot_1"
   }
  },
  "goal_slots": [
-  "G_V5_01/G01/goal_left",
-  "G_V5_01/G01/goal_right"
+  "G_V3_03/G01/goal_left",
+  "G_V3_03/G01/goal_right"
  ],
  "time_medal_seconds": 150,
  "intended_moves": [
   [
    "LF",
-   "G_V5_01/F03/foot_1"
+   "G_V3_03/F03/foot_1"
   ],
   [
    "LH",
-   "G_V5_01/H03/hand_1"
+   "G_V3_03/H03/hand_1"
   ],
   [
    "RF",
-   "G_V5_01/F04/foot_1"
+   "G_V3_03/F04/foot_1"
   ],
   [
    "LF",
-   "G_V5_01/F05/foot_1"
+   "G_V3_03/F05/foot_1"
   ],
   [
    "RH",
-   "G_V5_01/H04/hand_1"
+   "G_V3_03/H04/hand_1"
   ],
   [
    "RF",
-   "G_V5_01/F06/foot_1"
+   "G_V3_03/F06/foot_1"
   ],
   [
    "LH",
-   "G_V5_01/H05/hand_1"
+   "G_V3_03/H05/hand_1"
   ],
   [
    "RH",
-   "G_V5_01/H06/hand_1"
+   "G_V3_03/H06/hand_1"
   ],
   [
    "LF",
-   "G_V5_01/F07/foot_1"
+   "G_V3_03/F07/foot_1"
   ],
   [
    "RH",
-   "G_V5_01/H07/hand_1"
+   "G_V3_03/H07/hand_1"
   ],
   [
    "RF",
-   "G_V5_01/F08/foot_1"
+   "G_V3_03/F08/foot_1"
   ],
   [
    "LH",
-   "G_V5_01/H08/hand_1"
+   "G_V3_03/H08/hand_1"
   ],
   [
    "RH",
-   "G_V5_01/H08/hand_1"
+   "G_V3_03/H08/hand_1"
   ],
   [
    "LF",
-   "G_V5_01/F09/foot_1"
+   "G_V3_03/F09/foot_1"
   ],
   [
    "RH",
-   "G_V5_01/H09/hand_1"
+   "G_V3_03/H09/hand_1"
   ],
   [
    "RF",
-   "G_V5_01/F10/foot_1"
+   "G_V3_03/F10/foot_1"
   ],
   [
    "LH",
-   "G_V5_01/G01/goal_left"
+   "G_V3_03/G01/goal_left"
   ],
   [
    "RH",
-   "G_V5_01/G01/goal_right"
+   "G_V3_03/G01/goal_right"
   ]
  ],
  "holds": [

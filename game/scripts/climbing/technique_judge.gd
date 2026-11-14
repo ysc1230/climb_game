@@ -282,6 +282,7 @@ static func contact_for(route: RouteDef, tech_id: StringName, limb: StringName, 
 	var ci := ContactInfo.make(key, point, HoldArea.project_hand(slot, point).quality, gm.mode, &"")
 	ci.axis = gm.axis
 	ci.half_angle = gm.half_angle
+	ci.half_width = float(slot.hand_area.half_width)
 	return ci
 
 

@@ -218,15 +218,16 @@ static func candidate(slots: Dictionary, limb: StringName, endpoint: Vector2, pe
 static func contact_for(slot_key: String, slots: Dictionary, limb: StringName, point: Vector2) -> ContactInfo:
 	var slot: Dictionary = slots[slot_key]
 	if PoseSolver.is_hand(limb):
-		return _hand_contact(slot_key, point, HoldArea.project_hand(slot, point).quality, slot.grip_modes[0])
+		return _hand_contact(slot_key, slot, point, HoldArea.project_hand(slot, point).quality, slot.grip_modes[0])
 	var qf: float = HoldArea.project_foot(slot, point).quality
 	return ContactInfo.make(slot_key, point, qf, &"foot", &"inside")
 
 
-static func _hand_contact(slot_key: String, point: Vector2, q: float, gm: Dictionary) -> ContactInfo:
+static func _hand_contact(slot_key: String, slot: Dictionary, point: Vector2, q: float, gm: Dictionary) -> ContactInfo:
 	var ci := ContactInfo.make(slot_key, point, q, gm.mode, &"")
 	ci.axis = gm.axis
 	ci.half_angle = gm.half_angle
+	ci.half_width = float(slot.hand_area.half_width)
 	return ci
 
 
@@ -252,7 +253,7 @@ static func contact_for_pose(slot_key: String, slots: Dictionary, limb: StringNa
 	var best := INF
 	for gm in modes:
 		var m := meta.duplicate()
-		m[limb] = _hand_contact(slot_key, point, q, gm)
+		m[limb] = _hand_contact(slot_key, slot, point, q, gm)
 		var r := ClimbRules.evaluate_pose(pelvis, angle, yaw, with_new, eps, m, feet, feet)
 		var loaded := ClimbRules.loaded_from(r, [])
 		var ok: bool = r.status == SupportSolver.Status.FEASIBLE and not ClimbRules.barn_exceeded(r) \
@@ -267,7 +268,7 @@ static func contact_for_pose(slot_key: String, slots: Dictionary, limb: StringNa
 			if costs[i] < best + GRIP_TIE_MARGIN:
 				pick = i
 				break
-	return _hand_contact(slot_key, point, q, modes[pick])
+	return _hand_contact(slot_key, slot, point, q, modes[pick])
 
 
 ## 요청 목표 근처에서 노린 슬롯(종류 무관, 가장 가까운 것).

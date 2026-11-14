@@ -59,6 +59,7 @@ static func copy_contact(c: ContactInfo) -> ContactInfo:
 	var n := ContactInfo.make(c.key, c.point, c.quality, c.mode, c.edge)
 	n.axis = c.axis
 	n.half_angle = c.half_angle
+	n.half_width = c.half_width
 	return n
 
 

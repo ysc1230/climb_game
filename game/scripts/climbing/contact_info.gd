@@ -9,6 +9,7 @@ var mode: StringName = &"pull"   # 손: pull/sidepull/gaston/undercling, 발: fo
 var edge: StringName = &""       # 발: inside/outside/toe/drop_knee, 손: 빈 값
 var axis: Vector2 = Vector2(0, 1)  # 손: 그립 방식의 힘 축(grip_modes)
 var half_angle: float = 0.0        # 손: 방식의 반각, 0이면 기본(SupportSolver)
+var half_width: float = 0.0        # 손: 잡은 홀드의 hand_area.half_width(피로 크기 배율, docs/41 §7). 0이면 배율 없음
 
 
 static func make(p_key: String, p_point: Vector2, p_quality: float, p_mode: StringName, p_edge: StringName) -> ContactInfo:

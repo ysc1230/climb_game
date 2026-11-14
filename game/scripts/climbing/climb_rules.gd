@@ -260,6 +260,8 @@ func _apply_fatigue(result: Dictionary, attached: Dictionary, platform: bool, mo
 			rate = Fatigue.attached_hand_rate(phase == Phase.REBALANCING, platform, rest_ok, loaded_feet.size(), hands_attached, result.u.get(hand, 0.0), low_load, _quality_of(hand))
 		if rate < 0.0:
 			rate *= float(fatigue_multiplier.get(hand, 1.0))
+			if contact_meta.has(hand):
+				rate *= Fatigue.size_multiplier(contact_meta[hand].half_width)
 			if attached.has(hand) and result.get("loads", {}).get(hand, 0.0) >= SupportSolver.BARN_MIN_LOAD:
 				rate *= strain
 		stamina[hand] = Fatigue.apply(stamina[hand], rate, Tuning.DT, fatigue_disabled)

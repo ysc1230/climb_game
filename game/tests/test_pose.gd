@@ -73,3 +73,5 @@ func test_fatigue_table_v05() -> void:
 	runner.check(Fatigue.attached_hand_rate(false, false, false, 2, 2, 0.1, true) == -2.0, "발 2·휴식 조건 미충족 -2")
 	runner.check(is_equal_approx(Fatigue.attached_hand_rate(false, false, false, 0, 1, 0.91, false), -30.0 * 1.41), "발 0·손 1, u=0.91 → -30×1.41")
 	runner.check(Fatigue.apply(50, -30, 1.0, true) == 50.0, "피로 끄기는 감소만 0")
+	runner.check(Fatigue.size_multiplier(0.13) == 1.0 and Fatigue.size_multiplier(0.0) == 1.0, "큰 홀드·모름 ×1")
+	runner.check(is_equal_approx(Fatigue.size_multiplier(0.04), 2.0) and Fatigue.size_multiplier(0.02) == 2.5, "반폭 0.04 ×2, 상한 2.5")
