@@ -1,0 +1,435 @@
+{
+ "route_id": "C_FEET_T",
+ "content_version": 1,
+ "validation_status": "Draft",
+ "mode": "course",
+ "grade": "V0",
+ "order": 0,
+ "name_ko": "발로 오르기",
+ "course_id": "C_FEET",
+ "course_slot": "tutorial",
+ "required_techniques": [],
+ "note": "v1(2026-11-14, docs/42 수업 1): 발을 먼저 올려야 손이 닿는 벽. 손홀드는 H03·H04 두 개만 잡고, H05·H06은 발로 딛는다. 피로 끔.",
+ "bounds": {
+  "x_min": -1.5,
+  "x_max": 1.5,
+  "y_min": 0.0,
+  "y_max": 4.0
+ },
+ "fail_line_y": -0.5,
+ "platforms": [
+  {
+   "platform_id": "P00",
+   "top_y": 0.1,
+   "x_range": [
+    -0.4,
+    0.8
+   ],
+   "foot_slot_keys": [
+    "C_FEET_T/F01/foot_1",
+    "C_FEET_T/F02/foot_1"
+   ]
+  }
+ ],
+ "start_pose": {
+  "pelvis": [
+   0.1,
+   0.76
+  ],
+  "angle": 0.0,
+  "slots": {
+   "LH": "C_FEET_T/H01/hand_1",
+   "RH": "C_FEET_T/H02/hand_1",
+   "LF": "C_FEET_T/F01/foot_1",
+   "RF": "C_FEET_T/F02/foot_1"
+  }
+ },
+ "goal_slots": [
+  "C_FEET_T/G01/goal_left",
+  "C_FEET_T/G01/goal_right"
+ ],
+ "holds": [
+  {
+   "hold_id": "H01",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      -0.1,
+      1.85
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.12
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H02",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      0.3,
+      1.85
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.12
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F01",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      -0.05,
+      0.1
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ]
+    }
+   ]
+  },
+  {
+   "hold_id": "F02",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      0.25,
+      0.1
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ]
+    }
+   ]
+  },
+  {
+   "hold_id": "F03",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      -0.05,
+      0.35
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ]
+    }
+   ]
+  },
+  {
+   "hold_id": "F04",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      0.25,
+      0.6
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ]
+    }
+   ]
+  },
+  {
+   "hold_id": "H03",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      -0.1,
+      2.3
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.12
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H04",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      0.3,
+      2.3
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.12
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H05",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      -0.05,
+      0.9
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.1
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H06",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      0.25,
+      1.15
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.1
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "G01",
+   "slots": [
+    {
+     "slot_id": "goal_left",
+     "pos": [
+      -0.1,
+      2.7
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ]
+    },
+    {
+     "slot_id": "goal_right",
+     "pos": [
+      0.3,
+      2.7
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ]
+    }
+   ]
+  }
+ ],
+ "intended_moves": [
+  [
+   "LF",
+   "C_FEET_T/F03/foot_1"
+  ],
+  [
+   "RF",
+   "C_FEET_T/F04/foot_1"
+  ],
+  [
+   "LH",
+   "C_FEET_T/H03/hand_1"
+  ],
+  [
+   "RH",
+   "C_FEET_T/H04/hand_1"
+  ],
+  [
+   "LF",
+   "C_FEET_T/H05/hand_1"
+  ],
+  [
+   "RF",
+   "C_FEET_T/H06/hand_1"
+  ],
+  [
+   "LH",
+   "C_FEET_T/G01/goal_left"
+  ],
+  [
+   "RH",
+   "C_FEET_T/G01/goal_right"
+  ]
+ ],
+ "tutorial_steps": [
+  {
+   "step_id": "F1",
+   "text_ko": "손은 그대로 두고 왼발부터 노란 발판에 올려요.",
+   "goal_event": {
+    "type": "grab",
+    "limb": "LF",
+    "slot": "C_FEET_T/F03/foot_1"
+   },
+   "help_ko": [
+    "왼쪽 아래 발 패드를 끌어요",
+    "발판이 하얗게 빛나면 떼요"
+   ],
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   }
+  },
+  {
+   "step_id": "F2",
+   "text_ko": "오른발도 올려요. 발을 올리면 몸이 따라 올라가요.",
+   "goal_event": {
+    "type": "grab",
+    "limb": "RF",
+    "slot": "C_FEET_T/F04/foot_1"
+   },
+   "help_ko": [
+    "오른쪽 아래 발 패드를 끌어요",
+    "발판이 하얗게 빛나면 떼요"
+   ],
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   }
+  },
+  {
+   "step_id": "F3",
+   "text_ko": "발을 올렸더니 높은 홀드에 손이 닿아요. 왼손으로 잡아요.",
+   "goal_event": {
+    "type": "grab",
+    "limb": "LH",
+    "slot": "C_FEET_T/H03/hand_1"
+   },
+   "help_ko": [
+    "왼쪽 위 손 패드를 위로 끌어요",
+    "홀드가 하얗게 빛나면 손가락을 떼요"
+   ],
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   }
+  },
+  {
+   "step_id": "F4",
+   "text_ko": "오른손도 옮겨요.",
+   "goal_event": {
+    "type": "grab",
+    "limb": "RH",
+    "slot": "C_FEET_T/H04/hand_1"
+   },
+   "help_ko": [
+    "오른쪽 위 손 패드를 위로 끌어요",
+    "홀드가 하얗게 빛나면 손가락을 떼요"
+   ],
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   }
+  },
+  {
+   "step_id": "F5",
+   "text_ko": "발은 손으로 잡는 홀드도 딛을 수 있어요. 왼발로 노란 홀드를 딛어요.",
+   "goal_event": {
+    "type": "grab",
+    "limb": "LF",
+    "slot": "C_FEET_T/H05/hand_1"
+   },
+   "help_ko": [
+    "왼발 패드를 노란 홀드까지 끌어요",
+    "하얗게 빛나면 떼요"
+   ],
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   }
+  },
+  {
+   "step_id": "F6",
+   "text_ko": "오른발도 노란 홀드를 딛어요.",
+   "goal_event": {
+    "type": "grab",
+    "limb": "RF",
+    "slot": "C_FEET_T/H06/hand_1"
+   },
+   "help_ko": [
+    "오른발 패드를 노란 홀드까지 끌어요",
+    "하얗게 빛나면 떼요"
+   ],
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   }
+  },
+  {
+   "step_id": "F7",
+   "text_ko": "두 손으로 맨 위 크림색 홀드를 잡으면 끝나요. 이렇게 발을 먼저 올리면 팔이 덜 힘들어요.",
+   "goal_event": {
+    "type": "clear"
+   },
+   "help_ko": [
+    "한 손씩 정상 홀드로",
+    "두 손이 다 잡으면 완등"
+   ],
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   }
+  }
+ ]
+}

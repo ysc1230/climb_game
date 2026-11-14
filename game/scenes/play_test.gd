@@ -461,6 +461,10 @@ func _overlay_action(act: String) -> void:
 			_rescue()
 		"next_course":
 			game.play(str(overlay.next_course.route_id))
+		"dict":
+			game.home({"tab": "technique", "view": "dict"})
+		"problems":
+			game.home({"tab": "general"})
 		"next":
 			game.play(str(overlay.result.next))
 		"list":
@@ -670,6 +674,7 @@ func _tutorial_tick(result: String, dt: float) -> bool:
 			_end_tutorial_rules()
 			overlay.tutorial_done = true
 			overlay.next_course = game.get_flow().next_basic_tutorial(route.route_id) if game != null else {}
+			overlay.entry_choice = route.course_id == Progress.BASIC_COURSE
 			if overlay.has_list:
 				game.finish_tutorial()
 			_after_reset("")

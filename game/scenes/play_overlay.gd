@@ -13,6 +13,7 @@ var result := {}
 var briefing := {}
 var tutorial: TutorialRunner
 var tutorial_done := false
+var entry_choice := false  # 기본 조작을 마친 화면: 처음이에요 / 해 봤어요 / 바로 문제 풀기(docs/42 §4.1)
 var next_course := {}     # 튜토리얼 완료 화면 [다음: 과정] {route_id, name}(docs/33 §4.1)
 var dim_band := false     # 위험 경고 동안 안내 줄을 흐리게(docs/33 §3.5)
 var help_open := false
@@ -132,6 +133,26 @@ func _draw_briefing(ci: CanvasItem, size: Vector2, k: float) -> void:
 func _draw_done(ci: CanvasItem, size: Vector2, k: float) -> void:
 	ci.draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.6))
 	ci.draw_string(font, Vector2(0, size.y * 0.42), "✓ 다 배웠어요", HORIZONTAL_ALIGNMENT_CENTER, size.x, int(44 * k), CREAM)
+	if entry_choice and has_list:
+		ci.draw_string(font, Vector2(0, size.y * 0.42 + 44 * k), "이제 어떻게 할까요?", HORIZONTAL_ALIGNMENT_CENTER, size.x, int(24 * k), Color(1, 1, 1, 0.75))
+		var rows := []
+		if not next_course.is_empty():
+			rows.append(["클라이밍이 처음이에요", "다음 수업: " + str(next_course.name), "next_course"])
+		rows.append(["클라이밍을 해 봤어요", "기술 사전 보기", "dict"])
+		rows.append(["바로 문제 풀기", "문제 목록으로", "problems"])
+		var bw := 340.0 * k
+		var gap := 20.0 * k
+		var x := size.x * 0.5 - (bw * rows.size() + gap * (rows.size() - 1)) * 0.5
+		for row in rows:
+			var r := Rect2(Vector2(x, size.y * 0.5 + 30 * k), Vector2(bw, 110 * k))
+			var strong: bool = row[2] == "next_course"
+			ci.draw_rect(r, CREAM if strong else Color(0.1, 0.1, 0.1, 0.75))
+			ci.draw_rect(r, Color(1, 1, 1, 0.7), false, 2.0)
+			ci.draw_string(font, Vector2(r.position.x, r.position.y + 48 * k), row[0], HORIZONTAL_ALIGNMENT_CENTER, bw, int(26 * k), INK if strong else Color.WHITE)
+			ci.draw_string(font, Vector2(r.position.x, r.position.y + 84 * k), row[1], HORIZONTAL_ALIGNMENT_CENTER, bw, int(20 * k), INK if strong else Color(1, 1, 1, 0.6))
+			_buttons.append({"rect": r, "action": row[2]})
+			x += bw + gap
+		return
 	var acts := [["목록", "list"]] if has_list else [["다시", "retry"]]
 	var w := 400.0
 	if not next_course.is_empty():

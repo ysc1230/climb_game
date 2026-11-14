@@ -17,6 +17,9 @@ var k := 1.0
 var tab := "general"
 var grade := ""
 var course_id := ""   # 비어 있지 않으면 기술 탭에서 그 과정 화면
+var tech_view := "learn"  # 기술 탭 안: "learn" 처음 배우기(수업) / "dict" 기술 사전(docs/42 §4.1)
+var tech_id := ""         # 비어 있지 않으면 기술 사전에서 그 기술 카드
+const GROUP_NAMES := [["foot", "발"], ["hand", "손"], ["body", "몸"]]
 var _buttons: Array = []  # [{rect, action, arg}]
 var _techs := TechniqueJudge.defs()
 var _look_ok := false        # 지금 몸 비율에 맞는 캐릭터 모델이 있을 때만 [캐릭터] 버튼(2026-11-11)
@@ -49,8 +52,13 @@ func _ready() -> void:
 	if focus.has("tab"):
 		_set_tab(str(focus.tab))
 	grade = str(focus.get("grade", _default_grade()))
+	if not grade in game.index.grades():
+		grade = _default_grade()
 	course_id = str(focus.get("course", ""))
 	if tab != "technique":
+		course_id = ""
+	if str(focus.get("view", "")) == "dict":
+		tech_view = "dict"
 		course_id = ""
 	_look_ok = CharacterAssembler.load_catalog().model_compatible()
 	get_viewport().size_changed.connect(queue_redraw)
@@ -136,6 +144,12 @@ func _do(action: String, arg: String) -> void:
 			course_id = arg
 		"courses":
 			course_id = ""
+		"view":
+			tech_view = arg
+			course_id = ""
+			tech_id = ""
+		"tech":
+			tech_id = arg
 		"learn":
 			_set_tab("technique")
 			course_id = arg
@@ -165,7 +179,13 @@ func _draw() -> void:
 	elif course_id != "":
 		_draw_course(size)
 	else:
-		_draw_courses(size)
+		_draw_views(size)
+		if tech_view != "dict":
+			_draw_courses(size)
+		elif tech_id != "":
+			_draw_tech(size)
+		else:
+			_draw_dict(size)
 	if not choosing_level and _look_ok:
 		_button(Rect2(Vector2(size.x - 490 * k, 24 * k), Vector2(220, 56) * k), "캐릭터", "look_open", "", 22)
 	var lv: String = game.progress.level
@@ -336,43 +356,97 @@ func _route_name(route: RouteDef) -> String:
 
 # ---------- 기술 탭 ----------
 
+## 기술 탭 안 두 갈래: 처음 배우기(따라 하는 수업) / 기술 사전(아는 사람이 찾아보는 카드).
+func _draw_views(size: Vector2) -> void:
+	var w := 240.0 * k
+	var x := 60.0 * k
+	for v in [["learn", "처음 배우기"], ["dict", "기술 사전"]]:
+		var on: bool = tech_view == v[0]
+		_button(Rect2(Vector2(x, 112 * k), Vector2(w, 50 * k)), ("● " if on else "") + v[1], "view", v[0], 22, on)
+		x += w + 12 * k
+	var hint := "순서대로 따라 하며 배워요" if tech_view != "dict" else "실제 기술을 이 게임에서 어떻게 하는지 찾아봐요"
+	draw_string(font, Vector2(x + 12 * k, 145 * k), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), DIM)
+
+
 func _draw_courses(size: Vector2) -> void:
 	var list: Array[Dictionary] = game.index.courses()
-	var cols := 3
+	var cols := 4
 	var cw := (size.x - 120 * k - (cols - 1) * 20 * k) / cols
 	var ch := 200.0 * k
 	for i in list.size():
-		var r := Rect2(Vector2(60 * k + (i % cols) * (cw + 20 * k), 130 * k + (i / cols) * (ch + 20 * k)), Vector2(cw, ch))
-		_draw_course_card(r, list[i])
+		var r := Rect2(Vector2(60 * k + (i % cols) * (cw + 20 * k), 184 * k + (i / cols) * (ch + 20 * k)), Vector2(cw, ch))
+		_draw_course_card(r, list[i], i + 1)
 
 
-func _draw_course_card(r: Rect2, c: Dictionary) -> void:
+## 기술 사전 목록: 발·손·몸 세 줄 + 이 게임에 없는 기술. 준비된(ready) 기술만 보인다.
+func _draw_dict(size: Vector2) -> void:
+	var x0 := 60.0 * k
+	var y := 200.0 * k
+	var bw := 176.0 * k
+	for g in GROUP_NAMES:
+		draw_string(font, Vector2(x0, y + 34 * k), g[1], HORIZONTAL_ALIGNMENT_LEFT, -1, int(24 * k), CREAM)
+		var x := x0 + 70 * k
+		for id in _techs:
+			var t: Dictionary = _techs[id]
+			if t.group != StringName(g[0]) or not t.ready:
+				continue
+			_button(Rect2(Vector2(x, y), Vector2(bw, 54 * k)), str(t.name_ko), "tech", str(id), 22)
+			x += bw + 12 * k
+		y += 76 * k
+	y += 20 * k
+	draw_string(font, Vector2(x0, y), "이 게임에 없는 기술", HORIZONTAL_ALIGNMENT_LEFT, -1, int(22 * k), CREAM)
+	y += 38 * k
+	for a in TechniqueDefs.absent():
+		draw_string(font, Vector2(x0, y), str(a.name_ko), HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), Color.WHITE)
+		draw_string(font, Vector2(x0 + 270 * k, y), str(a.why_ko), HORIZONTAL_ALIGNMENT_LEFT, size.x - x0 * 2 - 270 * k, int(19 * k), DIM)
+		y += 34 * k
+
+
+## 기술 카드: 실제로는 / 게임에서는 / 되는 조건 / 좋아지는 것 / 인식되면.
+func _draw_tech(size: Vector2) -> void:
+	var t: Dictionary = _techs.get(StringName(tech_id), {})
+	_button(Rect2(Vector2(60, 184) * k, Vector2(200, 52) * k), "‹ 기술 사전", "tech", "", 22)
+	if t.is_empty():
+		return
+	var x := 60.0 * k
+	var w := size.x - 120 * k
+	_text(Vector2(x, 290 * k), str(t.name_ko), 34, Color.WHITE)
+	var y := 345.0 * k
+	for row in [["실제로는", t.real_ko], ["게임에서는", t.how_ko], ["쓰는 때", t.when_ko], ["되는 조건", t.cond_ko], ["좋아지는 것", t.purpose_ko], ["인식되면", t.seen_ko]]:
+		if str(row[1]) == "":
+			continue
+		draw_string(font, Vector2(x, y), row[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), CREAM)
+		draw_multiline_string(font, Vector2(x + 150 * k, y), str(row[1]), HORIZONTAL_ALIGNMENT_LEFT, w - 150 * k, int(21 * k), 2, Color.WHITE)
+		y += (66 if font.get_string_size(str(row[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, int(21 * k)).x > w - 150 * k else 46) * k
+
+
+func _draw_course_card(r: Rect2, c: Dictionary, n := 0) -> void:
 	var progress: Progress = game.progress
 	draw_rect(r, CARD)
 	draw_rect(r, Color(1, 1, 1, 0.7), false, 2.0)
 	_buttons.append({"rect": r, "action": "course", "arg": c.course_id})
 	var x := r.position.x + 18 * k
 	var w := r.size.x - 36 * k
-	draw_string(font, Vector2(x, r.position.y + 44 * k), c.name_ko, HORIZONTAL_ALIGNMENT_LEFT, w, int(26 * k), Color.WHITE)
-	draw_string(font, Vector2(x, r.position.y + 78 * k), "버튼 기술" if c.kind == "button" else "패드 기술", HORIZONTAL_ALIGNMENT_LEFT, w, int(19 * k), DIM)
-	draw_string(font, Vector2(x, r.position.y + 116 * k), _course_progress(c), HORIZONTAL_ALIGNMENT_LEFT, w, int(21 * k), CREAM)
+	draw_string(font, Vector2(x, r.position.y + 44 * k), ("%d. " % n if n > 0 else "") + str(c.name_ko), HORIZONTAL_ALIGNMENT_LEFT, w, int(26 * k), Color.WHITE)
+	draw_multiline_string(font, Vector2(x, r.position.y + 76 * k), str(c.get("text_ko", {}).get("purpose", "")), HORIZONTAL_ALIGNMENT_LEFT, w, int(18 * k), 2, DIM)
+	draw_string(font, Vector2(x, r.position.y + 140 * k), _course_progress(c), HORIZONTAL_ALIGNMENT_LEFT, w, int(21 * k), CREAM)
 	if c.kind == "button":
 		var open := progress.tutorial_done(c.tutorial)
 		var t := "✓ 버튼 열림" if open else "버튼 잠김 · 튜토리얼을 마치면 열려요"
 		if not open:
-			_lock(Vector2(x + 8 * k, r.position.y + 150 * k), DIM)
-		draw_string(font, Vector2(x + (0.0 if open else 26 * k), r.position.y + 158 * k), t, HORIZONTAL_ALIGNMENT_LEFT, w, int(19 * k), CREAM if open else DIM)
+			_lock(Vector2(x + 8 * k, r.position.y + 166 * k), DIM)
+		draw_string(font, Vector2(x + (0.0 if open else 26 * k), r.position.y + 174 * k), t, HORIZONTAL_ALIGNMENT_LEFT, w, int(19 * k), CREAM if open else DIM)
 	draw_string(font, Vector2(x, r.end.y - 14 * k), "열기 ›", HORIZONTAL_ALIGNMENT_RIGHT, w, int(19 * k), DIM)
 
 
-## "튜토리얼 ✓ · 문제 2/3". 기본 조작을 건너뛰었으면 "튜토리얼 건너뜀".
+## "✓ 배웠어요 · 문제 2/3". 기본 조작을 건너뛰었으면 "건너뜀".
 func _course_progress(c: Dictionary) -> String:
 	var progress: Progress = game.progress
-	var t := "튜토리얼 –"
+	var t := "– 아직"
 	if progress.tutorial_done(c.tutorial):
-		t = "튜토리얼 ✓"
+		t = "✓ 배웠어요"
 	elif c.course_id == Progress.BASIC_COURSE and progress.basic_skipped:
-		t = "튜토리얼 건너뜀"
+		t = "건너뜀"
 	if c.problems.is_empty():
 		return t
 	var n := 0
@@ -385,13 +459,13 @@ func _course_progress(c: Dictionary) -> String:
 func _draw_course(size: Vector2) -> void:
 	var c: Dictionary = game.index.course(course_id)
 	var progress: Progress = game.progress
-	_button(Rect2(Vector2(60, 120) * k, Vector2(200, 52) * k), "‹ 과정 목록", "courses", "", 22)
+	_button(Rect2(Vector2(60, 120) * k, Vector2(200, 52) * k), "‹ 수업 목록", "courses", "", 22)
 	if c.is_empty():
 		_text(Vector2(60 * k, 230 * k), "과정을 찾지 못했어요", 24, DIM)
 		return
 	var x := 60.0 * k
 	var w := size.x - 120 * k
-	_text(Vector2(x, 225 * k), "%s · %s" % [c.name_ko, "버튼 기술" if c.kind == "button" else "패드 기술"], 32, Color.WHITE)
+	_text(Vector2(x, 225 * k), str(c.name_ko), 32, Color.WHITE)
 	var y := 270.0 * k
 	var texts := _course_texts(c)
 	for row in [["목적", "purpose"], ["쓰는 때", "when"], ["방법", "how"]]:

@@ -2,7 +2,7 @@
  "techniques": [
   {
    "id": "T_INSIDE_EDGE",
-   "name_ko": "인사이드 엣지",
+   "name_ko": "발 딛기",
    "phase": 1,
    "input": "pad",
    "body_parts": "foot",
@@ -24,11 +24,131 @@
      "reason": "NO_HOLD",
      "text_ko": "발 안쪽 날로 디딜 수 있는 발판이 아니에요."
     }
-   ]
+   ],
+   "real_ko": "발 안쪽 날로 발판을 정확히 밟고 그 위에 서요.",
+   "seen_ko": "발이 발판에 붙고 몸이 발 위로 따라가요.",
+   "cond_ko": "발이 닿는 거리의 발판이면 돼요.",
+   "ready": true
+  },
+  {
+   "id": "T_HIGH_STEP",
+   "name_ko": "하이스텝",
+   "phase": 1,
+   "input": "pad",
+   "body_parts": "foot+torso",
+   "sides": "left_right",
+   "flow": "hold_tap",
+   "group": "foot",
+   "purpose_tags": [
+    "reach_far"
+   ],
+   "purpose_ko": "발을 높이 올려 디디고 그 위로 일어서서 높은 손홀드에 닿아요.",
+   "when_ko": "손홀드가 팔이 닿는 거리보다 높을 때, 높은 발판이 가까이 있을 때 써요.",
+   "how_ko": "발 패드로 발을 고관절 높이 가까이 올려 딛고, 그대로 기다리면 그 발 위로 일어서요.",
+   "mistakes": [
+    {
+     "reason": "JOINT_LIMIT",
+     "text_ko": "다리 각도 한계예요. 그렇게 높이 올릴 수 없어요."
+    },
+    {
+     "reason": "SUPPORT_NEEDED",
+     "text_ko": "이 손발을 떼면 버틸 수 없어요."
+    }
+   ],
+   "real_ko": "무릎이 허리 높이까지 올라올 만큼 높은 발판을 딛고 일어서요.",
+   "seen_ko": "화면에 '무브: 높게 딛기'가 떠요.",
+   "cond_ko": "발판이 골반 가까운 높이에 있고 두 손이 버티고 있어야 해요.",
+   "ready": true
+  },
+  {
+   "phase": 1,
+   "input": "pad",
+   "sides": "left_right",
+   "flow": "hold_tap",
+   "purpose_tags": [
+    "balance"
+   ],
+   "mistakes": [
+    {
+     "reason": "NO_HOLD",
+     "text_ko": "발판이 좁으면 두 발이 함께 서지 못하고 먼저 있던 발이 떨어져요."
+    }
+   ],
+   "id": "T_FOOT_MATCH",
+   "name_ko": "합발",
+   "body_parts": "foot",
+   "group": "foot",
+   "purpose_ko": "한 발판에 두 발을 모아 다음 발을 옮길 준비를 해요.",
+   "when_ko": "발판이 하나뿐인데 발을 바꾸거나 반대쪽으로 가야 할 때 써요.",
+   "how_ko": "다른 발이 딛고 있는 발판으로 발 패드를 끌어 놓아요. 발판이 넓으면 두 발이 함께 서요.",
+   "real_ko": "한 발판에 두 발을 함께 올려요.",
+   "seen_ko": "두 발이 한 발판에 나란히 서요.",
+   "cond_ko": "발판이 두 발이 설 만큼 넓어야 해요.",
+   "ready": true
+  },
+  {
+   "id": "T_FOOT_SWAP",
+   "name_ko": "풋스왑",
+   "phase": 1,
+   "input": "pad",
+   "body_parts": "foot",
+   "sides": "left_right",
+   "flow": "hold_tap",
+   "group": "foot",
+   "purpose_tags": [
+    "direction_change"
+   ],
+   "purpose_ko": "한 발판에서 발을 맞바꿔 반대 발로 갈아 디뎌요.",
+   "when_ko": "한 발판에서 발의 좌우를 바꿔야 할 때, 방향을 바꾸기 전에 써요.",
+   "how_ko": "발 패드로 발을 반대 발이 딛은 발판에 끌어 놓으면 들어온 발이 딛고 반대 발은 떨어져요.",
+   "mistakes": [
+    {
+     "reason": "NO_HOLD",
+     "text_ko": "두 발을 잠깐 함께 올릴 만큼 넓은 발판이 아니에요."
+    },
+    {
+     "reason": "LIMB_STATE",
+     "text_ko": "반대 발이 그 발판을 딛고 있어야 해요."
+    }
+   ],
+   "real_ko": "발판 위의 발을 다른 발로 바꿔요.",
+   "seen_ko": "딛고 있던 발이 떨어지고 새 발이 그 자리에 서요. '무브: 발 바꾸기'가 떠요.",
+   "cond_ko": "두 손이 버티고 있어야 해요.",
+   "ready": true
+  },
+  {
+   "id": "T_FLAG",
+   "name_ko": "플래그",
+   "phase": 1,
+   "input": "pad",
+   "body_parts": "foot",
+   "sides": "left_right",
+   "flow": "execute",
+   "group": "foot",
+   "purpose_tags": [
+    "balance"
+   ],
+   "purpose_ko": "쓰지 않는 발을 같은 쪽 바깥으로 뻗어 몸의 균형을 잡아요.",
+   "when_ko": "한 발과 손으로 버티는 중에 몸이 한쪽으로 쏠릴 때 써요.",
+   "how_ko": "발 패드로 쓰지 않는 발을 허공으로 끌어 몸이 쏠린 반대쪽에 두세요. \"놓으면 균형 발\"이 보일 때 놓으면 발이 그 자리에서 균형을 잡아요.",
+   "mistakes": [
+    {
+     "reason": "LIMB_STATE",
+     "text_ko": "그 발은 홀드를 딛고 있고 떼도 버틸 수 있어야 해요."
+    },
+    {
+     "reason": "SUPPORT_NEEDED",
+     "text_ko": "이 손발을 떼면 버틸 수 없어요."
+    }
+   ],
+   "real_ko": "한 발을 홀드 없이 옆으로 뻗어 벽에 대고 균형을 잡아요.",
+   "seen_ko": "발끝이 벽에 닿고 '무브: 균형 발'이 떠요. 몸이 도는 것이 멈춰요.",
+   "cond_ko": "다른 발과 두 손이 붙어 있을 때 떠 있는 발로 해요.",
+   "ready": true
   },
   {
    "id": "T_OUTSIDE_EDGE",
-   "name_ko": "아웃사이드 엣지(백스텝)",
+   "name_ko": "백스텝",
    "phase": 1,
    "input": "button",
    "body_parts": "foot+torso",
@@ -51,7 +171,11 @@
      "reason": "BODY_ORIENTATION_LIMIT",
      "text_ko": "몸을 더 돌릴 수 없어요."
     }
-   ]
+   ],
+   "real_ko": "발 바깥 날로 딛고 골반을 벽 쪽으로 돌려 손을 더 멀리 뻗어요.",
+   "seen_ko": "",
+   "cond_ko": "",
+   "ready": false
   },
   {
    "id": "T_DROP_KNEE",
@@ -83,115 +207,41 @@
      "reason": "JOINT_LIMIT",
      "text_ko": "무릎 각도 한계예요."
     }
-   ]
+   ],
+   "real_ko": "무릎을 안쪽 아래로 꺾어 골반을 벽에 붙여요.",
+   "seen_ko": "",
+   "cond_ko": "",
+   "ready": false
   },
   {
-   "id": "T_HIGH_STEP",
-   "name_ko": "하이스텝",
+   "id": "T_MATCH",
+   "name_ko": "매치",
    "phase": 1,
    "input": "pad",
-   "body_parts": "foot+torso",
+   "body_parts": "hand",
    "sides": "left_right",
    "flow": "hold_tap",
-   "group": "foot",
+   "group": "hand",
    "purpose_tags": [
-    "reach_far"
+    "direction_change"
    ],
-   "purpose_ko": "발을 높이 올려 디디고 그 위로 일어서서 높은 손홀드에 닿아요.",
-   "when_ko": "손홀드가 팔이 닿는 거리보다 높을 때, 높은 발판이 가까이 있을 때 써요.",
-   "how_ko": "발 패드로 발을 고관절 높이 가까이 올려 딛고, 그대로 기다리면 그 발 위로 일어서요.",
+   "purpose_ko": "반대 손이 잡은 홀드에 같이 올려 손을 바꿔 잡아요.",
+   "when_ko": "반대 손이 홀드를 잡고 있고 홀드 폭이 두 손을 올릴 만큼 넓을 때, 손을 바꾸거나 방향을 바꾸고 싶을 때 써요.",
+   "how_ko": "손 패드로 손을 반대 손이 잡은 홀드의 빈 곳에 끌어 놓으면 두 손으로 함께 잡아요.",
    "mistakes": [
     {
-     "reason": "JOINT_LIMIT",
-     "text_ko": "다리 각도 한계예요. 그렇게 높이 올릴 수 없어요."
-    },
-    {
-     "reason": "SUPPORT_NEEDED",
-     "text_ko": "이 손발을 떼면 버틸 수 없어요."
-    }
-   ]
-  },
-  {
-   "id": "T_FLAG",
-   "name_ko": "플래그",
-   "phase": 1,
-   "input": "pad",
-   "body_parts": "foot",
-   "sides": "left_right",
-   "flow": "execute",
-   "group": "foot",
-   "purpose_tags": [
-    "balance"
-   ],
-   "purpose_ko": "쓰지 않는 발을 같은 쪽 바깥으로 뻗어 몸의 균형을 잡아요.",
-   "when_ko": "한 발과 손으로 버티는 중에 몸이 한쪽으로 쏠릴 때 써요.",
-   "how_ko": "발 패드로 쓰지 않는 발을 허공으로 끌어 몸이 쏠린 반대쪽에 두세요. \"놓으면 균형 발\"이 보일 때 놓으면 발이 그 자리에서 균형을 잡아요.",
-   "mistakes": [
-    {
-     "reason": "LIMB_STATE",
-     "text_ko": "그 발은 홀드를 딛고 있고 떼도 버틸 수 있어야 해요."
-    },
-    {
-     "reason": "SUPPORT_NEEDED",
-     "text_ko": "이 손발을 떼면 버틸 수 없어요."
-    }
-   ]
-  },
-  {
-   "id": "T_LOCK_OFF",
-   "name_ko": "록오프",
-   "phase": 1,
-   "input": "pad",
-   "body_parts": "torso",
-   "sides": "left_right",
-   "flow": "execute",
-   "group": "body",
-   "purpose_tags": [
-    "reach_far"
-   ],
-   "purpose_ko": "한 팔을 굽혀 몸을 끌어올린 채 버티면서 다른 손을 더 높이 뻗어요.",
-   "when_ko": "잡은 손 하나로 버틸 수 있고 반대 손이 비어 있을 때, 팔 힘이 남아 있을 때 써요.",
-   "how_ko": "한 손으로 홀드를 잡은 채 반대 손 패드로 손을 닿지 않는 높이까지 끌어 올리세요. 잡은 팔을 굽혀 몸을 끌어올려요.",
-   "mistakes": [
-    {
-     "reason": "TOO_TIRED",
-     "text_ko": "팔 힘이 부족해요."
-    },
-    {
-     "reason": "GRIP_TOO_POOR",
-     "text_ko": "홀드를 너무 끝에 잡았어요."
+     "reason": "NO_HOLD",
+     "text_ko": "두 손을 함께 올릴 만큼 넓은 홀드가 아니에요."
     },
     {
      "reason": "LIMB_STATE",
-     "text_ko": "그 손이 홀드를 잡고 있어야 해요."
+     "text_ko": "반대 손이 그 홀드를 잡고 있어야 해요."
     }
-   ]
-  },
-  {
-   "id": "T_REST",
-   "name_ko": "휴식",
-   "phase": 1,
-   "input": "pad",
-   "body_parts": "torso",
-   "sides": "none",
-   "flow": "execute",
-   "group": "body",
-   "purpose_tags": [
-    "rest"
    ],
-   "purpose_ko": "팔을 펴고 다리에 체중을 실어 팔 힘을 회복해요.",
-   "when_ko": "자세가 안정되고 발에 체중이 실려 있을 때, 다음 동작 전에 팔 힘을 쉬게 하고 싶을 때 써요.",
-   "how_ko": "발로 체중을 받친 채 패드를 건드리지 않고 기다리면 팔을 펴고 다리에 체중을 실어 팔 힘이 회복돼요.",
-   "mistakes": [
-    {
-     "reason": "SUPPORT_NEEDED",
-     "text_ko": "발이 홀드를 딛고 있어야 쉴 수 있어요."
-    },
-    {
-     "reason": "NEED_WEIGHT_SHIFT",
-     "text_ko": "먼저 체중을 옮겨야 해요."
-    }
-   ]
+   "real_ko": "한 홀드를 두 손으로 함께 잡아 손을 바꿀 준비를 해요.",
+   "seen_ko": "두 손이 한 홀드에 나란히 붙고 '무브: 양손 모으기'가 떠요.",
+   "cond_ko": "홀드가 두 손이 들어갈 만큼 넓어야 해요.",
+   "ready": true
   },
   {
    "id": "T_CROSS",
@@ -221,59 +271,45 @@
      "reason": "SUPPORT_OVERLOAD",
      "text_ko": "남은 손발로 버티기 어려워요."
     }
-   ]
+   ],
+   "real_ko": "한 팔을 다른 팔 위나 아래로 엇갈려 반대쪽 홀드를 잡아요.",
+   "seen_ko": "화면에 '무브: 손 교차'가 떠요.",
+   "cond_ko": "두 발이 딛고 있고 몸통을 가는 쪽으로 옮겨 두면 쉬워요.",
+   "ready": true
   },
   {
-   "id": "T_MATCH",
-   "name_ko": "매치",
+   "id": "T_LOCK_OFF",
+   "name_ko": "록오프",
    "phase": 1,
    "input": "pad",
-   "body_parts": "hand",
+   "body_parts": "torso",
    "sides": "left_right",
-   "flow": "hold_tap",
-   "group": "hand",
+   "flow": "execute",
+   "group": "body",
    "purpose_tags": [
-    "direction_change"
+    "reach_far"
    ],
-   "purpose_ko": "반대 손이 잡은 홀드에 같이 올려 손을 바꿔 잡아요.",
-   "when_ko": "반대 손이 홀드를 잡고 있고 홀드 폭이 두 손을 올릴 만큼 넓을 때, 손을 바꾸거나 방향을 바꾸고 싶을 때 써요.",
-   "how_ko": "손 패드로 손을 반대 손이 잡은 홀드의 빈 곳에 끌어 놓으면 두 손으로 함께 잡아요.",
+   "purpose_ko": "한 팔을 굽혀 몸을 끌어올린 채 버티면서 다른 손을 더 높이 뻗어요.",
+   "when_ko": "잡은 손 하나로 버틸 수 있고 반대 손이 비어 있을 때, 팔 힘이 남아 있을 때 써요.",
+   "how_ko": "한 손으로 홀드를 잡은 채 반대 손 패드로 손을 닿지 않는 높이까지 끌어 올리세요. 잡은 팔을 굽혀 몸을 끌어올려요.",
    "mistakes": [
     {
-     "reason": "NO_HOLD",
-     "text_ko": "두 손을 함께 올릴 만큼 넓은 홀드가 아니에요."
+     "reason": "TOO_TIRED",
+     "text_ko": "팔 힘이 부족해요."
+    },
+    {
+     "reason": "GRIP_TOO_POOR",
+     "text_ko": "홀드를 너무 끝에 잡았어요."
     },
     {
      "reason": "LIMB_STATE",
-     "text_ko": "반대 손이 그 홀드를 잡고 있어야 해요."
+     "text_ko": "그 손이 홀드를 잡고 있어야 해요."
     }
-   ]
-  },
-  {
-   "id": "T_FOOT_SWAP",
-   "name_ko": "풋스왑",
-   "phase": 1,
-   "input": "pad",
-   "body_parts": "foot",
-   "sides": "left_right",
-   "flow": "hold_tap",
-   "group": "foot",
-   "purpose_tags": [
-    "direction_change"
    ],
-   "purpose_ko": "한 발판에서 발을 맞바꿔 반대 발로 갈아 디뎌요.",
-   "when_ko": "한 발판에서 발의 좌우를 바꿔야 할 때, 방향을 바꾸기 전에 써요.",
-   "how_ko": "발 패드로 발을 반대 발이 딛은 발판에 끌어 놓으면 들어온 발이 딛고 반대 발은 떨어져요.",
-   "mistakes": [
-    {
-     "reason": "NO_HOLD",
-     "text_ko": "두 발을 잠깐 함께 올릴 만큼 넓은 발판이 아니에요."
-    },
-    {
-     "reason": "LIMB_STATE",
-     "text_ko": "반대 발이 그 발판을 딛고 있어야 해요."
-    }
-   ]
+   "real_ko": "한 팔을 굽혀 몸을 홀드 가까이 당긴 채 버티고 다른 손을 뻗어요.",
+   "seen_ko": "'무브: 짧게 당기기'가 뜨고, 잡은 팔이 굽은 채 다른 손이 높은 홀드로 가요.",
+   "cond_ko": "버티는 손의 홀드가 크고 두 발이 딛고 있을수록 쉬워요.",
+   "ready": true
   },
   {
    "id": "T_SIDEPULL",
@@ -299,7 +335,11 @@
      "reason": "BODY_ORIENTATION_LIMIT",
      "text_ko": "몸을 더 돌릴 수 없어요."
     }
-   ]
+   ],
+   "real_ko": "옆을 향한 홀드를 몸 쪽으로 당기며 반대쪽 발로 밀어요.",
+   "seen_ko": "",
+   "cond_ko": "",
+   "ready": false
   },
   {
    "id": "T_GASTON",
@@ -325,7 +365,11 @@
      "reason": "JOINT_LIMIT",
      "text_ko": "팔 각도 한계예요."
     }
-   ]
+   ],
+   "real_ko": "안쪽을 향한 홀드를 팔꿈치를 벌려 바깥으로 밀어요.",
+   "seen_ko": "",
+   "cond_ko": "",
+   "ready": false
   },
   {
    "id": "T_UNDERCLING",
@@ -352,95 +396,111 @@
      "reason": "SUPPORT_OVERLOAD",
      "text_ko": "남은 손발로 버티기 어려워요."
     }
-   ]
-  },
-  {
-   "id": "T_HEEL_HOOK",
-   "name_ko": "힐훅",
-   "phase": 2,
-   "input": "button",
-   "body_parts": "foot",
-   "sides": "left_right",
-   "flow": "hold_tap",
-   "group": "foot",
-   "purpose_tags": [
-    "reduce_arm_load"
    ],
-   "purpose_ko": "발 뒤꿈치를 홀드에 걸어 다리로 당겨서 팔 부담을 줄여요.",
-   "when_ko": "오버행처럼 팔에 부담이 클 때, 발 높이에 걸 만한 홀드가 있을 때 써요.",
-   "how_ko": "1. 기술에서 힐훅을 고르세요. 2. 발을 고르세요. 3. 걸 홀드를 탭하세요.",
-   "mistakes": [
-    {
-     "reason": "MOVE_NOT_SUPPORTED",
-     "text_ko": "아직 지원하지 않는 기술이에요."
-    }
-   ]
+   "real_ko": "아래를 향한 홀드를 손바닥을 위로 해 당겨 올려요.",
+   "seen_ko": "",
+   "cond_ko": "",
+   "ready": false
   },
   {
-   "id": "T_TOE_HOOK",
-   "name_ko": "토훅",
-   "phase": 2,
-   "input": "button",
-   "body_parts": "foot",
-   "sides": "left_right",
-   "flow": "hold_tap",
-   "group": "foot",
-   "purpose_tags": [
-    "balance"
-   ],
-   "purpose_ko": "발등을 홀드에 걸어 당겨서 발이 흔들리는 것을 막아요.",
-   "when_ko": "벽에서 발이 흔들리거나 떨어지려 할 때, 걸 만한 홀드가 있을 때 써요.",
-   "how_ko": "1. 기술에서 토훅을 고르세요. 2. 발을 고르세요. 3. 걸 홀드를 탭하세요.",
-   "mistakes": [
-    {
-     "reason": "MOVE_NOT_SUPPORTED",
-     "text_ko": "아직 지원하지 않는 기술이에요."
-    }
-   ]
-  },
-  {
-   "id": "T_SMEAR",
-   "name_ko": "스미어링",
-   "phase": 2,
-   "input": "button",
-   "body_parts": "foot",
-   "sides": "left_right",
-   "flow": "hold_tap",
-   "group": "foot",
-   "purpose_tags": [
-    "balance"
-   ],
-   "purpose_ko": "발판이 없는 벽면에 신발 바닥을 눌러 마찰로 버텨요.",
-   "when_ko": "발판이 없는 곳에서 잠깐 발을 지지하고 싶을 때 써요.",
-   "how_ko": "1. 기술에서 스미어링을 고르세요. 2. 발을 고르세요. 3. 벽면을 탭하세요.",
-   "mistakes": [
-    {
-     "reason": "MOVE_NOT_SUPPORTED",
-     "text_ko": "아직 지원하지 않는 기술이에요."
-    }
-   ]
-  },
-  {
-   "id": "T_DROP_FOOT_REACH",
-   "name_ko": "다리 내리기 + 먼 손 뻗기",
    "phase": 1,
    "input": "pad",
-   "body_parts": "hand+foot",
    "sides": "left_right",
    "flow": "hold_tap",
-   "group": "hand",
    "purpose_tags": [
-    "reach_far"
+    "balance"
    ],
-   "purpose_ko": "한쪽 발을 내리고 반대쪽 팔을 멀리 뻗기.",
-   "when_ko": "먼 옆 홀드가 손에 닿지 않을 때 써요.",
-   "how_ko": "높이 올린 발을 조금 아래 발판으로 내린 뒤, 반대쪽 손 패드를 멀리 끌어 홀드에 놓아요.",
    "mistakes": [
     {
-     "reason": "NEED_WEIGHT_SHIFT",
-     "text_ko": "발을 먼저 내려 몸이 옮겨 갈 수 있게 해요."
+     "reason": "SUPPORT_NEEDED",
+     "text_ko": "손발이 붙어 있는 범위 밖으로는 몸이 가지 않아요. 가는 쪽에 손이나 발을 먼저 옮기세요."
     }
-   ]
+   ],
+   "id": "T_BODY_SHIFT",
+   "name_ko": "몸통 옮기기",
+   "body_parts": "torso",
+   "group": "body",
+   "purpose_ko": "몸무게를 디딘 발 위로 실어 팔이 덜 힘들고, 손이 더 멀리 닿아요.",
+   "when_ko": "손이 조금 모자랄 때, 한쪽 발 위에 올라서고 싶을 때 써요.",
+   "how_ko": "네 패드 사이 가운데를 누른 채 가고 싶은 쪽으로 끌어요. 누른 채 다른 손가락으로 손 패드를 끌면 그 자세로 뻗어요.",
+   "real_ko": "발을 딛고 골반을 그 발 위로 옮겨 몸무게를 실어요.",
+   "seen_ko": "몸이 끄는 쪽으로 따라가요. 균형이 깨지는 쪽으로는 가지 않아요.",
+   "cond_ko": "손발이 붙어 있는 범위 안에서만 움직여요.",
+   "ready": true
+  },
+  {
+   "id": "T_REST",
+   "name_ko": "휴식",
+   "phase": 1,
+   "input": "pad",
+   "body_parts": "torso",
+   "sides": "none",
+   "flow": "execute",
+   "group": "body",
+   "purpose_tags": [
+    "rest"
+   ],
+   "purpose_ko": "팔을 펴고 다리에 체중을 실어 팔 힘을 회복해요.",
+   "when_ko": "자세가 안정되고 발에 체중이 실려 있을 때, 다음 동작 전에 팔 힘을 쉬게 하고 싶을 때 써요.",
+   "how_ko": "발로 체중을 받친 채 패드를 건드리지 않고 기다리면 팔을 펴고 다리에 체중을 실어 팔 힘이 회복돼요.",
+   "mistakes": [
+    {
+     "reason": "SUPPORT_NEEDED",
+     "text_ko": "발이 홀드를 딛고 있어야 쉴 수 있어요."
+    },
+    {
+     "reason": "NEED_WEIGHT_SHIFT",
+     "text_ko": "먼저 체중을 옮겨야 해요."
+    }
+   ],
+   "real_ko": "팔을 펴고 두 발에 몸무게를 실어 팔 힘을 되찾아요.",
+   "seen_ko": "위쪽 팔 힘 표시가 다시 차요.",
+   "cond_ko": "두 발이 딛고 있어야 해요. 큰 홀드일수록 편해요.",
+   "ready": true
+  },
+  {
+   "phase": 1,
+   "input": "pad",
+   "sides": "left_right",
+   "flow": "hold_tap",
+   "purpose_tags": [
+    "balance"
+   ],
+   "mistakes": [
+    {
+     "reason": "BARN_DOOR",
+     "text_ko": "같은 쪽 손과 발만 남기고 떼면 몸이 돌아요. 떼기 전에 반대쪽을 먼저 붙이세요."
+    }
+   ],
+   "id": "T_BARN_DOOR",
+   "name_ko": "문 열림 대처",
+   "body_parts": "torso",
+   "group": "body",
+   "purpose_ko": "몸이 문처럼 한쪽으로 돌아 떨어지는 것을 막아요.",
+   "when_ko": "같은 쪽 손과 발만 붙어 있어 몸이 돌기 시작할 때 써요.",
+   "how_ko": "떠 있는 발 패드를 몸이 도는 반대쪽으로 끌어 벽에 대거나(플래그), 반대쪽 손발을 홀드에 붙여요.",
+   "real_ko": "몸이 문처럼 열리려 할 때 반대쪽으로 발을 뻗어 막아요.",
+   "seen_ko": "몸 둘레 경고가 사라져요.",
+   "cond_ko": "떠 있는 손이나 발이 하나 있어야 해요.",
+   "ready": true
+  }
+ ],
+ "absent": [
+  {
+   "name_ko": "힐훅 · 토훅",
+   "why_ko": "발뒤꿈치나 발등을 거는 동작은 이 게임의 발 모양으로는 넣지 않았어요."
+  },
+  {
+   "name_ko": "스미어링",
+   "why_ko": "홀드 없이 벽을 밟고 서는 동작은 없어요. 벽에 발을 대는 것은 플래그로만 해요."
+  },
+  {
+   "name_ko": "데드포인트 · 다이노",
+   "why_ko": "뛰어서 잡는 동작은 없어요. 손발이 닿는 거리 안에서만 움직여요."
+  },
+  {
+   "name_ko": "크림프 · 슬로퍼 · 핀치",
+   "why_ko": "쥐는 모양은 고르지 않아요. 홀드 크기에 따라 팔 힘이 빠지는 빠르기만 달라요."
   }
  ]
 }

@@ -6,7 +6,8 @@ const PATH := "res://data/techniques.json"
 # mistakes.text_ko는 튜토리얼용 설명이다. 실행 거부 시 UI 이유 문구는 docs/27 §7.3을 따로 쓴다.
 
 
-## id(StringName) -> {id, name_ko, phase, input, body_parts, sides, flow, group, purpose_tags, purpose_ko, when_ko, how_ko, mistakes}
+## id(StringName) -> {id, name_ko, phase, input, body_parts, sides, flow, group, purpose_tags, purpose_ko, when_ko, how_ko, mistakes,
+## real_ko(실제 클라이밍에서는), seen_ko(게임이 알아보면 보이는 것), cond_ko(되는 조건), ready(기술 사전에 보이는가, docs/42 §4.3)}
 ## input: &"button"(기술 버튼으로 실행) 또는 &"pad"(패드 조작으로 하고 게임이 판정·기록, docs/28 §4).
 static func load_all() -> Dictionary:
 	var out := {}
@@ -36,6 +37,10 @@ static func load_all() -> Dictionary:
 			"when_ko": d.when_ko,
 			"how_ko": d.how_ko,
 			"mistakes": mistakes,
+			"real_ko": str(d.get("real_ko", "")),
+			"seen_ko": str(d.get("seen_ko", "")),
+			"cond_ko": str(d.get("cond_ko", "")),
+			"ready": bool(d.get("ready", true)),
 		}
 	return out
 
@@ -48,3 +53,9 @@ static func button_ids() -> Array[StringName]:
 		if defs[id].phase == 1 and defs[id].input == &"button":
 			out.append(id)
 	return out
+
+
+## 이 게임에 없는 기술 [{name_ko, why_ko}](기술 사전 "없는 기술", docs/42 §3.3).
+static func absent() -> Array:
+	var data = JSON.parse_string(FileAccess.get_file_as_string(PATH))
+	return data.get("absent", []) if typeof(data) == TYPE_DICTIONARY else []

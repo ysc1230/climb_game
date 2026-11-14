@@ -113,8 +113,9 @@ func test_tutorial_wording() -> void:
 func test_next_basic_tutorial_and_tips() -> void:
 	var p := Progress.new()
 	var flow := PlayFlow.new(ContentIndex.load_all(), p, "user://test_tips_save.json")
-	runner.check(flow.next_basic_tutorial("C_BASIC_T").is_empty(), "튜토리얼이 없으면 다음 과정 없음")
-	runner.check(not p.first_run_locked(flow.index), "기본 조작 튜토리얼이 없으면 첫 실행 잠금 없음")
+	runner.check(flow.next_basic_tutorial("C_BASIC_T") == {"route_id": "C_FEET_T", "name": "발로 오르기"}, "기본 조작 다음은 발로 오르기")
+	runner.check(flow.next_basic_tutorial("C_ARM_T").is_empty() and flow.next_basic_tutorial("G_V3_02").is_empty(), "마지막 수업·일반 문제는 다음 없음")
+	runner.check(p.first_run_locked(flow.index), "기본 조작을 마치기 전에는 첫 실행 잠금")
 	flow.mark_tip("caution")
 	flow.mark_tip("caution")
 	runner.check(p.seen_tips == ["caution"], "안내는 한 번만 기록")

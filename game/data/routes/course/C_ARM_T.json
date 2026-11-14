@@ -1,0 +1,313 @@
+{
+ "route_id": "C_ARM_T",
+ "content_version": 1,
+ "validation_status": "Draft",
+ "mode": "course",
+ "grade": "V0",
+ "order": 0,
+ "name_ko": "팔 힘과 쉬기",
+ "course_id": "C_ARM",
+ "course_slot": "tutorial",
+ "required_techniques": [],
+ "note": "v1(2026-11-14, docs/42 수업 3): 시작 자세 + 작은 홀드 S01(반폭 0.04). 한 발을 떼면 팔 힘이 빠지고, 작은 홀드에서는 더 빨리 빠지고, 두 발로 서면 돌아온다.",
+ "bounds": {
+  "x_min": -1.5,
+  "x_max": 1.5,
+  "y_min": 0.0,
+  "y_max": 4.0
+ },
+ "fail_line_y": -0.5,
+ "platforms": [
+  {
+   "platform_id": "P00",
+   "top_y": 0.1,
+   "x_range": [
+    -0.4,
+    0.8
+   ],
+   "foot_slot_keys": [
+    "C_ARM_T/F01/foot_1",
+    "C_ARM_T/F02/foot_1"
+   ]
+  }
+ ],
+ "start_pose": {
+  "pelvis": [
+   0.1,
+   0.76
+  ],
+  "angle": 0.0,
+  "slots": {
+   "LH": "C_ARM_T/H01/hand_1",
+   "RH": "C_ARM_T/H02/hand_1",
+   "LF": "C_ARM_T/F01/foot_1",
+   "RF": "C_ARM_T/F02/foot_1"
+  }
+ },
+ "goal_slots": [
+  "C_ARM_T/G01/goal_left",
+  "C_ARM_T/G01/goal_right"
+ ],
+ "holds": [
+  {
+   "hold_id": "H01",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      -0.1,
+      1.85
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.12
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H02",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      0.3,
+      1.85
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.12
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F01",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      -0.05,
+      0.1
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ]
+    }
+   ]
+  },
+  {
+   "hold_id": "F02",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      0.25,
+      0.1
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ]
+    }
+   ]
+  },
+  {
+   "hold_id": "S01",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      -0.35,
+      1.9
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.04
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "G01",
+   "slots": [
+    {
+     "slot_id": "goal_left",
+     "pos": [
+      0.05,
+      2.0
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ]
+    },
+    {
+     "slot_id": "goal_right",
+     "pos": [
+      0.35,
+      2.0
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ]
+    }
+   ]
+  }
+ ],
+ "intended_moves": [
+  [
+   "LH",
+   "C_ARM_T/G01/goal_left"
+  ],
+  [
+   "RH",
+   "C_ARM_T/G01/goal_right"
+  ]
+ ],
+ "tutorial_steps": [
+  {
+   "step_id": "A1",
+   "text_ko": "두 발로 서서 가만히 있어 보세요. 위쪽 '왼손 팔 힘'이 차요.",
+   "goal_event": {
+    "type": "stamina",
+    "limb": "LH",
+    "min": 70
+   },
+   "help_ko": [
+    "아무것도 누르지 말고 기다려요",
+    "두 발로 서 있으면 팔 힘이 돌아와요"
+   ],
+   "rules": {
+    "fatigue_drain": true,
+    "techniques": [],
+    "start_stamina": 40
+   }
+  },
+  {
+   "step_id": "A2",
+   "text_ko": "왼발을 떼고 버텨 보세요. 한 발로 버티면 팔 힘이 빠져요.",
+   "goal_event": {
+    "type": "stamina",
+    "limb": "LH",
+    "max": 85
+   },
+   "help_ko": [
+    "왼발 패드를 끌어 허공에서 떼요",
+    "위쪽 '왼손 팔 힘'이 줄어드는 걸 보세요"
+   ],
+   "rules": {
+    "fatigue_drain": true,
+    "techniques": [],
+    "start_stamina": 100
+   }
+  },
+  {
+   "step_id": "A3",
+   "text_ko": "왼발을 다시 노란 발판에 올려요.",
+   "goal_event": {
+    "type": "grab",
+    "limb": "LF",
+    "slot": "C_ARM_T/F01/foot_1"
+   },
+   "help_ko": [
+    "왼발 패드를 발판으로 끌어요",
+    "발판이 하얗게 빛나면 떼요"
+   ],
+   "rules": {
+    "fatigue_drain": true,
+    "techniques": []
+   }
+  },
+  {
+   "step_id": "A4",
+   "text_ko": "왼손으로 작은 노란 홀드를 잡아요.",
+   "goal_event": {
+    "type": "grab",
+    "limb": "LH",
+    "slot": "C_ARM_T/S01/hand_1"
+   },
+   "help_ko": [
+    "왼손 패드를 작은 홀드로 끌어요",
+    "홀드가 하얗게 빛나면 손가락을 떼요"
+   ],
+   "rules": {
+    "fatigue_drain": true,
+    "techniques": []
+   }
+  },
+  {
+   "step_id": "A5",
+   "text_ko": "작은 홀드를 잡은 채 왼발을 다시 떼 보세요. 작은 홀드에서는 팔 힘이 훨씬 빨리 빠져요.",
+   "goal_event": {
+    "type": "stamina",
+    "limb": "LH",
+    "max": 70
+   },
+   "help_ko": [
+    "왼발 패드를 끌어 허공에서 떼요",
+    "아까보다 빨리 줄어드는 걸 보세요"
+   ],
+   "rules": {
+    "fatigue_drain": true,
+    "techniques": [],
+    "start_stamina": 100
+   }
+  },
+  {
+   "step_id": "A6",
+   "text_ko": "왼발을 다시 딛고 가만히 쉬어요. 힘든 곳을 지나면 두 발로 서서 쉬세요.",
+   "goal_event": {
+    "type": "stamina",
+    "limb": "LH",
+    "min": 85
+   },
+   "help_ko": [
+    "왼발 패드를 발판으로 끌어요",
+    "두 발로 서서 기다려요"
+   ],
+   "rules": {
+    "fatigue_drain": true,
+    "techniques": []
+   }
+  },
+  {
+   "step_id": "A7",
+   "text_ko": "두 손으로 맨 위 크림색 홀드를 잡으면 끝나요.",
+   "goal_event": {
+    "type": "clear"
+   },
+   "help_ko": [
+    "한 손씩 정상 홀드로",
+    "두 손이 다 잡으면 완등"
+   ],
+   "rules": {
+    "fatigue_drain": true,
+    "techniques": []
+   }
+  }
+ ]
+}

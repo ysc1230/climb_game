@@ -94,8 +94,8 @@ func mark_tip(id: String) -> void:
 	SaveStore.save(progress, save_path)
 
 
-## 기본 과정 순서(docs/33 §4.0). 튜토리얼 완료 화면의 [다음: 과정]이 이 순서를 따른다.
-const BASIC_SEQUENCE: Array[String] = ["C_BASIC", "C_BODY", "C_DANGER", "C_REST", "C_ARM_LOAD"]
+## 처음 배우기 수업 순서(docs/42 §4.2). 튜토리얼 완료 화면의 [다음: 수업]이 이 순서를 따른다.
+const BASIC_SEQUENCE: Array[String] = ["C_BASIC", "C_FEET", "C_BODY", "C_ARM"]
 
 
 ## route_id가 기본 과정 튜토리얼이면 다음 기본 과정 튜토리얼 {route_id, name}. 마지막이거나 아니면 {}.

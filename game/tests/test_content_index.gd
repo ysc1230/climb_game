@@ -174,7 +174,7 @@ func test_step_formats_invalid() -> void:
 ## 2026-11-04 재구성(28 §6): 1차 과정(2026-11-05 데드포인트 제거), 나머지는 phase 2로 숨김.
 ## 2026-11-09 튜토리얼 개편(33 §4.0): 몸통 옮기기·위험 신호와 도움을 더하고 일부러 떨어지기를 없앴다(사용자 결정).
 func test_courses_json_content() -> void:
-	# 2026-11-11 사용자: 튜토리얼·과정을 모두 지우고 하나씩 다시 만든다. 목록은 비어 있고, 있으면 형식을 지킨다.
+	# 2026-11-14: 처음 배우기 수업 0~3(docs/42 1단계). 수업마다 튜토리얼 파일과 시작 설명이 있다.
 	var data = JSON.parse_string(FileAccess.get_file_as_string("res://data/courses.json"))
 	var list: Array = data.courses
 	var defs := TechniqueDefs.load_all()
@@ -184,7 +184,8 @@ func test_courses_json_content() -> void:
 		if int(c.phase) == 1:
 			var tx: Dictionary = c.get("text_ko", {})
 			runner.check(tx.get("purpose", "") != "" and tx.get("how", "") != "", "%s 시작 설명 문구" % c.course_id)
-	runner.check(list.is_empty(), "지금은 과정 없음 %s" % [list.map(func(c): return c.course_id)])
+		runner.check(FileAccess.file_exists(ContentIndex.route_path(str(c.tutorial))), "%s 튜토리얼 파일" % c.course_id)
+	runner.check(list.map(func(c): return c.course_id) == PlayFlow.BASIC_SEQUENCE, "수업 순서 %s" % [list.map(func(c): return c.course_id)])
 
 
 # --- ContentIndex ---
@@ -197,7 +198,7 @@ func test_index_real_data() -> void:
 	runner.check(ids_g == ["G_V3_02", "G_V3_03"], "V3 문제 %s" % [ids_g])
 	runner.check(idx.route("G_V3_02") != null and idx.route("NOPE") == null, "route 조회")
 	runner.check(idx.general("V9").is_empty(), "없는 등급 빈 배열")
-	runner.check(idx.courses().is_empty() and idx.course("C_NOPE").is_empty(), "과정 없음")
+	runner.check(idx.courses().size() == 4 and idx.course("C_NOPE").is_empty() and idx.route("C_BASIC_T") != null, "수업 4개")
 	runner.check(idx.errors.is_empty(), "색인 오류 없음 %s" % [idx.errors])
 
 
