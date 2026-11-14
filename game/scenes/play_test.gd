@@ -130,8 +130,7 @@ func _start_tutorial() -> void:
 	if overlay.has_list and route.course_slot == "tutorial" and not route.tutorial_steps.is_empty():
 		tutorial = TutorialRunner.new(route)
 		tutorial.set_level("beginner" if beginner else "intermediate")  # 고급도 튜토리얼은 중급 단계로
-		_begin_step()
-		overlay.briefing = _briefing_for(route)
+		_begin_step()  # 튜토리얼은 설명 화면 없이 바로 시작(2026-11-14 사용자)
 		overlay.can_skip = route.route_id == Progress.BASIC_TUTORIAL and game.progress.is_first_run()
 	warnings = level != "advanced" or tutorial != null
 	overlay.tutorial = tutorial
@@ -140,16 +139,6 @@ func _start_tutorial() -> void:
 
 
 ## 튜토리얼 시작 설명 카드(사용자 결정 2026-11-04): 그 과정의 이름·설명(text_ko). 탭하면 사라지고 그때부터 시작한다.
-func _briefing_for(r: RouteDef) -> Dictionary:
-	if game == null or r.course_id == "":
-		return {}
-	var c: Dictionary = game.index.course(r.course_id)
-	var t: Dictionary = c.get("text_ko", {})
-	if t.is_empty():
-		return {}
-	return {"title": str(c.get("name_ko", "")), "purpose": str(t.get("purpose", "")), "when": str(t.get("when", "")), "how": str(t.get("how", ""))}
-
-
 ## 튜토리얼 단계를 (다시) 놓는다. 멈춤 없이 바로 시작하고, 목표 홀드는 단계 내내 반짝인다(사용자 결정 2026-11-04).
 func _begin_step() -> void:
 	tutorial.begin_step(session)
@@ -453,18 +442,12 @@ func _overlay_action(act: String) -> void:
 				prepare_left = 3.0
 		"help":
 			overlay.help_open = not overlay.help_open
-		"brief":
-			overlay.briefing = {}
 		"retry":
 			_retry()
 		"rescue":
 			_rescue()
 		"next_course":
 			game.play(str(overlay.next_course.route_id))
-		"dict":
-			game.home({"tab": "technique", "view": "dict"})
-		"problems":
-			game.home({"tab": "general"})
 		"next":
 			game.play(str(overlay.result.next))
 		"list":
@@ -674,7 +657,6 @@ func _tutorial_tick(result: String, dt: float) -> bool:
 			_end_tutorial_rules()
 			overlay.tutorial_done = true
 			overlay.next_course = game.get_flow().next_basic_tutorial(route.route_id) if game != null else {}
-			overlay.entry_choice = route.course_id == Progress.BASIC_COURSE
 			if overlay.has_list:
 				game.finish_tutorial()
 			_after_reset("")

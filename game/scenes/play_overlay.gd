@@ -10,10 +10,8 @@ var font: Font
 ## 비어 있지 않으면 결과 오버레이 {seconds, falls, no_fall, time, time_limit, next, saved}.
 var result := {}
 ## 비어 있지 않으면 튜토리얼 시작 설명 카드 {title, purpose, when, how}. 탭하면 사라진다(그동안 플레이 멈춤).
-var briefing := {}
 var tutorial: TutorialRunner
 var tutorial_done := false
-var entry_choice := false  # 기본 조작을 마친 화면: 처음이에요 / 해 봤어요 / 바로 문제 풀기(docs/42 §4.1)
 var next_course := {}     # 튜토리얼 완료 화면 [다음: 과정] {route_id, name}(docs/33 §4.1)
 var dim_band := false     # 위험 경고 동안 안내 줄을 흐리게(docs/33 §3.5)
 var help_open := false
@@ -30,7 +28,7 @@ var detail_rect := Rect2()  # 위쪽 [i] 상세 정보 버튼 자리
 
 ## 결과·완료 화면이 떠 있어 플레이를 멈추는가.
 func blocking() -> bool:
-	return not result.is_empty() or tutorial_done or not briefing.is_empty()
+	return not result.is_empty() or tutorial_done
 
 
 ## 다른 곳(hud.gd)이 그린 버튼을 누름 판정에 넣는다.
@@ -65,8 +63,6 @@ func draw(ci: CanvasItem, size: Vector2, k: float, paused: bool, selecting: bool
 	if tutorial_done:
 		_draw_done(ci, size, k)
 		return
-	if not briefing.is_empty() and not paused:
-		_draw_briefing(ci, size, k)
 		return
 	if paused:
 		return  # 일시정지 카드·버튼은 hud.gd(draw_pause)가 그리고 add_buttons로 넘긴다
@@ -107,57 +103,16 @@ func _draw_result(ci: CanvasItem, size: Vector2, k: float) -> void:
 	_button_row(ci, Rect2(Vector2(x, y + 350 * k), Vector2(w, 64 * k)), acts, k)
 
 
-## 시작 설명 카드: 화면 가운데 큰 카드. 아무 데나 탭하면 닫힌다(전체 화면이 "brief" 버튼).
-func _draw_briefing(ci: CanvasItem, size: Vector2, k: float) -> void:
-	ci.draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.55))
-	var w := minf(size.x * 0.62, 1100.0 * k)
-	var panel := Rect2(Vector2(size.x * 0.5 - w * 0.5, size.y * 0.5 - 250 * k), Vector2(w, 500 * k))
-	ci.draw_rect(panel, Color(0.07, 0.06, 0.05, 0.97))
-	ci.draw_rect(panel, CREAM, false, 3.0)
-	var x := panel.position.x + 40 * k
-	var tw := panel.size.x - 80 * k
-	var y := panel.position.y + 72 * k
-	ci.draw_string(font, Vector2(panel.position.x, y), str(briefing.get("title", "")), HORIZONTAL_ALIGNMENT_CENTER, panel.size.x, int(44 * k), CREAM)
-	y += 64 * k
-	ci.draw_multiline_string(font, Vector2(x, y), str(briefing.get("purpose", "")), HORIZONTAL_ALIGNMENT_CENTER, tw, int(30 * k), 2, Color.WHITE)
-	y += 90 * k
-	for key in ["how", "when"]:
-		var t := str(briefing.get(key, ""))
-		if t != "":
-			ci.draw_multiline_string(font, Vector2(x, y), t, HORIZONTAL_ALIGNMENT_LEFT, tw, int(24 * k), 3, Color(1, 1, 1, 0.85))
-			y += 100 * k
-	ci.draw_string(font, Vector2(panel.position.x, panel.end.y - 28 * k), "화면을 탭하면 시작해요", HORIZONTAL_ALIGNMENT_CENTER, panel.size.x, int(26 * k), CREAM)
-	_buttons.append({"rect": Rect2(Vector2.ZERO, size), "action": "brief"})
-
-
+## 튜토리얼 완료 화면.
 func _draw_done(ci: CanvasItem, size: Vector2, k: float) -> void:
 	ci.draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.6))
 	ci.draw_string(font, Vector2(0, size.y * 0.42), "✓ 다 배웠어요", HORIZONTAL_ALIGNMENT_CENTER, size.x, int(44 * k), CREAM)
-	if entry_choice and has_list:
-		ci.draw_string(font, Vector2(0, size.y * 0.42 + 44 * k), "이제 어떻게 할까요?", HORIZONTAL_ALIGNMENT_CENTER, size.x, int(24 * k), Color(1, 1, 1, 0.75))
-		var rows := []
-		if not next_course.is_empty():
-			rows.append(["클라이밍이 처음이에요", "다음 수업: " + str(next_course.name), "next_course"])
-		rows.append(["클라이밍을 해 봤어요", "기술 사전 보기", "dict"])
-		rows.append(["바로 문제 풀기", "문제 목록으로", "problems"])
-		var bw := 340.0 * k
-		var gap := 20.0 * k
-		var x := size.x * 0.5 - (bw * rows.size() + gap * (rows.size() - 1)) * 0.5
-		for row in rows:
-			var r := Rect2(Vector2(x, size.y * 0.5 + 30 * k), Vector2(bw, 110 * k))
-			var strong: bool = row[2] == "next_course"
-			ci.draw_rect(r, CREAM if strong else Color(0.1, 0.1, 0.1, 0.75))
-			ci.draw_rect(r, Color(1, 1, 1, 0.7), false, 2.0)
-			ci.draw_string(font, Vector2(r.position.x, r.position.y + 48 * k), row[0], HORIZONTAL_ALIGNMENT_CENTER, bw, int(26 * k), INK if strong else Color.WHITE)
-			ci.draw_string(font, Vector2(r.position.x, r.position.y + 84 * k), row[1], HORIZONTAL_ALIGNMENT_CENTER, bw, int(20 * k), INK if strong else Color(1, 1, 1, 0.6))
-			_buttons.append({"rect": r, "action": row[2]})
-			x += bw + gap
-		return
-	var acts := [["목록", "list"]] if has_list else [["다시", "retry"]]
+	# 튜토리얼 완료: [나가기] + [다음](다음 수업이 있을 때만, 2026-11-14 사용자)
+	var acts := [["나가기", "list"]] if has_list else [["다시", "retry"]]
 	var w := 400.0
 	if not next_course.is_empty():
-		acts.append(["다음: " + str(next_course.name), "next_course"])
-		w = 640.0
+		acts.append(["다음", "next_course"])
+		w = 560.0
 	_button_row(ci, Rect2(Vector2(size.x * 0.5 - w * 0.5 * k, size.y * 0.5), Vector2(w, 64) * k), acts, k)
 
 
@@ -229,7 +184,7 @@ func _button_row(ci: CanvasItem, area: Rect2, acts: Array, k: float) -> void:
 	var total := bw * acts.size() + gap * (acts.size() - 1)
 	var x := area.position.x + (area.size.x - total) * 0.5
 	for a in acts:
-		_button(ci, Rect2(Vector2(x, area.position.y), Vector2(bw, area.size.y)), a[0], a[1], k, a[1] == "next")
+		_button(ci, Rect2(Vector2(x, area.position.y), Vector2(bw, area.size.y)), a[0], a[1], k, a[1] in ["next", "next_course"])
 		x += bw + gap
 
 
