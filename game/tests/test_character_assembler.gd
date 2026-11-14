@@ -158,4 +158,13 @@ func test_hand_on_hold_surface() -> void:
 	pose.surface_depth[s.limbs[&"LF"].key] = 0.05
 	t = pose.compute(s, Tuning.DT)
 	runner.check(absf(t.wrist_L.z - (0.09 + ClimberPose.HAND_ON_SURFACE)) < 0.001, "손은 홀드 겉면 위 %.3f" % t.wrist_L.z)
-	runner.check(absf(t.ankle_L.z - (0.05 + ClimberPose.FOOT_ON_SURFACE)) < 0.001, "발도 겉면 위 %.3f" % t.ankle_L.z)
+	runner.check(absf(t.ankle_L.z - (0.05 + ClimberPose.FOOT_ON_SURFACE)) < 0.001, "윗면 정보 없으면 발목은 겉면 위 %.3f" % t.ankle_L.z)
+	pose = ClimberPose.new()
+	var fk = s.limbs[&"LF"].key
+	pose.surface_depth[fk] = 0.05
+	pose.surface_top[fk] = 0.03
+	t = pose.compute(s, Tuning.DT)
+	var hold: Vector2 = s.route.slot_pos(fk)
+	var toe: Vector3 = t.ankle_L + Anatomy.FOOT_WANT.normalized() * Anatomy.FOOT_LENGTH
+	runner.check(toe.distance_to(Vector3(hold.x, hold.y + 0.03, 0.025)) < 0.001, "발끝이 홀드 윗면에 %s" % toe)
+	runner.check(t.ankle_L.y > hold.y + 0.03, "발목은 홀드 윗면보다 위 %.3f" % t.ankle_L.y)

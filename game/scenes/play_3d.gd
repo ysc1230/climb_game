@@ -270,6 +270,7 @@ func _build_holds() -> void:
 		hold.scale = Vector3.ONE * hold_view_scale(slot, mesh, is_goal) * rng.randf_range(0.95, 1.05)
 		add_child(hold)
 		climber_pose.surface_depth[key] = mesh.get_aabb().end.z * hold.scale.z  # 홀드 겉면(손발을 여기 얹는다)
+		climber_pose.surface_top[key] = mesh.get_aabb().end.y * hold.scale.y  # 홀드 윗면(발끝을 여기 얹는다)
 		var glow := MeshInstance3D.new()
 		glow.mesh = mesh
 		var gm := _overlay(Color(1, 1, 1, 0.0))
