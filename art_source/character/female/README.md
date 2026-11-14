@@ -1,10 +1,10 @@
-# Tripo 여성 클라이머
+# 여성 클라이머(단발)
 
-사용자가 그린 T자 그림 4장(`references/front·left·back·right.png`)으로 Tripo v3.1 멀티뷰 생성(2026-11-12, 30크레딧, `task.json`).
+출처: main `temp/characters/female_bob_v1/climber_female_base.glb`(Tripo 기본 생성본, 키 1.0, 앞 +X). 2026-11-15 이 폴더로 옮겨 게임에 넣음. 이전 여성(올림머리, 2026-11-12)은 게임에서 쓰지 않아 지움.
 
-- 원본: `climber_female_base.glb`(키 1.0, 올림머리 포함, 앞 +X)
-- 게임용: `TRIPO_CHAR=female blender -b --python art_source/character/build_tripo_rig.py` → `game/art/characters/climber_tripo_female.glb`
-- 맞춤(docs/37 §7): 어깨~발목을 판정 몸(1.455m)에 맞춰 ×2.0845(키 약 2.08m). 팔은 손끝이 0.80m에 오게 길이 방향으로 ×0.866. 화면 다리 관절은 판정 고관절 위 0.11m, 무릎·발목은 모델 실측.
-- 초크백은 왼쪽 허리(그림대로).
-
-미리보기: `preview.png`(Tripo). 게임 화면은 docs/37 §7.
+- 게임용: `TRIPO_CHAR=female blender -b --python art_source/character/build_tripo_rig.py` → `game/art/characters/climber_female.glb`(삼각형 12000, 뼈 21)
+- 기준점(정규화 높이에서 잼): 어깨 0.776, 발목 0.06, 무릎 0.27, 손끝 0.398, 가랑이 0.47, 손목 0.29, 손가락 뿌리 0.35. 손가락 0.058(남성과 같음).
+- 초크백: 오른쪽 허리 뒤(몸과 붙은 덩어리, `chalk` 판별식).
+- Mixamo 리깅본·파츠 분리본(temp의 rig_wip·parts_wip)은 쓰지 않는다: 게임 뼈대(docs/39 더미 기준)로 다시 리깅한다.
+- 참고 그림: `references/`, 파츠 검토 그림: `preview.png`.
+- 고를 곳: `game/data/characters.json` 몸 목록(남성 → 여성 → 더미).

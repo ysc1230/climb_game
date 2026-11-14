@@ -1,12 +1,19 @@
 {
  "model": "res://art/characters/climber_smooth.glb",
- "note": "2026-11-13: 남성(매끈한 모델, Tripo P1 1f0174d2, art_source/character/smooth, build_tripo_rig.py TRIPO_CHAR=smooth)을 기본으로, 더미(docs/39)는 시험용으로 남김. 몸 판정은 더미 몸.",
+ "note": "2026-11-13: 남성(매끈한 모델, Tripo P1 1f0174d2, art_source/character/smooth, build_tripo_rig.py TRIPO_CHAR=smooth)을 기본으로, 더미(docs/39)는 시험용으로 남김. 몸 판정은 더미 몸. 2026-11-15: 여성(단발, main temp/characters/female_bob_v1, build_tripo_rig.py TRIPO_CHAR=female) 추가.",
  "bodies": [
   {
    "id": "male",
    "name_ko": "남성",
    "mesh": "P_body_smooth",
    "model": "res://art/characters/climber_smooth.glb",
+   "defaults": {}
+  },
+  {
+   "id": "female",
+   "name_ko": "여성",
+   "mesh": "P_body_female",
+   "model": "res://art/characters/climber_female.glb",
    "defaults": {}
   },
   {

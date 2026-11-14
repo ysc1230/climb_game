@@ -10,7 +10,7 @@ const TRI_BUDGET := 12500
 const SPEC := {"pelvis": Vector2(0, 0), "spine": Vector2(0, 0.16), "chest": Vector2(0, 0.37), "neck": Vector2(0, 0.49), "head": Vector2(0, 0.56),
 	"upperarm_R": Vector2(0.175, 0.49), "forearm_R": Vector2(0.525, 0.49), "hand_R": Vector2(0.905, 0.49),
 	"upperarm_L": Vector2(-0.175, 0.49), "hand_L": Vector2(-0.905, 0.49), "thigh_R": Vector2(0.095, 0), "shin_R": Vector2(0.095, -0.41), "foot_R": Vector2(0.095, -0.81)}
-const MODELS := {"male": ["res://art/characters/climber_smooth.glb", "P_body_smooth"], "dummy": ["res://art/characters/climber_dummy.glb", "P_body_dummy"]}
+const MODELS := {"male": ["res://art/characters/climber_smooth.glb", "P_body_smooth"], "dummy": ["res://art/characters/climber_dummy.glb", "P_body_dummy"], "female": ["res://art/characters/climber_female.glb", "P_body_female"]}
 
 ## 파츠 교체 논리용 가짜 목록(옛 모듈 시제품과 같은 모양).
 const FAKE := {"model": "", "bodies": [
@@ -33,7 +33,7 @@ func _fake() -> CharacterAssembler:
 
 func test_catalog_matches_model() -> void:
 	var asm := CharacterAssembler.load_catalog()
-	runner.check(asm.bodies().map(func(b): return b.id) == ["male", "dummy"] and asm.data.get("slots", []).is_empty(), "남성·더미, 파츠 없음")
+	runner.check(asm.bodies().map(func(b): return b.id) == ["male", "female", "dummy"] and asm.data.get("slots", []).is_empty(), "남성·여성·더미, 파츠 없음")
 	runner.check(asm.model_path() == MODELS.male[0], "기본 모델은 남성")
 	for body in MODELS:
 		var path: String = MODELS[body][0]
@@ -122,7 +122,7 @@ func test_apply_shows_body() -> void:
 			runner.check(asm.apply(m, look) == 1, "%s %s: 몸 하나만" % [body, look])
 		m.free()
 	runner.check(asm.normalize({"hair": "crop"}) == {"body": "male", "hair": "", "top": "", "bottom": "", "chalk": "", "shoes": ""}, "기본 몸은 남성, 파츠 없는 슬롯은 빈 값")
-	runner.check(asm.cycle({"body": "male"}, "body", 1) == "dummy" and asm.cycle({"body": "dummy"}, "body", 1) == "male", "몸 바꾸기")
+	runner.check(asm.cycle({"body": "male"}, "body", 1) == "female" and asm.cycle({"body": "female"}, "body", 1) == "dummy" and asm.cycle({"body": "dummy"}, "body", 1) == "male", "몸 바꾸기")
 	runner.check(asm.model_path("dummy") == MODELS.dummy[0] and asm.model_path("nope") == MODELS.male[0], "몸마다 모델, 모르는 몸은 기본")
 
 

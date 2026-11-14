@@ -33,12 +33,14 @@ CFG = {
              "landmarks": {"shoulder": 0.762, "ankle": 0.03, "knee": 0.245, "tip": 0.409, "crotch": 0.405},
              "crotch_lift": 0.05,
              "chalk": lambda x, y, z: 0.46 < z < 0.55 and (x > 0.093 or (x > 0.06 and y < -0.06))},
-    # 여성(2026-11-12, task e606f7d8, art_source/character/female). 초크백은 왼쪽 허리
+    # 여성 단발(2026-11-15, main temp/characters/female_bob_v1 기본 생성본, art_source/character/female). 초크백은 오른쪽 허리 뒤
     "female": {"src": "art_source/character/female/climber_female_base.glb", "out": "game/art/characters/climber_female.glb",
                "mesh": "P_body_female", "tex": "climber_female_color",
-               "landmarks": {"shoulder": 0.743, "ankle": 0.045, "knee": 0.265, "tip": 0.434, "crotch": 0.44},
+               "landmarks": {"shoulder": 0.776, "ankle": 0.06, "knee": 0.27, "tip": 0.398, "crotch": 0.47,
+                             "wrist": 0.29, "knuckle": 0.35},
+               "finger_len": 0.058,
                "crotch_lift": 0.0,
-               "chalk": lambda x, y, z: 0.50 < z < 0.60 and (x < -0.094 or (x < -0.06 and y < -0.075))},
+               "chalk": lambda x, y, z: 0.43 < z < 0.57 and (x > 0.088 or (x > 0.06 and y < -0.06))},
     # 매끈한 남성(2026-11-13, main 15f44d9, Tripo P1 task 1f0174d2): game/art/characters/climber_smooth_base.glb.
     # 초크백은 따로 떨어진 덩어리(앞뒤 주머니 두 겹으로 생성됨) → 뒤쪽(y < −0.02)만 남긴다.
     "smooth": {"src": "art_source/character/smooth/climber_smooth_base.glb", "out": "game/art/characters/climber_smooth.glb",
