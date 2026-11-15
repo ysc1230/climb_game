@@ -225,6 +225,8 @@ static func caution_text(k: StringName) -> String:
 
 ## 떨어진 뒤 원인 한 줄. reason: "NO_SUPPORT"/"BALANCE_LOST".
 func fall_cause(reason: String) -> String:
+	if reason == "DYNO_MISS":
+		return "다이노로 홀드를 못 잡았어요. 손이 홀드 가까이 올 때 그 손 패드를 눌러요"
 	var limb := recent_limb()
 	var rel := last_release
 	if reason == "NO_SUPPORT":  # 버틸 손이 없어 떨어졌으면 마지막에 뗀 손이 원인

@@ -16,6 +16,10 @@ var _gesture_seq := 0
 ## 몸통 끌기 영역(docs/03 v0.9): 네 패드 사이 가운데. 여기서 시작한 터치는 팔다리 대신 몸통(골반 목표)을 움직인다.
 var body_area := Rect2()
 const BODY := &"BODY"
+## 다이노(Tuning.DYNO_*): 몸 영역을 탭하고 DYNO_DOUBLE_TAP 안에 다시 누른 터치는 다이노 준비 터치다.
+## 명령: dyno_start / dyno_move(delta 월드) / dyno_end.
+const DYNO := &"DYNO"
+var _last_body_up := -INF
 const SPEED_WINDOW := 0.1  # 속도를 재는 구간(초)
 
 
@@ -46,10 +50,15 @@ func _pad_at(pos: Vector2) -> StringName:
 
 
 ## attached_now: 누를 때 팔다리가 슬롯에 붙어 있는지. 붙어 있으면 arm, 아니면 바로 Dragging.
-func touch_down(index: int, pos: Vector2, attached_now: bool) -> Array:
+func touch_down(index: int, pos: Vector2, attached_now: bool, time_s: float = -1.0) -> Array:
 	if _bindings.has(index):
 		return []
 	var limb := _pad_at(pos)
+	if limb == &"" and body_area.has_point(pos) and not _limb_bound(BODY) and not _limb_bound(DYNO) and _now(time_s) - _last_body_up <= Tuning.DYNO_DOUBLE_TAP:
+		_gesture_seq += 1
+		_last_body_up = -INF
+		_bindings[index] = {"limb": DYNO, "origin": pos, "last": pos, "dragging": true, "moves": [], "pad_px": _body_pad_px(), "gesture": _gesture_seq}
+		return [{"type": "dyno_start", "limb": DYNO}]
 	if limb == &"" and body_area.has_point(pos) and not _limb_bound(BODY):
 		_gesture_seq += 1
 		_bindings[index] = {"limb": BODY, "origin": pos, "last": pos, "dragging": true, "moves": [], "pad_px": _body_pad_px(), "gesture": _gesture_seq}
@@ -92,7 +101,7 @@ func touch_drag(index: int, pos: Vector2, time_s: float = -1.0) -> Array:
 	b.moves.append({"t": now, "len": world_delta.length()})
 	while b.moves.size() > 0 and b.moves[0].t < now - 1.0:
 		b.moves.pop_front()
-	out.append({"type": "body_move" if b.limb == BODY else "move", "limb": b.limb, "delta": world_delta})
+	out.append({"type": "body_move" if b.limb == BODY else ("dyno_move" if b.limb == DYNO else "move"), "limb": b.limb, "delta": world_delta})
 	return out
 
 
@@ -102,7 +111,10 @@ func touch_up(index: int, time_s: float = -1.0) -> Array:
 	var b: Dictionary = _bindings[index]
 	_bindings.erase(index)
 	if b.limb == BODY:
+		_last_body_up = _now(time_s)
 		return [{"type": "body_end", "limb": BODY}]
+	if b.limb == DYNO:
+		return [{"type": "dyno_end", "limb": DYNO}]
 	if not b.dragging:
 		return [{"type": "disarm", "limb": b.limb}]
 	var now := _now(time_s)
@@ -122,7 +134,7 @@ func _now(time_s: float) -> float:
 func cancel_all() -> Array:
 	var out := []
 	for b in _bindings.values():
-		out.append({"type": "body_end" if b.limb == BODY else "cancel", "limb": b.limb})
+		out.append({"type": "body_end" if b.limb == BODY else ("dyno_cancel" if b.limb == DYNO else "cancel"), "limb": b.limb})
 	_bindings.clear()
 	generation += 1
 	return out

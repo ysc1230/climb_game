@@ -887,6 +887,7 @@ func _draw_hud(size: Vector2) -> void:
 		_draw_danger(size)
 	_draw_tech_ui(size)
 	_draw_body_goal()
+	_draw_dyno()
 	if draw_world:
 		_draw_grab_ready()  # 2D 시험 장면만. 3D 화면은 홀드 자체가 빛난다(play_3d)
 	var goal_key := _tutorial_goal_key()
@@ -1070,6 +1071,27 @@ func _draw_body_goal() -> void:
 	var d := (b - a).normalized()
 	var n := d.orthogonal()
 	draw_colored_polygon(PackedVector2Array([b + d * 14 * ui_k, b - d * 6 * ui_k + n * 11 * ui_k, b - d * 6 * ui_k - n * 11 * ui_k]), col)
+
+
+## 다이노 준비 중: 손이 닿을 높이에 가로선, 골반 옆에 높이·힘 소모(Tuning.DYNO_*). 최소 길이 전에는 흐리게.
+func _draw_dyno() -> void:
+	var pv := session.dyno_preview()
+	if pv.is_empty():
+		return
+	var top := -INF
+	for hand in [&"LH", &"RH"]:
+		var l: Dictionary = session.limbs[hand]
+		if l.state in ["Attached", "Armed"]:
+			top = maxf(top, (l.grab as Vector2).y)
+	var col := Color("ffd166") if pv.ready else Color(1, 1, 1, 0.45)
+	var y := w2s(Vector2(0, top + float(pv.height))).y
+	var a := w2s(session.body.pos)
+	draw_line(Vector2(a.x - 160 * ui_k, y), Vector2(a.x + 160 * ui_k, y), Color(0, 0, 0, 0.5), 7 * ui_k)
+	draw_line(Vector2(a.x - 160 * ui_k, y), Vector2(a.x + 160 * ui_k, y), col, 4 * ui_k)
+	var text := "다이노 %dcm · 힘 -%d" % [roundi(float(pv.height) * 100.0), roundi(float(pv.cost))] if pv.ready else "아래로 더 끌어요"
+	var fs := int(26 * ui_k)
+	draw_string_outline(font, Vector2(a.x + 40 * ui_k, a.y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, int(6 * ui_k), Color(0, 0, 0, 0.8))
+	draw_string(font, Vector2(a.x + 40 * ui_k, a.y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 
 
 func _draw_grab_ready() -> void:
