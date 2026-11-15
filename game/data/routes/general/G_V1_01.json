@@ -5,11 +5,11 @@
  "mode": "general",
  "grade": "V1",
  "order": 1,
- "name_ko": "무등산 3/4",
+ "name_ko": "비스듬히",
  "required_techniques": [],
  "crux_steps": {},
  "check_swapped": false,
- "note": "2026-11-15 무등산 E4 구역 '3/4'(thetopo 기준 폰텐블로 5)의 이름·등급을 따옴. 실제 홀드 자료(토포)가 공개돼 있지 않아 배치는 등급에 맞춰 새로 짬(docs/44). 같은 바위의 4연작: 1/4 → 4/4로 홀드가 작고 적어진다.",
+ "note": "2026-11-15 새로 짠 V1(docs/44). 반폭 0.10, 오른쪽 위로 비스듬히.",
  "bounds": {
   "x_min": -1.5,
   "x_max": 1.5,
@@ -56,7 +56,7 @@
     {
      "slot_id": "hand_1",
      "pos": [
-      -0.15,
+      -0.32,
       1.5
      ],
      "allowed": [
@@ -79,8 +79,8 @@
     {
      "slot_id": "hand_1",
      "pos": [
-      0.22,
-      1.5
+      0.27,
+      1.48
      ],
      "allowed": [
       "LH",

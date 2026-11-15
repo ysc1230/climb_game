@@ -193,15 +193,27 @@ func test_courses_json_content() -> void:
 func test_index_real_data() -> void:
 	# 2026-11-11: G_V3_02(B안 몸에 맞춰 다시 배치). 2026-11-14: G_V3_03(더미 몸, 하이스텝. 처음 G_V5_01이었으나 체감으로 V3, docs/41).
 	var idx := ContentIndex.load_all()
-	runner.check(idx.grades() == (["V0", "V1", "V3"] as Array[String]), "등급 %s" % [idx.grades()])
-	# 2026-11-15: 무등산 E4 4연작(docs/44) — V0 1/4·2/4, V1 3/4, V3 4/4.
-	runner.check(idx.general("V0").map(func(r): return r.route_id) == ["G_V0_02", "G_V0_03"] and idx.general("V1").size() == 1, "무등산 V0·V1")
+	runner.check(idx.grades() == (["V0", "V1", "V3", "V8"] as Array[String]), "등급 %s" % [idx.grades()])
+	# 2026-11-15: 새 문제(docs/44) — V0 징검다리, V1 비스듬히, V3 높은 디딤, V8 실금.
+	runner.check(idx.general("V0").map(func(r): return r.route_id) == ["G_V0_02"] and idx.general("V1").size() == 1 and idx.general("V8").size() == 1, "V0·V1·V8 문제")
 	var ids_g := idx.general("V3").map(func(r): return r.route_id)
 	runner.check(ids_g == ["G_V3_02", "G_V3_03", "G_V3_04"], "V3 문제 %s" % [ids_g])
 	runner.check(idx.route("G_V3_02") != null and idx.route("NOPE") == null, "route 조회")
 	runner.check(idx.general("V9").is_empty(), "없는 등급 빈 배열")
 	runner.check(idx.courses().size() == 4 and idx.course("C_NOPE").is_empty() and idx.route("C_BASIC_T") != null, "수업 4개")
 	runner.check(idx.errors.is_empty(), "색인 오류 없음 %s" % [idx.errors])
+
+
+## 홀드 간격(docs/44): 모든 일반 문제는 두 홀드 사이가 그 방향으로 잰 큰 홀드 크기 이상 떨어져 있다.
+func test_hold_spacing() -> void:
+	var idx := ContentIndex.load_all()
+	for r in idx.all_routes():
+		if r.mode == "general":
+			var v := HoldSpacing.violations(r)
+			runner.check(v.is_empty(), "%s 홀드 간격 %s" % [r.route_id, v])
+	var g := RouteDef.load_json(ContentIndex.route_path("G_V0_02"))
+	var e := HoldSpacing.ellipse(g, "G_V0_02/H01/hand_1")
+	runner.check(absf(HoldSpacing.radius(e, Vector2.RIGHT) - float(e.a)) < 1e-6 and absf(HoldSpacing.radius(e, Vector2.UP) - float(e.b)) < 1e-6, "타원 반지름 %s" % [e])
 
 
 ## 배치 수치(docs/41 §5 도구 A): 정상 제외, 손홀드도 발 디딜 곳으로 센다.

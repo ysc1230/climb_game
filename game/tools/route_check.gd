@@ -24,5 +24,10 @@ func _report(route: RouteDef) -> bool:
 	var res := ContentCheck.check(route)
 	for line in res.lines:
 		print("  ", line)
-	print("  => %s" % ("통과" if res.ok else "실패"))
-	return res.ok
+	var ok: bool = res.ok
+	if route.mode == "general":
+		for line in HoldSpacing.violations(route):
+			print("  홀드 간격: ", line)
+			ok = false
+	print("  => %s" % ("통과" if ok else "실패"))
+	return ok

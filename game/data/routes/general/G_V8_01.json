@@ -1,15 +1,15 @@
 {
- "route_id": "G_V0_03",
+ "route_id": "G_V8_01",
  "content_version": 1,
  "validation_status": "Draft",
  "mode": "general",
- "grade": "V0",
- "order": 2,
- "name_ko": "무등산 2/4",
+ "grade": "V8",
+ "order": 1,
+ "name_ko": "실금",
  "required_techniques": [],
  "crux_steps": {},
  "check_swapped": false,
- "note": "2026-11-15 무등산 E4 구역 '2/4'(thetopo 기준 폰텐블로 4+)의 이름·등급을 따옴. 실제 홀드 자료(토포)가 공개돼 있지 않아 배치는 등급에 맞춰 새로 짬(docs/44). 같은 바위의 4연작: 1/4 → 4/4로 홀드가 작고 적어진다.",
+ "note": "2026-11-15 새로 짠 V8 시범 문제(docs/44). 손홀드 반폭 0.03(피로 ×2.5), 발판 반폭 0.03, 발 전용 발판 3개뿐. 하이스텝 두 번(#4 왼발 1.1m, #10 오른발이 손홀드 H04 2.2m)과 한 발 구간. 쉬는 자리 없음. 봇 의도 경로 완등 31초, 최저 손 피로 22. 하이스텝 금지 검사는 #1(오른발 0.5m)부터 하이스텝으로 판정돼 필수 확인 못 함 → 필수 기술 없음으로 둠.",
  "bounds": {
   "x_min": -1.5,
   "x_max": 1.5,
@@ -26,8 +26,8 @@
     0.6
    ],
    "foot_slot_keys": [
-    "G_V0_03/F01/foot_1",
-    "G_V0_03/F02/foot_1"
+    "G_V8_01/F01/foot_1",
+    "G_V8_01/F02/foot_1"
    ]
   }
  ],
@@ -38,15 +38,15 @@
   ],
   "angle": 0.0,
   "slots": {
-   "LH": "G_V0_03/H01/hand_1",
-   "RH": "G_V0_03/H02/hand_1",
-   "LF": "G_V0_03/F01/foot_1",
-   "RF": "G_V0_03/F02/foot_1"
+   "LH": "G_V8_01/H01/hand_1",
+   "RH": "G_V8_01/H02/hand_1",
+   "LF": "G_V8_01/F01/foot_1",
+   "RF": "G_V8_01/F02/foot_1"
   }
  },
  "goal_slots": [
-  "G_V0_03/G01/goal_left",
-  "G_V0_03/G01/goal_right"
+  "G_V8_01/G01/goal_left",
+  "G_V8_01/G01/goal_right"
  ],
  "time_medal_seconds": 120,
  "holds": [
@@ -56,7 +56,7 @@
     {
      "slot_id": "hand_1",
      "pos": [
-      -0.15,
+      -0.2,
       1.5
      ],
      "allowed": [
@@ -68,7 +68,7 @@
        1,
        0
       ],
-      "half_width": 0.12
+      "half_width": 0.04
      }
     }
    ]
@@ -91,7 +91,7 @@
        1,
        0
       ],
-      "half_width": 0.12
+      "half_width": 0.04
      }
     }
    ]
@@ -102,8 +102,8 @@
     {
      "slot_id": "hand_1",
      "pos": [
-      -0.22,
-      1.72
+      -0.38,
+      2.0
      ],
      "allowed": [
       "LH",
@@ -114,7 +114,7 @@
        1,
        0
       ],
-      "half_width": 0.12
+      "half_width": 0.03
      }
     }
    ]
@@ -125,8 +125,8 @@
     {
      "slot_id": "hand_1",
      "pos": [
-      -0.02,
-      1.85
+      0.2,
+      2.2
      ],
      "allowed": [
       "LH",
@@ -137,7 +137,7 @@
        1,
        0
       ],
-      "half_width": 0.12
+      "half_width": 0.03
      }
     }
    ]
@@ -148,8 +148,8 @@
     {
      "slot_id": "hand_1",
      "pos": [
-      -0.27,
-      2.1
+      -0.2,
+      2.4
      ],
      "allowed": [
       "LH",
@@ -160,7 +160,7 @@
        1,
        0
       ],
-      "half_width": 0.12
+      "half_width": 0.03
      }
     }
    ]
@@ -171,8 +171,8 @@
     {
      "slot_id": "hand_1",
      "pos": [
-      -0.05,
-      2.26
+      0.3,
+      2.95
      ],
      "allowed": [
       "LH",
@@ -183,7 +183,30 @@
        1,
        0
       ],
-      "half_width": 0.12
+      "half_width": 0.03
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H07",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      -0.22,
+      3.05
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.03
      }
     }
    ]
@@ -202,7 +225,7 @@
       "RF"
      ],
      "foot_area": {
-      "half_width": 0.05
+      "half_width": 0.03
      }
     }
    ]
@@ -221,7 +244,7 @@
       "RF"
      ],
      "foot_area": {
-      "half_width": 0.05
+      "half_width": 0.03
      }
     }
    ]
@@ -232,15 +255,15 @@
     {
      "slot_id": "foot_1",
      "pos": [
-      -0.3,
-      0.4
+      -0.22,
+      0.45
      ],
      "allowed": [
       "LF",
       "RF"
      ],
      "foot_area": {
-      "half_width": 0.05
+      "half_width": 0.03
      }
     }
    ]
@@ -251,7 +274,7 @@
     {
      "slot_id": "foot_1",
      "pos": [
-      0.05,
+      0.3,
       0.5
      ],
      "allowed": [
@@ -259,7 +282,7 @@
       "RF"
      ],
      "foot_area": {
-      "half_width": 0.05
+      "half_width": 0.03
      }
     }
    ]
@@ -270,34 +293,15 @@
     {
      "slot_id": "foot_1",
      "pos": [
-      -0.3,
-      0.85
+      -0.28,
+      1.1
      ],
      "allowed": [
       "LF",
       "RF"
      ],
      "foot_area": {
-      "half_width": 0.05
-     }
-    }
-   ]
-  },
-  {
-   "hold_id": "F06",
-   "slots": [
-    {
-     "slot_id": "foot_1",
-     "pos": [
-      0.0,
-      1.05
-     ],
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "foot_area": {
-      "half_width": 0.05
+      "half_width": 0.03
      }
     }
    ]
@@ -308,8 +312,8 @@
     {
      "slot_id": "goal_left",
      "pos": [
-      -0.38,
-      2.5
+      -0.1,
+      3.42
      ],
      "allowed": [
       "LH",
@@ -319,8 +323,8 @@
     {
      "slot_id": "goal_right",
      "pos": [
-      0.020000000000000018,
-      2.5
+      0.30000000000000004,
+      3.42
      ],
      "allowed": [
       "LH",
@@ -332,44 +336,56 @@
  ],
  "intended_moves": [
   [
-   "LH",
-   "G_V0_03/H03/hand_1"
-  ],
-  [
-   "RH",
-   "G_V0_03/H04/hand_1"
-  ],
-  [
    "LF",
-   "G_V0_03/F03/foot_1"
+   "G_V8_01/F03/foot_1"
   ],
   [
    "RF",
-   "G_V0_03/F04/foot_1"
+   "G_V8_01/F04/foot_1"
   ],
   [
    "LH",
-   "G_V0_03/H05/hand_1"
+   "G_V8_01/H03/hand_1"
   ],
   [
    "RH",
-   "G_V0_03/H06/hand_1"
+   "G_V8_01/H04/hand_1"
   ],
   [
    "LF",
-   "G_V0_03/F05/foot_1"
-  ],
-  [
-   "RF",
-   "G_V0_03/F06/foot_1"
+   "G_V8_01/F05/foot_1"
   ],
   [
    "LH",
-   "G_V0_03/G01/goal_left"
+   "G_V8_01/H05/hand_1"
+  ],
+  [
+   "RF",
+   "G_V8_01/H02/hand_1"
   ],
   [
    "RH",
-   "G_V0_03/G01/goal_right"
+   "G_V8_01/H06/hand_1"
+  ],
+  [
+   "LF",
+   "G_V8_01/H01/hand_1"
+  ],
+  [
+   "LH",
+   "G_V8_01/H07/hand_1"
+  ],
+  [
+   "RF",
+   "G_V8_01/H04/hand_1"
+  ],
+  [
+   "LH",
+   "G_V8_01/G01/goal_left"
+  ],
+  [
+   "RH",
+   "G_V8_01/G01/goal_right"
   ]
  ]
 }
