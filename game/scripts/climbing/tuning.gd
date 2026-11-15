@@ -62,26 +62,28 @@ const FLAG_COST_IMPROVEMENT := 0.02
 # v0.9 몸통 끌기(docs/03): 가운데 영역을 끌어 정한 골반 목표 쪽으로 당기는 비용 가중치(1/m²)와 최대 거리(m)
 const BODY_GOAL_WEIGHT := 30.0
 const BODY_GOAL_MAX := 0.45
-## 다이노(2026-11-15 사용자, docs/45): 몸을 두 번 빠르게 누르고 아래로 끌어 준비, 떼면 네 손발을 떼고 뛴다.
-## 높이: 지금 발로 다리를 쭉 편 골반 높이 + 덤(끈 길이 비례, 홀드가 좋을수록 큼). 날아가는 동안 팔은 목표 홀드로 쭉 뻗는다.
-## 손이 목표 홀드에 가까워지면 느린 화면 + 가운데 "잡기" 버튼(누를 시간 0.3~1초, 목표 홀드가 클수록 김) → 누르면 목표 홀드를
-## 잡고 발도 닿는 홀드를 딛는다. 손 패드를 눌러 직접 잡을 수도 있다(DYNO_CATCH_RADIUS). 손 에너지 20~40(끈 길이 비례).
+## 다이노(docs/45): 몸을 두 번 빠르게 누르고 끌어 준비(끈 반대 방향으로 뛴다, 새총), 떼면 네 손발을 떼고 뛴다.
+## 세기: 똑바로 위로 뛸 때 꼭대기 골반 = 다리를 쭉 편 골반 높이 + 덤(끈 길이 비례, 홀드가 좋을수록 큼). 비스듬하면 같은 속력으로.
+## 준비 중에는 그 궤적에서 팔이 닿는 손홀드를 표시한다. 날아가는 동안 팔은 닿는 홀드로 쭉 뻗고, 그 손 패드를 누르면 잡는다.
+## 표시한 가장 높은 홀드에 손이 닿으면 느린 화면(0.3~1초, 홀드가 클수록 김). 잡으면 닿는 발판을 딛고, 2초 동안 손 힘이 절반만 빠진다.
 const DYNO_DOUBLE_TAP := 0.1     # 첫 탭을 뗀 뒤 두 번째로 누르기까지(초)
-const DYNO_DRAG_MIN := 0.15      # 이만큼(월드 m, 패드 지름 = 1m) 내리지 않으면 취소
-const DYNO_DRAG_MAX := 0.8       # 이만큼 내리면 최대
+const DYNO_DRAG_MIN := 0.15      # 이만큼(월드 m, 패드 지름 = 1m) 끌지 않으면 취소
+const DYNO_DRAG_MAX := 0.8       # 이만큼 끌면 최대
+const DYNO_MAX_ANGLE := 70.0     # 뛰는 방향은 위에서 좌우로 이 각도까지(도)
 const DYNO_EXTRA_MIN := 0.10     # 다리를 쭉 편 골반 높이보다 더 뛰는 높이(좋은 홀드, 최소 끌기)
 const DYNO_EXTRA_MAX := 0.50     # (좋은 홀드, 최대 끌기)
 const DYNO_BAD_DROP := 0.30      # 홀드가 나쁠수록(품질 0) 덜 뛴다: 덤 × 품질 − 이 값 × (1 − 품질)
-const DYNO_COST_MIN := 20.0      # 두 손 에너지 소모
-const DYNO_COST_MAX := 40.0
-const DYNO_CROUCH := 0.15        # 준비할 때 골반을 내리는 최대 거리(m)
-const DYNO_CATCH_RADIUS := 0.18  # 손 패드로 직접 잡을 때 잡히는 홀드 거리
-const DYNO_WINDOW_DIST := 0.22   # 잡는 손이 목표 홀드에 이만큼 가까워지면 느린 화면 + 잡기 버튼
-const DYNO_WINDOW_MIN := 0.3     # 잡기 버튼 시간(초, 실제 시간): 목표 홀드가 작으면
+const DYNO_COST_MIN := 10.0      # 두 손 에너지 소모(2026-11-16 사용자: 10~20)
+const DYNO_COST_MAX := 20.0
+const DYNO_CROUCH := 0.15        # 준비할 때 골반을 끈 쪽으로 옮기는 최대 거리(m)
+const DYNO_REACH := 0.98         # 날아가는 동안 팔을 뻗는 길이(팔 최대 길이 비율). 이 안의 손홀드를 잡을 수 있다
+const DYNO_WINDOW_MIN := 0.3     # 느린 화면 시간(초, 실제 시간): 홀드가 작으면(반폭 0.03)
 const DYNO_WINDOW_MAX := 1.0     # 크면(반폭 0.13 이상·정상)
 const DYNO_SLOW := 0.12          # 느린 화면 배속
 const DYNO_MISS_DROP := 0.25     # 출발 높이보다 이만큼 내려오면 놓친 것(추락)
-const DYNO_HANG_TICKS := 60      # 잡은 뒤 이만큼(1초)은 균형을 잃어도 떨어지지 않음. 그동안 다른 손 패드를 눌러도 근처 홀드를 잡음
+const DYNO_HANG_TICKS := 60      # 잡은 뒤 이만큼(1초)은 균형을 잃어도 떨어지지 않음. 그동안 다른 손 패드를 누르면 닿는 홀드를 잡음
+const DYNO_RELIEF_TICKS := 120   # 잡은 뒤 이만큼(2초) 손 힘이 덜 빠짐
+const DYNO_RELIEF_SCALE := 0.5
 # v0.7 문 열림 부담(docs/30 §4.1, 04 §10.4): r = τ/용량이 이 값을 넘으면 하중 받는 손이 더 빨리 지친다
 const BARN_STRAIN_START := 0.5
 const BARN_STRAIN_MAX_MULT := 4.0  # r = 1에서의 피로 배율

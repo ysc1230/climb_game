@@ -1,6 +1,6 @@
 extends RefCounted
-## 다이노(2026-11-15 사용자): 몸을 두 번 빠르게 누르고(Tuning.DYNO_DOUBLE_TAP) 아래로 끌어 준비, 떼면 두 손발을 떼고
-## 손이 높이(0.2~0.6m)만큼 뛴다. 손 에너지 20~40. 날아가는 동안 손 패드를 누르면 가까운 손홀드를 잡는다. 못 잡으면 추락.
+## 다이노(docs/45): 몸을 두 번 빠르게 누르고(Tuning.DYNO_DOUBLE_TAP) 끌어 준비(끈 반대 방향으로 뜀), 떼면 네 손발을 떼고 뛴다.
+## 준비 중 닿는 손홀드 표시, 날아가는 동안 팔이 닿은 홀드를 손 패드로 잡음, 발판 딛기, 손 힘 10~20, 잡은 뒤 2초 손 힘 절반만 빠짐.
 
 var runner
 
@@ -36,35 +36,42 @@ func _session() -> ClimbSession:
 	return s
 
 
-func _charge(s: ClimbSession, drag: float) -> void:
+func _charge(s: ClimbSession, drag: float, dir := Vector2(0, -1)) -> void:
 	s.apply_input([{"type": "dyno_start", "limb": InputRouter.DYNO}])
-	s.apply_input([{"type": "dyno_move", "limb": InputRouter.DYNO, "delta": Vector2(0, -drag)}])
+	s.apply_input([{"type": "dyno_move", "limb": InputRouter.DYNO, "delta": dir.normalized() * drag}])
 
 
 func test_charge_preview_and_short_cancel() -> void:
 	var s := _session()
 	_charge(s, Tuning.DYNO_DRAG_MAX * 2.0)
 	var pv := s.dyno_preview()
-	runner.check(pv.ready and is_equal_approx(pv.cost, Tuning.DYNO_COST_MAX) and pv.rise > 0.3, "끝까지 끌면 힘 최대, 손이 더 오름 %s" % [pv])
-	runner.check(s.rules.body_goal.y < s.body.pos.y - 0.1, "준비하면 골반 목표가 내려감")
+	runner.check(pv.ready and is_equal_approx(pv.cost, Tuning.DYNO_COST_MAX) and not pv.reach.is_empty(), "끝까지 끌면 힘 20, 닿는 홀드 표시 %s" % [pv])
+	runner.check(s.rules.body_goal.y < s.body.pos.y - 0.1, "아래로 끌면 골반 목표가 내려감")
 	s.apply_input([{"type": "dyno_cancel", "limb": InputRouter.DYNO}])
 	runner.check(s.dyno.is_empty() and not s.rules.body_goal.is_finite(), "취소")
 	_charge(s, Tuning.DYNO_DRAG_MIN * 0.5)
+	runner.check(s.dyno_preview().reach.is_empty(), "짧으면 표시 없음")
 	s.apply_input([{"type": "dyno_end", "limb": InputRouter.DYNO}])
 	runner.check(s.dyno.is_empty() and s.attached().size() == 4, "짧게 끌면 뛰지 않음")
 	var lo := _session()
 	_charge(lo, Tuning.DYNO_DRAG_MIN)
-	runner.check(is_equal_approx(lo.dyno_preview().cost, Tuning.DYNO_COST_MIN), "최소 길이면 힘 20")
+	runner.check(is_equal_approx(lo.dyno_preview().cost, Tuning.DYNO_COST_MIN), "최소 길이면 힘 10")
 
 
-## 좋은 홀드에서 끝까지 끌면 손이 "다리·팔을 쭉 편 높이"보다 높이 오른다. 홀드가 나쁘면 덜 오른다.
-func test_height_and_hold_quality() -> void:
+## 길게 끌수록 더 높은 홀드까지 닿고, 좋은 홀드에서 끝까지 끌면 다리를 쭉 편 높이보다 높이 뛴다. 나쁜 홀드는 덜 뛴다.
+func test_reach_by_length_and_quality() -> void:
 	var s := _session()
+	_charge(s, Tuning.DYNO_DRAG_MIN + 0.01)
+	var short_reach: Array = s.dyno_preview().reach
+	var short_top := s.route.slot_pos(short_reach[0]).y if not short_reach.is_empty() else 0.0
+	s.apply_input([{"type": "dyno_move", "limb": InputRouter.DYNO, "delta": Vector2(0, -1)}])
+	var long_top := s.route.slot_pos(s.dyno_preview().reach[0]).y
+	runner.check(long_top > short_top, "길게 끌면 더 높은 홀드 %.2f > %.2f" % [long_top, short_top])
 	var feet: float = ((s.limbs[&"LF"].grab as Vector2).y + (s.limbs[&"RF"].grab as Vector2).y) / 2.0
-	var straight := feet + PoseSolver.reach_of(&"LF").y + Tuning.SHOULDER_OFFSET.y + PoseSolver.reach_of(&"LH").y
-	_charge(s, Tuning.DYNO_DRAG_MAX)
-	var good := s.dyno_preview()
-	runner.check(good.quality > 0.9 and good.apex_hand > straight + 0.3, "좋은 홀드: 손 %.2f > 쭉 편 높이 %.2f + 0.3 (품질 %.2f)" % [good.apex_hand, straight, good.quality])
+	var straight_pelvis := feet + PoseSolver.reach_of(&"LF").y
+	var v := s._dyno_velocity()
+	var apex := s.body.pos.y + v.y * v.y / (2.0 * 9.8)
+	runner.check(s.dyno_quality() > 0.9 and apex > straight_pelvis + 0.3, "좋은 홀드: 꼭대기 골반 %.2f > 쭉 편 %.2f + 0.3" % [apex, straight_pelvis])
 	var bad := _session()
 	for limb in bad.attached():
 		var slot: Dictionary = bad.route.slots[bad.limbs[limb].key]
@@ -73,60 +80,65 @@ func test_height_and_hold_quality() -> void:
 		else:
 			slot["foot_area"] = {"half_width": 0.02}
 	_charge(bad, Tuning.DYNO_DRAG_MAX)
-	var pb := bad.dyno_preview()
-	runner.check(pb.quality < 0.45 and pb.apex_hand < good.apex_hand - 0.3, "나쁜 홀드는 덜 뜀: %.2f vs %.2f (품질 %.2f)" % [pb.apex_hand, good.apex_hand, pb.quality])
+	var vb := bad._dyno_velocity()
+	runner.check(vb.y < v.y - 0.5, "나쁜 홀드는 덜 뜀 %.2f < %.2f" % [vb.y, v.y])
 
 
-func _launch(s: ClimbSession, drag: float) -> void:
-	_charge(s, drag)
+## 끈 반대 방향으로 뛴다: 오른쪽 아래로 끌면 왼쪽 위로.
+func test_direction_follows_drag() -> void:
+	var s := _session()
+	_charge(s, Tuning.DYNO_DRAG_MAX, Vector2(1, -1))
+	var v := s._dyno_velocity()
+	runner.check(v.x < -0.5 and v.y > 0.5, "오른쪽 아래로 끌면 왼쪽 위로 %s" % v)
+	var u := _session()
+	_charge(u, Tuning.DYNO_DRAG_MAX, Vector2(1, 0.2))
+	var vu := u._dyno_velocity()
+	runner.check(rad_to_deg(absf(Vector2(0, 1).angle_to(vu))) <= Tuning.DYNO_MAX_ANGLE + 0.1, "옆으로 끌어도 위에서 %.0f° 안" % Tuning.DYNO_MAX_ANGLE)
+
+
+func _launch(s: ClimbSession, drag: float, dir := Vector2(0, -1)) -> void:
+	_charge(s, drag, dir)
 	for i in 30:
 		s.step()
 	s.apply_input([{"type": "dyno_end", "limb": InputRouter.DYNO}])
 
 
-func test_launch_aims_arms() -> void:
-	var s := _session()
-	_launch(s, Tuning.DYNO_DRAG_MAX * 0.5)
-	runner.check(s.dyno_flying() and s.attached().is_empty(), "뛰면 네 손발이 모두 떨어짐")
-	runner.check(absf(s.rules.stamina[&"LH"] - (100.0 - lerpf(Tuning.DYNO_COST_MIN, Tuning.DYNO_COST_MAX, 0.5 * Tuning.DYNO_DRAG_MAX / (Tuning.DYNO_DRAG_MAX - Tuning.DYNO_DRAG_MIN) - Tuning.DYNO_DRAG_MIN / (Tuning.DYNO_DRAG_MAX - Tuning.DYNO_DRAG_MIN)))) < 1.0, "손 에너지 소모 %.1f" % s.rules.stamina[&"LH"])
-	var target: String = s.dyno.target
-	runner.check(not target.is_empty(), "목표 홀드를 고름")
-	var hand: StringName = s.dyno.catcher
-	var sh := PoseSolver.joint_position(s.body.pos, s.body.angle, hand, s.body.yaw)
-	var to_hand := (s.limbs[hand].pos as Vector2) - sh
-	var to_target := s.route.slot_pos(target) - sh
-	runner.check(to_hand.normalized().dot(to_target.normalized()) > 0.99, "팔이 목표 홀드 쪽")
-	runner.check(to_hand.length() > PoseSolver.reach_of(hand).y * 0.95 or to_hand.distance_to(to_target) < 0.01, "팔을 쭉 폄 %.2f" % to_hand.length())
-
-
-func test_window_and_assist() -> void:
+func test_flight_arms_slow_and_catch() -> void:
 	var s := _session()
 	_launch(s, Tuning.DYNO_DRAG_MAX)
-	var target: String = s.dyno.target
-	var hw: float = s.route.slots[target].hand_area.half_width if s.route.slots[target].has("hand_area") else 0.13
-	var want := lerpf(Tuning.DYNO_WINDOW_MIN, Tuning.DYNO_WINDOW_MAX, clampf((hw - 0.03) / 0.10, 0.0, 1.0)) if not s.route.goal_slots.has(target) else Tuning.DYNO_WINDOW_MAX
-	runner.check(absi(int(s.dyno.window_ticks) - roundi(want * Tuning.TICK_HZ)) <= 1, "잡기 시간은 홀드에 따라 %.2f초" % want)
-	var opened := false
+	runner.check(s.dyno_flying() and s.attached().is_empty(), "뛰면 네 손발이 모두 떨어짐")
+	runner.check(absf(s.rules.stamina[&"LH"] - (100.0 - Tuning.DYNO_COST_MAX)) < 1.0, "손 힘 −20: %.1f" % s.rules.stamina[&"LH"])
+	var top: String = s.dyno.reach[0]
+	var hand: StringName = &""
 	for i in 120:
 		s.step()
-		if not s.dyno_window().is_empty():
-			opened = true
+		var aim := s.dyno_aim()
+		for h in aim:
+			if aim[h] == top:
+				hand = h
+		if hand != &"":
 			break
-	runner.check(opened, "목표에 가까워지면 잡기 버튼")
-	var y0 := s.body.pos.y
-	s.step()
-	runner.check(absf(s.body.pos.y - y0) < 0.02, "느린 화면 %.3f" % absf(s.body.pos.y - y0))
-	runner.check(s.dyno_assist(), "버튼 누르면 잡기")
-	var hand: StringName = s.limbs.keys().filter(func(l): return s.limbs[l].key == target and s.limbs[l].state == "Attached").front()
-	runner.check(PoseSolver.is_hand(hand), "목표 홀드를 손이 잡음")
+	runner.check(hand != &"", "팔이 가장 높은 표시 홀드에 닿음")
+	var key: String = s.dyno_aim()[hand]
+	runner.check((s.limbs[hand].pos as Vector2).distance_to(s.route.slot_pos(key)) < 0.001, "팔을 그 홀드로 뻗음")
+	runner.check(s.dyno_slow_left() > 0.0, "가장 높은 홀드에 닿으면 느린 화면")
+	var hw: float = s.route.slots[key].hand_area.half_width if s.route.slots[key].has("hand_area") else 0.13
+	var want := lerpf(Tuning.DYNO_WINDOW_MIN, Tuning.DYNO_WINDOW_MAX, clampf((hw - 0.03) / 0.10, 0.0, 1.0))
+	runner.check(absi(int(s.dyno.window_ticks) - roundi(want * Tuning.TICK_HZ)) <= 1, "느린 화면 %.2f초(홀드 크기)" % want)
+	s.apply_input([{"type": "detach", "limb": hand}])
+	runner.check(s.limbs[hand].state == "Attached" and s.limbs[hand].key == key, "그 손 패드를 누르면 잡음")
 	var feet := [&"LF", &"RF"].filter(func(f): return s.limbs[f].state == "Attached").size()
-	runner.check(feet >= 1, "발도 딛음 %d" % feet)
+	runner.check(feet >= 1, "닿는 발판을 딛음 %d" % feet)
+	s.step()
+	runner.check(is_equal_approx(s.rules.drain_scale, Tuning.DYNO_RELIEF_SCALE), "잡은 뒤 손 힘 절반만 빠짐")
 	var res := ""
-	for i in Tuning.DYNO_HANG_TICKS - 5:
+	for i in Tuning.DYNO_RELIEF_TICKS:
 		res = s.step()
 		if res != "":
 			break
-	runner.check(res == "" or res == "clear", "잡은 뒤 1초는 버팀(정상이면 완등): '%s'" % res)
+	runner.check(res == "" or res == "clear", "잡은 뒤 버팀: '%s'" % res)
+	if res == "":
+		runner.check(is_equal_approx(s.rules.drain_scale, 1.0), "2초 뒤 원래대로")
 
 
 func test_window_expires_then_miss() -> void:
@@ -138,24 +150,6 @@ func test_window_expires_then_miss() -> void:
 		if result.begins_with("fall:"):
 			break
 	runner.check(result == "fall:DYNO_MISS" and s.falling, "안 누르면 추락: %s" % result)
-
-
-func test_pad_catch() -> void:
-	var s := _session()
-	_launch(s, Tuning.DYNO_DRAG_MAX)
-	var caught := false
-	for i in 200:
-		s.step()
-		for hand in [&"LH", &"RH"]:
-			for key in s.route.slots:
-				if s.route.slots[key].has("hand_area") and (s.limbs[hand].pos as Vector2).distance_to(s.route.slot_pos(key)) < Tuning.DYNO_CATCH_RADIUS * 0.8 and (s.route.slot_pos(key)).y > 1.9:
-					s.apply_input([{"type": "detach", "limb": hand}])
-					caught = s.limbs[hand].state == "Attached"
-			if caught:
-				break
-		if caught:
-			break
-	runner.check(caught and not s.dyno_flying(), "손 패드를 누르면 가까운 홀드를 직접 잡음")
 
 
 func test_needs_hand_and_foot() -> void:

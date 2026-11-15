@@ -444,9 +444,6 @@ func _overlay_action(act: String) -> void:
 			overlay.help_open = not overlay.help_open
 		"retry":
 			_retry()
-		"dyno_assist":
-			if session.dyno_assist():
-				_vibrate(30)
 		"rescue":
 			_rescue()
 		"next_course":
@@ -1076,36 +1073,43 @@ func _draw_body_goal() -> void:
 	draw_colored_polygon(PackedVector2Array([b + d * 14 * ui_k, b - d * 6 * ui_k + n * 11 * ui_k, b - d * 6 * ui_k - n * 11 * ui_k]), col)
 
 
-## 다이노 준비 중: 손이 닿을 높이에 가로선, 골반 옆에 오르는 높이·힘 소모·홀드 품질(Tuning.DYNO_*). 최소 길이 전에는 흐리게.
-## 날아가는 중 잡기 시간: 목표 홀드를 반짝이고 고리 아래에 "눌러서 잡기" 버튼과 남은 시간 막대(docs/45).
+## 다이노(docs/45). 준비 중: 지금 끈 길이·방향으로 뛰면 팔이 닿는 손홀드에 고리(가장 높은 것은 굵게), 골반 옆에 힘 소모·홀드 품질.
+## 날아가는 중: 손마다 뻗어 닿은 홀드에 그 손 색 고리(그 손 패드를 누르면 잡음). 느린 화면 동안 "손 패드를 눌러 잡기"와 남은 시간.
 func _draw_dyno() -> void:
-	var win := session.dyno_window()
-	if not win.is_empty():
-		var ring := _ring()
-		var c: Vector2 = ring[0]
-		var r: float = ring[1]
-		var tp := w2s(session.route.slot_pos(win[1]))
-		var blink := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * 4.0)
-		draw_arc(tp, 34 * ui_k, 0, TAU, 40, Color(1, 0.85, 0.4, 0.5 + 0.5 * blink), 6 * ui_k, true)
-		var w := 320.0 * ui_k
-		var pill := Rect2(Vector2(c.x - w * 0.5, c.y + r - 50 * ui_k), Vector2(w, 60 * ui_k))
-		hud.panel(self, pill, ui_k, Color(0.96, 0.84, 0.55, 0.97), Color(1, 1, 1, 0.9), 26.0)
-		draw_string(font, Vector2(pill.position.x, pill.position.y + 40 * ui_k), "눌러서 잡기", HORIZONTAL_ALIGNMENT_CENTER, w, int(28 * ui_k), Color(0.19, 0.15, 0.11))
-		var bar := Rect2(pill.position + Vector2(16 * ui_k, pill.size.y - 10 * ui_k), Vector2((w - 32 * ui_k) * float(win[0]), 5 * ui_k))
-		draw_rect(bar, Color(0.75, 0.3, 0.1))
-		overlay.add_buttons([{"rect": Rect2(c - Vector2(r, r), Vector2(r, r) * 2), "circle": [c, r + 16 * ui_k], "action": "dyno_assist"}])
+	var aim := session.dyno_aim()
+	if session.dyno_flying():
+		var any := false
+		for hand in aim:
+			if str(aim[hand]).is_empty():
+				continue
+			any = true
+			var c := w2s(session.route.slot_pos(aim[hand]))
+			draw_arc(c, 32 * ui_k, 0, TAU, 40, Color(0, 0, 0, 0.5), 9 * ui_k, true)
+			draw_arc(c, 32 * ui_k, 0, TAU, 40, LIMB_COLORS[hand], 5 * ui_k, true)
+		var left := session.dyno_slow_left()
+		if any:
+			var a := w2s(session.body.pos)
+			_outlined(Vector2(a.x - 250 * ui_k, a.y - 160 * ui_k), "손 패드를 눌러 잡기", 30, 500 * ui_k, Color("ffd166"))
+			if left > 0.0:
+				var w := 300.0 * ui_k
+				draw_rect(Rect2(Vector2(a.x - w * 0.5, a.y - 150 * ui_k), Vector2(w * left, 6 * ui_k)), Color("ffd166"))
 		return
 	var pv := session.dyno_preview()
 	if pv.is_empty():
 		return
 	var col := Color("ffd166") if pv.ready else Color(1, 1, 1, 0.45)
-	var y := w2s(Vector2(0, float(pv.apex_hand))).y
-	var a := w2s(session.body.pos)
-	draw_line(Vector2(a.x - 160 * ui_k, y), Vector2(a.x + 160 * ui_k, y), Color(0, 0, 0, 0.5), 7 * ui_k)
-	draw_line(Vector2(a.x - 160 * ui_k, y), Vector2(a.x + 160 * ui_k, y), col, 4 * ui_k)
+	var reach: Array = pv.reach
+	for i in reach.size():
+		var c := w2s(session.route.slot_pos(reach[i]))
+		var r := (36.0 if i == 0 else 28.0) * ui_k
+		draw_arc(c, r, 0, TAU, 40, Color(0, 0, 0, 0.5), (9 if i == 0 else 6) * ui_k, true)
+		draw_arc(c, r, 0, TAU, 40, col, (5 if i == 0 else 3) * ui_k, true)
 	var q: float = pv.quality
 	var grade := "홀드 좋음" if q >= 0.75 else ("홀드 보통" if q >= 0.45 else "홀드 나쁨")
-	var text := "다이노 +%dcm · 힘 -%d · %s" % [roundi(float(pv.rise) * 100.0), roundi(float(pv.cost)), grade] if pv.ready else "아래로 더 끌어요"
+	var text := "더 끌어요"
+	if pv.ready:
+		text = "다이노 · 힘 -%d · %s" % [roundi(float(pv.cost)), grade] if not reach.is_empty() else "닿는 홀드가 없어요 · %s" % grade
+	var a := w2s(session.body.pos)
 	var fs := int(26 * ui_k)
 	draw_string_outline(font, Vector2(a.x + 40 * ui_k, a.y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, int(6 * ui_k), Color(0, 0, 0, 0.8))
 	draw_string(font, Vector2(a.x + 40 * ui_k, a.y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)

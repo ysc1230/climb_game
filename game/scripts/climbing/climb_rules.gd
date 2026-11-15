@@ -18,6 +18,7 @@ const REBALANCE_LATERAL_WEIGHT := 5.0
 const ACCEPT_EPSILON := 0.0005
 
 var stamina := {PoseSolver.LH: 100.0, PoseSolver.RH: 100.0}
+var drain_scale := 1.0  # 두 손 피로 감소 배율(다이노로 잡은 뒤 2초 0.5, docs/45). 세션이 틱마다 정한다
 var feet_eligible: Array[StringName] = []
 var loaded_feet: Array[StringName] = []
 var unsupported_ticks := 0
@@ -259,7 +260,7 @@ func _apply_fatigue(result: Dictionary, attached: Dictionary, platform: bool, mo
 		if attached.has(hand):
 			rate = Fatigue.attached_hand_rate(phase == Phase.REBALANCING, platform, rest_ok, loaded_feet.size(), hands_attached, result.u.get(hand, 0.0), low_load, _quality_of(hand))
 		if rate < 0.0:
-			rate *= float(fatigue_multiplier.get(hand, 1.0))
+			rate *= float(fatigue_multiplier.get(hand, 1.0)) * drain_scale
 			if contact_meta.has(hand):
 				rate *= Fatigue.size_multiplier(contact_meta[hand].half_width)
 			if attached.has(hand) and result.get("loads", {}).get(hand, 0.0) >= SupportSolver.BARN_MIN_LOAD:
