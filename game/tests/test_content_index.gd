@@ -193,9 +193,11 @@ func test_courses_json_content() -> void:
 func test_index_real_data() -> void:
 	# 2026-11-11: G_V3_02(B안 몸에 맞춰 다시 배치). 2026-11-14: G_V3_03(더미 몸, 하이스텝. 처음 G_V5_01이었으나 체감으로 V3, docs/41).
 	var idx := ContentIndex.load_all()
-	runner.check(idx.grades() == (["V3"] as Array[String]), "등급 %s" % [idx.grades()])
+	runner.check(idx.grades() == (["V0", "V1", "V3"] as Array[String]), "등급 %s" % [idx.grades()])
+	# 2026-11-15: 무등산 E4 4연작(docs/44) — V0 1/4·2/4, V1 3/4, V3 4/4.
+	runner.check(idx.general("V0").map(func(r): return r.route_id) == ["G_V0_02", "G_V0_03"] and idx.general("V1").size() == 1, "무등산 V0·V1")
 	var ids_g := idx.general("V3").map(func(r): return r.route_id)
-	runner.check(ids_g == ["G_V3_02", "G_V3_03"], "V3 문제 %s" % [ids_g])
+	runner.check(ids_g == ["G_V3_02", "G_V3_03", "G_V3_04"], "V3 문제 %s" % [ids_g])
 	runner.check(idx.route("G_V3_02") != null and idx.route("NOPE") == null, "route 조회")
 	runner.check(idx.general("V9").is_empty(), "없는 등급 빈 배열")
 	runner.check(idx.courses().size() == 4 and idx.course("C_NOPE").is_empty() and idx.route("C_BASIC_T") != null, "수업 4개")

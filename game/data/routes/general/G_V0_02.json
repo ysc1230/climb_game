@@ -1,0 +1,375 @@
+{
+ "route_id": "G_V0_02",
+ "content_version": 1,
+ "validation_status": "Draft",
+ "mode": "general",
+ "grade": "V0",
+ "order": 1,
+ "name_ko": "무등산 1/4",
+ "required_techniques": [],
+ "crux_steps": {},
+ "check_swapped": false,
+ "note": "2026-11-15 무등산 E4 구역 '1/4'(thetopo 기준 폰텐블로 3+)의 이름·등급을 따옴. 실제 홀드 자료(토포)가 공개돼 있지 않아 배치는 등급에 맞춰 새로 짬(docs/44). 같은 바위의 4연작: 1/4 → 4/4로 홀드가 작고 적어진다.",
+ "bounds": {
+  "x_min": -1.5,
+  "x_max": 1.5,
+  "y_min": 0.0,
+  "y_max": 4.5
+ },
+ "fail_line_y": -0.5,
+ "platforms": [
+  {
+   "platform_id": "P00",
+   "top_y": 0.1,
+   "x_range": [
+    -0.5,
+    0.6
+   ],
+   "foot_slot_keys": [
+    "G_V0_02/F01/foot_1",
+    "G_V0_02/F02/foot_1"
+   ]
+  }
+ ],
+ "start_pose": {
+  "pelvis": [
+   0.05,
+   0.75
+  ],
+  "angle": 0.0,
+  "slots": {
+   "LH": "G_V0_02/H01/hand_1",
+   "RH": "G_V0_02/H02/hand_1",
+   "LF": "G_V0_02/F01/foot_1",
+   "RF": "G_V0_02/F02/foot_1"
+  }
+ },
+ "goal_slots": [
+  "G_V0_02/G01/goal_left",
+  "G_V0_02/G01/goal_right"
+ ],
+ "time_medal_seconds": 120,
+ "holds": [
+  {
+   "hold_id": "H01",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      -0.15,
+      1.5
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.13
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H02",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      0.22,
+      1.5
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.13
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H03",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      -0.15,
+      1.82
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.13
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H04",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      0.22,
+      1.92
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.13
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H05",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      -0.15,
+      2.12
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.13
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H06",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      0.22,
+      2.28
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.13
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F01",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      -0.12,
+      0.1
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.05
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F02",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      0.25,
+      0.1
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.05
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F03",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      -0.12,
+      0.4
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.05
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F04",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      0.25,
+      0.5
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.05
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F05",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      -0.12,
+      0.85
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.05
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F06",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      0.25,
+      1.05
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.05
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "G01",
+   "slots": [
+    {
+     "slot_id": "goal_left",
+     "pos": [
+      -0.17,
+      2.55
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ]
+    },
+    {
+     "slot_id": "goal_right",
+     "pos": [
+      0.23,
+      2.55
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ]
+    }
+   ]
+  }
+ ],
+ "intended_moves": [
+  [
+   "LH",
+   "G_V0_02/H03/hand_1"
+  ],
+  [
+   "RH",
+   "G_V0_02/H04/hand_1"
+  ],
+  [
+   "LF",
+   "G_V0_02/F03/foot_1"
+  ],
+  [
+   "RF",
+   "G_V0_02/F04/foot_1"
+  ],
+  [
+   "LH",
+   "G_V0_02/H05/hand_1"
+  ],
+  [
+   "RH",
+   "G_V0_02/H06/hand_1"
+  ],
+  [
+   "LF",
+   "G_V0_02/F05/foot_1"
+  ],
+  [
+   "RF",
+   "G_V0_02/F06/foot_1"
+  ],
+  [
+   "LH",
+   "G_V0_02/G01/goal_left"
+  ],
+  [
+   "RH",
+   "G_V0_02/G01/goal_right"
+  ]
+ ]
+}
