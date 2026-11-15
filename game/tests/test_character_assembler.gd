@@ -33,14 +33,23 @@ func _fake() -> CharacterAssembler:
 
 func test_catalog_matches_model() -> void:
 	var asm := CharacterAssembler.load_catalog()
-	runner.check(asm.bodies().map(func(b): return b.id) == ["male", "female", "dummy"] and asm.data.get("slots", []).is_empty(), "남성·여성·더미, 파츠 없음")
+	runner.check(asm.bodies().map(func(b): return b.id) == ["male", "female", "dummy"], "남성·여성·더미")
+	runner.check(asm.data.get("slots", []).map(func(x): return x.id) == ["top", "bottom", "shoes"], "슬롯: 상의·하의·암벽화(2026-11-16 여성 옷)")
 	runner.check(asm.model_path() == MODELS.male[0], "기본 모델은 남성")
 	for body in MODELS:
 		var path: String = MODELS[body][0]
 		runner.check(asm.model_path(body) == path and ResourceLoader.exists(path), "%s 모델 %s" % [body, asm.model_path(body)])
 		var m := _model(asm, body)
 		var names := m.find_children("P_*", "MeshInstance3D", true, false).map(func(n): return String(n.name))
-		runner.check(names == [MODELS[body][1]], "%s 모델 메시는 몸 하나 %s" % [body, names])
+		var want := [MODELS[body][1]]
+		for sid in ["top", "bottom", "shoes"]:
+			for p in asm.parts_for(sid, body):
+				for mn in CharacterAssembler.part_meshes(p):
+					if not want.has(mn):
+						want.append(mn)
+		names.sort()
+		want.sort()
+		runner.check(names == want, "%s 모델 메시는 몸 + 그 몸의 옷 %s" % [body, names])
 		var sk: Skeleton3D = m.find_children("*", "Skeleton3D", true, false)[0]
 		for entry in RigPose.BONES:
 			runner.check(sk.find_bone(entry[0]) >= 0, "%s 뼈 %s" % [body, entry[0]])
@@ -119,11 +128,30 @@ func test_apply_shows_body() -> void:
 	for body in MODELS:
 		var m := _model(asm, body)
 		for look in [{"body": body}, {"body": body, "hair": "crop"}]:
-			runner.check(asm.apply(m, look) == 1, "%s %s: 몸 하나만" % [body, look])
+			runner.check(asm.apply(m, look) == asm.visible_meshes(look).size() and asm.visible_meshes(look)[0] == MODELS[body][1], "%s %s: 몸과 기본 옷만" % [body, look])
 		m.free()
-	runner.check(asm.normalize({"hair": "crop"}) == {"body": "male", "hair": "", "top": "", "bottom": "", "chalk": "", "shoes": ""}, "기본 몸은 남성, 파츠 없는 슬롯은 빈 값")
+	runner.check(asm.normalize({"hair": "crop"}) == {"body": "male", "hair": "", "top": "base", "bottom": "base", "chalk": "", "shoes": "base"}, "기본 몸은 남성, 옷은 기본, 파츠 없는 슬롯은 빈 값")
 	runner.check(asm.cycle({"body": "male"}, "body", 1) == "female" and asm.cycle({"body": "female"}, "body", 1) == "dummy" and asm.cycle({"body": "dummy"}, "body", 1) == "male", "몸 바꾸기")
 	runner.check(asm.model_path("dummy") == MODELS.dummy[0] and asm.model_path("nope") == MODELS.male[0], "몸마다 모델, 모르는 몸은 기본")
+
+
+## 여성 옷(2026-11-16, docs/46): 여성은 상의·하의·암벽화 각 기본 + 2종, 고른 옷 메시만 보이고(기본은 몸에 붙은 옷),
+## 남성·더미는 기본뿐. 다른 몸의 옷을 고른 값은 기본으로.
+func test_female_wardrobe() -> void:
+	var asm := CharacterAssembler.load_catalog()
+	for sid in ["top", "bottom", "shoes"]:
+		runner.check(asm.parts_for(sid, "female").size() == 3 and asm.parts_for(sid, "male").size() == 1, "%s: 여성 3, 남성 1" % sid)
+	runner.check(asm.cycle({"body": "female", "top": "base"}, "top", 1) == "top_mint_tee" and asm.cycle({"body": "female", "top": "top_coral_long"}, "top", 1) == "base", "여성 상의 차례로")
+	runner.check(asm.cycle({"body": "male", "top": "base"}, "top", 1) == "base", "남성은 기본뿐")
+	runner.check(asm.normalize({"body": "male", "top": "top_mint_tee"}).top == "base", "다른 몸의 옷은 기본으로")
+	var m := _model(asm, "female")
+	var look := {"body": "female", "top": "top_mint_tee", "bottom": "pants_olive_crop", "shoes": "shoes_teal_pair"}
+	runner.check(asm.apply(m, look) == 5, "몸 + 옷 세 벌 + 7부 아래 기본 바지 아랫단")
+	var vis := m.find_children("P_*", "MeshInstance3D", true, false).filter(func(n): return n.visible).map(func(n): return String(n.name))
+	vis.sort()
+	runner.check(vis == ["P_body_female", "P_female_pants_low", "P_pants_olive_crop", "P_shoes_teal_pair", "P_top_mint_tee"], "고른 것만 보이고 덮인 기본 옷은 숨음 %s" % [vis])
+	runner.check(asm.apply(m, {"body": "female"}) == 5, "기본이면 몸 + 기본 옷 네 조각")
+	m.free()
 
 
 func test_normalize_and_cycle_parts() -> void:

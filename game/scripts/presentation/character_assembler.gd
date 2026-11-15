@@ -44,13 +44,19 @@ func body(id: String) -> Dictionary:
 	return bodies()[0] if not bodies().is_empty() else {}
 
 
+## 그 몸에서 고를 수 있는 슬롯 파츠: bodies가 없으면 모든 몸, 있으면 그 몸들만(2026-11-16 여성 옷).
+func parts_for(sid: String, body_id: String) -> Array:
+	var bid := str(body(body_id).get("id", ""))
+	return slot(sid).get("parts", []).filter(func(p): return not p.has("bodies") or (p.bodies as Array).has(bid))
+
+
 ## 빠진 값·모르는 값을 채운 완전한 선택.
 func normalize(look: Dictionary) -> Dictionary:
 	var b := body(str(look.get("body", "")))
 	var out := {"body": str(b.get("id", ""))}
 	var defs: Dictionary = b.get("defaults", {})
 	for sid in SLOTS:
-		var parts: Array = slot(sid).get("parts", [])
+		var parts: Array = parts_for(sid, out.body)
 		var want := str(look.get(sid, defs.get(sid, "")))
 		var ok := parts.any(func(p): return p.id == want)
 		out[sid] = want if ok else (str(defs.get(sid, "")) if parts.any(func(p): return p.id == defs.get(sid, "")) else (str(parts[0].id) if not parts.is_empty() else ""))
@@ -62,7 +68,7 @@ func cycle(look: Dictionary, sid: String, step: int) -> String:
 	if sid == "body":
 		var ids := bodies().map(func(b): return str(b.id))
 		return str(ids[posmod(ids.find(str(look.body)) + step, ids.size())])
-	var parts: Array = slot(sid).get("parts", [])
+	var parts: Array = parts_for(sid, str(look.get("body", "")))
 	if parts.is_empty():
 		return ""
 	var ids := parts.map(func(p): return str(p.id))
@@ -83,9 +89,20 @@ func visible_meshes(look: Dictionary) -> Array[String]:
 	var n := normalize(look)
 	var out: Array[String] = [str(body(n.body).get("mesh", ""))]
 	for sid in SLOTS:
-		for p in slot(sid).get("parts", []):
+		for p in parts_for(sid, n.body):
 			if p.id == n[sid]:
-				out.append(str(p.mesh))
+				out.append_array(part_meshes(p))
+	return out
+
+
+## 파츠가 보이게 할 메시 이름들: meshes(목록), 없으면 mesh 하나(빈 문자열이면 없음).
+static func part_meshes(p: Dictionary) -> Array[String]:
+	var out: Array[String] = []
+	if p.has("meshes"):
+		for m in p.meshes:
+			out.append(str(m))
+	elif str(p.get("mesh", "")) != "":
+		out.append(str(p.mesh))
 	return out
 
 

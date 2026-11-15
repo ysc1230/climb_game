@@ -40,7 +40,18 @@ CFG = {
                              "wrist": 0.29, "knuckle": 0.35},
                "finger_len": 0.058,
                "crotch_lift": 0.0,
-               "chalk": lambda x, y, z: 0.43 < z < 0.57 and (x > 0.088 or (x > 0.06 and y < -0.06))},
+               "chalk": lambda x, y, z: 0.43 < z < 0.57 and (x > 0.088 or (x > 0.06 and y < -0.06)),
+               # 갈아입는 옷(2026-11-16, main temp/characters/wardrobe_v1 fitted_wip): 원본과 같은 정규화 좌표(발바닥 z 0)라
+               # 원본 몸과 같은 변환·다리·팔 맞추기·가중치를 준다. (id, 파일, 겉으로 띄우는 거리 m)
+               "garments": [("top_mint_tee", "top_mint_tee.glb", 0.012), ("top_coral_long", "top_coral_long.glb", 0.012),
+                            ("pants_charcoal", "pants_charcoal.glb", 0.012), ("pants_olive_crop", "pants_olive_crop.glb", 0.012),
+                            ("shoes_gray_pair", "shoes_gray_pair.glb", 0.010), ("shoes_teal_pair", "shoes_teal_pair.glb", 0.010)],
+               "garment_dir": "art_source/character/female/wardrobe",
+               # 몸에 붙은 옷 나누기: 같은 원본의 파츠 분리본(main temp/characters/female_bob_v1/climber_female_parts_wip.glb)에서
+               # 면마다 가장 가까운 파츠로 나눈다. 옷을 입으면 그 부위를 숨긴다(비침 방지). 바지는 7부 밑단 높이에서 위·아래로.
+               "regions": {"src": "art_source/character/female/climber_female_parts.glb",
+                           "map": {"Shirt": "top", "Pants": "pants", "Shoe_L": "shoes", "Shoe_R": "shoes"},
+                           "hem_from": "pants_olive_crop", "prefix": "P_female_"}},
     # 매끈한 남성(2026-11-13, main 15f44d9, Tripo P1 task 1f0174d2): game/art/characters/climber_smooth_base.glb.
     # 초크백은 따로 떨어진 덩어리(앞뒤 주머니 두 겹으로 생성됨) → 뒤쪽(y < −0.02)만 남긴다.
     "smooth": {"src": "art_source/character/smooth/climber_smooth_base.glb", "out": "game/art/characters/climber_smooth.glb",
@@ -101,10 +112,14 @@ CROTCH_APEX = float(leg_map(m_z(LM["crotch"])))
 CROTCH_TOP, CROTCH_BOTTOM, CROTCH_IN, CROTCH_OUT = 0.12, -0.36, 0.03, 0.12
 
 
+RAW_ZMIN = [0.0]   # 원본 메시의 가져온 그대로 z 최솟값(옷 좌표 맞추기용)
+
+
 def place():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.ops.import_scene.gltf(filepath=SRC)
     ob = [o for o in bpy.context.scene.objects if o.type == "MESH"][0]
+    RAW_ZMIN[0] = min((ob.matrix_world @ Vector(c)).z for c in ob.bound_box)
     ob.rotation_mode = "XYZ"
     ob.rotation_euler = (0, 0, math.radians(90))
     ob.scale = (SCALE, SCALE, SCALE)
@@ -560,6 +575,162 @@ def material(ob):
     ob.data.materials.append(mat)
 
 
+GARMENT_TRIS = 3500
+GARMENT_TEX = 512
+
+
+def garment(gid, path, push):
+    """갈아입는 옷 하나: 정규화 좌표(발바닥 z 0) → 원본 몸과 같은 놓기(원본 z 최솟값 기준) → 줄이기 → 다리·팔 맞추기 →
+    법선 방향으로 push만큼 띄우기(원본 몸의 옷 위에 입힘) → 재질(텍스처 512) → P_<id>. 가중치는 skin_garment가 위치로 준다."""
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=path)
+    new = [o for o in bpy.data.objects if o not in before]
+    g = [o for o in new if o.type == "MESH" and o.name != "Icosphere" and len(o.data.vertices) > 100][0]
+    mw = g.matrix_world.copy()
+    g.parent = None
+    g.matrix_world = mw
+    for o in new:
+        if o != g:
+            bpy.data.objects.remove(o)
+    for m in list(g.modifiers):
+        g.modifiers.remove(m)
+    g.vertex_groups.clear()
+    bpy.ops.object.select_all(action="DESELECT")
+    g.select_set(True)
+    bpy.context.view_layer.objects.active = g
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    from mathutils import Matrix
+    zmin = min(v.co.z for v in g.data.vertices)
+    M = Matrix.Translation((0, 0, SOLE - SCALE * RAW_ZMIN[0])) @ Matrix.Scale(SCALE, 4) @ Matrix.Rotation(math.radians(90), 4, "Z") @ Matrix.Translation((0, 0, RAW_ZMIN[0]))
+    g.data.transform(M)
+    print("GARMENT %s: 원래 z 최솟값 %.3f, 삼각형 %d" % (gid, zmin, sum(len(p.vertices) - 2 for p in g.data.polygons)))
+    tris = sum(len(p.vertices) - 2 for p in g.data.polygons)
+    if tris > GARMENT_TRIS:
+        mod = g.modifiers.new("dec", "DECIMATE")
+        mod.ratio = GARMENT_TRIS / tris
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+    fit_legs(g)
+    fit_arms(g)
+    g.data.update()
+    if gid.startswith("shoes"):   # 한 켤레가 한 메시: 두 발 사이를 잇는 면(가운데 |x| < 0.035)을 지운다
+        import bmesh
+        bm = bmesh.new()
+        bm.from_mesh(g.data)
+        bmesh.ops.delete(bm, geom=[v for v in bm.verts if abs(v.co.x) < 0.035], context="VERTS")
+        bm.to_mesh(g.data)
+        bm.free()
+        g.data.update()
+    n = len(g.data.vertices)
+    co = np.empty(n * 3)
+    nr = np.empty(n * 3)
+    g.data.vertices.foreach_get("co", co)
+    g.data.vertices.foreach_get("normal", nr)
+    g.data.vertices.foreach_set("co", co + nr * push)
+    g.data.update()
+    img = None
+    for m in g.data.materials:
+        if m and m.node_tree:
+            for nd in m.node_tree.nodes:
+                if nd.type == "TEX_IMAGE" and nd.image:
+                    img = nd.image
+    mat = bpy.data.materials.new("M_" + gid)
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+    bsdf.inputs["Metallic"].default_value = 0.0
+    bsdf.inputs["Roughness"].default_value = 1.0
+    if img is not None:
+        img.scale(GARMENT_TEX, GARMENT_TEX)
+        img.name = "tex_" + gid
+        tex = mat.node_tree.nodes.new("ShaderNodeTexImage")
+        tex.image = img
+        mat.node_tree.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    g.data.materials.clear()
+    g.data.materials.append(mat)
+    for p in g.data.polygons:
+        p.use_smooth = True
+    g.name = g.data.name = "P_" + gid
+    return g
+
+
+def split_regions(ob, clothes):
+    """몸에 붙은 옷을 따로 메시로(CFG regions). 분리본 파츠를 옷과 같은 변환으로 놓고, 몸의 면마다 가장 가까운 파츠 면으로
+    부위를 정해 떼어 낸다: <prefix>top, <prefix>pants_up / pants_low(7부 밑단 + 0.03 아래), <prefix>shoes. 나머지는 몸에 남는다."""
+    R = CFG.get("regions")
+    if not R:
+        return []
+    from mathutils import Matrix
+    from mathutils.kdtree import KDTree
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=os.path.join(REPO, R["src"]))
+    new = [o for o in bpy.data.objects if o not in before]
+    M = Matrix.Translation((0, 0, SOLE - SCALE * RAW_ZMIN[0])) @ Matrix.Scale(SCALE, 4) @ Matrix.Rotation(math.radians(90), 4, "Z") @ Matrix.Translation((0, 0, RAW_ZMIN[0]))
+    pts, labels = [], []
+    for o in new:
+        if o.type != "MESH" or o.name not in R["map"] and o.name.split(".")[0] not in ["Skin", "Hair", "Belt", "ChalkBag"]:
+            continue
+        lab = R["map"].get(o.name.split(".")[0], "body")
+        tmp = o.data.copy()
+        tmp.transform(M @ o.matrix_world)
+        for p in tmp.polygons:
+            pts.append(p.center.copy())
+            labels.append(lab)
+        bpy.data.meshes.remove(tmp)
+    for o in new:
+        bpy.data.objects.remove(o)
+    # 분리본 면 중심도 다리·팔 맞추기를 거친다
+    arr = np.array([[p.x, p.y, p.z] for p in pts])
+    arr[:, 2] = leg_map(arr[:, 2])
+    kd = KDTree(len(arr))
+    for i, c in enumerate(arr):
+        kd.insert(Vector(c), i)
+    kd.balance()
+    hem = min((g.matrix_world @ v.co).z for g in clothes if g.name == "P_" + R["hem_from"] for v in g.data.vertices) + 0.03
+    lab_of = []
+    for p in ob.data.polygons:
+        _, i, _ = kd.find(p.center)
+        lab = labels[i]
+        if lab == "pants":
+            lab = "pants_low" if p.center.z < hem else "pants_up"
+        lab_of.append(lab)
+    out = []
+    for lab in ["top", "pants_up", "pants_low", "shoes"]:
+        bpy.ops.object.select_all(action="DESELECT")
+        ob.select_set(True)
+        bpy.context.view_layer.objects.active = ob
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="DESELECT")
+        bpy.ops.object.mode_set(mode="OBJECT")
+        n = 0
+        for p, l in zip(ob.data.polygons, lab_of):
+            p.select = (l == lab)
+            n += int(p.select)
+        if n == 0:
+            continue
+        before = set(bpy.data.objects)
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.separate(type="SELECTED")
+        bpy.ops.object.mode_set(mode="OBJECT")
+        part = [o for o in bpy.data.objects if o not in before][0]
+        part.name = part.data.name = R["prefix"] + lab
+        lab_of = [l for l in lab_of if l != lab]
+        out.append(part)
+        print("REGION %s: 면 %d" % (part.name, n))
+    return out
+
+
+def skin_garment(g, rig):
+    g.parent = rig
+    mod = g.modifiers.new("Armature", "ARMATURE")
+    mod.object = rig
+    groups = {b.name: g.vertex_groups.new(name=b.name) for b in rig.data.bones}
+    for v in g.data.vertices:
+        w = weights_for(v.co)
+        tot = sum(w.values())
+        for name, val in w.items():
+            if val / tot > 0.001:
+                groups[name].add([v.index], val / tot, "REPLACE")
+
+
 def main():
     ob = place()
     weld(ob)
@@ -579,8 +750,16 @@ def main():
     J = joints(*centerline_y(ob))
     rig = armature(J)
     skin(ob, rig)
+    clothes = []
+    for gid, fname, push in CFG.get("garments", []):
+        g = garment(gid, os.path.join(REPO, CFG["garment_dir"], fname), push)
+        skin_garment(g, rig)
+        clothes.append(g)
+    clothes += split_regions(ob, clothes)
     bpy.ops.object.select_all(action="DESELECT")
     ob.select_set(True)
+    for g in clothes:
+        g.select_set(True)
     rig.select_set(True)
     bpy.context.view_layer.objects.active = rig
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
