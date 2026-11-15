@@ -444,6 +444,9 @@ func _overlay_action(act: String) -> void:
 			overlay.help_open = not overlay.help_open
 		"retry":
 			_retry()
+		"dyno_assist":
+			if session.dyno_assist():
+				_vibrate(30)
 		"rescue":
 			_rescue()
 		"next_course":
@@ -1073,22 +1076,36 @@ func _draw_body_goal() -> void:
 	draw_colored_polygon(PackedVector2Array([b + d * 14 * ui_k, b - d * 6 * ui_k + n * 11 * ui_k, b - d * 6 * ui_k - n * 11 * ui_k]), col)
 
 
-## 다이노 준비 중: 손이 닿을 높이에 가로선, 골반 옆에 높이·힘 소모(Tuning.DYNO_*). 최소 길이 전에는 흐리게.
+## 다이노 준비 중: 손이 닿을 높이에 가로선, 골반 옆에 오르는 높이·힘 소모·홀드 품질(Tuning.DYNO_*). 최소 길이 전에는 흐리게.
+## 날아가는 중 잡기 시간: 목표 홀드를 반짝이고 고리 아래에 "눌러서 잡기" 버튼과 남은 시간 막대(docs/45).
 func _draw_dyno() -> void:
+	var win := session.dyno_window()
+	if not win.is_empty():
+		var ring := _ring()
+		var c: Vector2 = ring[0]
+		var r: float = ring[1]
+		var tp := w2s(session.route.slot_pos(win[1]))
+		var blink := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * 4.0)
+		draw_arc(tp, 34 * ui_k, 0, TAU, 40, Color(1, 0.85, 0.4, 0.5 + 0.5 * blink), 6 * ui_k, true)
+		var w := 320.0 * ui_k
+		var pill := Rect2(Vector2(c.x - w * 0.5, c.y + r - 50 * ui_k), Vector2(w, 60 * ui_k))
+		hud.panel(self, pill, ui_k, Color(0.96, 0.84, 0.55, 0.97), Color(1, 1, 1, 0.9), 26.0)
+		draw_string(font, Vector2(pill.position.x, pill.position.y + 40 * ui_k), "눌러서 잡기", HORIZONTAL_ALIGNMENT_CENTER, w, int(28 * ui_k), Color(0.19, 0.15, 0.11))
+		var bar := Rect2(pill.position + Vector2(16 * ui_k, pill.size.y - 10 * ui_k), Vector2((w - 32 * ui_k) * float(win[0]), 5 * ui_k))
+		draw_rect(bar, Color(0.75, 0.3, 0.1))
+		overlay.add_buttons([{"rect": Rect2(c - Vector2(r, r), Vector2(r, r) * 2), "circle": [c, r + 16 * ui_k], "action": "dyno_assist"}])
+		return
 	var pv := session.dyno_preview()
 	if pv.is_empty():
 		return
-	var top := -INF
-	for hand in [&"LH", &"RH"]:
-		var l: Dictionary = session.limbs[hand]
-		if l.state in ["Attached", "Armed"]:
-			top = maxf(top, (l.grab as Vector2).y)
 	var col := Color("ffd166") if pv.ready else Color(1, 1, 1, 0.45)
-	var y := w2s(Vector2(0, top + float(pv.height))).y
+	var y := w2s(Vector2(0, float(pv.apex_hand))).y
 	var a := w2s(session.body.pos)
 	draw_line(Vector2(a.x - 160 * ui_k, y), Vector2(a.x + 160 * ui_k, y), Color(0, 0, 0, 0.5), 7 * ui_k)
 	draw_line(Vector2(a.x - 160 * ui_k, y), Vector2(a.x + 160 * ui_k, y), col, 4 * ui_k)
-	var text := "다이노 %dcm · 힘 -%d" % [roundi(float(pv.height) * 100.0), roundi(float(pv.cost))] if pv.ready else "아래로 더 끌어요"
+	var q: float = pv.quality
+	var grade := "홀드 좋음" if q >= 0.75 else ("홀드 보통" if q >= 0.45 else "홀드 나쁨")
+	var text := "다이노 +%dcm · 힘 -%d · %s" % [roundi(float(pv.rise) * 100.0), roundi(float(pv.cost)), grade] if pv.ready else "아래로 더 끌어요"
 	var fs := int(26 * ui_k)
 	draw_string_outline(font, Vector2(a.x + 40 * ui_k, a.y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, int(6 * ui_k), Color(0, 0, 0, 0.8))
 	draw_string(font, Vector2(a.x + 40 * ui_k, a.y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)

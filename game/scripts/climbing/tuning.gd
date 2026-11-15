@@ -62,17 +62,24 @@ const FLAG_COST_IMPROVEMENT := 0.02
 # v0.9 몸통 끌기(docs/03): 가운데 영역을 끌어 정한 골반 목표 쪽으로 당기는 비용 가중치(1/m²)와 최대 거리(m)
 const BODY_GOAL_WEIGHT := 30.0
 const BODY_GOAL_MAX := 0.45
-## 다이노(2026-11-15 사용자): 몸을 두 번 빠르게 누르고 아래로 끌어 준비, 떼면 손이 높이 h만큼 위로 뛴다(두 발은 떨어짐).
-## 날아가는 동안 손이 홀드 근처(DYNO_CATCH_RADIUS)에 있을 때 그 손 패드를 누르면 잡는다. 손 에너지 20~40을 높이에 비례해 쓴다.
+## 다이노(2026-11-15 사용자, docs/45): 몸을 두 번 빠르게 누르고 아래로 끌어 준비, 떼면 네 손발을 떼고 뛴다.
+## 높이: 지금 발로 다리를 쭉 편 골반 높이 + 덤(끈 길이 비례, 홀드가 좋을수록 큼). 날아가는 동안 팔은 목표 홀드로 쭉 뻗는다.
+## 손이 목표 홀드에 가까워지면 느린 화면 + 가운데 "잡기" 버튼(누를 시간 0.3~1초, 목표 홀드가 클수록 김) → 누르면 목표 홀드를
+## 잡고 발도 닿는 홀드를 딛는다. 손 패드를 눌러 직접 잡을 수도 있다(DYNO_CATCH_RADIUS). 손 에너지 20~40(끈 길이 비례).
 const DYNO_DOUBLE_TAP := 0.1     # 첫 탭을 뗀 뒤 두 번째로 누르기까지(초)
 const DYNO_DRAG_MIN := 0.15      # 이만큼(월드 m, 패드 지름 = 1m) 내리지 않으면 취소
-const DYNO_DRAG_MAX := 0.8       # 이만큼 내리면 최대 높이
-const DYNO_H_MIN := 0.2          # 손이 뛰어오르는 높이(m)
-const DYNO_H_MAX := 0.6
+const DYNO_DRAG_MAX := 0.8       # 이만큼 내리면 최대
+const DYNO_EXTRA_MIN := 0.10     # 다리를 쭉 편 골반 높이보다 더 뛰는 높이(좋은 홀드, 최소 끌기)
+const DYNO_EXTRA_MAX := 0.50     # (좋은 홀드, 최대 끌기)
+const DYNO_BAD_DROP := 0.30      # 홀드가 나쁠수록(품질 0) 덜 뛴다: 덤 × 품질 − 이 값 × (1 − 품질)
 const DYNO_COST_MIN := 20.0      # 두 손 에너지 소모
 const DYNO_COST_MAX := 40.0
 const DYNO_CROUCH := 0.15        # 준비할 때 골반을 내리는 최대 거리(m)
-const DYNO_CATCH_RADIUS := 0.18  # 손 패드를 누를 때 잡히는 홀드 거리(정확하지 않아도 잡히게)
+const DYNO_CATCH_RADIUS := 0.18  # 손 패드로 직접 잡을 때 잡히는 홀드 거리
+const DYNO_WINDOW_DIST := 0.22   # 잡는 손이 목표 홀드에 이만큼 가까워지면 느린 화면 + 잡기 버튼
+const DYNO_WINDOW_MIN := 0.3     # 잡기 버튼 시간(초, 실제 시간): 목표 홀드가 작으면
+const DYNO_WINDOW_MAX := 1.0     # 크면(반폭 0.13 이상·정상)
+const DYNO_SLOW := 0.12          # 느린 화면 배속
 const DYNO_MISS_DROP := 0.25     # 출발 높이보다 이만큼 내려오면 놓친 것(추락)
 const DYNO_HANG_TICKS := 60      # 잡은 뒤 이만큼(1초)은 균형을 잃어도 떨어지지 않음. 그동안 다른 손 패드를 눌러도 근처 홀드를 잡음
 # v0.7 문 열림 부담(docs/30 §4.1, 04 §10.4): r = τ/용량이 이 값을 넘으면 하중 받는 손이 더 빨리 지친다
