@@ -185,7 +185,7 @@ func test_courses_json_content() -> void:
 			var tx: Dictionary = c.get("text_ko", {})
 			runner.check(tx.get("purpose", "") != "" and tx.get("how", "") != "", "%s 시작 설명 문구" % c.course_id)
 		runner.check(FileAccess.file_exists(ContentIndex.route_path(str(c.tutorial))), "%s 튜토리얼 파일" % c.course_id)
-	runner.check(list.map(func(c): return c.course_id) == PlayFlow.BASIC_SEQUENCE, "수업 순서 %s" % [list.map(func(c): return c.course_id)])
+	runner.check(list.map(func(c): return c.course_id) == PlayFlow.BASIC_SEQUENCE + PlayFlow.TECH_SEQUENCE, "수업 순서(기본 + 기술 수업) %s" % [list.map(func(c): return c.course_id)])
 
 
 # --- ContentIndex ---
@@ -200,7 +200,7 @@ func test_index_real_data() -> void:
 	runner.check(ids_g == ["G_V3_02", "G_V3_03", "G_V3_04"], "V3 문제 %s" % [ids_g])
 	runner.check(idx.route("G_V3_02") != null and idx.route("NOPE") == null, "route 조회")
 	runner.check(idx.general("V9").is_empty(), "없는 등급 빈 배열")
-	runner.check(idx.courses().size() == 4 and idx.course("C_NOPE").is_empty() and idx.route("C_BASIC_T") != null, "수업 4개")
+	runner.check(idx.courses().size() == 10 and idx.course("C_NOPE").is_empty() and idx.route("C_BASIC_T") != null, "수업 10개(기본 4 + 기술 6)")
 	runner.check(idx.errors.is_empty(), "색인 오류 없음 %s" % [idx.errors])
 
 

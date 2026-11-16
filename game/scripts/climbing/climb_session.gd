@@ -24,7 +24,7 @@ var runner := TechniqueRunner.new()  # 기술 실행기(docs/27). 한 번에 하
 ## 기술 실행기: {type, id, side, key, quality, reason}. 패드 손 잡기: {type: "pad_grip", limb, key, mode}(28 §4.3).
 ## 패드 기술(28 §7.4·튜토리얼 판정): {type: "move", label}(확정 라벨이 MOVE_EVENT_LABELS로 바뀔 때 1회),
 ## {type: "grab", limb, key, quality}(패드·기술로 붙을 때마다), {type: "flag", limb}(패드 균형 발이 될 때),
-## {type: "pad_foot_swap", limb, key}, {type: "fall", reason}(추락 시작).
+## {type: "pad_foot_swap", limb, key}, {type: "fall", reason}(추락 시작), {type: "miss", limb, reason}(놓았는데 못 잡음).
 var technique_log: Array = []
 var event_seq := 0  # 마지막으로 기록한 이벤트의 seq
 ## 검증기 전용 금지 플래그(키 StringName → true, 28 §7.4). 플레이 코드는 설정하지 않는다(비면 영향 없음).
@@ -293,6 +293,7 @@ func _try_grab(limb: StringName) -> void:
 		var text := GripCheck.message(reason, limb)
 		if not text.is_empty():
 			messages.append(text)
+		_log_event({"type": "miss", "limb": limb, "reason": reason})  # 놓았는데 못 잡음(기술 수업의 "먼저 그냥 해 보기" 단계, docs/47)
 		# 균형 발 예고가 있었고 놓는 순간에도 조건을 통과하면 그 위치를 유지(25 MV06)
 		if not PoseSolver.is_hand(limb) and rules.flag_ready.has(limb):
 			l.state = "Flag"
@@ -828,29 +829,42 @@ func _dyno_launch() -> void:
 func _dyno_place_limbs() -> void:
 	var arm := PoseSolver.reach_of(PoseSolver.LH).y * Tuning.DYNO_REACH
 	var reach: Array = dyno.reach
-	var aim := {}
+	var sh := {}
 	for hand in [PoseSolver.LH, PoseSolver.RH]:
-		var sh := PoseSolver.joint_position(body.pos, body.angle, hand, body.yaw)
-		var best := ""
-		for key in reach:  # 높은 순: 닿는 것 중 가장 높은 홀드
-			if not aim.values().has(key) and sh.distance_to(route.slot_pos(key)) <= arm:
-				best = key
-				break
-		aim[hand] = best
+		sh[hand] = PoseSolver.joint_position(body.pos, body.angle, hand, body.yaw)
+	# 두 손 차례(왼손 먼저 / 오른손 먼저) 중 더 많이·더 높이·어깨에 가깝게 겨누는 쪽(정상 두 칸이 엇갈리지 않게)
+	var best_aim := {}
+	var best_score := -INF
+	for order in [[PoseSolver.LH, PoseSolver.RH], [PoseSolver.RH, PoseSolver.LH]]:
+		var aim := {}
+		var score := 0.0
+		for hand in order:
+			aim[hand] = ""
+			for key in reach:  # 높은 순: 닿는 것 중 가장 높은 홀드
+				if not aim.values().has(key) and (sh[hand] as Vector2).distance_to(route.slot_pos(key)) <= arm:
+					aim[hand] = key
+					var hp := route.slot_pos(key)
+					score += 10.0 + hp.y - 0.5 * absf(hp.x - (sh[hand] as Vector2).x)
+					break
+		if score > best_score:
+			best_score = score
+			best_aim = aim
+	for hand in [PoseSolver.LH, PoseSolver.RH]:
+		var key: String = best_aim[hand]
 		var to: Vector2
-		if not best.is_empty():
-			to = route.slot_pos(best)
+		if not key.is_empty():
+			to = route.slot_pos(key)
 		elif not reach.is_empty():
 			to = route.slot_pos(reach[0])
 		else:
-			to = sh + (body.vel.normalized() if body.vel.length() > 0.1 else _UP)
-		var p := sh + (to - sh).limit_length(arm) if not best.is_empty() else sh + (to - sh).normalized() * arm
+			to = sh[hand] + (body.vel.normalized() if body.vel.length() > 0.1 else _UP)
+		var p: Vector2 = sh[hand] + (to - sh[hand]).limit_length(arm) if not key.is_empty() else sh[hand] + (to - sh[hand]).normalized() * arm
 		limbs[hand].pos = p
 		limbs[hand].req = p
 	for foot in [PoseSolver.LF, PoseSolver.RF]:
 		limbs[foot].pos = body.pos + _rest_offset(foot)
 		limbs[foot].req = limbs[foot].pos
-	dyno.aim = aim
+	dyno.aim = best_aim
 
 
 func _dyno_tick() -> String:

@@ -1,0 +1,318 @@
+{
+ "route_id": "C_CROSS_T",
+ "content_version": 1,
+ "validation_status": "Draft",
+ "mode": "course",
+ "grade": "V0",
+ "order": 0,
+ "name_ko": "크로스",
+ "course_id": "C_CROSS",
+ "course_slot": "tutorial",
+ "required_techniques": [],
+ "check_swapped": false,
+ "note": "기술 수업(docs/47): 왼손이 잡은 작은 홀드에는 두 손을 모을 수 없다 → 오른손을 왼손 너머로 엇갈려 왼쪽 홀드를 잡고, 왼손은 더 왼쪽으로.",
+ "bounds": {
+  "x_min": -1.5,
+  "x_max": 1.8,
+  "y_min": 0.0,
+  "y_max": 4.0
+ },
+ "fail_line_y": -0.5,
+ "platforms": [
+  {
+   "platform_id": "P00",
+   "top_y": 0.1,
+   "x_range": [
+    -0.5,
+    0.8
+   ],
+   "foot_slot_keys": [
+    "C_CROSS_T/F01/foot_1",
+    "C_CROSS_T/F02/foot_1"
+   ]
+  }
+ ],
+ "start_pose": {
+  "pelvis": [
+   -0.15,
+   0.95
+  ],
+  "angle": 0.0,
+  "slots": {
+   "LH": "C_CROSS_T/H01/hand_1",
+   "RH": "C_CROSS_T/H02/hand_1",
+   "LF": "C_CROSS_T/F03/foot_1",
+   "RF": "C_CROSS_T/F04/foot_1"
+  }
+ },
+ "goal_slots": [
+  "C_CROSS_T/G01/goal_left",
+  "C_CROSS_T/G01/goal_right"
+ ],
+ "holds": [
+  {
+   "hold_id": "H01",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      -0.3,
+      1.6
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.05
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H02",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      0.1,
+      1.8
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.08
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H03",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      -0.5,
+      1.95
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.08
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H04",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      -0.9,
+      1.85
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.08
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F01",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      -0.12,
+      0.1
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.05
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F02",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      0.25,
+      0.1
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.05
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F03",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      -0.4,
+      0.5
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.05
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F04",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      0.0,
+      0.5
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.05
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "G01",
+   "slots": [
+    {
+     "slot_id": "goal_left",
+     "pos": [
+      -0.85,
+      2.3
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ]
+    },
+    {
+     "slot_id": "goal_right",
+     "pos": [
+      -0.45,
+      2.3
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ]
+    }
+   ]
+  }
+ ],
+ "intended_moves": [
+  [
+   "RH",
+   "C_CROSS_T/H03/hand_1"
+  ],
+  [
+   "LH",
+   "C_CROSS_T/H04/hand_1"
+  ],
+  [
+   "LH",
+   "C_CROSS_T/G01/goal_left"
+  ],
+  [
+   "RH",
+   "C_CROSS_T/G01/goal_right"
+  ]
+ ],
+ "tutorial_steps": [
+  {
+   "step_id": "CR1",
+   "text_ko": "왼쪽으로 가야 해요. 오른손을 왼손 너머로 엇갈려 왼쪽 노란 홀드를 잡아요.",
+   "goal_event": {
+    "type": "grab",
+    "limb": "RH",
+    "slot": "C_CROSS_T/H03/hand_1"
+   },
+   "help_ko": [
+    "오른손 패드를 왼쪽으로 멀리 끌어요. 팔이 엇갈려도 돼요",
+    "하얗게 빛나면 손가락을 떼요"
+   ],
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   }
+  },
+  {
+   "step_id": "CR2",
+   "text_ko": "왼손이 자유로워졌어요. 왼손을 더 왼쪽 노란 홀드로 옮겨요.",
+   "goal_event": {
+    "type": "grab",
+    "limb": "LH",
+    "slot": "C_CROSS_T/H04/hand_1"
+   },
+   "help_ko": [
+    "왼손 패드를 왼쪽으로 끌어요",
+    "하얗게 빛나면 손가락을 떼요"
+   ],
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   }
+  },
+  {
+   "step_id": "CR3",
+   "text_ko": "팔을 엇갈려 옆으로 가는 것이 크로스예요. 두 손으로 정상을 잡아요.",
+   "goal_event": {
+    "type": "clear"
+   },
+   "help_ko": [
+    "한 손씩 정상 홀드로",
+    "두 손이 다 잡으면 끝나요"
+   ],
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   }
+  }
+ ]
+}

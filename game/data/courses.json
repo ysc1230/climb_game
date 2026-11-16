@@ -59,7 +59,115 @@
     "when": "위쪽 팔 힘 표시가 줄어들 때, 어려운 곳에 들어가기 전.",
     "how": "두 발로 서서 가만히 있으면 팔 힘이 돌아와요. 한 발을 떼거나 작은 홀드에 매달리면 빨리 빠져요."
    }
+  },
+  {
+   "course_id": "C_HIGH",
+   "order": 10,
+   "name_ko": "하이스텝",
+   "kind": "pad",
+   "techniques": [
+    "T_HIGH_STEP"
+   ],
+   "tutorial": "C_HIGH_T",
+   "problems": [],
+   "phase": 1,
+   "group": "technique",
+   "text_ko": {
+    "purpose": "발을 높이 올려 그 위로 일어서면 높은 홀드에 닿아요.",
+    "when": "손이 다음 홀드에 닿지 않고, 허리 높이에 발판이 있을 때.",
+    "how": "발 패드를 허리 높이 발판까지 끌어 놓고 잠깐 기다리면 몸이 올라가요."
+   }
+  },
+  {
+   "course_id": "C_MATCH",
+   "order": 11,
+   "name_ko": "매치",
+   "kind": "pad",
+   "techniques": [
+    "T_MATCH"
+   ],
+   "tutorial": "C_MATCH_T",
+   "problems": [],
+   "phase": 1,
+   "group": "technique",
+   "text_ko": {
+    "purpose": "파란 홀드에 두 손을 모아요.",
+    "when": "잡은 손을 바꿔 반대 방향으로 가야 할 때.",
+    "how": "손 패드를 다른 손이 잡은 파란 홀드로 끌어 놓아요. 초록 홀드에 놓으면 먼저 있던 손이 밀려나요."
+   }
+  },
+  {
+   "course_id": "C_FSWAP",
+   "order": 12,
+   "name_ko": "풋스왑",
+   "kind": "pad",
+   "techniques": [
+    "T_FOOT_SWAP"
+   ],
+   "tutorial": "C_FSWAP_T",
+   "problems": [],
+   "phase": 1,
+   "group": "technique",
+   "text_ko": {
+    "purpose": "한 발판에서 발을 바꿔요.",
+    "when": "한쪽 발이 멀리 가야 하는데 발판이 하나뿐일 때.",
+    "how": "발 패드를 다른 발이 딛은 발판으로 끌어 놓으면 먼저 있던 발이 비켜요."
+   }
+  },
+  {
+   "course_id": "C_FMATCH",
+   "order": 13,
+   "name_ko": "합발",
+   "kind": "pad",
+   "techniques": [
+    "T_FOOT_MATCH"
+   ],
+   "tutorial": "C_FMATCH_T",
+   "problems": [],
+   "phase": 1,
+   "group": "technique",
+   "text_ko": {
+    "purpose": "파란 홀드에 두 발을 모아요.",
+    "when": "발을 바꾸면서도 두 발로 버티고 싶을 때.",
+    "how": "발 패드를 다른 발이 딛은 파란 홀드로 끌어 놓아요."
+   }
+  },
+  {
+   "course_id": "C_CROSS",
+   "order": 14,
+   "name_ko": "크로스",
+   "kind": "pad",
+   "techniques": [
+    "T_CROSS"
+   ],
+   "tutorial": "C_CROSS_T",
+   "problems": [],
+   "phase": 1,
+   "group": "technique",
+   "text_ko": {
+    "purpose": "팔을 엇갈려 옆으로 가요.",
+    "when": "옆 홀드가 작아 두 손을 모을 수 없을 때.",
+    "how": "손 패드를 반대 손 너머로 끌어 놓아요."
+   }
+  },
+  {
+   "course_id": "C_DYNO",
+   "order": 15,
+   "name_ko": "다이노",
+   "kind": "pad",
+   "techniques": [
+    "T_DYNO"
+   ],
+   "tutorial": "C_DYNO_T",
+   "problems": [],
+   "phase": 1,
+   "group": "technique",
+   "text_ko": {
+    "purpose": "닿지 않는 홀드로 뛰어서 잡아요.",
+    "when": "발을 올려도 손이 닿지 않을 때.",
+    "how": "가운데를 톡, 다시 누른 채 끌고 떼요. 날아가며 손이 닿으면 그 손 패드를 눌러요."
+   }
   }
  ],
- "note": "처음 배우기 수업(docs/42 §4.2). 1단계: 수업 0~3."
+ "note": "처음 배우기 수업(docs/42 §4.2) 0~3 + 기술 수업(docs/47, group technique)."
 }

@@ -216,6 +216,11 @@ func _check_step(i: int, m) -> void:
 		errors.append("%s: 단계 형식 오류 %s" % [where, m])
 		return
 	var limb := StringName(m[0])
+	if limb == &"BODY":
+		# 몸통 끌기(docs/03 v0.9): ["BODY", "body", [dx, dy]] — 골반 목표를 그만큼 옮긴다
+		if m.size() != 3 or str(m[1]) != "body" or not (m[2] is Array and m[2].size() == 2):
+			errors.append("%s: 몸통 끌기는 [\"BODY\", \"body\", [dx, dy]] %s" % [where, m])
+		return
 	if not PoseSolver.LIMBS.has(limb):
 		errors.append("%s: 모르는 팔다리 %s" % [where, limb])
 		return
@@ -232,6 +237,12 @@ func _check_step(i: int, m) -> void:
 			errors.append("%s: 플래그는 발만 %s" % [where, limb])
 		if not (third is Array and third.size() == 2 and third.all(func(v): return (v is float or v is int) and is_finite(v))):
 			errors.append("%s: 플래그 위치는 [x, y] %s" % [where, third])
+	elif second == "dyno":
+		# 다이노(docs/45): [잡을 손, "dyno", [끄는 벡터 x, y](월드 m)] — 그 방향·길이로 뛰고 그 손이 닿으면 잡는다
+		if not PoseSolver.is_hand(limb):
+			errors.append("%s: 다이노로 잡는 것은 손만 %s" % [where, limb])
+		if not (third is Array and third.size() == 2 and third.all(func(v): return (v is float or v is int) and is_finite(v))):
+			errors.append("%s: 다이노 끄는 벡터는 [x, y] %s" % [where, third])
 	elif second.begins_with("T_") and third is String:
 		_check_technique(second, where)
 		_check_slot_for(limb, third, where)

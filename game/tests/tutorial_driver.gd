@@ -124,3 +124,16 @@ func drag(limb: StringName, key: String) -> bool:
 		if act != "":
 			return true
 	return false
+
+
+## 떼어 그 슬롯 쪽으로 끌다가 더 못 가면(닿지 않음) 그 자리에서 놓는다. 후보가 생겨도 놓는다(잡히면 잡힘). 결과가 나오면 멈춘다.
+func reach_and_release(limb: StringName, key: String) -> void:
+	s.apply_input([{"type": "detach", "limb": limb}])
+	for i in 300:
+		var req: Vector2 = s.limbs[limb].req
+		s.apply_input([{"type": "move", "limb": limb, "delta": (s.route.slot_pos(key) - req).limit_length(DRAG_SPEED * DT)}])
+		if tick() != "":
+			return
+		if s.limbs[limb].req.distance_to(s.route.slot_pos(key)) < 0.03 or i >= 30 and s.limbs[limb].req.distance_to(req) < 0.0005:
+			break
+	s.apply_input([{"type": "release", "limb": limb, "speed": 0.0}])

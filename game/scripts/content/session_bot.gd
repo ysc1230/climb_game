@@ -107,12 +107,16 @@ func _do_step(m: Array) -> String:
 	var limb := StringName(str(m[0]))
 	var second := str(m[1])
 	var err := ""
-	if m.size() == 2 and second.begins_with("T_"):
+	if limb == &"BODY":
+		err = _body(Vector2(m[2][0], m[2][1]))
+	elif m.size() == 2 and second.begins_with("T_"):
 		err = _technique(limb, StringName(second), "")
 	elif m.size() == 2:
 		err = _pad_move(limb, second)
 	elif second == "flag":
 		err = _flag(limb, Vector2(m[2][0], m[2][1]))
+	elif second == "dyno":
+		err = _dyno(limb, Vector2(m[2][0], m[2][1]))
 	else:
 		err = _technique(limb, StringName(second), str(m[2]))
 	if not err.is_empty() or cleared:
@@ -143,7 +147,9 @@ func _pad_move(limb: StringName, key: String) -> String:
 		# 사람이 홀드 위로 손을 가져가 놓는 것과 같게 한다(v7 잡기 영역이 넓어져 가장자리에서 바로 놓으면 과하게 뻗은 잡기가 됨).
 		var moved: float = (l0.pos as Vector2).distance_to(_last_end.get(limb, Vector2.INF))
 		_last_end[limb] = l0.pos
-		if l0.cand.get("key", "") == key and ((l0.pos as Vector2).distance_to(target) <= 0.03 or moved < 0.002):
+		# 풋스왑(2026-11-10): 다른 발이 딛은 발판에 발을 가져가 놓으면 그 발이 비킨다. 후보가 되지 않으므로 닿으면 놓는다
+		var swap: bool = not PoseSolver.is_hand(limb) and session.occupied().has(key) and l0.cand.is_empty() and (l0.pos as Vector2).distance_to(target) <= 0.03
+		if swap or l0.cand.get("key", "") == key and ((l0.pos as Vector2).distance_to(target) <= 0.03 or moved < 0.002):
 			_input([{"type": "release", "limb": limb, "speed": 0.0}])
 			var l: Dictionary = session.limbs[limb]
 			if l.state != "Attached" or l.key != key:
@@ -196,6 +202,44 @@ func _flag(foot: StringName, point: Vector2) -> String:
 	if l.state != "Flag":
 		return "균형 발이 되지 않음(%s %s)" % [l.state, l.key]
 	return ""
+
+
+## 몸통 끌기: 가운데를 누르고 40틱에 나눠 delta만큼 끈 뒤 뗀다(목표는 남음).
+func _body(delta: Vector2) -> String:
+	_input([{"type": "body_start", "limb": InputRouter.BODY}])
+	for i in 40:
+		_input([{"type": "body_move", "limb": InputRouter.BODY, "delta": delta / 40.0}])
+		var err := _tick()
+		if not err.is_empty() or cleared:
+			return err
+	_input([{"type": "body_end", "limb": InputRouter.BODY}])
+	return ""
+
+
+## 다이노(docs/45): 준비 → drag만큼 끌기 → 30틱 웅크림 → 뛰기 → 그 손이 홀드에 닿으면(aim) 손 패드를 눌러 잡는다. 꼭대기를 지나도 못 겨누면 다른 손으로.
+func _dyno(hand: StringName, drag: Vector2) -> String:
+	_input([{"type": "dyno_start", "limb": InputRouter.DYNO}])
+	_input([{"type": "dyno_move", "limb": InputRouter.DYNO, "delta": drag}])
+	if session.dyno.get("phase", "") != "charge":
+		return "다이노 준비가 안 됨"
+	for i in 30:
+		var err := _tick()
+		if not err.is_empty():
+			return err
+	_input([{"type": "dyno_end", "limb": InputRouter.DYNO}])
+	for i in 240:
+		var aim := session.dyno_aim()
+		var who := hand if not str(aim.get(hand, "")).is_empty() or session.body.vel.y > 0.0 else TechniqueJudge.other_of(hand)
+		if session.dyno_flying() and not str(aim.get(who, "")).is_empty():
+			_input([{"type": "detach", "limb": who}])
+			if session.limbs[who].state == "Attached":
+				return ""
+		var err := _tick()
+		if not err.is_empty() or cleared:
+			return err
+		if not session.dyno_flying():
+			break
+	return "다이노로 %s이 잡지 못함" % hand
 
 
 # ---------- 틱·측정 ----------

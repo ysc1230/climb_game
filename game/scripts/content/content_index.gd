@@ -68,6 +68,7 @@ func _load_courses(root: String) -> void:
 			"tutorial": str(c.get("tutorial", "")),
 			"problems": c.get("problems", []).map(func(p): return str(p)),
 			"phase": int(c.get("phase", 1)),
+			"group": str(c.get("group", "basic")),  # basic 처음 배우기 / technique 기술 수업(docs/47)
 		}
 		if c.has("text_ko"):
 			course.text_ko = c.text_ko

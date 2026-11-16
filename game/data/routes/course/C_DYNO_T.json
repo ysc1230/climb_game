@@ -1,0 +1,278 @@
+{
+ "route_id": "C_DYNO_T",
+ "content_version": 1,
+ "validation_status": "Draft",
+ "mode": "course",
+ "grade": "V0",
+ "order": 0,
+ "name_ko": "다이노",
+ "course_id": "C_DYNO",
+ "course_slot": "tutorial",
+ "required_techniques": [],
+ "check_swapped": false,
+ "note": "기술 수업(docs/47): 맨 위 홀드는 일어서도 안 닿고 중간 발판도 없다 → 뛰어서 잡는다(가운데 두 번 누르고 끌기, 날아가며 손 패드).",
+ "bounds": {
+  "x_min": -1.5,
+  "x_max": 1.8,
+  "y_min": 0.0,
+  "y_max": 4.0
+ },
+ "fail_line_y": -0.5,
+ "platforms": [
+  {
+   "platform_id": "P00",
+   "top_y": 0.1,
+   "x_range": [
+    -0.5,
+    0.8
+   ],
+   "foot_slot_keys": [
+    "C_DYNO_T/F01/foot_1",
+    "C_DYNO_T/F02/foot_1"
+   ]
+  }
+ ],
+ "start_pose": {
+  "pelvis": [
+   0.05,
+   0.95
+  ],
+  "angle": 0.0,
+  "slots": {
+   "LH": "C_DYNO_T/H01/hand_1",
+   "RH": "C_DYNO_T/H02/hand_1",
+   "LF": "C_DYNO_T/F03/foot_1",
+   "RF": "C_DYNO_T/F04/foot_1"
+  }
+ },
+ "goal_slots": [
+  "C_DYNO_T/G01/goal_left",
+  "C_DYNO_T/G01/goal_right"
+ ],
+ "holds": [
+  {
+   "hold_id": "H01",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      -0.2,
+      1.8
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.12
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H02",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      0.25,
+      1.8
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.12
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F01",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      -0.12,
+      0.1
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.05
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F02",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      0.25,
+      0.1
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.05
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F03",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      -0.15,
+      0.45
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.07
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F04",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      0.3,
+      0.5
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.07
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "G01",
+   "slots": [
+    {
+     "slot_id": "goal_left",
+     "pos": [
+      -0.15,
+      2.75
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ]
+    },
+    {
+     "slot_id": "goal_right",
+     "pos": [
+      0.25,
+      2.75
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ]
+    }
+   ]
+  }
+ ],
+ "intended_moves": [
+  [
+   "RH",
+   "dyno",
+   [
+    0.0,
+    -0.8
+   ]
+  ],
+  [
+   "LH",
+   "C_DYNO_T/G01/goal_left"
+  ]
+ ],
+ "tutorial_steps": [
+  {
+   "step_id": "DY1",
+   "text_ko": "먼저 오른손을 맨 위 노란 홀드로 뻗어 보세요.",
+   "goal_event": {
+    "type": "miss",
+    "limb": "RH"
+   },
+   "help_ko": [
+    "오른손 패드를 위로 끝까지 끌어요",
+    "닿지 않으면 그대로 떼요"
+   ],
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   }
+  },
+  {
+   "step_id": "DY2",
+   "text_ko": "너무 멀어요. 뛰어서 잡아요. 가운데를 톡 누르고 바로 다시 누른 채 아래로 길게 끌어 노란 홀드에 고리가 생기면 떼요. 날아가며 손이 홀드에 닿으면 그 손 패드를 눌러요.",
+   "goal_event": {
+    "type": "dyno_catch"
+   },
+   "help_ko": [
+    "가운데를 빠르게 두 번, 두 번째는 누른 채 아래로 길게 끌어요",
+    "날아가는 중 손 색 고리가 생긴 손의 패드를 눌러요"
+   ],
+   "start_pose": {
+    "pelvis": [
+     0.05,
+     0.95
+    ],
+    "angle": 0.0,
+    "slots": {
+     "LH": "C_DYNO_T/H01/hand_1",
+     "RH": "C_DYNO_T/H02/hand_1",
+     "LF": "C_DYNO_T/F03/foot_1",
+     "RF": "C_DYNO_T/F04/foot_1"
+    }
+   },
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   }
+  },
+  {
+   "step_id": "DY3",
+   "text_ko": "멀리 있는 홀드로 뛰어서 잡는 것이 다이노예요. 두 손으로 정상을 잡아요.",
+   "goal_event": {
+    "type": "clear"
+   },
+   "help_ko": [
+    "한 손씩 정상 홀드로",
+    "두 손이 다 잡으면 끝나요"
+   ],
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   }
+  }
+ ]
+}

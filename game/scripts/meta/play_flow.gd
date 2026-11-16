@@ -96,17 +96,20 @@ func mark_tip(id: String) -> void:
 
 ## 처음 배우기 수업 순서(docs/42 §4.2). 튜토리얼 완료 화면의 [다음: 수업]이 이 순서를 따른다.
 const BASIC_SEQUENCE: Array[String] = ["C_BASIC", "C_FEET", "C_BODY", "C_ARM"]
+## 기술 수업(docs/47) 차례. 완료 화면 [다음]이 이 차례로 이어진다.
+const TECH_SEQUENCE: Array[String] = ["C_HIGH", "C_MATCH", "C_FSWAP", "C_FMATCH", "C_CROSS", "C_DYNO"]
 
 
-## route_id가 기본 과정 튜토리얼이면 다음 기본 과정 튜토리얼 {route_id, name}. 마지막이거나 아니면 {}.
+## route_id가 기본 과정(또는 기술 수업) 튜토리얼이면 같은 차례의 다음 튜토리얼 {route_id, name}. 마지막이거나 아니면 {}.
 func next_basic_tutorial(route_id: String) -> Dictionary:
 	var r := index.route(route_id)
 	if r == null or r.mode != "course":
 		return {}
-	var i := BASIC_SEQUENCE.find(r.course_id)
-	if i < 0 or i + 1 >= BASIC_SEQUENCE.size():
+	var seq := BASIC_SEQUENCE if BASIC_SEQUENCE.has(r.course_id) else TECH_SEQUENCE
+	var i := seq.find(r.course_id)
+	if i < 0 or i + 1 >= seq.size():
 		return {}
-	var c := index.course(BASIC_SEQUENCE[i + 1])
+	var c := index.course(seq[i + 1])
 	var tid := str(c.get("tutorial", ""))
 	if tid == "" or index.route(tid) == null:
 		return {}

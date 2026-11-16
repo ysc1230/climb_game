@@ -369,13 +369,20 @@ func _draw_views(size: Vector2) -> void:
 
 
 func _draw_courses(size: Vector2) -> void:
-	var list: Array[Dictionary] = game.index.courses()
-	var cols := 4
-	var cw := (size.x - 120 * k - (cols - 1) * 20 * k) / cols
-	var ch := 200.0 * k
-	for i in list.size():
-		var r := Rect2(Vector2(60 * k + (i % cols) * (cw + 20 * k), 184 * k + (i / cols) * (ch + 20 * k)), Vector2(cw, ch))
-		_draw_course_card(r, list[i], i + 1)
+	var all: Array[Dictionary] = game.index.courses()
+	var basic := all.filter(func(c): return c.get("group", "basic") != "technique")
+	var tech := all.filter(func(c): return c.get("group", "basic") == "technique")
+	var ch := 190.0 * k
+	var cw := (size.x - 120 * k - 3 * 20 * k) / 4
+	for i in basic.size():
+		_draw_course_card(Rect2(Vector2(60 * k + i * (cw + 20 * k), 184 * k), Vector2(cw, ch)), basic[i], i + 1)
+	if tech.is_empty():
+		return
+	var y := 184 * k + ch + 50 * k
+	draw_string(font, Vector2(60 * k, y - 14 * k), "기술 수업 · 먼저 기술 없이 해 보고, 기술을 써서 다시 해요", HORIZONTAL_ALIGNMENT_LEFT, -1, int(22 * k), CREAM)
+	var tw := (size.x - 120 * k - (tech.size() - 1) * 14 * k) / tech.size()
+	for i in tech.size():
+		_draw_course_card(Rect2(Vector2(60 * k + i * (tw + 14 * k), y), Vector2(tw, ch)), tech[i])
 
 
 ## 기술 사전 목록: 발·손·몸 세 줄 + 이 게임에 없는 기술. 준비된(ready) 기술만 보인다.
@@ -418,6 +425,13 @@ func _draw_tech(size: Vector2) -> void:
 		draw_string(font, Vector2(x, y), row[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), CREAM)
 		draw_multiline_string(font, Vector2(x + 150 * k, y), str(row[1]), HORIZONTAL_ALIGNMENT_LEFT, w - 150 * k, int(21 * k), 2, Color.WHITE)
 		y += (66 if font.get_string_size(str(row[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, int(21 * k)).x > w - 150 * k else 46) * k
+	# 그 기술의 수업(docs/47)이 있으면 [연습하기]와 해 봤는지
+	for c in game.index.courses():
+		if c.get("group", "") == "technique" and StringName(tech_id) in c.techniques and c.tutorial != "":
+			var done: bool = game.progress.tutorial_done(c.tutorial)
+			_button(Rect2(Vector2(x, y + 10 * k), Vector2(260, 60) * k), "연습하기", "play", c.tutorial, 24, true)
+			draw_string(font, Vector2(x + 280 * k, y + 50 * k), "✓ 해 봤어요" if done else "기술 없이 먼저 해 보고, 기술을 써서 다시 해요", HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), CREAM if done else DIM)
+			break
 
 
 func _draw_course_card(r: Rect2, c: Dictionary, n := 0) -> void:

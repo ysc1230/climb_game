@@ -1,0 +1,366 @@
+{
+ "route_id": "C_HIGH_T",
+ "content_version": 1,
+ "validation_status": "Draft",
+ "mode": "course",
+ "grade": "V0",
+ "order": 0,
+ "name_ko": "하이스텝",
+ "course_id": "C_HIGH",
+ "course_slot": "tutorial",
+ "required_techniques": [],
+ "check_swapped": false,
+ "note": "기술 수업(docs/47): 발판이 낮으면 맨 위 홀드에 손이 안 닿는다 → 허리 높이 발판에 발을 올리고 일어서면 닿는다.",
+ "bounds": {
+  "x_min": -1.5,
+  "x_max": 1.8,
+  "y_min": 0.0,
+  "y_max": 4.0
+ },
+ "fail_line_y": -0.5,
+ "platforms": [
+  {
+   "platform_id": "P00",
+   "top_y": 0.1,
+   "x_range": [
+    -0.5,
+    0.8
+   ],
+   "foot_slot_keys": [
+    "C_HIGH_T/F01/foot_1",
+    "C_HIGH_T/F02/foot_1"
+   ]
+  }
+ ],
+ "start_pose": {
+  "pelvis": [
+   0.05,
+   0.95
+  ],
+  "angle": 0.0,
+  "slots": {
+   "LH": "C_HIGH_T/H01/hand_1",
+   "RH": "C_HIGH_T/H02/hand_1",
+   "LF": "C_HIGH_T/F03/foot_1",
+   "RF": "C_HIGH_T/F04/foot_1"
+  }
+ },
+ "goal_slots": [
+  "C_HIGH_T/G01/goal_left",
+  "C_HIGH_T/G01/goal_right"
+ ],
+ "holds": [
+  {
+   "hold_id": "H01",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      -0.2,
+      1.8
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.08
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H02",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      0.25,
+      1.8
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.08
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H03",
+   "slots": [
+    {
+     "slot_id": "hand_1",
+     "pos": [
+      0.4,
+      2.4
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "dir": [
+       1,
+       0
+      ],
+      "half_width": 0.1
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F01",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      -0.12,
+      0.1
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.05
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F02",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      0.25,
+      0.1
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.05
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F03",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      -0.02,
+      0.5
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.05
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F04",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      0.38,
+      0.5
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.05
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F05",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      0.3,
+      0.92
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.05
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "F06",
+   "slots": [
+    {
+     "slot_id": "foot_1",
+     "pos": [
+      -0.1,
+      1.05
+     ],
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "foot_area": {
+      "half_width": 0.05
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "G01",
+   "slots": [
+    {
+     "slot_id": "goal_left",
+     "pos": [
+      -0.15,
+      2.62
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ]
+    },
+    {
+     "slot_id": "goal_right",
+     "pos": [
+      0.2,
+      2.62
+     ],
+     "allowed": [
+      "LH",
+      "RH"
+     ]
+    }
+   ]
+  }
+ ],
+ "intended_moves": [
+  [
+   "RF",
+   "C_HIGH_T/F05/foot_1"
+  ],
+  [
+   "RH",
+   "C_HIGH_T/H03/hand_1"
+  ],
+  [
+   "LF",
+   "C_HIGH_T/F06/foot_1"
+  ],
+  [
+   "LH",
+   "C_HIGH_T/G01/goal_left"
+  ],
+  [
+   "RH",
+   "C_HIGH_T/G01/goal_right"
+  ]
+ ],
+ "tutorial_steps": [
+  {
+   "step_id": "HS1",
+   "text_ko": "먼저 오른손을 맨 위 노란 홀드로 뻗어 보세요.",
+   "goal_event": {
+    "type": "miss",
+    "limb": "RH"
+   },
+   "help_ko": [
+    "오른손 패드를 위로 끝까지 끌어요",
+    "닿지 않으면 그대로 떼요"
+   ],
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   }
+  },
+  {
+   "step_id": "HS2",
+   "text_ko": "발이 낮아서 안 닿아요. 오른발을 허리 높이의 노란 발판에 높게 올려요. 잠깐 기다리면 몸이 그 발 위로 올라가요.",
+   "goal_event": {
+    "type": "grab",
+    "limb": "RF",
+    "slot": "C_HIGH_T/F05/foot_1"
+   },
+   "help_ko": [
+    "오른발 패드를 위로 많이 끌어요",
+    "발판이 하얗게 빛나면 떼요"
+   ],
+   "start_pose": {
+    "pelvis": [
+     0.05,
+     0.95
+    ],
+    "angle": 0.0,
+    "slots": {
+     "LH": "C_HIGH_T/H01/hand_1",
+     "RH": "C_HIGH_T/H02/hand_1",
+     "LF": "C_HIGH_T/F03/foot_1",
+     "RF": "C_HIGH_T/F04/foot_1"
+    }
+   },
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   }
+  },
+  {
+   "step_id": "HS3",
+   "text_ko": "몸이 올라갔어요. 이제 오른손을 맨 위 노란 홀드로 뻗어요. 아까는 안 닿았죠?",
+   "goal_event": {
+    "type": "grab",
+    "limb": "RH",
+    "slot": "C_HIGH_T/H03/hand_1"
+   },
+   "help_ko": [
+    "몸이 다 올라갈 때까지 잠깐 기다렸다 뻗어요",
+    "오른손 패드를 위로 끌어요. 하얗게 빛나면 손가락을 떼요"
+   ],
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   }
+  },
+  {
+   "step_id": "HS4",
+   "text_ko": "발을 높이 올려 일어서는 이 동작이 하이스텝이에요. 두 손으로 정상을 잡아요.",
+   "goal_event": {
+    "type": "clear"
+   },
+   "help_ko": [
+    "한 손씩 정상 홀드로",
+    "두 손이 다 잡으면 끝나요"
+   ],
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   }
+  }
+ ]
+}
