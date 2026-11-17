@@ -276,6 +276,7 @@
     "오른손 패드를 위로 끝까지 끌어요",
     "닿지 않으면 그대로 떼요"
    ],
+   "mark_slot": "C_HIGH_T/H03/hand_1",
    "start_pose": {
     "pelvis": [
      0.05,

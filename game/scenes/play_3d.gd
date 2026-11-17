@@ -129,16 +129,45 @@ func _build_environment() -> void:
 
 # ---------- 벽 ----------
 
+## 벽 판 반폭: 기본 1.55m, 가장 바깥 홀드보다 0.45m 넘게(홀드가 벽 판 밖·가장자리에 놓이지 않게, 2026-11-18).
+static func wall_half_width(slots: Dictionary) -> float:
+	var w := 1.55
+	for key in slots:
+		w = maxf(w, absf((slots[key].pos as Vector2).x) + 0.45)
+	return w
+
+
+## 벽 위 장식 볼륨 자리 [x, y, 크기]. 벽 가장자리(바깥 0.35m 안)에 두되 어떤 홀드와도 겹치지 않게
+## (중심 거리 ≥ 장식 크기 + 0.35m) 고른다. 자리가 없으면 그 장식은 뺀다(2026-11-18 사용자: "홀드가 아닌 것은 벽 밖에
+## 두거나 홀드와 절대 겹치지 않게").
+static func deco_spots(slots: Dictionary, half_w: float, top: float, r: RandomNumberGenerator, count := 5) -> Array:
+	var out := []
+	for k in count:
+		var size := r.randf_range(0.25, 0.45)
+		for attempt in 20:
+			var p := Vector2((1 if k % 2 == 0 else -1) * r.randf_range(half_w - 0.35, half_w - 0.1), r.randf_range(0.5, top - 1.5))
+			var clear := true
+			for key in slots:
+				if p.distance_to(slots[key].pos) < size * 0.8 + 0.35:
+					clear = false
+					break
+			if clear:
+				out.append([p.x, p.y, size])
+				break
+	return out
+
+
 func _build_wall() -> void:
 	var top: float = logic.route.slots.values().reduce(func(a, s): return maxf(a, s.pos.y), 0.0) + 2.5
-	# 활성 등반 평면: 슬롯이 놓이는 큰 판(살짝 기울어진 패널로 나눔)
+	var half_w := wall_half_width(logic.route.slots)
+	# 활성 등반 평면: 슬롯이 놓이는 큰 판(살짝 기울어진 패널로 나눔). 모든 홀드가 판 안에 들어가게 넓힌다
 	var y := -0.6
 	var i := 0
 	while y < top:
 		var h := rng.randf_range(0.9, 1.4)
 		for col in [-1, 1]:
-			var panel := _mesh(_box(Vector3(1.55, h, 0.08)), _toon(WALL_CLAY.lerp(WALL_SAND, rng.randf() * 0.5), WALL_OLIVE, true), true)
-			panel.position = Vector3(col * 0.78, y + h * 0.5, -0.06 - rng.randf() * 0.03)
+			var panel := _mesh(_box(Vector3(half_w, h, 0.08)), _toon(WALL_CLAY.lerp(WALL_SAND, rng.randf() * 0.5), WALL_OLIVE, true), true)
+			panel.position = Vector3(col * half_w * 0.5, y + h * 0.5, -0.06 - rng.randf() * 0.03)
 			panel.rotation_degrees = Vector3(rng.randf_range(-2, 2), rng.randf_range(-3, 3) * col, 0)
 			add_child(panel)
 		y += h
@@ -147,10 +176,10 @@ func _build_wall() -> void:
 	var mat := _mesh(_box(Vector3(9.0, 0.25, 4.0)), _toon(Color("4a5a55"), Color("2c3532")), true)
 	mat.position = Vector3(0, -0.20, 1.6)
 	add_child(mat)
-	# 좌우 비활성 볼륨: 각진 다면체와 측면 벽(공간감, 판정 없음)
+	# 좌우 비활성 볼륨: 각진 다면체와 측면 벽(공간감, 판정 없음). 벽 판 바깥에 둔다
 	for side in [-1, 1]:
 		var wing := _mesh(_box(Vector3(2.4, top + 1.0, 0.2)), _toon(WALL_SAND.darkened(0.08), WALL_OLIVE, true), true)
-		wing.position = Vector3(side * 2.75, (top - 1.0) * 0.5, 0.35)
+		wing.position = Vector3(side * (half_w + 1.2), (top - 1.0) * 0.5, 0.35)
 		wing.rotation_degrees = Vector3(0, -side * 38, 0)
 		add_child(wing)
 		for k in 6:
@@ -163,11 +192,11 @@ func _build_wall() -> void:
 			prism.position.y = rng.randf_range(0.6, top - 1.0)
 			prism.rotation_degrees = Vector3(-90, -side * 38, rng.randf_range(0, 360))
 			add_child(prism)
-	# 활성 벽 위의 장식 볼륨(접점 없는 큰 돌출, 활성 슬롯과 겹치지 않게 가장자리에)
-	for k in 5:
-		var s := rng.randf_range(0.25, 0.45)
-		var deco := _mesh(_prism(Vector3(s, s * 1.4, s * 0.5)), _toon(WALL_SAND, WALL_OLIVE), true)
-		deco.position = Vector3((1 if k % 2 == 0 else -1) * rng.randf_range(1.25, 1.5), rng.randf_range(0.5, top - 1.5), 0.05)
+	# 활성 벽 위의 장식 볼륨(접점 없는 돌출): 가장자리에, 홀드와 겹치지 않는 자리에만
+	for d in deco_spots(logic.route.slots, half_w, top, rng):
+		var sz: float = d[2]
+		var deco := _mesh(_prism(Vector3(sz, sz * 1.4, sz * 0.5)), _toon(WALL_SAND, WALL_OLIVE), true)
+		deco.position = Vector3(d[0], d[1], 0.05)
 		deco.rotation_degrees = Vector3(0, 0, rng.randf_range(0, 360))
 		add_child(deco)
 

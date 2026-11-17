@@ -316,6 +316,7 @@
     "오른발 패드를 오른쪽 끝까지 끌어요. 가운데를 끌어 몸을 옮겨도 안 닿아요",
     "닿지 않으면 그대로 떼요"
    ],
+   "mark_slot": "C_FMATCH_T/F05/foot_1",
    "rules": {
     "fatigue_drain": false,
     "techniques": []

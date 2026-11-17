@@ -213,7 +213,7 @@
  "tutorial_steps": [
   {
    "step_id": "DY1",
-   "text_ko": "먼저 오른손을 맨 위 노란 홀드로 뻗어 보세요.",
+   "text_ko": "먼저 오른손을 맨 위 정상 홀드로 뻗어 보세요.",
    "goal_event": {
     "type": "miss",
     "limb": "RH"
