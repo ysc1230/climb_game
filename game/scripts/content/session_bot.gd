@@ -107,6 +107,7 @@ func _do_step(m: Array) -> String:
 	var limb := StringName(str(m[0]))
 	var second := str(m[1])
 	var err := ""
+	var release_body := _body_held and limb != &"BODY"
 	if limb == &"BODY":
 		err = _body(Vector2(m[2][0], m[2][1]))
 	elif m.size() == 2 and second.begins_with("T_"):
@@ -119,6 +120,9 @@ func _do_step(m: Array) -> String:
 		err = _dyno(limb, Vector2(m[2][0], m[2][1]))
 	else:
 		err = _technique(limb, StringName(second), str(m[2]))
+	if release_body:
+		_input([{"type": "body_end", "limb": InputRouter.BODY}])
+		_body_held = false
 	if not err.is_empty() or cleared:
 		return err
 	err = _settle()
@@ -204,7 +208,10 @@ func _flag(foot: StringName, point: Vector2) -> String:
 	return ""
 
 
-## 몸통 끌기: 가운데를 누르고 40틱에 나눠 delta만큼 끈 뒤 뗀다(목표는 남음).
+var _body_held := false
+
+
+## 몸통 끌기: 가운데를 누르고 40틱에 나눠 delta만큼 끈다. 누른 채로 다음 단계를 하고, 그 단계가 끝나면 뗀다.
 func _body(delta: Vector2) -> String:
 	_input([{"type": "body_start", "limb": InputRouter.BODY}])
 	for i in 40:
@@ -212,11 +219,12 @@ func _body(delta: Vector2) -> String:
 		var err := _tick()
 		if not err.is_empty() or cleared:
 			return err
-	_input([{"type": "body_end", "limb": InputRouter.BODY}])
+	_body_held = true  # 사람처럼 가운데를 누른 채 다음 손발을 끈다(다음 단계가 끝나면 뗀다)
 	return ""
 
 
 ## 다이노(docs/45): 준비 → drag만큼 끌기 → 30틱 웅크림 → 뛰기 → 그 손이 홀드에 닿으면(aim) 손 패드를 눌러 잡는다. 꼭대기를 지나도 못 겨누면 다른 손으로.
+## 잡은 뒤 20틱 안에 다른 손 패드도 누른다(버티는 시간 안에 닿는 홀드를 잡음).
 func _dyno(hand: StringName, drag: Vector2) -> String:
 	_input([{"type": "dyno_start", "limb": InputRouter.DYNO}])
 	_input([{"type": "dyno_move", "limb": InputRouter.DYNO, "delta": drag}])
@@ -233,6 +241,14 @@ func _dyno(hand: StringName, drag: Vector2) -> String:
 		if session.dyno_flying() and not str(aim.get(who, "")).is_empty():
 			_input([{"type": "detach", "limb": who}])
 			if session.limbs[who].state == "Attached":
+				# 사람처럼 잡은 직후(버티는 1초 안) 다른 손 패드도 눌러 닿는 홀드를 잡는다
+				for j in 20:
+					var e := _tick()
+					if not e.is_empty() or cleared:
+						return e
+				var other := TechniqueJudge.other_of(who)
+				if session.limbs[other].state != "Attached":
+					_input([{"type": "detach", "limb": other}])
 				return ""
 		var err := _tick()
 		if not err.is_empty() or cleared:

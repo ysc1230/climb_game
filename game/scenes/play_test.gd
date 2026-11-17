@@ -1074,7 +1074,7 @@ func _draw_body_goal() -> void:
 
 
 ## 다이노(docs/45). 준비 중: 지금 끈 길이·방향으로 뛰면 팔이 닿는 손홀드에 고리(가장 높은 것은 굵게), 골반 옆에 힘 소모·홀드 품질.
-## 날아가는 중: 손마다 뻗어 닿은 홀드에 그 손 색 고리(그 손 패드를 누르면 잡음). 느린 화면 동안 "손 패드를 눌러 잡기"와 남은 시간.
+## 날아가는 중: 손마다 뻗어 닿은 홀드에 그 손 색 고리(그 손 패드를 누르면 잡음). 느린 화면 동안 "잡을 손의 패드를 눌러요"와 남은 시간.
 func _draw_dyno() -> void:
 	var aim := session.dyno_aim()
 	if session.dyno_flying():
@@ -1084,12 +1084,13 @@ func _draw_dyno() -> void:
 				continue
 			any = true
 			var c := w2s(session.route.slot_pos(aim[hand]))
-			draw_arc(c, 32 * ui_k, 0, TAU, 40, Color(0, 0, 0, 0.5), 9 * ui_k, true)
-			draw_arc(c, 32 * ui_k, 0, TAU, 40, LIMB_COLORS[hand], 5 * ui_k, true)
+			var rr := (32.0 if hand == &"LH" else 42.0) * ui_k  # 두 손이 같은 홀드를 겨누면 고리 두 겹
+			draw_arc(c, rr, 0, TAU, 40, Color(0, 0, 0, 0.5), 9 * ui_k, true)
+			draw_arc(c, rr, 0, TAU, 40, LIMB_COLORS[hand], 5 * ui_k, true)
 		var left := session.dyno_slow_left()
 		if any:
 			var a := w2s(session.body.pos)
-			_outlined(Vector2(a.x - 250 * ui_k, a.y - 160 * ui_k), "손 패드를 눌러 잡기", 30, 500 * ui_k, Color("ffd166"))
+			_outlined(Vector2(a.x - 250 * ui_k, a.y - 160 * ui_k), "잡을 손의 패드를 눌러요", 30, 500 * ui_k, Color("ffd166"))
 			if left > 0.0:
 				var w := 300.0 * ui_k
 				draw_rect(Rect2(Vector2(a.x - w * 0.5, a.y - 150 * ui_k), Vector2(w * left, 6 * ui_k)), Color("ffd166"))
@@ -1097,6 +1098,17 @@ func _draw_dyno() -> void:
 	var pv := session.dyno_preview()
 	if pv.is_empty():
 		return
+	# 처음 누른 자리의 취소 원: 손가락을 여기로 되돌려 떼면 취소(2026-11-18 사용자)
+	var dt := router.dyno_touch()
+	if not dt.is_empty():
+		var inside: bool = dt.inside
+		var cc: Vector2 = dt.origin
+		var cr: float = maxf(float(dt.cancel_r), 40.0 * ui_k)
+		draw_circle(cc, cr, Color(0.75, 0.2, 0.15, 0.55) if inside else Color(0, 0, 0, 0.35))
+		draw_arc(cc, cr, 0, TAU, 48, Color(1, 1, 1, 0.9) if inside else Color(1, 1, 1, 0.5), 3 * ui_k, true)
+		_outlined(Vector2(cc.x - cr, cc.y + 9 * ui_k), "취소", 24, cr * 2, Color.WHITE)
+		if inside:
+			_outlined(Vector2(cc.x - 200 * ui_k, cc.y + cr + 34 * ui_k), "여기서 떼면 취소", 20, 400 * ui_k, Color.WHITE)
 	var col := Color("ffd166") if pv.ready else Color(1, 1, 1, 0.45)
 	var reach: Array = pv.reach
 	for i in reach.size():

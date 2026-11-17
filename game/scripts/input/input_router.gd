@@ -70,6 +70,15 @@ func touch_down(index: int, pos: Vector2, attached_now: bool, time_s: float = -1
 	return [{"type": "arm" if attached_now else "detach", "limb": limb}]
 
 
+## 다이노 준비 터치: {origin, last, cancel_r(px), inside(취소 원 안인가)}. 없으면 {}. 화면 표시용.
+func dyno_touch() -> Dictionary:
+	for b in _bindings.values():
+		if b.limb == DYNO:
+			var r: float = b.pad_px * Tuning.DYNO_CANCEL_ZONE
+			return {"origin": b.origin, "last": b.last, "cancel_r": r, "inside": (b.last - b.origin).length() <= r}
+	return {}
+
+
 ## 패드 그림의 손잡이 위치(패드 가운데 기준 px, 반지름 안): 그 패드를 누르고 있는 손가락. 없으면 null. 표시만.
 func knob(limb: StringName):
 	for b in _bindings.values():
@@ -114,6 +123,9 @@ func touch_up(index: int, time_s: float = -1.0) -> Array:
 		_last_body_up = _now(time_s)
 		return [{"type": "body_end", "limb": BODY}]
 	if b.limb == DYNO:
+		# 처음 누른 자리(취소 원) 안에서 떼면 취소(2026-11-18 사용자)
+		if (b.last - b.origin).length() <= b.pad_px * Tuning.DYNO_CANCEL_ZONE:
+			return [{"type": "dyno_cancel", "limb": DYNO}]
 		return [{"type": "dyno_end", "limb": DYNO}]
 	if not b.dragging:
 		return [{"type": "disarm", "limb": b.limb}]

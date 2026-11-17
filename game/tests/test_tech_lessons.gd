@@ -25,7 +25,7 @@ func _start(id: String):
 
 
 ## 첫 단계: limb을 target으로 뻗어 놓으면 잡히지 않고(miss) 다음 단계로.
-func _try_without(d, id: String, limb: StringName, target: String) -> void:
+func _try_without(d, id: String, limb: StringName, target: String) -> void:  # 첫 단계(그냥 해 보기)
 	d.reach_and_release(limb, _k(id, target))
 	d.wait(30)
 	runner.check(d.results == ["next"] and d.s.limbs[limb].get("key", "") != _k(id, target), "%s: 기술 없이는 %s가 %s에 안 닿음 %s" % [id, limb, target, d.results])
@@ -38,6 +38,17 @@ func _hold(d, n: int) -> void:
 		d.tick()
 
 
+## 몸통을 어느 쪽으로 끌어도(최대 0.45m) limb이 target에 안 닿는다(2026-11-18 사용자: "몸의 균형을 옮기면 닿여").
+func _never_without(id: String, limb: StringName, target: String) -> void:
+	for bd in [Vector2(0.45, 0), Vector2(0.4, -0.2), Vector2(0.3, 0.3), Vector2(0, 0.45), Vector2(-0.3, 0.3)]:
+		var d = _start(id)
+		d.body_drag(bd, 40)
+		_hold(d, 60)
+		d.reach_and_release(limb, _k(id, target))
+		_hold(d, 20)
+		runner.check(not (d.s.limbs[limb].get("key", "") == _k(id, target) and d.s.limbs[limb].state == "Attached"), "%s: 몸통을 %s로 끌어도 %s가 %s에 안 닿음" % [id, bd, limb, target])
+
+
 func _moves(d, id: String, moves: Array) -> void:
 	for m in moves:
 		runner.check(d.drag(StringName(m[0]), _k(id, m[1])), "%s: %s → %s" % [id, m[0], m[1]])
@@ -47,6 +58,7 @@ func _moves(d, id: String, moves: Array) -> void:
 
 
 func test_high_step() -> void:
+	_never_without("C_HIGH_T", &"RH", "H03")
 	var d = _start("C_HIGH_T")
 	_try_without(d, "C_HIGH_T", &"RH", "H03")
 	_moves(d, "C_HIGH_T", [["RF", "F05"], ["RH", "H03"], ["LF", "F06"], ["LH", "G01/goal_left"], ["RH", "G01/goal_right"]])
@@ -66,18 +78,33 @@ func test_match() -> void:
 
 
 func test_foot_swap() -> void:
+	_never_without("C_FSWAP_T", &"RF", "F05")
 	var d = _start("C_FSWAP_T")
 	_try_without(d, "C_FSWAP_T", &"RF", "F05")
 	d.reach_and_release(&"LF", _k("C_FSWAP_T", "F04"))
 	_hold(d, 60)
 	runner.check(d.results.size() == 2 and d.s.limbs[&"LF"].key == _k("C_FSWAP_T", "F04") and d.s.limbs[&"RF"].state != "Attached", "왼발을 넣으면 오른발이 비킴 %s" % [d.results])
-	_moves(d, "C_FSWAP_T", [["RF", "F05"], ["RH", "H03"], ["LH", "H02"], ["LH", "G01/goal_left"], ["RH", "G01/goal_right"]])
+	_far_foot(d, "C_FSWAP_T")
+
+
+## 몸통을 오른쪽으로 끈 채 오른발을 먼 발판에, 그다음 마무리.
+func _far_foot(d, id: String) -> void:
+	d.body_drag(Vector2(0.3, 0), 30)
+	_hold(d, 40)
+	runner.check(d.drag(&"RF", _k(id, "F05")), "%s: 몸을 옮긴 채 오른발이 먼 발판에" % id)
+	d.s.apply_input([{"type": "body_end"}])
+	_hold(d, 60)
+	_moves(d, id, [["RH", "H03"], ["LH", "H02"], ["LF", "F06"], ["LH", "G01/goal_left"], ["RH", "G01/goal_right"]])
 
 
 func test_foot_match() -> void:
+	_never_without("C_FMATCH_T", &"RF", "F05")
 	var d = _start("C_FMATCH_T")
 	_try_without(d, "C_FMATCH_T", &"RF", "F05")
-	_moves(d, "C_FMATCH_T", [["LF", "B01"], ["RF", "F05"], ["RH", "H03"], ["LH", "H02"], ["LH", "G01/goal_left"], ["RH", "G01/goal_right"]])
+	runner.check(d.drag(&"LF", _k("C_FMATCH_T", "B01")), "왼발을 파란 홀드에 같이")
+	_hold(d, 60)
+	runner.check(d.s.limbs[&"RF"].state == "Attached" and d.s.limbs[&"RF"].key == _k("C_FMATCH_T", "B01"), "두 발이 함께 섬")
+	_far_foot(d, "C_FMATCH_T")
 
 
 func test_cross() -> void:
@@ -89,24 +116,25 @@ func test_cross() -> void:
 
 
 func test_dyno() -> void:
-	var d = _start("C_DYNO_T")
-	_try_without(d, "C_DYNO_T", &"RH", "G01/goal_right")
-	var s: ClimbSession = d.s
-	s.apply_input([{"type": "dyno_start", "limb": InputRouter.DYNO}])
-	s.apply_input([{"type": "dyno_move", "limb": InputRouter.DYNO, "delta": Vector2(0, -0.8)}])
-	d.wait(30)
-	s.apply_input([{"type": "dyno_end", "limb": InputRouter.DYNO}])
-	var caught := false
-	for i in 200:
-		var aim := s.dyno_aim()
-		for h in aim:
-			if not str(aim[h]).is_empty() and not caught:
-				s.apply_input([{"type": "detach", "limb": h}])
+	_never_without("C_DYNO_T", &"RH", "G01/goal_right")
+	for hand in [&"LH", &"RH"]:
+		var d = _start("C_DYNO_T")
+		_try_without(d, "C_DYNO_T", &"RH", "G01/goal_right")
+		var s: ClimbSession = d.s
+		s.apply_input([{"type": "dyno_start", "limb": InputRouter.DYNO}])
+		s.apply_input([{"type": "dyno_move", "limb": InputRouter.DYNO, "delta": Vector2(0, -0.8)}])
+		_hold(d, 30)
+		s.apply_input([{"type": "dyno_end", "limb": InputRouter.DYNO}])
+		var caught := false
+		for i in 200:
+			if not str(s.dyno_aim().get(hand, "")).is_empty() and not caught:
+				s.apply_input([{"type": "detach", "limb": hand}])
 				caught = true
-		if d.tick() != "":
-			break
-	runner.check(caught and d.results.size() == 2 and d.results[-1] == "next", "날아가며 손 패드로 잡으면 다음 %s" % [d.results])
-	var free := &"LH" if s.limbs[&"LH"].state != "Attached" else &"RH"
-	s.apply_input([{"type": "detach", "limb": free}])
-	d.wait(300)
-	runner.check(not d.results.is_empty() and d.results[-1] == "done", "다른 손도 잡아 완등 %s" % [d.results])
+			if d.tick() != "":
+				break
+		runner.check(caught and s.limbs[hand].state == "Attached" and d.results.size() == 2, "%s 패드를 누르면 %s가 잡음 %s" % [hand, hand, d.results])
+		_hold(d, 20)
+		var other := &"RH" if hand == &"LH" else &"LH"
+		s.apply_input([{"type": "detach", "limb": other}])
+		d.wait(300)
+		runner.check(not d.results.is_empty() and d.results[-1] == "done", "%s로 잡고 다른 손도 잡아 완등 %s" % [hand, d.results])

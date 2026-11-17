@@ -380,6 +380,40 @@
    }
   },
   {
+   "step_id": "MT_F1",
+   "text_ko": "오른발을 높은 발판에 올려요.",
+   "goal_event": {
+    "type": "grab",
+    "limb": "RF",
+    "slot": "C_MATCH_T/F05/foot_1"
+   },
+   "help_ko": [
+    "오른발 패드를 위로 끌어요",
+    "하얗게 빛나면 떼요"
+   ],
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   }
+  },
+  {
+   "step_id": "MT_F2",
+   "text_ko": "왼발도 높은 발판에 올려요.",
+   "goal_event": {
+    "type": "grab",
+    "limb": "LF",
+    "slot": "C_MATCH_T/F06/foot_1"
+   },
+   "help_ko": [
+    "왼발 패드를 위로 끌어요",
+    "하얗게 빛나면 떼요"
+   ],
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   }
+  },
+  {
    "step_id": "MT4",
    "text_ko": "한 홀드에 두 손을 모으는 것이 매치예요. 두 손으로 정상을 잡아요.",
    "goal_event": {

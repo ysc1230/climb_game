@@ -82,7 +82,9 @@ func observe_session(session: ClimbSession, real_dt: float, stepped: bool) -> vo
 			_risk_cache.erase(limb)
 	var bl := rules.budget_left()
 	var k: StringName = &"GRACE" if ph == ClimbRules.Phase.GRACE else (rules.imbalance_cause if rules.imbalance_cause != &"" else &"FORCE")
-	update(real_dt, {"danger": ph == ClimbRules.Phase.REBALANCING or ph == ClimbRules.Phase.GRACE, "kind": k,
+	# 다이노로 잡은 직후 버티는 1초(그동안 떨어지지 않음)와 날아가는 동안은 위험 경고를 띄우지 않는다(docs/45)
+	var dyno_safe: bool = session.dyno.get("phase", "") in ["hang", "flight"]
+	update(real_dt, {"danger": not dyno_safe and (ph == ClimbRules.Phase.REBALANCING or ph == ClimbRules.Phase.GRACE), "kind": k,
 		"frac": bl[0], "ticks_left": bl[1], "falling": session.falling, "states": states, "keys": keys, "risks": risks, "hands_on": hands_on})
 
 

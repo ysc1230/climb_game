@@ -22,6 +22,15 @@ func test_router_double_tap() -> void:
 	var mv := r.touch_drag(1, Vector2(800, 500), 1.2)
 	runner.check(not mv.is_empty() and mv.back().type == "dyno_move" and (mv.back().delta as Vector2).y < 0.0, "아래로 끌면 dyno_move −y: %s" % [mv])
 	runner.check(r.touch_up(1, 1.3) == [{"type": "dyno_end", "limb": InputRouter.DYNO}], "떼면 dyno_end")
+	var rc := _router()
+	rc.touch_down(0, Vector2(800, 400), false, 1.0)
+	rc.touch_up(0, 1.05)
+	rc.touch_down(1, Vector2(800, 400), false, 1.1)
+	rc.touch_drag(1, Vector2(800, 520), 1.2)
+	runner.check(not rc.dyno_touch().inside, "멀리 끌면 취소 원 밖")
+	rc.touch_drag(1, Vector2(810, 410), 1.3)
+	runner.check(rc.dyno_touch().inside, "처음 자리로 돌아오면 취소 원 안")
+	runner.check(rc.touch_up(1, 1.4) == [{"type": "dyno_cancel", "limb": InputRouter.DYNO}], "취소 원 안에서 떼면 취소")
 	var r2 := _router()
 	r2.touch_down(0, Vector2(800, 400), false, 1.0)
 	r2.touch_up(0, 1.05)
@@ -157,3 +166,27 @@ func test_needs_hand_and_foot() -> void:
 	s.apply_input([{"type": "detach", "limb": &"LF"}, {"type": "detach", "limb": &"RF"}])
 	s.apply_input([{"type": "dyno_start", "limb": InputRouter.DYNO}])
 	runner.check(s.dyno.is_empty(), "발이 하나도 안 붙어 있으면 시작 안 함")
+
+
+## 누른 손이 잡고(왼손도), 잡으면 날던 방향으로 몸이 흔들리다 멈춘다(2026-11-18 사용자).
+func test_pressed_hand_catches_and_sways() -> void:
+	var s := _session()
+	_launch(s, Tuning.DYNO_DRAG_MAX, Vector2(-0.3, -1))  # 오른쪽 위로
+	var caught := false
+	for i in 200:
+		if not str(s.dyno_aim().get(&"LH", "")).is_empty():
+			s.apply_input([{"type": "detach", "limb": &"LH"}])
+			caught = s.limbs[&"LH"].state == "Attached"
+			break
+		s.step()
+	runner.check(caught and s.limbs[&"RH"].state != "Attached", "왼손 패드를 누르면 왼손이 잡음")
+	var xs := []
+	for i in 50:
+		s.step()
+		xs.append(s.rules.body_goal.x)
+	var lo: float = xs.min()
+	var hi: float = xs.max()
+	runner.check(hi - lo > 0.05, "잡은 뒤 골반 목표가 흔들림 %.3f" % (hi - lo))
+	for i in Tuning.DYNO_HANG_TICKS:
+		s.step()
+	runner.check(not s.rules.body_goal.is_finite() or s.dyno.is_empty(), "흔들림은 버티는 시간 뒤 멈춤")
