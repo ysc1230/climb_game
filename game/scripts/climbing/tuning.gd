@@ -125,6 +125,9 @@ const FOOT_LOAD_FULL_EXT := 0.85
 const FOOT_LOAD_MIN_EXT := 1.0
 const FOOT_LOAD_MIN := 0.3
 const REST_FOOT_SUPPORT := 1.6   # 쉬어 회복(+10/초)하려면 발 몫 합이 이 이상
+## 예전(실린 발 = 1)과 섞는 비율(2026-11-19 사용자: "짧은 볼더링인데 중간중간 쉬어야 한다. 기존과 지금의 중간으로").
+## 실린 발 하나의 몫 = (1 − BLEND) + BLEND × 발 몫 → 0.65~1
+const FOOT_LOAD_BLEND := 0.5
 const SUPPORT_EXIT_ANGLE := 5.0
 const SUPPORT_EXIT_HEIGHT := 0.01
 

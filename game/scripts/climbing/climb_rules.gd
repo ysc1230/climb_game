@@ -250,7 +250,8 @@ func _apply_fatigue(result: Dictionary, attached: Dictionary, platform: bool, mo
 	foot_support = 0.0
 	for foot in loaded_feet:
 		if attached.has(foot):
-			foot_support += foot_weight(body.pos, body.angle, body.yaw, foot, attached[foot]) if body != null else 1.0
+			var w := foot_weight(body.pos, body.angle, body.yaw, foot, attached[foot]) if body != null else 1.0
+			foot_support += (1.0 - Tuning.FOOT_LOAD_BLEND) + Tuning.FOOT_LOAD_BLEND * w
 	var strain := barn_strain(result)
 	var still := phase == Phase.STABLE and speed <= Fatigue.STABLE_SPEED and not moving and strain <= 1.0
 	rest_confirm_ticks = rest_confirm_ticks + 1 if still else 0
