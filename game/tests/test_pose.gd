@@ -72,6 +72,24 @@ func test_fatigue_table_v05() -> void:
 	runner.check(Fatigue.attached_hand_rate(false, false, true, 2, 2, 0.1, true) == 10.0, "발 2·휴식·저하중 +10")
 	runner.check(Fatigue.attached_hand_rate(false, false, false, 2, 2, 0.1, true) == -2.0, "발 2·휴식 조건 미충족 -2")
 	runner.check(is_equal_approx(Fatigue.attached_hand_rate(false, false, false, 0, 1, 0.91, false), -30.0 * 1.41), "발 0·손 1, u=0.91 → -30×1.41")
+	# docs/48 R1: 발 몫 합으로 사이 값
+	runner.check(is_equal_approx(Fatigue.attached_hand_rate(false, false, false, 1.0, 2, 0.1, false), -3.0), "발 몫 1·손 2 → -3")
+	runner.check(is_equal_approx(Fatigue.attached_hand_rate(false, false, false, 1.5, 2, 0.1, false), -2.5), "발 몫 1.5 → -2.5")
+	runner.check(is_equal_approx(Fatigue.attached_hand_rate(false, false, false, 0.5, 2, 0.1, false), -9.0), "발 몫 0.5 → -9")
+	runner.check(is_equal_approx(Fatigue.attached_hand_rate(false, false, true, 1.4, 2, 0.1, true), -2.6), "발 몫 1.4는 쉬어도 회복 안 함")
+	runner.check(Fatigue.attached_hand_rate(false, false, true, 1.7, 2, 0.1, true) == 10.0, "발 몫 1.7·휴식 → +10")
 	runner.check(Fatigue.apply(50, -30, 1.0, true) == 50.0, "피로 끄기는 감소만 0")
 	runner.check(Fatigue.size_multiplier(0.13) == 1.0 and Fatigue.size_multiplier(0.0) == 1.0, "큰 홀드·모름 ×1")
 	runner.check(is_equal_approx(Fatigue.size_multiplier(0.04), 2.0) and Fatigue.size_multiplier(0.02) == 2.5, "반폭 0.04 ×2, 상한 2.5")
+
+
+## docs/48 R1: 발 하나의 몫 — 고관절 바로 아래 1, 옆으로 60° 넘게 또는 다리가 다 펴지면 0.3.
+func test_foot_weight() -> void:
+	var p := Vector2(0, 1.0)
+	var hip := PoseSolver.joint_position(p, 0.0, &"LF")
+	var leg := PoseSolver.reach_of(&"LF").y
+	runner.check(is_equal_approx(ClimbRules.foot_weight(p, 0.0, 0.0, &"LF", hip + Vector2(0, -0.5)), 1.0), "바로 아래 1")
+	runner.check(is_equal_approx(ClimbRules.foot_weight(p, 0.0, 0.0, &"LF", hip + Vector2(0, -0.5).rotated(deg_to_rad(70))), Tuning.FOOT_LOAD_MIN), "옆으로 70° → 최소")
+	var mid := ClimbRules.foot_weight(p, 0.0, 0.0, &"LF", hip + Vector2(0, -0.5).rotated(deg_to_rad(45)))
+	runner.check(is_equal_approx(mid, 1.0 - 0.7 * 0.5), "45° → 중간 %.3f" % mid)
+	runner.check(is_equal_approx(ClimbRules.foot_weight(p, 0.0, 0.0, &"LF", hip + Vector2(0, -leg)), Tuning.FOOT_LOAD_MIN), "다리 다 펴짐 → 최소")

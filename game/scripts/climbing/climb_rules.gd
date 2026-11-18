@@ -18,6 +18,7 @@ const REBALANCE_LATERAL_WEIGHT := 5.0
 const ACCEPT_EPSILON := 0.0005
 
 var stamina := {PoseSolver.LH: 100.0, PoseSolver.RH: 100.0}
+var foot_support := 0.0  # 실린 발 몫의 합 0~2(docs/48 R1). 손 피로 계산에 쓴다
 var drain_scale := 1.0  # 두 손 피로 감소 배율(다이노로 잡은 뒤 2초 0.5, docs/45). 세션이 틱마다 정한다
 var feet_eligible: Array[StringName] = []
 var loaded_feet: Array[StringName] = []
@@ -208,7 +209,7 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 		_step_yaw(body, attached, endpoints, platform)
 	loaded_feet = _loaded_from(result, loaded_feet)
 	last = result
-	_apply_fatigue(result, attached, platform, moving, body.vel.length())
+	_apply_fatigue(result, attached, platform, moving, body.vel.length(), body)
 	# 미끄러진 손을 뺀 상태로 같은 틱에 지지 재평가(시간·몸통 적분은 다시 하지 않음)
 	if not slipped.is_empty():
 		var remain := attached.duplicate()
@@ -245,7 +246,11 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 
 ## 피로(docs/04 §7) 한 틱. 문 열림 부담(docs/30 §4.1): 부담 배율이 1보다 크면 그 자세에서는 쉬어 회복하지 못하고,
 ## 하중 받는 손의 감소량에 배율을 곱한다. 피로 0이 된 붙은 손은 slipped에 담는다.
-func _apply_fatigue(result: Dictionary, attached: Dictionary, platform: bool, moving: bool, speed: float) -> void:
+func _apply_fatigue(result: Dictionary, attached: Dictionary, platform: bool, moving: bool, speed: float, body: BodyState = null) -> void:
+	foot_support = 0.0
+	for foot in loaded_feet:
+		if attached.has(foot):
+			foot_support += foot_weight(body.pos, body.angle, body.yaw, foot, attached[foot]) if body != null else 1.0
 	var strain := barn_strain(result)
 	var still := phase == Phase.STABLE and speed <= Fatigue.STABLE_SPEED and not moving and strain <= 1.0
 	rest_confirm_ticks = rest_confirm_ticks + 1 if still else 0
@@ -258,7 +263,7 @@ func _apply_fatigue(result: Dictionary, attached: Dictionary, platform: bool, mo
 	for hand in [PoseSolver.LH, PoseSolver.RH]:
 		var rate := Fatigue.FREE_HAND_RATE
 		if attached.has(hand):
-			rate = Fatigue.attached_hand_rate(phase == Phase.REBALANCING, platform, rest_ok, loaded_feet.size(), hands_attached, result.u.get(hand, 0.0), low_load, _quality_of(hand))
+			rate = Fatigue.attached_hand_rate(phase == Phase.REBALANCING, platform, rest_ok, foot_support, hands_attached, result.u.get(hand, 0.0), low_load, _quality_of(hand))
 		if rate < 0.0:
 			rate *= float(fatigue_multiplier.get(hand, 1.0)) * drain_scale
 			if contact_meta.has(hand):
@@ -399,6 +404,20 @@ func _update_flags(body: BodyState, attached: Dictionary, endpoints: Dictionary,
 		var rest := evaluate(body.pos, body.angle, attached, rest_eps, false, feet_eligible, body.yaw)
 		if flag_cost(rest) - flag_cost(here) >= Tuning.FLAG_COST_IMPROVEMENT:
 			flag_ready.append(foot)
+
+
+## 실린 발 하나의 몫 0.3~1(docs/48 R1): 고관절 바로 아래·덜 펴진 다리일수록 크다. 방향 몫과 펴짐 몫 중 작은 값.
+static func foot_weight(pelvis: Vector2, angle_deg: float, yaw_deg: float, foot: StringName, point: Vector2) -> float:
+	var hip := PoseSolver.joint_position(pelvis, angle_deg, foot, yaw_deg)
+	var to_hip := hip - point
+	var dist := to_hip.length()
+	if dist < 0.001:
+		return 1.0
+	var ang := absf(rad_to_deg(to_hip.angle_to(Tuning.FOOT_SUPPORT_DIR)))
+	var a := 1.0 - (1.0 - Tuning.FOOT_LOAD_MIN) * clampf((ang - Tuning.FOOT_LOAD_FULL_ANGLE) / (Tuning.FOOT_LOAD_MIN_ANGLE - Tuning.FOOT_LOAD_FULL_ANGLE), 0.0, 1.0)
+	var ext := dist / PoseSolver.reach_of(foot).y
+	var e := 1.0 - (1.0 - Tuning.FOOT_LOAD_MIN) * clampf((ext - Tuning.FOOT_LOAD_FULL_EXT) / (Tuning.FOOT_LOAD_MIN_EXT - Tuning.FOOT_LOAD_FULL_EXT), 0.0, 1.0)
+	return minf(a, e)
 
 
 ## barn door 초과 여부(적용되지 않으면 false).

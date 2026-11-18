@@ -108,7 +108,12 @@ func _do_step(m: Array) -> String:
 	var second := str(m[1])
 	var err := ""
 	var release_body := _body_held and limb != &"BODY"
-	if limb == &"BODY":
+	if limb == &"REST":
+		for i in int(float(m[2]) * Tuning.TICK_HZ):
+			err = _tick()
+			if not err.is_empty() or cleared:
+				break
+	elif limb == &"BODY":
 		err = _body(Vector2(m[2][0], m[2][1]))
 	elif m.size() == 2 and second.begins_with("T_"):
 		err = _technique(limb, StringName(second), "")
@@ -129,7 +134,7 @@ func _do_step(m: Array) -> String:
 	if err.is_empty():
 		var b := session.body
 		var st: Dictionary = session.rules.stamina
-		log.append("%s 성공 골반=(%.3f, %.3f) θ=%.1f° ψ=%.1f° %s 하중발=%s 손피로 L%.0f R%.0f 틱%d" % [_desc(m), b.pos.x, b.pos.y, b.angle, b.yaw, session.rules.phase_name(), session.rules.loaded_feet, st[PoseSolver.LH], st[PoseSolver.RH], _ticks])
+		log.append("%s 성공 골반=(%.3f, %.3f) θ=%.1f° ψ=%.1f° %s 하중발=%s 발몫 %.2f 손피로 L%.0f R%.0f 틱%d" % [_desc(m), b.pos.x, b.pos.y, b.angle, b.yaw, session.rules.phase_name(), session.rules.loaded_feet, session.rules.foot_support, st[PoseSolver.LH], st[PoseSolver.RH], _ticks])
 	return err
 
 

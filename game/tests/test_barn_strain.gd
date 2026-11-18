@@ -55,7 +55,7 @@ func test_no_rest_while_strained() -> void:
 
 
 func _attached() -> Dictionary:
-	return {PoseSolver.LH: Vector2(-0.40, 1.75), PoseSolver.LF: Vector2(-0.38, 0.35)}
+	return {PoseSolver.LH: Vector2(-0.40, 1.75), PoseSolver.LF: Vector2(-0.38, 0.35), PoseSolver.RF: Vector2(-0.30, 0.35)}
 
 
 func _rules() -> ClimbRules:

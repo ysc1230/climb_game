@@ -43,7 +43,7 @@ static func swapped_pairs(moves: Array) -> Array:
 	while i + 1 < out.size():
 		var a: StringName = out[i][0]
 		var b: StringName = out[i + 1][0]
-		if PoseSolver.is_hand(a) == PoseSolver.is_hand(b) and a != b:
+		if PoseSolver.LIMBS.has(a) and PoseSolver.LIMBS.has(b) and PoseSolver.is_hand(a) == PoseSolver.is_hand(b) and a != b:
 			var tmp = out[i]
 			out[i] = out[i + 1]
 			out[i + 1] = tmp

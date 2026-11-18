@@ -116,6 +116,15 @@ const ROOT_ANGULAR_ACCEL := 360.0
 const FOOT_SUPPORT_DIR := Vector2(0.0, 1.0)
 const FOOT_SUPPORT_HALF_ANGLE := 60.0
 const FOOT_SUPPORT_MIN_HEIGHT := 0.05
+## 발 하중 나누기(docs/48 R1·docs/43 A안, 2026-11-19): 실린 발 하나의 몫 0.3~1. 손 피로는 몫의 합으로 계산한다.
+## 고관절에서 발까지 방향이 바로 아래에서 FULL_ANGLE 안이면 1, MIN_ANGLE에서 FOOT_LOAD_MIN(선형).
+## 다리 펴짐(고관절~발 / 다리 최대 길이)이 FULL_EXT 이하면 1, MIN_EXT에서 FOOT_LOAD_MIN. 둘 중 작은 값.
+const FOOT_LOAD_FULL_ANGLE := 30.0
+const FOOT_LOAD_MIN_ANGLE := 60.0
+const FOOT_LOAD_FULL_EXT := 0.85
+const FOOT_LOAD_MIN_EXT := 1.0
+const FOOT_LOAD_MIN := 0.3
+const REST_FOOT_SUPPORT := 1.6   # 쉬어 회복(+10/초)하려면 발 몫 합이 이 이상
 const SUPPORT_EXIT_ANGLE := 5.0
 const SUPPORT_EXIT_HEIGHT := 0.01
 

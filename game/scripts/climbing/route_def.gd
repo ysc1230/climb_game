@@ -216,6 +216,11 @@ func _check_step(i: int, m) -> void:
 		errors.append("%s: 단계 형식 오류 %s" % [where, m])
 		return
 	var limb := StringName(m[0])
+	if limb == &"REST":
+		# 쉬기(docs/48 R1): ["REST", "rest", 초] — 그 자리에서 손을 떼지 않고 기다린다(두 발이 잘 실리면 회복)
+		if m.size() != 3 or str(m[1]) != "rest" or not (m[2] is float or m[2] is int) or float(m[2]) <= 0.0:
+			errors.append("%s: 쉬기는 [\"REST\", \"rest\", 초] %s" % [where, m])
+		return
 	if limb == &"BODY":
 		# 몸통 끌기(docs/03 v0.9): ["BODY", "body", [dx, dy]] — 골반 목표를 그만큼 옮긴다
 		if m.size() != 3 or str(m[1]) != "body" or not (m[2] is Array and m[2].size() == 2):
