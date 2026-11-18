@@ -60,3 +60,25 @@ func test_body_goal_limited() -> void:
 	for i in 90:
 		s.step()
 	runner.check(PoseSolver.is_valid(s.body.pos, s.body.angle, s.attached(), s.body.yaw), "멀리 끌어도 성립하지 않는 자세로는 가지 않음")
+
+
+## 균형 보기(docs/49): 시작 자세(두 발)는 발 둘, 상태는 손 힘 규칙과 같고, 한 발을 떼면 발이 하나·편하지 않다.
+func test_balance_view() -> void:
+	var s := _session()
+	for i in 60:
+		s.step()
+	var v := s.balance_view()
+	runner.check(v.feet.size() == 2 and (v.com as Vector2).is_finite(), "두 발·무게중심 %s" % [v])
+	var ok_rule := s.rules.foot_support >= Tuning.REST_FOOT_SUPPORT - 0.0001 and s.rules.phase == ClimbRules.Phase.STABLE
+	runner.check((v.state == "ok") == ok_rule, "상태가 손 힘 규칙과 같음 %s" % v.state)
+	s.apply_input([{"type": "detach", "limb": &"LF"}])
+	for i in 30:
+		s.step()
+	var v2 := s.balance_view()
+	runner.check(v2.feet.size() == 1 and v2.state != "ok", "한 발이면 편하지 않음 %s" % v2.state)
+	var ld := s.limb_loads()
+	runner.check(ld[&"LF"] == 0.0 and ld[&"RF"] > 0.0, "뗀 발은 몫 0 %s" % [ld])
+	var sum := 0.0
+	for l in ld:
+		sum += ld[l]
+	runner.check(absf(sum - 1.0) < 0.001, "몫의 합 = 100%% (%.3f)" % sum)

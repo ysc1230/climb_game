@@ -117,6 +117,14 @@ func next_basic_tutorial(route_id: String) -> Dictionary:
 
 
 ## 난이도(초급·중급)를 고르고 저장한다. 모르는 값은 무시.
+## 화면 표시 하나를 켜거나 끈다(설정 탭, docs/49).
+func set_display(key: String, on: bool) -> void:
+	if not Progress.DISPLAY_DEFAULTS.has(key) or progress.display_on(key) == on:
+		return
+	progress.display[key] = on
+	SaveStore.save(progress, save_path)
+
+
 func set_level(level: String) -> void:
 	if not level in Progress.LEVELS or progress.level == level:
 		return

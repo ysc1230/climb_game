@@ -663,6 +663,37 @@ func _fall_tick() -> String:
 	return ""
 
 
+# ---------- 균형 보기(docs/49) ----------
+
+## 화면용 균형 정보: {com(무게중심), feet: [{limb, pos(딛은 점), share(그 발의 몫 0.65~1)}], state: "ok"/"strain"/"danger"}.
+## state는 손 힘 규칙과 같다: ok = 발 몫 합 ≥ REST_FOOT_SUPPORT이고 안정(가만히 있으면 손 힘이 참), danger = 균형 회복 중·지지 없음.
+func balance_view() -> Dictionary:
+	var feet := []
+	var att := attached()
+	for f in [PoseSolver.LF, PoseSolver.RF]:
+		if att.has(f) and rules.loaded_feet.has(f):
+			var w := ClimbRules.foot_weight(body.pos, body.angle, body.yaw, f, att[f])
+			feet.append({"limb": f, "pos": att[f], "share": (1.0 - Tuning.FOOT_LOAD_BLEND) + Tuning.FOOT_LOAD_BLEND * w})
+	var ph := rules.phase
+	var state := "danger" if ph == ClimbRules.Phase.REBALANCING or ph == ClimbRules.Phase.GRACE else \
+		("ok" if rules.foot_support >= Tuning.REST_FOOT_SUPPORT - 0.0001 and ph == ClimbRules.Phase.STABLE else "strain")
+	return {"com": rules.last.get("com", body.pos), "feet": feet, "state": state}
+
+
+## 손발마다 받치는 몸무게 몫(합 = 1). 힘 계산의 접점 힘 크기를 합으로 나눈 비율(옆으로 서로 상쇄되는 성분이 있어
+## 크기 합이 1BW를 넘을 수 있으므로). 붙지 않았거나 하중이 없으면 0.
+func limb_loads() -> Dictionary:
+	var out := {}
+	var loads: Dictionary = rules.last.get("loads", {})
+	var total := 0.0
+	for limb in limbs:
+		if attached().has(limb):
+			total += float(loads.get(limb, 0.0))
+	for limb in limbs:
+		out[limb] = float(loads.get(limb, 0.0)) / total if attached().has(limb) and total > 0.0001 else 0.0
+	return out
+
+
 # ---------- 다이노(Tuning.DYNO_*, docs/45) ----------
 
 ## {} / {phase: "charge", anchor, drag(끈 벡터, 월드)}

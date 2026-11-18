@@ -46,7 +46,7 @@ func _ready() -> void:
 		push_error("홈: 자동 로드 Game이 없어요")
 		return
 	var progress: Progress = game.progress
-	tab = progress.last_tab if progress.last_tab in ["general", "technique"] else "general"
+	tab = progress.last_tab if progress.last_tab in ["general", "technique", "settings"] else "general"
 	var focus: Dictionary = game.home_focus
 	game.home_focus = {}
 	if focus.has("tab"):
@@ -156,6 +156,8 @@ func _do(action: String, arg: String) -> void:
 		"play":
 			game.play(arg)
 			return
+		"display":
+			game.get_flow().set_display(arg, not game.progress.display_on(arg))
 		"skip":
 			game.skip_basic()
 			_set_tab("general")
@@ -176,6 +178,8 @@ func _draw() -> void:
 	_draw_tabs(size)
 	if tab == "general":
 		_draw_general(size)
+	elif tab == "settings":
+		_draw_settings(size)
 	elif course_id != "":
 		_draw_course(size)
 	else:
@@ -238,10 +242,10 @@ func _draw_level_choice(size: Vector2) -> void:
 
 ## 위 탭 두 개. 고른 탭은 채운 바탕 + 아래 막대 + "●" 표시(색만으로 구분하지 않음).
 func _draw_tabs(size: Vector2) -> void:
-	var w := 220.0 * k
+	var w := 180.0 * k
 	var h := 64.0 * k
-	var x := size.x * 0.5 - w - 8 * k
-	for t in [["general", "일반"], ["technique", "기술"]]:
+	var x := size.x * 0.5 - w * 1.5 - 16 * k - 140 * k  # 오른쪽 위 [캐릭터]·[난이도]와 겹치지 않게
+	for t in [["general", "일반"], ["technique", "기술"], ["settings", "설정"]]:
 		var on: bool = tab == t[0]
 		var r := Rect2(Vector2(x, 20 * k), Vector2(w, h))
 		_button(r, ("● " if on else "") + t[1], "tab", t[0], 28, on)
@@ -562,6 +566,31 @@ func _button(r: Rect2, text: String, action: String, arg: String, fs := 24, stro
 func _lock(c: Vector2, col: Color) -> void:
 	draw_arc(c + Vector2(0, -4 * k), 5 * k, PI, TAU, 10, col, 2.0 * k)
 	draw_rect(Rect2(c + Vector2(-7, -4) * k, Vector2(14, 11) * k), col)
+
+
+# ---------- 설정(docs/49) ----------
+
+## 화면 표시 켜고 끄기. 난이도와 상관없이 여기서만 정한다(2026-11-19 사용자).
+const DISPLAY_ROWS := [
+	["balance", "무게중심", "몸 가운데 점과 늘어진 줄, 딛은 발 아래 받침을 보여 줘요. 점의 줄이 두 발 위에 떨어지면 초록(가만히 있으면 손 힘이 차요), 아니면 노랑(손 힘이 빠져요), 위험하면 주황."],
+	["balance_hint", "몸 옮길 쪽 안내", "무게중심이 노랑일 때 몸을 옮길 쪽 화살표와 한 줄 안내를 보여 줘요. 무게중심을 켰을 때만 보여요."],
+	["loads", "팔다리 힘 분포", "네 패드 둘레에 그 손발이 받치는 몸무게 몫(%)을 보여 줘요. 몫이 큰 손발을 떼면 다른 손발이 그만큼 더 받쳐야 해요."],
+]
+
+
+func _draw_settings(size: Vector2) -> void:
+	var x := 120.0 * k
+	var y := 150.0 * k
+	draw_string(font, Vector2(x, y), "화면 표시", HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * k), CREAM)
+	y += 40 * k
+	var w := size.x - 240 * k
+	for row in DISPLAY_ROWS:
+		var on: bool = game.progress.display_on(row[0])
+		var dim: bool = row[0] == "balance_hint" and not game.progress.display_on("balance")
+		draw_string(font, Vector2(x, y + 40 * k), row[1], HORIZONTAL_ALIGNMENT_LEFT, -1, int(26 * k), DIM if dim else Color.WHITE)
+		draw_multiline_string(font, Vector2(x, y + 76 * k), row[2], HORIZONTAL_ALIGNMENT_LEFT, w - 260 * k, int(19 * k), 2, DIM)
+		_button(Rect2(Vector2(x + w - 200 * k, y + 14 * k), Vector2(200, 60) * k), "켜짐" if on else "꺼짐", "display", row[0], 24, on)
+		y += 130 * k
 
 
 # ---------- 캐릭터 고르기(docs/34 §7) ----------

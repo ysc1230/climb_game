@@ -587,6 +587,7 @@ func _physics_process(_delta: float) -> void:
 		return
 	var result := session.step()
 	_hud_tick(_delta)
+	_balance_tick(_delta)
 	if result.begins_with("fall:"):
 		_fall_cause = danger.fall_cause(result.trim_prefix("fall:")) if warnings else "떨어졌어요"
 	_danger_tick(_delta, not session.selecting)
@@ -883,6 +884,11 @@ func _draw_hud(size: Vector2) -> void:
 		y -= 18 * ui_k
 	if message_ticks > 0:
 		_outlined(Vector2(0, maxf(size.y * (0.36 if session.selecting or tutorial != null else 0.30), (_hud_bottom() + 70.0) * ui_k)), message, 34, size.x, Color("fff2c8"))
+	if not paused and not session.falling:
+		if _shows("balance"):
+			_draw_balance()
+		if _shows("loads"):
+			_draw_loads()
 	if not paused:
 		_draw_danger(size)
 	_draw_tech_ui(size)
@@ -904,6 +910,126 @@ func _draw_hud(size: Vector2) -> void:
 		_draw_rescue_button(size)
 	if draw_world and goal_key != "" and not paused and not session.selecting and not overlay.blocking():
 		_draw_goal_mark(goal_key)  # 2D 시험 장면만. 3D 화면은 목표 홀드 자체가 노랗게 깜빡인다(play_3d)
+
+
+# ---------- 균형 보기(docs/49, 설정 탭에서 켜고 끔) ----------
+
+const BAL_COLORS := {"ok": Color("cfe3c8"), "strain": Color("f1d59a"), "danger": Color("ff8a6a")}  # 위쪽 상태 표시와 같은 색
+const BAL_INK := Color("302820")
+var _bal_swing := 0.0     # 다림추 흔들림(화면 m, 무게중심이 움직이면 반대로 처졌다 돌아옴)
+var _bal_swing_v := 0.0
+var _bal_last_x := INF
+
+
+## 설정 탭의 표시 켜짐(Game이 없으면 기본값).
+func _shows(key: String) -> bool:
+	return game.progress.display_on(key) if game != null else bool(Progress.DISPLAY_DEFAULTS.get(key, false))
+
+
+func _balance_tick(dt: float) -> void:
+	var x: float = (session.rules.last.get("com", session.body.pos) as Vector2).x
+	if is_finite(_bal_last_x) and dt > 0.0:
+		_bal_swing_v += (-(x - _bal_last_x) / dt * 1.2 - _bal_swing * 40.0 - _bal_swing_v * 6.0) * dt
+		_bal_swing = clampf(_bal_swing + _bal_swing_v * dt, -0.12, 0.12)
+	_bal_last_x = x
+
+
+## 무게중심 점 + 늘어진 다림줄과 추 + 실린 발 아래 받침(크기 = 그 발의 몫). 색은 손 힘 규칙과 같은 상태.
+## 받침은 발판보다 0.1m 아래, 다른 홀드에 0.09m 안으로 겹치는 구간은 그리지 않는다(홀드를 가리지 않게).
+## "몸 옮길 쪽 안내"를 켜면 노랑일 때 두 발 가운데 쪽 화살표와 한 줄 문구.
+func _draw_balance() -> void:
+	var v := session.balance_view()
+	var col: Color = BAL_COLORS[v.state]
+	var com: Vector2 = v.com
+	var feet: Array = v.feet
+	var foot_low: float = session.body.pos.y - 0.9
+	if not feet.is_empty():
+		foot_low = INF
+		for f in feet:
+			foot_low = minf(foot_low, (f.pos as Vector2).y)
+	var base_y := foot_low - 0.10
+	var c := w2s(com)
+	var b := w2s(Vector2(com.x + _bal_swing, base_y))
+	var body_bottom := w2s(session.body.pos + Vector2(0, -0.25)).y
+	var n := maxi(2, int(c.distance_to(b) / (10.0 * ui_k)))
+	for i in n:
+		if i % 2 == 0:
+			var a0 := c.lerp(b, float(i) / n)
+			var a1 := c.lerp(b, float(i + 1) / n)
+			var al := 0.35 if a0.y < body_bottom else 0.9
+			draw_line(a0, a1, Color(BAL_INK, 0.5 * al), 5 * ui_k)
+			draw_line(a0, a1, Color(col, al), 2.5 * ui_k)
+	if feet.size() == 2:
+		var x0: float = minf(float(feet[0].pos.x), float(feet[1].pos.x))
+		var x1: float = maxf(float(feet[0].pos.x), float(feet[1].pos.x))
+		var pieces := 16
+		for i in pieces:
+			var wa := Vector2(lerpf(x0, x1, float(i) / pieces), base_y)
+			var wb := Vector2(lerpf(x0, x1, float(i + 1) / pieces), base_y)
+			if _near_hold((wa + wb) * 0.5, 0.09):
+				continue
+			draw_line(w2s(wa), w2s(wb), Color(BAL_INK, 0.45), 6 * ui_k)
+			draw_line(w2s(wa), w2s(wb), Color(col, 0.6), 3 * ui_k)
+	for f in feet:
+		var wp := Vector2((f.pos as Vector2).x, base_y)
+		if _near_hold(wp, 0.07):
+			continue
+		var rr := (7.0 + 9.0 * float(f.share)) * ui_k
+		draw_set_transform(w2s(wp), 0, Vector2(1, 0.45))
+		draw_circle(Vector2.ZERO, rr + 3 * ui_k, Color(BAL_INK, 0.55))
+		draw_circle(Vector2.ZERO, rr, Color(col, 0.85))
+		draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
+	draw_circle(b, 8 * ui_k, BAL_INK)
+	draw_circle(b, 5.5 * ui_k, col)
+	draw_circle(c, 14 * ui_k, Color(BAL_INK, 0.9))
+	draw_circle(c, 10 * ui_k, col)
+	draw_circle(c, 4 * ui_k, BAL_INK)
+	if not _shows("balance_hint") or danger.danger:
+		return  # 위험 경고가 뜨면 안내 문구는 숨긴다(경고 문구와 겹치지 않게)
+	var txt := ""
+	if feet.is_empty():
+		txt = "발이 없어 팔로만 버텨요"
+	elif feet.size() == 1:
+		txt = "한 발이라 팔 힘이 빨리 빠져요"
+	elif v.state == "strain":
+		var mid: float = (float(feet[0].pos.x) + float(feet[1].pos.x)) * 0.5
+		if absf(com.x - mid) > 0.06:
+			var from := b + Vector2(0, -18 * ui_k)
+			var to := w2s(Vector2(com.x + clampf(mid - com.x, -0.25, 0.25), base_y)) + Vector2(0, -18 * ui_k)
+			var d := (to - from).normalized()
+			draw_line(from, to, BAL_INK, 7 * ui_k)
+			draw_line(from, to, col, 4 * ui_k)
+			draw_colored_polygon(PackedVector2Array([to + d * 13 * ui_k, to - d * 3 * ui_k + d.orthogonal() * 10 * ui_k, to - d * 3 * ui_k - d.orthogonal() * 10 * ui_k]), col)
+			txt = "가운데를 끌어 몸을 두 발 위로"
+		else:
+			txt = "발이 멀어 팔 힘이 빠져요"
+	if txt != "":
+		_outlined(b + Vector2(-220 * ui_k, 46 * ui_k), txt, 22, 440 * ui_k, Color(1, 1, 1, 0.95))
+
+
+## 월드 점 p에서 r(m) 안에 홀드가 있는가(균형 표시가 홀드를 가리지 않게).
+func _near_hold(p: Vector2, r: float) -> bool:
+	for key in route.slots:
+		if route.slot_pos(key).distance_to(p) < r:
+			return true
+	return false
+
+
+## 팔다리 힘 분포: 네 패드 둘레에 그 손발이 받치는 몸무게 몫(호 + %). 붙지 않은 손발은 "–".
+## 벽 위에는 그리지 않는다(홀드를 가리지 않게). 패드 색 = 그 손발 색.
+func _draw_loads() -> void:
+	var loads := session.limb_loads()
+	for limb in router.pads:
+		var p: Dictionary = router.pads[limb]
+		var r: float = p.radius + 13 * ui_k
+		var c: Vector2 = p.center
+		var on: bool = session.attached().has(limb)
+		var ld: float = loads.get(limb, 0.0)
+		draw_arc(c, r, 0, TAU, 64, Color(0, 0, 0, 0.35), 8 * ui_k, true)
+		if on and ld > 0.005:
+			draw_arc(c, r, -PI / 2, -PI / 2 + TAU * clampf(ld, 0.0, 1.0), 64, LIMB_COLORS[limb], 6 * ui_k, true)
+		var t := ("%d%%" % roundi(ld * 100.0)) if on else "–"
+		_outlined(Vector2(c.x - 60 * ui_k, c.y + p.radius * 0.45), t, 20, 120 * ui_k, Color(1, 1, 1, 0.95))
 
 
 ## 경고 화면(docs/18 "떨어지기 전 경고"). 글자를 읽지 않아도 알게: 화면 가장자리 빛, 캐릭터 둘레 남은 시간 고리,

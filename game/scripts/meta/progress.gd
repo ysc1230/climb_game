@@ -19,6 +19,9 @@ var last_tab := "general"
 ## 플레이 난이도(2026-11-08): "" 아직 안 고름, "beginner" 초급(떨어지기 직전 슬로우모션), "intermediate" 중급(그대로).
 var level := ""
 var look := {}  # 캐릭터 외형 {body, hair, top, bottom, chalk, shoes}(docs/34 §7). 비면 기본(남성 기본 조합)
+## 화면 표시 켜고 끄기(설정 탭, docs/49 v0.2). 키가 없으면 DISPLAY_DEFAULTS.
+const DISPLAY_DEFAULTS := {"balance": true, "loads": false, "balance_hint": true}
+var display := {}
 var seen_tips: Array = []  # 처음 한 번 안내를 본 것(docs/33 §5). 진행 초기화 때 함께 지운다
 const LEVELS: Array[String] = ["beginner", "intermediate", "advanced"]  # advanced 고급(2026-11-10): 경고·알림 없음
 
@@ -34,7 +37,7 @@ static func object_particle(word: String) -> String:
 
 func to_dict() -> Dictionary:
 	return {"schema_version": SCHEMA_VERSION, "seq": seq, "cleared": cleared, "tutorials": tutorials,
-		"basic_skipped": basic_skipped, "last_tab": last_tab, "level": level, "seen_tips": seen_tips, "look": look}
+		"basic_skipped": basic_skipped, "last_tab": last_tab, "level": level, "seen_tips": seen_tips, "look": look, "display": display}
 
 
 static func from_dict(d: Dictionary) -> Progress:
@@ -46,11 +49,21 @@ static func from_dict(d: Dictionary) -> Progress:
 	p.last_tab = str(d.get("last_tab", "general"))
 	p.level = str(d.get("level", ""))
 	p.seen_tips = Array(d.get("seen_tips", [])).map(func(x): return str(x))
+	var dp = d.get("display", {})
+	if dp is Dictionary:
+		for key in dp:
+			if DISPLAY_DEFAULTS.has(str(key)):
+				p.display[str(key)] = bool(dp[key])
 	var lk = d.get("look", {})
 	p.look = lk.duplicate() if lk is Dictionary else {}
 	if not p.level in LEVELS:
 		p.level = ""
 	return p
+
+
+## 화면 표시가 켜져 있는가(설정 탭).
+func display_on(key: String) -> bool:
+	return bool(display.get(key, DISPLAY_DEFAULTS.get(key, false)))
 
 
 ## 첫 실행 잠금: 기본 조작 튜토리얼이 있는데 아직 안 깼고 건너뛰지도 않았을 때만.

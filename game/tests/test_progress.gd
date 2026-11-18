@@ -246,3 +246,15 @@ func test_tmp_left_behind_keeps_previous() -> void:
 	runner.check(q.basic_skipped and q.seq == 1, "MG15 본 파일 유지")
 	runner.check(SaveStore.save(q, SAVE) and SaveStore.load(SAVE).seq == 2, "임시 파일이 있어도 다음 저장 성공")
 	_cleanup()
+
+
+## 화면 표시 설정(docs/49): 기본값, 켜고 끄기, 저장·불러오기, 모르는 키는 버림.
+func test_display_settings() -> void:
+	var p := Progress.new()
+	runner.check(p.display_on("balance") and p.display_on("balance_hint") and not p.display_on("loads"), "기본: 무게중심·안내 켜짐, 힘 분포 꺼짐")
+	p.display["loads"] = true
+	p.display["balance"] = false
+	var q := Progress.from_dict(JSON.parse_string(JSON.stringify(p.to_dict())))
+	runner.check(q.display_on("loads") and not q.display_on("balance") and q.display_on("balance_hint"), "저장 뒤에도 그대로")
+	var r := Progress.from_dict({"display": {"nope": true, "loads": true}})
+	runner.check(not r.display.has("nope") and r.display_on("loads"), "모르는 키는 버림")
