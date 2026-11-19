@@ -22,6 +22,10 @@ var look := {}  # 캐릭터 외형 {body, hair, top, bottom, chalk, shoes}(docs/
 ## 화면 표시 켜고 끄기(설정 탭, docs/49 v0.2). 키가 없으면 DISPLAY_DEFAULTS.
 const DISPLAY_DEFAULTS := {"balance": true, "loads": false, "balance_hint": true, "dev_info": false}
 var display := {}
+## 몸 옮기기(작업 2, docs/superpowers/specs/2026-11-19-2-tilt-design.md). body: "drag" 가운데 끌기 | "tilt" 휴대폰 기울이기.
+## tilt_sens 1~5, tilt_dead 반응 시작 각도 0~10°, tilt_with_drag 기울이기 중에도 가운데 끌기. 키가 없으면 CONTROL_DEFAULTS.
+const CONTROL_DEFAULTS := {"body": "drag", "tilt_sens": 3, "tilt_dead": 3.0, "tilt_with_drag": true}
+var control := {}
 var seen_tips: Array = []  # 처음 한 번 안내를 본 것(docs/33 §5). 진행 초기화 때 함께 지운다
 const LEVELS: Array[String] = ["beginner", "intermediate", "advanced"]  # advanced 고급(2026-11-10): 경고·알림 없음
 
@@ -37,7 +41,7 @@ static func object_particle(word: String) -> String:
 
 func to_dict() -> Dictionary:
 	return {"schema_version": SCHEMA_VERSION, "seq": seq, "cleared": cleared, "tutorials": tutorials,
-		"basic_skipped": basic_skipped, "last_tab": last_tab, "level": level, "seen_tips": seen_tips, "look": look, "display": display}
+		"basic_skipped": basic_skipped, "last_tab": last_tab, "level": level, "seen_tips": seen_tips, "look": look, "display": display, "control": control}
 
 
 static func from_dict(d: Dictionary) -> Progress:
@@ -54,11 +58,33 @@ static func from_dict(d: Dictionary) -> Progress:
 		for key in dp:
 			if DISPLAY_DEFAULTS.has(str(key)):
 				p.display[str(key)] = bool(dp[key])
+	var ct = d.get("control", {})
+	if ct is Dictionary:
+		for key in ct:
+			p.set_control(str(key), ct[key])
 	var lk = d.get("look", {})
 	p.look = lk.duplicate() if lk is Dictionary else {}
 	if not p.level in LEVELS:
 		p.level = ""
 	return p
+
+
+func control_get(key: String) -> Variant:
+	return control.get(key, CONTROL_DEFAULTS.get(key))
+
+
+## 몸 옮기기 설정 하나. 모르는 키·값은 버리고 숫자는 범위로 자른다.
+func set_control(key: String, value: Variant) -> void:
+	match key:
+		"body":
+			if str(value) in ["drag", "tilt"]:
+				control[key] = str(value)
+		"tilt_sens":
+			control[key] = clampi(int(value), 1, 5)
+		"tilt_dead":
+			control[key] = clampf(float(value), 0.0, 10.0)
+		"tilt_with_drag":
+			control[key] = bool(value)
 
 
 ## 화면 표시가 켜져 있는가(설정 탭).

@@ -82,3 +82,50 @@ func test_balance_view() -> void:
 	for l in ld:
 		sum += ld[l]
 	runner.check(absf(sum - 1.0) < 0.001, "몫의 합 = 100%% (%.3f)" % sum)
+
+
+## 휴대폰 기울이기(docs/superpowers/specs/2026-11-19-2-tilt-design.md): 기울인 동안만 목표, 돌아오면 자동 자세.
+func _tilt(s: ClimbSession, off: Vector2, active := true) -> void:
+	s.apply_input([{"type": "body_tilt", "limb": &"BODY", "offset": off, "active": active}])
+
+
+func test_body_tilt_moves_and_clears() -> void:
+	var s := _session()
+	var anchor := s.body.pos
+	_tilt(s, Vector2(0.2, 0.0))
+	runner.check(s.rules.body_goal.is_equal_approx(anchor + Vector2(0.2, 0.0)), "기울이기 시작 순간 골반 + offset %s" % s.rules.body_goal)
+	for i in 60:
+		_tilt(s, Vector2(0.2, 0.0))
+		s.step()
+	runner.check(s.body.pos.x > anchor.x + 0.08, "골반이 오른쪽으로 %.3f → %.3f" % [anchor.x, s.body.pos.x])
+	_tilt(s, Vector2(0.25, 0.0))
+	runner.check(s.rules.body_goal.is_equal_approx(anchor + Vector2(0.25, 0.0)), "기준점은 처음 그대로(위치 방식)")
+	s.apply_input([{"type": "detach", "limb": &"LH"}])
+	runner.check(s.rules.body_goal.is_finite(), "기울인 동안은 다른 팔다리를 움직여도 목표 유지")
+	_tilt(s, Vector2.ZERO, false)
+	runner.check(not s.rules.body_goal.is_finite(), "반응 범위로 돌아오면 목표를 지움")
+
+
+func test_body_drag_wins_over_tilt() -> void:
+	var s := _session()
+	_tilt(s, Vector2(0.2, 0.0))
+	s.apply_input([{"type": "body_start", "limb": &"BODY"}])
+	var drag_anchor := s.body.pos
+	_tilt(s, Vector2(0.3, 0.0))
+	runner.check(s.rules.body_goal.is_equal_approx(drag_anchor), "가운데를 끄는 동안은 끌기가 이김 %s" % s.rules.body_goal)
+	for i in 30:
+		s.step()
+	s.apply_input([{"type": "body_end", "limb": &"BODY"}])
+	var p := s.body.pos
+	_tilt(s, Vector2(0.1, 0.0))
+	runner.check(s.rules.body_goal.is_equal_approx(p + Vector2(0.1, 0.0)), "손을 떼면 그 순간 골반이 새 기준점")
+
+
+func test_body_tilt_limited_and_reset() -> void:
+	var s := _session()
+	var anchor := s.body.pos
+	_tilt(s, Vector2(0.45, 0.45))
+	runner.check(is_equal_approx(s.rules.body_goal.distance_to(anchor), Tuning.BODY_GOAL_MAX), "목표는 최대 %.2fm" % Tuning.BODY_GOAL_MAX)
+	s.reset()
+	_tilt(s, Vector2.ZERO, false)
+	runner.check(not s.rules.body_goal.is_finite(), "다시 시작하면 기울이기 상태도 처음")

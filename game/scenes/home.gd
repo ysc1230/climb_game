@@ -158,6 +158,9 @@ func _do(action: String, arg: String) -> void:
 			return
 		"display":
 			game.get_flow().set_display(arg, not game.progress.display_on(arg))
+		"control":
+			var kv := arg.split("=")
+			game.get_flow().set_control(kv[0], (kv[1] == "1") if kv[0] == "tilt_with_drag" else (kv[1] if kv[0] == "body" else float(kv[1])))
 		"skip":
 			game.skip_basic()
 			_set_tab("general")
@@ -582,18 +585,60 @@ const DISPLAY_ROWS := [
 
 
 func _draw_settings(size: Vector2) -> void:
-	var x := 120.0 * k
+	var x := 100.0 * k
 	var y := 150.0 * k
 	draw_string(font, Vector2(x, y), "화면 표시", HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * k), CREAM)
 	y += 40 * k
-	var w := size.x - 240 * k
+	var w := size.x * 0.5 - 130 * k  # 왼쪽 칸(오른쪽 칸은 몸 옮기기)
 	for row in DISPLAY_ROWS:
 		var on: bool = game.progress.display_on(row[0])
 		var dim: bool = row[0] == "balance_hint" and not game.progress.display_on("balance")
-		draw_string(font, Vector2(x, y + 40 * k), row[1], HORIZONTAL_ALIGNMENT_LEFT, -1, int(26 * k), DIM if dim else Color.WHITE)
-		draw_multiline_string(font, Vector2(x, y + 76 * k), row[2], HORIZONTAL_ALIGNMENT_LEFT, w - 260 * k, int(19 * k), 2, DIM)
-		_button(Rect2(Vector2(x + w - 200 * k, y + 14 * k), Vector2(200, 60) * k), "켜짐" if on else "꺼짐", "display", row[0], 24, on)
-		y += 130 * k
+		draw_string(font, Vector2(x, y + 36 * k), row[1], HORIZONTAL_ALIGNMENT_LEFT, -1, int(25 * k), DIM if dim else Color.WHITE)
+		draw_multiline_string(font, Vector2(x, y + 66 * k), row[2], HORIZONTAL_ALIGNMENT_LEFT, w - 180 * k, int(16 * k), 3, DIM)
+		_button(Rect2(Vector2(x + w - 150 * k, y + 14 * k), Vector2(150, 56) * k), "켜짐" if on else "꺼짐", "display", row[0], 22, on)
+		y += 128 * k
+	_draw_control_settings(Vector2(size.x * 0.5 + 40 * k, 150 * k), size.x * 0.5 - 140 * k)
+
+
+## 몸 옮기기(작업 2): 가운데 끌기 / 휴대폰 기울이기. 기울이기일 때만 민감도·반응 시작 각도·함께 쓰기.
+func _draw_control_settings(at: Vector2, w: float) -> void:
+	var p: Progress = game.progress
+	var x := at.x
+	var y := at.y
+	draw_string(font, Vector2(x, y), "몸 옮기기", HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * k), CREAM)
+	y += 30 * k
+	var tilt: bool = p.control_get("body") == "tilt"
+	var sensor := TiltMapper.available(Input.get_gravity())
+	var bw := (w - 20 * k) * 0.5
+	_button(Rect2(Vector2(x, y), Vector2(bw, 64 * k)), "가운데 끌기", "control", "body=drag", 22, not tilt)
+	if sensor or tilt:
+		_button(Rect2(Vector2(x + bw + 20 * k, y), Vector2(bw, 64 * k)), "휴대폰 기울이기", "control", "body=tilt", 22, tilt)
+	else:
+		var r := Rect2(Vector2(x + bw + 20 * k, y), Vector2(bw, 64 * k))
+		draw_rect(r, Color(0.1, 0.1, 0.1, 0.4))
+		draw_rect(r, Color(1, 1, 1, 0.3), false, 2.0)
+		draw_string(font, Vector2(r.position.x, r.position.y + 40 * k), "휴대폰 기울이기", HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(22 * k), DIM)
+	y += 64 * k
+	if not sensor:
+		draw_string(font, Vector2(x, y + 30 * k), "이 기기는 기울기 센서가 없어요", HORIZONTAL_ALIGNMENT_LEFT, w, int(18 * k), Color("ff9a7a"))
+		y += 36 * k
+	if not tilt:
+		draw_multiline_string(font, Vector2(x, y + 34 * k), "네 패드 사이 가운데를 끌어서 몸(무게중심)을 옮겨요.", HORIZONTAL_ALIGNMENT_LEFT, w, int(17 * k), 2, DIM)
+		return
+	draw_multiline_string(font, Vector2(x, y + 34 * k), "좌우로 기울이면 몸이 좌우로, 위쪽을 앞으로 숙이면 위로 가요. 기울인 동안만 옮기고, 문제를 시작할 때마다 그때 기울기를 0으로 잡아요.", HORIZONTAL_ALIGNMENT_LEFT, w, int(17 * k), 3, DIM)
+	y += 100 * k
+	var sens := int(p.control_get("tilt_sens"))
+	var dead := float(p.control_get("tilt_dead"))
+	for row in [["민감도", str(sens), "tilt_sens", sens, 1.0], ["반응 시작 각도", "%d°" % int(dead), "tilt_dead", dead, 1.0]]:
+		draw_string(font, Vector2(x, y + 40 * k), row[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(24 * k), Color.WHITE)
+		var bx := x + w - 250 * k
+		_button(Rect2(Vector2(bx, y + 4 * k), Vector2(64, 56) * k), "−", "control", "%s=%s" % [row[2], float(row[3]) - float(row[4])], 28)
+		draw_string(font, Vector2(bx + 64 * k, y + 42 * k), row[1], HORIZONTAL_ALIGNMENT_CENTER, 122 * k, int(26 * k), CREAM)
+		_button(Rect2(Vector2(bx + 186 * k, y + 4 * k), Vector2(64, 56) * k), "+", "control", "%s=%s" % [row[2], float(row[3]) + float(row[4])], 28)
+		y += 72 * k
+	var both: bool = p.control_get("tilt_with_drag")
+	draw_string(font, Vector2(x, y + 40 * k), "가운데 끌기도 함께 쓰기", HORIZONTAL_ALIGNMENT_LEFT, -1, int(24 * k), Color.WHITE)
+	_button(Rect2(Vector2(x + w - 150 * k, y + 4 * k), Vector2(150, 56) * k), "켜짐" if both else "꺼짐", "control", "tilt_with_drag=%d" % (0 if both else 1), 22, both)
 
 
 # ---------- 캐릭터 고르기(docs/34 §7) ----------
@@ -655,7 +700,14 @@ func _close_look() -> void:
 	queue_redraw()
 
 
+var _sensor_seen := false
+
+
 func _process(delta: float) -> void:
+	# 기울기 센서 값은 시작 뒤 조금 늦게 들어온다: 바뀌면 설정 탭을 다시 그린다
+	if tab == "settings" and TiltMapper.available(Input.get_gravity()) != _sensor_seen:
+		_sensor_seen = not _sensor_seen
+		queue_redraw()
 	if choosing_look and _pv_model != null:
 		_pv_model.rotation.y += delta * 0.6
 		queue_redraw()

@@ -141,10 +141,37 @@ func _ready() -> void:
 	_after_reset("시작")
 	session.hold_on_clear = tutorial == null  # 완등하면 탑 자세로 멈춰 축하(튜토리얼은 지금 흐름 그대로)
 	session.hold_on_fall = tutorial == null  # 떨어지면 물리 낙하 장면 → 조언 카드
+	if game != null:
+		_setup_tilt(game.progress)
 	_start_preview()
 
 
 ## 문제가 튜토리얼이면 단계 실행기를 만들고 첫 단계를 시작한다. 기술 버튼도 정한다.
+## 몸 옮기기 설정(작업 2, docs/superpowers/specs/2026-11-19-2-tilt-design.md): 휴대폰 기울이기면 TiltMapper를 만든다.
+var tilt: TiltMapper = null
+var tilt_drag := true  # 기울이기 중에도 가운데 끌기
+
+
+func _setup_tilt(p: Progress) -> void:
+	tilt = null
+	tilt_drag = true
+	if p.control_get("body") != "tilt":
+		return
+	tilt = TiltMapper.new()
+	tilt.sensitivity = int(p.control_get("tilt_sens"))
+	tilt.deadzone = float(p.control_get("tilt_dead"))
+	tilt.orientation = DisplayServer.screen_get_orientation()
+	tilt_drag = bool(p.control_get("tilt_with_drag"))
+
+
+## 판정 틱마다 기울기를 몸 목표 명령으로 보낸다. 튜토리얼(가운데 끌기를 가르침)·기술 선택·낙하 중에는 무시.
+func _tilt_tick(g: Vector3) -> void:
+	if tilt == null or tutorial != null or session.selecting or session.falling or session.halted != &"":
+		return
+	var r := tilt.update(g)
+	session.apply_input([{"type": "body_tilt", "limb": &"BODY", "offset": r.offset, "active": r.active}])
+
+
 func _start_tutorial() -> void:
 	tutorial = null
 	_tutorial_wait = false
@@ -204,6 +231,8 @@ func _reset(reason: String) -> void:
 
 ## 세션이 다시 시작된 뒤 표시 쪽 정리(입력 초기화·카메라·문구).
 func _after_reset(reason: String, ticks := 120) -> void:
+	if tilt != null:
+		tilt.recalibrate()  # 시도마다 그때 기울기를 0으로(루트 읽기가 끝난 뒤 첫 값)
 	for hand in grip_level:
 		grip_level[hand] = GripWarning.NONE  # 지난 시도의 손 힘 경고를 남기지 않는다
 	_close_ui()
@@ -520,6 +549,8 @@ func _retry() -> void:
 
 
 func _apply(cmds: Array) -> void:
+	if tilt != null and not tilt_drag:  # 기울이기만: 가운데 끌기 명령은 버린다(다이노 두 번 누르기는 그대로)
+		cmds = cmds.filter(func(c): return not str(c.type) in ["body_start", "body_move", "body_end"])
 	var was_dragging := {}
 	for c in cmds:
 		if session.limbs.has(c.limb):
@@ -657,6 +688,7 @@ func _physics_process(_delta: float) -> void:
 		_danger_tick(_delta, false)  # 위험에 들어가는 순간 잠깐 멈칫(신호용, 판정 틱을 쉰다)
 		queue_redraw()
 		return
+	_tilt_tick(Input.get_gravity())
 	var hands_before: Array = session.attached().keys().filter(func(l): return PoseSolver.is_hand(l))
 	var result := session.step()
 	_feel_tick()

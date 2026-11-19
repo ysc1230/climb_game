@@ -84,3 +84,46 @@ func test_landing_tip_only_when_high() -> void:
 	n.on_landing(&"high")
 	runner.check(str(n._fall_advice.get("tip", "")).contains("뒤로 구르"), "높으면 뒤로 구르기 팁 %s" % [n._fall_advice])
 	n.free()
+
+
+func _tilt_progress(with_drag := true) -> Progress:
+	var p := Progress.new()
+	p.set_control("body", "tilt")
+	p.set_control("tilt_with_drag", with_drag)
+	return p
+
+
+## 휴대폰 기울이기(작업 2): 설정이 기울이기면 센서 값이 판정 입구(body_goal)로 간다.
+func test_tilt_drives_body_goal() -> void:
+	var n := _make()
+	n._setup_tilt(_tilt_progress())
+	runner.check(n.tilt != null, "기울이기 설정이면 TiltMapper를 만듦")
+	var up := Vector3(0, -9.8, 0).rotated(Vector3.RIGHT, deg_to_rad(-30))
+	n._tilt_tick(up)
+	var side := up.rotated(Vector3.BACK, deg_to_rad(12))
+	for i in 120:
+		n._tilt_tick(side)
+	runner.check(n.session.rules.body_goal.is_finite(), "기울이면 몸 목표가 생김 %s" % n.session.rules.body_goal)
+	n.session.falling = true
+	n.session.rules.body_goal = Vector2(NAN, NAN)
+	n._tilt_tick(side)
+	runner.check(not n.session.rules.body_goal.is_finite(), "떨어지는 중에는 무시")
+	n.free()
+
+
+func test_tilt_off_by_default() -> void:
+	var n := _make()
+	n._setup_tilt(Progress.new())
+	runner.check(n.tilt == null, "기본(가운데 끌기)이면 기울이기 없음")
+	n.free()
+
+
+func test_tilt_only_drops_center_drag() -> void:
+	var n := _make()
+	n._setup_tilt(_tilt_progress(false))
+	n._apply([{"type": "body_start", "limb": &"BODY"}])
+	runner.check(not n.session.body_dragging(), "함께 쓰기를 끄면 가운데 끌기는 무시")
+	n._setup_tilt(_tilt_progress(true))
+	n._apply([{"type": "body_start", "limb": &"BODY"}])
+	runner.check(n.session.body_dragging(), "함께 쓰기면 가운데 끌기도 됨")
+	n.free()

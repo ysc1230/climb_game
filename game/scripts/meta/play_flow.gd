@@ -125,6 +125,12 @@ func set_display(key: String, on: bool) -> void:
 	SaveStore.save(progress, save_path)
 
 
+## 몸 옮기기 설정 하나를 바꾸고 저장한다(설정 탭, 작업 2).
+func set_control(key: String, value: Variant) -> void:
+	progress.set_control(key, value)
+	SaveStore.save(progress, save_path)
+
+
 func set_level(level: String) -> void:
 	if not level in Progress.LEVELS or progress.level == level:
 		return

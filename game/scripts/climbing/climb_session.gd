@@ -85,6 +85,7 @@ func _reset_pose(pelvis: Vector2, angle: float, slots: Dictionary) -> void:
 	runner.cancel(self, &"reset")
 	rules.body_goal = Vector2(NAN, NAN)
 	_body_dragging = false
+	_tilt_active = false
 	dyno = {}
 	_dyno_relief = 0
 	body = BodyState.new(pelvis, angle)
@@ -188,6 +189,9 @@ func choose(tech_id: StringName, side: StringName, key: String = "", point: Vect
 var _body_dragging := false
 var _body_anchor := Vector2.ZERO
 var _body_offset := Vector2.ZERO
+## 휴대폰 기울이기(docs/superpowers/specs/2026-11-19-2-tilt-design.md): 반응 범위를 처음 벗어난 순간의 골반이 기준점.
+var _tilt_active := false
+var _tilt_anchor := Vector2.ZERO
 
 
 ## 패드 사이 가운데 영역 끌기: 누른 순간의 골반을 기준으로 끈 만큼(최대 BODY_GOAL_MAX) 골반 목표를 옮긴다.
@@ -205,6 +209,19 @@ func _body_input(c: Dictionary) -> void:
 				rules.body_goal = _body_anchor + _body_offset
 		"body_end":
 			_body_dragging = false
+		"body_tilt":
+			# 가운데 끌기가 이긴다. 끌기를 끝낸 뒤 다시 기울이면 그 순간 골반이 새 기준점.
+			if _body_dragging:
+				_tilt_active = false
+				return
+			if bool(c.active):
+				if not _tilt_active:
+					_tilt_active = true
+					_tilt_anchor = body.pos
+				rules.body_goal = _tilt_anchor + (c.offset as Vector2).limit_length(Tuning.BODY_GOAL_MAX)
+			elif _tilt_active:
+				_tilt_active = false
+				rules.body_goal = Vector2(NAN, NAN)  # 기울인 동안만 옮김: 돌아오면 자동 자세
 
 
 ## 몸통 끌기 중인가(화면 화살표용).
@@ -230,10 +247,10 @@ func apply_input(cmds: Array) -> void:
 			continue
 		if dyno.get("phase", "") == "charge":
 			continue  # 준비하는 동안 손발은 그대로
-		if c.type in ["body_start", "body_move", "body_end"]:
+		if c.type in ["body_start", "body_move", "body_end", "body_tilt"]:
 			_body_input(c)
 			continue
-		if c.type in ["arm", "detach"] and not _body_dragging:
+		if c.type in ["arm", "detach"] and not _body_dragging and not _tilt_active:
 			rules.body_goal = Vector2(NAN, NAN)  # 다른 팔다리를 움직이기 시작하면 자동 자세로 돌아간다
 		var l: Dictionary = limbs[c.limb]
 		# 패드 조작과 실행 중 기술(27 §6 5): 기술이 쓰는 발을 누르면 취소
@@ -839,6 +856,7 @@ func _dyno_input(c: Dictionary) -> void:
 				return
 			runner.cancel(self)
 			_body_dragging = false
+			_tilt_active = false
 			dyno = {"phase": "charge", "anchor": body.pos, "drag": Vector2.ZERO}
 			rules.body_goal = body.pos
 		"dyno_move":

@@ -63,6 +63,19 @@
 
 발판에 붙은 상태와 발이 실제 하중을 받치는 상태를 구분한다. 후자는 PoseSolver가 매 틱 갱신하는 런타임 값이며 원본 콘텐츠의 상수 값이 아니다.
 
+### 몸 옮기기 설정 (2026-11-20, 작업 2)
+
+`Progress.control`(저장 키 `control`)에 둔다. 키가 없으면 `Progress.CONTROL_DEFAULTS`. 모르는 키·값은 불러올 때 버리고 숫자는 범위로 자른다(`Progress.set_control`). 기록 자격·판정 수치는 바꾸지 않는다(기울이기는 가운데 끌기와 같은 `rules.body_goal` 입구).
+
+| 키 | 값 | 기본 |
+| --- | --- | --- |
+| body | "drag" 가운데 끌기 · "tilt" 휴대폰 기울이기 | "drag" |
+| tilt_sens | 1~5 (최대 각도 25/20/15/11/8°) | 3 |
+| tilt_dead | 반응 시작 각도 0~10° | 3 |
+| tilt_with_drag | 기울이기 중에도 가운데 끌기 | true |
+
+입력 명령 `body_tilt {offset: Vector2, active: bool}`: active가 처음 참이 되는 순간의 골반이 기준점, 목표 = 기준점 + offset(최대 `Tuning.BODY_GOAL_MAX`). active가 거짓이 되면 목표를 지운다(자동 자세). 가운데를 끄는 동안은 끌기가 이긴다.
+
 ## 입력·말단 상태
 
 | 구조 | 핵심 필드 | 수명/제약 |

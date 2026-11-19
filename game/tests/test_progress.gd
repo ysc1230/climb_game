@@ -258,3 +258,17 @@ func test_display_settings() -> void:
 	runner.check(q.display_on("loads") and not q.display_on("balance") and q.display_on("balance_hint"), "저장 뒤에도 그대로")
 	var r := Progress.from_dict({"display": {"nope": true, "loads": true}})
 	runner.check(not r.display.has("nope") and r.display_on("loads"), "모르는 키는 버림")
+
+
+## 몸 옮기기 설정(작업 2): 기본은 가운데 끌기·민감도 3·반응 3°·함께 쓰기 켜짐, 범위 밖 값은 고침, 저장·불러오기.
+func test_control_settings() -> void:
+	var p := Progress.new()
+	runner.check(p.control_get("body") == "drag" and int(p.control_get("tilt_sens")) == 3 and is_equal_approx(float(p.control_get("tilt_dead")), 3.0) and bool(p.control_get("tilt_with_drag")), "기본값 %s" % [p.control])
+	p.set_control("body", "tilt")
+	p.set_control("tilt_sens", 9)
+	p.set_control("tilt_dead", -2)
+	runner.check(p.control_get("body") == "tilt" and int(p.control_get("tilt_sens")) == 5 and is_equal_approx(float(p.control_get("tilt_dead")), 0.0), "범위로 자름 %s" % [p.control])
+	var q := Progress.from_dict(JSON.parse_string(JSON.stringify(p.to_dict())))
+	runner.check(q.control_get("body") == "tilt" and int(q.control_get("tilt_sens")) == 5, "저장 뒤에도 그대로 %s" % [q.control])
+	var r := Progress.from_dict({"control": {"body": "nope", "x": 1, "tilt_dead": 20}})
+	runner.check(r.control_get("body") == "drag" and not r.control.has("x") and is_equal_approx(float(r.control_get("tilt_dead")), 10.0), "모르는 값·키는 버리고 범위로 %s" % [r.control])
