@@ -33,7 +33,21 @@ var _budget := 0
 
 
 ## session: ClimbSession(또는 같은 필드를 가진 것). delta: 프레임 시간.
+## 떠 있는 손발의 그림 위치(ReachMarker.display_point, 표현만). 붙은 손발은 판정 점 그대로.
+var _disp := {}
+
+
+func _update_display(session, delta: float) -> void:
+	for limb in session.limbs:
+		var l: Dictionary = session.limbs[limb]
+		if l.state in ["Attached", "Armed"] or not _disp.has(limb):
+			_disp[limb] = l.pos
+		else:
+			_disp[limb] = ReachMarker.display_point(_disp[limb], l, delta)
+
+
 func compute(session, delta: float) -> Dictionary:
+	_update_display(session, delta)
 	var body = session.body
 	var attached: Dictionary = session.attached()
 	var frame := Anatomy.body_basis(body.angle, body.yaw)
@@ -102,9 +116,11 @@ const FOOT_ON_SURFACE := 0.03
 
 
 func _end(session, limb: StringName, lift: float, pelvis_depth: float) -> Vector3:
-	var e2: Vector2 = session.limbs[limb].pos
 	var stuck: bool = session.limbs[limb].state in ["Attached", "Armed"]
-	var z := Tuning.CONTACT_DEPTH if stuck else Tuning.CONTACT_DEPTH + Tuning.FREE_ENDPOINT_LIFT + lift
+	var e2: Vector2 = session.limbs[limb].pos if stuck else _disp.get(limb, session.limbs[limb].pos)
+	# 떠 있는 손발: 잡을 수 있는 홀드에 가까울수록 벽 쪽으로 붙인다(docs/superpowers/specs/2026-11-19-1-feel-design.md §1.5)
+	var near := 1.0 if stuck else ReachMarker.lift_scale(ReachMarker.nearest_slot_dist(session.route, limb, e2, session.occupied()))
+	var z := Tuning.CONTACT_DEPTH if stuck else Tuning.CONTACT_DEPTH + (Tuning.FREE_ENDPOINT_LIFT + lift) * near
 	var key = session.limbs[limb].key
 	if stuck and not PoseSolver.is_hand(limb) and surface_depth.has(key) and surface_top.has(key):
 		var toe := Vector3(e2.x, e2.y + float(surface_top[key]), float(surface_depth[key]) * TOE_IN_HOLD)

@@ -316,6 +316,25 @@ func _build_holds() -> void:
 
 ## 홀드 빛: 끄는 손발 아래 지금 놓으면 잡히는 홀드(세션 후보)는 흰색으로 깜빡이며 빛나고,
 ## 튜토리얼 목표 홀드는 노란색으로 깜빡인다. 잡을 수 있는 쪽이 우선이다.
+## 끄는 손발의 잡힐 자리 고리(흰색, 벽 면). 잡힐 후보가 있으면 후보 점에 붙는다.
+var reach_rings := {}
+
+
+func _update_reach_rings() -> void:
+	for limb in logic.session.limbs:
+		if not reach_rings.has(limb):
+			var ring := _mesh(_torus(0.02, 0.003), _overlay(Color(1, 1, 1, 0.8)), false)
+			ring.rotation_degrees = Vector3(90, 0, 0)
+			add_child(ring)
+			reach_rings[limb] = ring
+		var l: Dictionary = logic.session.limbs[limb]
+		var r: MeshInstance3D = reach_rings[limb]
+		r.visible = l.state == "Dragging" and not logic.session.selecting
+		if r.visible:
+			var p := ReachMarker.ring_point(l)
+			r.position = Vector3(p.x, p.y, CONTACT_DEPTH + 0.01)
+
+
 func _update_hold_glow() -> void:
 	var t := Time.get_ticks_msec() * 0.001
 	var fast := 0.5 + 0.5 * sin(TAU * 2.2 * t)
@@ -406,6 +425,7 @@ func _process(delta: float) -> void:
 	else:
 		_pose_capsules(t)
 	_update_hold_glow()
+	_update_reach_rings()
 	_update_foot_marks()
 
 
