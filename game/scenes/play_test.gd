@@ -879,8 +879,8 @@ func _draw_hud(size: Vector2) -> void:
 		_draw_notice(size, ph)
 	var y := size.y - 20 * ui_k
 	for i in range(log_lines.size() - 1, -1, -1):
-		if tutorial != null:
-			break  # 튜토리얼 중에는 시험 기록 줄을 숨긴다
+		if tutorial != null or game == null or not game.progress.display_on("dev_info"):
+			break  # 튜토리얼 중·개발 정보 꺼짐(기본)이면 시험 기록 줄을 숨긴다
 		draw_string(font, Vector2(size.x * 0.25, y), log_lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, int(15 * ui_k), Color(1, 1, 1, 0.6))
 		y -= 18 * ui_k
 	if message_ticks > 0:

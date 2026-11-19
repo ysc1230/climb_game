@@ -173,6 +173,8 @@ func _draw() -> void:
 	var size := get_viewport_rect().size
 	k = maxf(minf(size.x / 1600.0, size.y / 900.0), 0.25)
 	draw_rect(Rect2(Vector2.ZERO, size), BG)
+	# 게임 버전(오른쪽 아래, 작고 흐리게 — 2026-11-19 사용자: 시작 화면 모서리에 버전)
+	draw_string(font, Vector2(0, size.y - 16 * k), AppVersion.text(), HORIZONTAL_ALIGNMENT_RIGHT, size.x - 16 * k, int(16 * k), Color(1, 1, 1, 0.45))
 	if game == null:
 		return
 	_draw_tabs(size)
@@ -574,6 +576,7 @@ func _lock(c: Vector2, col: Color) -> void:
 const DISPLAY_ROWS := [
 	["balance", "무게중심", "몸 가운데 점과 늘어진 줄, 딛은 발 아래 받침을 보여 줘요. 점의 줄이 두 발 위에 떨어지면 초록(가만히 있으면 손 힘이 차요), 아니면 노랑(손 힘이 빠져요), 위험하면 주황."],
 	["balance_hint", "몸 옮길 쪽 안내", "무게중심이 노랑일 때 몸을 옮길 쪽 화살표와 한 줄 안내를 보여 줘요. 무게중심을 켰을 때만 보여요."],
+	["dev_info", "개발 정보 보이기", "플레이 화면 아래에 화면 크기·패드 크기 같은 개발용 글자를 보여 줘요. 보통은 꺼 두세요."],
 	["loads", "팔다리 힘 분포", "팔다리를 막대로 그리고 그 손발이 받치는 몸무게 몫(%)으로 색을 입혀요. 회색 → 초록 → 노랑 → 빨강일수록 많이 받쳐요. 몫이 큰 손발을 떼면 다른 손발이 그만큼 더 받쳐야 해요."],
 ]
 

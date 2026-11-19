@@ -20,7 +20,7 @@ var last_tab := "general"
 var level := ""
 var look := {}  # 캐릭터 외형 {body, hair, top, bottom, chalk, shoes}(docs/34 §7). 비면 기본(남성 기본 조합)
 ## 화면 표시 켜고 끄기(설정 탭, docs/49 v0.2). 키가 없으면 DISPLAY_DEFAULTS.
-const DISPLAY_DEFAULTS := {"balance": true, "loads": false, "balance_hint": true}
+const DISPLAY_DEFAULTS := {"balance": true, "loads": false, "balance_hint": true, "dev_info": false}
 var display := {}
 var seen_tips: Array = []  # 처음 한 번 안내를 본 것(docs/33 §5). 진행 초기화 때 함께 지운다
 const LEVELS: Array[String] = ["beginner", "intermediate", "advanced"]  # advanced 고급(2026-11-10): 경고·알림 없음
