@@ -208,7 +208,8 @@ func _button(ci: CanvasItem, r: Rect2, text: String, action: String, k: float, s
 ## 떨어진 뒤 조언 카드(화면 위쪽 가운데): 원인 한 줄 + 다음에 할 일 한 줄 + "눌러서 다시".
 func _draw_fall_card(ci: CanvasItem, size: Vector2, k: float) -> void:
 	var w := minf(900.0 * k, size.x - 40 * k)
-	var h := (150.0 if str(fall_card.get("advice", "")) != "" else 110.0) * k
+	var tip := str(fall_card.get("tip", ""))
+	var h := ((150.0 if str(fall_card.get("advice", "")) != "" else 110.0) + (36.0 if tip != "" else 0.0)) * k
 	var panel := Rect2(Vector2((size.x - w) * 0.5, 110 * k), Vector2(w, h))  # 위쪽: 매트에 떨어진 캐릭터를 가리지 않게
 	ci.draw_rect(panel, Color(0.12, 0.11, 0.1, 0.94))
 	ci.draw_rect(panel, CREAM, false, 3.0)
@@ -219,4 +220,7 @@ func _draw_fall_card(ci: CanvasItem, size: Vector2, k: float) -> void:
 	if str(fall_card.get("advice", "")) != "":
 		y += 40 * k
 		ci.draw_string(font, Vector2(x, y), "→ " + str(fall_card.advice), HORIZONTAL_ALIGNMENT_LEFT, tw, int(24 * k), Color.WHITE)
+	if tip != "":
+		y += 38 * k
+		ci.draw_string(font, Vector2(x, y), "※ " + tip, HORIZONTAL_ALIGNMENT_LEFT, tw, int(21 * k), Color("f1d59a"))
 	ci.draw_string(font, Vector2(x, panel.end.y - 18 * k), "화면을 누르면 처음부터 다시", HORIZONTAL_ALIGNMENT_RIGHT, tw, int(18 * k), Color(1, 1, 1, 0.6))

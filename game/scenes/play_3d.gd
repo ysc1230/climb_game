@@ -417,6 +417,10 @@ func _process(delta: float) -> void:
 	if logic == null or logic.session == null:
 		return
 	_update_camera()
+	if _shake > 0.0:  # 높은 곳 착지 흔들림(0.4초쯤)
+		var s := Time.get_ticks_msec() / 1000.0
+		camera.position += Vector3(sin(s * 90.0), sin(s * 71.0 + 1.1), 0) * 0.03 * _shake
+		_shake = maxf(_shake - delta * 2.5, 0.0)
 	_spawn_puffs()
 	var t := _fall_targets(delta)
 	if skeleton:
@@ -456,12 +460,15 @@ func _fall_targets(delta: float) -> Dictionary:
 			fall_sim.skip()
 			logic.fall_skip = false
 		fall_sim.step(minf(delta, 1.0 / 30.0))
+		var imp := fall_sim.take_impact()
+		if not imp.is_empty():
+			_on_landing(imp)
 		var t: Dictionary = fall_sim.points().duplicate()
 		var up := ((t.chest as Vector3) - (t.pelvis as Vector3)).normalized()
 		t["up"] = up
 		_fall_angle = rad_to_deg(atan2(-up.x, up.y))
 		# 카메라가 떨어지는 몸을 따라 내려가 매트가 보이게
-		var want := maxf((t.pelvis as Vector3).y + 0.12 * logic.PLAY_H, 1.6)
+		var want := maxf((t.pelvis as Vector3).y + 0.12 * logic.PLAY_H, 1.4)
 		logic.cam_y = lerpf(logic.cam_y, want, 1.0 - exp(-6.0 * delta))
 		if fall_sim.done():
 			logic.on_fall_scene_done()
@@ -471,6 +478,43 @@ func _fall_targets(delta: float) -> Dictionary:
 	var t := _pose_targets(delta)
 	_last_t = t
 	return t
+
+
+## 착지 순간: 쿵 소리·진동·팁(logic), 매트 눌림 자국·먼지, 높으면 화면 흔들림.
+func _on_landing(imp: Dictionary) -> void:
+	var kind: StringName = imp.kind
+	var pos: Vector3 = imp.pos
+	logic.on_landing(kind)
+	_shake = {&"low": 0.0, &"mid": 0.4, &"high": 1.0}.get(kind, 0.0)
+	var size: float = {&"low": 0.55, &"mid": 0.75, &"high": 0.95}.get(kind, 0.6)
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
+	g.colors = PackedColorArray([Color(0, 0, 0, 0.45), Color(0, 0, 0, 0.25), Color(0, 0, 0, 0)])
+	var tex := GradientTexture2D.new()
+	tex.gradient = g
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(1.0, 0.5)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_texture = tex
+	var q := QuadMesh.new()
+	q.size = Vector2(size, size * 0.8)
+	var dent := MeshInstance3D.new()
+	dent.mesh = q
+	dent.material_override = mat
+	dent.rotation = Vector3(-PI * 0.5, 0, 0)
+	dent.position = Vector3(pos.x, MAT_TOP_Y + 0.003, pos.z + 0.15)
+	add_child(dent)
+	var tw := create_tween()
+	tw.tween_property(mat, "albedo_color", Color(1, 1, 1, 0), 0.9).set_delay(0.25)
+	tw.tween_callback(dent.queue_free)
+	for dx in [-0.15, 0.15]:
+		logic.puffs.append({"kind": &"dust", "pos": Vector2(pos.x + dx, MAT_TOP_Y + 0.05), "z": pos.z})
+
+
+var _shake := 0.0
 
 
 const TREMBLE_KEYS := ["pelvis", "spine", "chest", "neck", "head", "head_top", "shoulder_L", "shoulder_R", "hip_L", "hip_R"]
@@ -827,7 +871,7 @@ func _spawn_puffs() -> void:
 		var pm := _unshaded(col)
 		pm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		e.material_override = pm
-		e.position = Vector3((p.pos as Vector2).x, (p.pos as Vector2).y, CONTACT_DEPTH + 0.06)
+		e.position = Vector3((p.pos as Vector2).x, (p.pos as Vector2).y, float(p.get("z", CONTACT_DEPTH + 0.06)))
 		add_child(e)
 		e.emitting = true
 		get_tree().create_timer(1.0).timeout.connect(e.queue_free)

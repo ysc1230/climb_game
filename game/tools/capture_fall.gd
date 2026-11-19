@@ -42,9 +42,10 @@ func _process(_d: float) -> bool:
 	if t_fall < 0 and s.falling:
 		t_fall = frame
 		print("fall at %d cause=%s" % [frame, logic._fall_advice])
-	if t_fall > 0 and frame == t_fall + 18:
-		_shot("falling")
-	if t_fall > 0 and frame == t_fall + 160:
+	for f in [18, 40, 60, 85, 110]:
+		if t_fall > 0 and frame == t_fall + f:
+			_shot("landing_%d" % f)
+	if t_fall > 0 and frame == t_fall + 200:
 		_shot("advice")
 		return true
 	return frame > 900

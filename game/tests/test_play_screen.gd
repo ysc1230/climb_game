@@ -73,3 +73,14 @@ func test_fall_retry_clears_state() -> void:
 	runner.check(not n.paused, "다시 시작하면 일시정지 풀림")
 	runner.check(n.grip_level[PoseSolver.LH] == GripWarning.NONE, "손 힘 경고 지움")
 	n.free()
+
+
+## 높은 곳에서 떨어지면 조언 카드에 안전 팁 한 줄(2026-11-20 사용자). 낮으면 없음.
+func test_landing_tip_only_when_high() -> void:
+	var n := _make()
+	n._fall_advice = {"cause": "떨어졌어요", "advice": ""}
+	n.on_landing(&"low")
+	runner.check(not n._fall_advice.has("tip"), "낮으면 팁 없음")
+	n.on_landing(&"high")
+	runner.check(str(n._fall_advice.get("tip", "")).contains("뒤로 구르"), "높으면 뒤로 구르기 팁 %s" % [n._fall_advice])
+	n.free()

@@ -70,4 +70,6 @@ if __name__ == "__main__":
     write("step_foot", thud(180, 0.06, 0.020, 0.15, 4))
     write("miss", whoosh())
     write("fanfare", fanfare())
+    write("land_soft", thud(85, 0.18, 0.05, 0.5, 5))   # 매트 착지 쿵(낮음·중간)
+    write("land_hard", thud(65, 0.3, 0.09, 0.55, 6))   # 높은 곳 착지 쿵
     print("ok")

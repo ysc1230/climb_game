@@ -98,3 +98,5 @@ REF01은 이 게임의 제작 에셋 ID가 아니라 참고 자료 ID다. [22](2
 | `step_foot.wav` | 발 딛기 | 같음 |
 | `miss.wav` | 빈 곳에 놓음 | 같음 |
 | `fanfare.wav` | 완등 팡파레 | 같음 |
+| `land_soft.wav` | 낙하 착지 쿵(낮음·중간) | 같음 |
+| `land_hard.wav` | 높은 곳 착지 쿵 | 같음 |

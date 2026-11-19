@@ -225,13 +225,13 @@ func _flash(text: String, ticks := 120) -> void:
 
 ## 효과음과 화면 가장자리 빛 텍스처를 만든다.
 func _build_feedback() -> void:
-	for name in ["heartbeat", "heartbeat2", "danger", "caution", "recover", "grip_low", "fanfare", "grab_big", "grab_mid", "grab_small", "step_foot", "miss"]:
+	for name in ["heartbeat", "heartbeat2", "danger", "caution", "recover", "grip_low", "fanfare", "grab_big", "grab_mid", "grab_small", "step_foot", "miss", "land_soft", "land_hard"]:
 		var path := "res://art/sfx/%s.wav" % ("heartbeat" if name == "heartbeat2" else name)
 		if not ResourceLoader.exists(path):
 			continue
 		var pl := AudioStreamPlayer.new()
 		pl.stream = load(path)
-		pl.volume_db = {"heartbeat": -2.0, "heartbeat2": -9.0, "danger": -4.0, "caution": -8.0, "recover": -6.0, "grip_low": -6.0, "fanfare": -3.0, "grab_big": -4.0, "grab_mid": -5.0, "grab_small": -6.0, "step_foot": -8.0, "miss": -12.0}[name]
+		pl.volume_db = {"heartbeat": -2.0, "heartbeat2": -9.0, "danger": -4.0, "caution": -8.0, "recover": -6.0, "grip_low": -6.0, "fanfare": -3.0, "grab_big": -4.0, "grab_mid": -5.0, "grab_small": -6.0, "step_foot": -8.0, "miss": -12.0, "land_soft": -5.0, "land_hard": -2.0}[name]
 		add_child(pl)
 		_sfx[name] = pl
 	var g := Gradient.new()
@@ -1933,7 +1933,19 @@ func _begin_fall_scene(reason: String, hands_before: Array) -> void:
 		"advice": FallAdvice.text(plan, kind, limb_pos, body_pos, slot_pos) if warnings else ""}
 
 
-## 낙하 장면이 끝남(매트에 멈춤·건너뛰기): 조언 카드를 띄운다.
+const LANDING_TIP := "높은 곳에서는 두 발로 착지해 무릎을 굽히고 뒤로 구르세요"
+
+
+## 낙하 장면에서 발이 매트에 닿음(FallSim 착지 종류): 쿵 소리·진동, 높으면 조언 카드에 안전 팁.
+func on_landing(kind: StringName) -> void:
+	var hard := kind == &"high"
+	_play("land_hard" if hard else "land_soft")
+	_vibrate(45 if hard else 25, 0.9 if hard else 0.5)
+	if hard and warnings and not _fall_advice.is_empty():
+		_fall_advice["tip"] = LANDING_TIP
+
+
+## 낙하 장면이 끝남(착지 동작을 마치고 섬·건너뛰기): 조언 카드를 띄운다.
 func on_fall_scene_done() -> void:
 	if not overlay.fall_card.is_empty() or _fall_advice.is_empty():
 		return

@@ -278,6 +278,10 @@ REF01과의 남은 차이: 실제 리깅 캐릭터와 의상, 손으로 그린 �
 - 실기기(안드로이드) 검증: 기술 선택 UI 터치 조작, 패드 데드포인트 속도 감각, 틱·판단기 비용.
 - 이월된 minor(progress 기록): 판단기 DEADPOINT_* 상수의 Tuning 이전, play_test.gd 분량(약 600줄) tech_ui 분리, 비활성 상태 기술 탭 피드백 등.
 
+### 2026-11-20 착지 동작 (0.9.53)
+
+0.9.52 기기 확인에서 "떨어진 뒤 죽은 것처럼 보임" → 낙하 장면을 공중 낙하 + 높이별 착지 동작(무릎 굽혀 섬 / 뒤로 굴러 섬 / 잠깐 누웠다 섬)으로 바꿈. 설계 docs/superpowers/specs/2026-11-19-1-feel-design.md "착지 동작". 헤드리스 테스트 336개 통과(test_anatomy::test_pelvis_tilt의 SCRIPT ERROR는 전부터 있음). 데스크톱 캡처 docs/images/landing_*.png — 기기 확인 전.
+
 ### 2026-11-20 작업 1 연출·손맛 (0.9.52)
 
 설계 docs/superpowers/specs/2026-11-19-1-feel-design.md, 계획 docs/superpowers/plans/2026-11-19-feel.md. 판정 수치 변경 없음(6문제 봇 결과 작업 전과 같음). 헤드리스 테스트 324개 통과. 화면은 데스크톱 캡처로만 확인(docs/images/feel_*.png, reach_*.png) — 기기 확인 전.
