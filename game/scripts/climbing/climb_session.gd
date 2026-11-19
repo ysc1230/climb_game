@@ -15,6 +15,12 @@ var fall_ticks := 0
 var goal_ticks := 0
 var clears := 0
 var falls := 0
+## 멈춤 플래그(docs/superpowers/specs/2026-11-19-1-feel-design.md §1.1·§1.2). 기본 끔 = 지금 동작.
+## hold_on_clear: 완등 틱에 reset 대신 탑 자세로 멈춘다. hold_on_fall: 낙하 끝(respawn 조건)에 reset 대신 "landed"를 돌려주고 멈춘다.
+## 멈춘 동안(halted != &"") step은 "", apply_input은 무시. reset()이 푼다.
+var hold_on_clear := false
+var hold_on_fall := false
+var halted: StringName = &""
 var messages: Array[String] = []
 var last_phase := -1
 var runner := TechniqueRunner.new()  # 기술 실행기(docs/27). 한 번에 하나
@@ -48,6 +54,7 @@ func _init(p_route: RouteDef) -> void:
 
 
 func reset() -> void:
+	halted = &""
 	_reset_pose(route.start_pelvis, route.start_angle, route.start_slots)
 
 
@@ -55,6 +62,7 @@ func reset() -> void:
 ## {pelvis: [x, y], angle, slots: {limb: key}, stamina?: {LH, RH}}. slots에 없는 팔다리는 Free(쉬는 위치)로 둔다.
 ## 기술 로그와 seq는 이어진다.
 func reset_to(pose: Dictionary) -> void:
+	halted = &""
 	var pv = pose.get("pelvis", route.start_pelvis)
 	var pelvis: Vector2 = pv if pv is Vector2 else Vector2(pv[0], pv[1])
 	var src: Dictionary = pose.get("slots", {})
@@ -208,6 +216,8 @@ func body_dragging() -> bool:
 
 ## InputRouter 명령({type, limb, delta, speed})을 적용한다. release의 speed는 쓰지 않는다(데드포인트 제거).
 func apply_input(cmds: Array) -> void:
+	if halted != &"":
+		return
 	for c in cmds:
 		if c.type in ["dyno_start", "dyno_move", "dyno_end", "dyno_cancel"]:
 			_dyno_input(c)
@@ -469,6 +479,8 @@ func grab(limb: StringName, key: String, point: Vector2, contact: ContactInfo) -
 
 ## 고정 틱 1회. 반환: "" / "fall:<이유>" / "clear" / "unresolved" / "respawn"(추락 연출이 끝나 다시 시작).
 func step() -> String:
+	if halted != &"":
+		return ""
 	if selecting:
 		return ""  # 기술 고르는 중: 틱·피로·카운터·몸통·말단 모두 멈춘다
 	tick_count += 1
@@ -616,7 +628,10 @@ func _goal_tick() -> String:
 	goal_ticks = goal_ticks + 1 if held == 2 and rules.balance_confirmed() else 0  # 균형 확인 뒤에만(docs/15)
 	if goal_ticks >= Tuning.GOAL_DWELL_TICKS:
 		clears += 1
-		reset()
+		if hold_on_clear:
+			halted = &"clear"
+		else:
+			reset()
 		return "clear"
 	return ""
 
@@ -658,6 +673,9 @@ func _fall_tick() -> String:
 	for limb in limbs:
 		limbs[limb].pos += body.vel * Tuning.DT
 	if fall_ticks >= 60 or body.pos.y < route.fail_line_y:
+		if hold_on_fall:
+			halted = &"fall"
+			return "landed"
 		reset()
 		return "respawn"
 	return ""
