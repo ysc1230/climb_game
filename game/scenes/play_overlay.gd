@@ -9,6 +9,7 @@ const INK := Color("302820")
 var font: Font
 ## 비어 있지 않으면 결과 오버레이 {seconds, falls, no_fall, time, time_limit, next, saved}.
 var result := {}
+var result_ms := 0  # 결과 카드가 뜬 시각(아래에서 0.25초 동안 올라옴)
 ## 비어 있지 않으면 튜토리얼 시작 설명 카드 {title, purpose, when, how}. 탭하면 사라진다(그동안 플레이 멈춤).
 var tutorial: TutorialRunner
 var tutorial_done := false
@@ -76,7 +77,8 @@ func draw(ci: CanvasItem, size: Vector2, k: float, paused: bool, selecting: bool
 
 func _draw_result(ci: CanvasItem, size: Vector2, k: float) -> void:
 	ci.draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.6))
-	var panel := Rect2(Vector2(size.x * 0.5 - 330 * k, size.y * 0.5 - 220 * k), Vector2(660, 440) * k)
+	var rise := 1.0 - ease(clampf((Time.get_ticks_msec() - result_ms) / 250.0, 0.0, 1.0), 0.4)
+	var panel := Rect2(Vector2(size.x * 0.5 - 330 * k, size.y * 0.5 - 220 * k + rise * size.y * 0.6), Vector2(660, 440) * k)
 	ci.draw_rect(panel, Color(0.12, 0.11, 0.1, 0.95))
 	ci.draw_rect(panel, CREAM, false, 3.0)
 	var x := panel.position.x

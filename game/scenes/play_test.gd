@@ -55,6 +55,14 @@ var log_lines: PackedStringArray = []
 var _feel_seq := 0
 var _feel_gate := GrabFeel.Gate.new()
 var puffs: Array = []
+## 루트 읽기(RoutePreview, 일반 문제 시작·다시) 진행 중이면 객체, 아니면 null. 그동안 입력·시간 멈춤.
+var route_preview: RoutePreview = null
+## 완등 축하(docs/superpowers/specs/2026-11-19-1-feel-design.md §1.1): 남은 초. 0이 되면 결과 카드.
+var celebrate_left := 0.0
+const CELEBRATE_SECONDS := 1.5
+## 색종이 조각 [{p, v, rot, spin, w, h, col, age}](화면 px).
+var confetti: Array = []
+const CONFETTI_COLORS := [Color("f1d59a"), Color("8fd0bc"), Color("9cc0f4"), Color.WHITE, Color("ff9a7a")]
 var grip_level := {PoseSolver.LH: GripWarning.NONE, PoseSolver.RH: GripWarning.NONE}
 ## false이면 벽·홀드·인형을 그리지 않고 패드·HUD만 그린다(3D 표현 계층이 월드를 그림).
 var draw_world := true
@@ -127,6 +135,8 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(_layout)
 	_layout()
 	_after_reset("시작")
+	session.hold_on_clear = tutorial == null  # 완등하면 탑 자세로 멈춰 축하(튜토리얼은 지금 흐름 그대로)
+	_start_preview()
 
 
 ## 문제가 튜토리얼이면 단계 실행기를 만들고 첫 단계를 시작한다. 기술 버튼도 정한다.
@@ -208,13 +218,13 @@ func _flash(text: String, ticks := 120) -> void:
 
 ## 효과음과 화면 가장자리 빛 텍스처를 만든다.
 func _build_feedback() -> void:
-	for name in ["heartbeat", "heartbeat2", "danger", "caution", "recover", "grip_low", "grab_big", "grab_mid", "grab_small", "step_foot", "miss"]:
+	for name in ["heartbeat", "heartbeat2", "danger", "caution", "recover", "grip_low", "fanfare", "grab_big", "grab_mid", "grab_small", "step_foot", "miss"]:
 		var path := "res://art/sfx/%s.wav" % ("heartbeat" if name == "heartbeat2" else name)
 		if not ResourceLoader.exists(path):
 			continue
 		var pl := AudioStreamPlayer.new()
 		pl.stream = load(path)
-		pl.volume_db = {"heartbeat": -2.0, "heartbeat2": -9.0, "danger": -4.0, "caution": -8.0, "recover": -6.0, "grip_low": -6.0, "grab_big": -4.0, "grab_mid": -5.0, "grab_small": -6.0, "step_foot": -8.0, "miss": -12.0}[name]
+		pl.volume_db = {"heartbeat": -2.0, "heartbeat2": -9.0, "danger": -4.0, "caution": -8.0, "recover": -6.0, "grip_low": -6.0, "fanfare": -3.0, "grab_big": -4.0, "grab_mid": -5.0, "grab_small": -6.0, "step_foot": -8.0, "miss": -12.0}[name]
 		add_child(pl)
 		_sfx[name] = pl
 	var g := Gradient.new()
@@ -390,6 +400,13 @@ func _log(text: String) -> void:
 # ---------- 입력 ----------
 
 func _input(event: InputEvent) -> void:
+	var press: bool = (event is InputEventScreenTouch or (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT)) and event.pressed
+	if route_preview != null or celebrate_left > 0.0:
+		if press:  # 누르면 연출을 건너뛴다
+			if route_preview != null:
+				route_preview.skip()
+			celebrate_left = minf(celebrate_left, 0.001)
+		return
 	if event is InputEventScreenTouch and _overlay_event(event.index, event.position, event.pressed):
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and _overlay_event(-1, event.position, event.pressed):
@@ -478,6 +495,8 @@ func _retry() -> void:
 	attempt.start(session.falls)
 	_start_tutorial()
 	_after_reset("다시 시작")
+	session.hold_on_clear = tutorial == null
+	_start_preview()
 
 
 func _apply(cmds: Array) -> void:
@@ -488,7 +507,6 @@ func _apply(cmds: Array) -> void:
 	session.apply_input(cmds)
 	for c in cmds:
 		if c.type == "release" and was_dragging.get(c.limb, false) and session.limbs[c.limb].state == "Attached":
-			_vibrate(20)
 			var ct = session.limbs[c.limb].contact
 			if PoseSolver.is_hand(c.limb) and ct != null:  # 잡은 위치 품질을 손 옆에 1초(docs/33 §7-5)
 				_grip_label = {"pos": session.limbs[c.limb].pos, "text": _quality_label(ct.quality), "color": _quality_color(ct.quality), "left": 1.0}
@@ -588,7 +606,22 @@ func _physics_process(_delta: float) -> void:
 				paused = false
 		queue_redraw()
 		return
+	_confetti_tick(_delta)
+	if celebrate_left > 0.0:
+		celebrate_left -= _delta
+		if celebrate_left <= 0.0:
+			celebrate_left = 0.0
+			_show_result()
+		queue_redraw()
+		return
 	if overlay.blocking():
+		queue_redraw()
+		return
+	if route_preview != null:
+		route_preview.advance(_delta, false)
+		cam_y = route_preview.y()
+		if route_preview.done():
+			route_preview = null
 		queue_redraw()
 		return
 	if tutorial != null and overlay.help_open:
@@ -634,8 +667,11 @@ func _physics_process(_delta: float) -> void:
 			return
 		"clear":
 			_log("완등 %d회" % session.clears)
-			_after_reset("")
-			_show_result()
+			if session.halted == &"clear":
+				_celebrate()
+			else:
+				_after_reset("")
+				_show_result()
 			queue_redraw()
 			return
 	if session.falling:
@@ -702,6 +738,7 @@ func _show_result() -> void:
 		if nid != "" and game.progress.route_lock_text(game.index.route(nid), game.index) == "":
 			r.next = nid
 	overlay.result = r
+	overlay.result_ms = Time.get_ticks_msec()
 	attempt.start(session.falls)
 
 
@@ -893,6 +930,7 @@ func _draw_hud(size: Vector2) -> void:
 	overlay.pause_rect = top_btns.pause
 	overlay.detail_rect = top_btns.detail if warnings else Rect2()
 	_draw_grip_warnings()
+	_draw_preview_labels()
 	if not detail_mode and not paused and warnings:
 		_draw_notice(size, ph)
 	var y := size.y - 20 * ui_k
@@ -923,6 +961,7 @@ func _draw_hud(size: Vector2) -> void:
 		var ga := clampf(float(_grip_label.left) * 2.0, 0.0, 1.0)
 		_outlined(Vector2(gp.x - 100 * ui_k, gp.y), str(_grip_label.text), 22, 200 * ui_k, Color(_grip_label.color, ga))
 	overlay.draw(self, size, ui_k, paused, session.selecting)
+	_draw_confetti()  # 결과 카드 위로도 떨어진다
 	if paused and not overlay.blocking():
 		overlay.add_buttons(hud.draw_pause(self, size, ui_k, prepare_left, overlay.has_list))
 	elif not paused and not overlay.blocking():
@@ -1757,3 +1796,72 @@ func _feel_tick() -> void:
 		if f.puff != &"" and session.limbs.has(StringName(ev.get("limb", &""))):
 			puffs.append({"pos": session.limbs[StringName(ev.limb)].pos, "kind": f.puff})
 	_feel_seq = session.event_seq
+
+
+## 일반 문제 시작·다시: 탑이 보이는 높이에서 시작 높이까지 카메라를 내린다(RoutePreview). 튜토리얼은 생략.
+func _start_preview() -> void:
+	route_preview = null
+	if tutorial != null or route.mode != "general" or route.goal_slots.is_empty():
+		return
+	var gy := 0.0
+	for key in route.goal_slots:
+		gy = maxf(gy, (route.slots[key].pos as Vector2).y)
+	var start_cam := cam_y
+	var top := maxf(start_cam, gy - 0.3 * PLAY_H)
+	if top - start_cam < 0.05:
+		return  # 탑이 이미 보이면 생략
+	route_preview = RoutePreview.new(top, start_cam)
+	cam_y = top
+
+
+## 완등 축하 시작: 팡파레, 진동 60ms → 0.1초 → 120ms, 좌우 위 모서리 색종이, 1.5초 뒤 결과 카드.
+func _celebrate() -> void:
+	_apply(router.cancel_all())
+	celebrate_left = CELEBRATE_SECONDS
+	message_ticks = 0  # 남아 있던 안내 문구를 지운다
+	_play("fanfare")
+	_vibrate(60)
+	get_tree().create_timer(0.16).timeout.connect(_vibrate.bind(120))
+	var size := get_viewport_rect().size
+	for side in [0, 1]:
+		for i in 50:
+			var ang := deg_to_rad(randf_range(10.0, 65.0))
+			var sp := randf_range(500.0, 1300.0) * ui_k
+			var dir := Vector2(cos(ang) if side == 0 else -cos(ang), sin(ang))
+			confetti.append({"p": Vector2(0.0 if side == 0 else size.x, 0.0), "v": dir * sp, "rot": randf() * TAU,
+				"spin": randf_range(-9.0, 9.0), "w": randf_range(14.0, 24.0) * ui_k, "h": randf_range(8.0, 14.0) * ui_k,
+				"col": CONFETTI_COLORS[randi() % CONFETTI_COLORS.size()], "age": 0.0, "dot": randf() < 0.3})
+
+
+func _confetti_tick(dt: float) -> void:
+	if confetti.is_empty():
+		return
+	var h := get_viewport_rect().size.y
+	for c in confetti:
+		c.v = (c.v as Vector2) * pow(0.35, dt) + Vector2(0, 700.0 * ui_k * dt)  # 공기 저항 + 중력
+		c.p = (c.p as Vector2) + (c.v as Vector2) * dt
+		c.rot = float(c.rot) + float(c.spin) * dt
+		c.age = float(c.age) + dt
+	confetti = confetti.filter(func(c): return float(c.age) < 4.0 and (c.p as Vector2).y < h + 40.0)
+
+
+func _draw_confetti() -> void:
+	for c in confetti:
+		var a := clampf(4.0 - float(c.age), 0.0, 1.0)
+		var col := Color(c.col, a)
+		if c.dot:
+			draw_circle(c.p, float(c.h) * 0.6, col)
+		else:
+			draw_set_transform(c.p, c.rot, Vector2.ONE)
+			draw_rect(Rect2(-Vector2(c.w, c.h) * 0.5, Vector2(c.w, c.h)), col)
+			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+func _draw_preview_labels() -> void:
+	if route_preview == null:
+		return
+	for key in route.goal_slots:
+		var p := w2s(route.slots[key].pos) + Vector2(0, -46 * ui_k)
+		draw_string_outline(font, p - Vector2(60 * ui_k, 0), "탑", HORIZONTAL_ALIGNMENT_CENTER, 120 * ui_k, int(26 * ui_k), int(6 * ui_k), Color(0.08, 0.06, 0.05, 0.9))
+		draw_string(font, p - Vector2(60 * ui_k, 0), "탑", HORIZONTAL_ALIGNMENT_CENTER, 120 * ui_k, int(26 * ui_k), Color("f1d59a"))
+		break
