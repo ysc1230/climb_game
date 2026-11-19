@@ -398,6 +398,7 @@ func _process(delta: float) -> void:
 	if logic == null or logic.session == null:
 		return
 	_update_camera()
+	_spawn_puffs()
 	var t := _pose_targets(delta)
 	if skeleton:
 		_pose_model(t, delta)
@@ -738,3 +739,35 @@ func limb_chain_screen(limb: StringName) -> PackedVector2Array:
 			return PackedVector2Array()
 		out.append(camera.unproject_position((skeleton.global_transform * skeleton.get_bone_global_pose(i)).origin))
 	return out
+
+
+## 잡을 때 초크 가루·발 먼지(표현만, docs/superpowers/specs/2026-11-19-1-feel-design.md §1.4). logic.puffs를 가져가 비운다.
+func _spawn_puffs() -> void:
+	for p in logic.puffs:
+		var kind: StringName = p.kind
+		var e := CPUParticles3D.new()
+		e.one_shot = true
+		e.emitting = false
+		e.amount = {&"chalk": 12, &"chalk_small": 6, &"dust": 6}.get(kind, 8)
+		e.lifetime = 0.4
+		e.explosiveness = 0.95
+		e.direction = Vector3(0, 0.3, 1)
+		e.spread = 70.0
+		e.initial_velocity_min = 0.15
+		e.initial_velocity_max = 0.45
+		e.gravity = Vector3(0, -0.6, 0)
+		e.scale_amount_min = 0.6
+		e.scale_amount_max = 1.2
+		var m := SphereMesh.new()
+		m.radius = 0.008
+		m.height = 0.016
+		e.mesh = m
+		var col := Color(1, 1, 1, 0.85) if kind != &"dust" else Color(0.72, 0.66, 0.6, 0.7)
+		var pm := _unshaded(col)
+		pm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		e.material_override = pm
+		e.position = Vector3((p.pos as Vector2).x, (p.pos as Vector2).y, CONTACT_DEPTH + 0.06)
+		add_child(e)
+		e.emitting = true
+		get_tree().create_timer(1.0).timeout.connect(e.queue_free)
+	logic.puffs.clear()

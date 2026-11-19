@@ -51,6 +51,10 @@ var px_per_m := 100.0
 var wall_origin := Vector2.ZERO  # 월드 (0, cam_y)가 놓일 화면 위치
 var log_lines: PackedStringArray = []
 ## 손 힘 경고 단계(GripWarning) 손마다. 붙은 손만 경고, 떠 있으면 NONE.
+## 잡는 손맛(GrabFeel): 마지막으로 본 사건 seq, 겹침 막기, 3D가 가져가 터뜨릴 가루 [{pos: Vector2, kind}].
+var _feel_seq := 0
+var _feel_gate := GrabFeel.Gate.new()
+var puffs: Array = []
 var grip_level := {PoseSolver.LH: GripWarning.NONE, PoseSolver.RH: GripWarning.NONE}
 ## false이면 벽·홀드·인형을 그리지 않고 패드·HUD만 그린다(3D 표현 계층이 월드를 그림).
 var draw_world := true
@@ -204,13 +208,13 @@ func _flash(text: String, ticks := 120) -> void:
 
 ## 효과음과 화면 가장자리 빛 텍스처를 만든다.
 func _build_feedback() -> void:
-	for name in ["heartbeat", "heartbeat2", "danger", "caution", "recover", "grip_low"]:
+	for name in ["heartbeat", "heartbeat2", "danger", "caution", "recover", "grip_low", "grab_big", "grab_mid", "grab_small", "step_foot", "miss"]:
 		var path := "res://art/sfx/%s.wav" % ("heartbeat" if name == "heartbeat2" else name)
 		if not ResourceLoader.exists(path):
 			continue
 		var pl := AudioStreamPlayer.new()
 		pl.stream = load(path)
-		pl.volume_db = {"heartbeat": -2.0, "heartbeat2": -9.0, "danger": -4.0, "caution": -8.0, "recover": -6.0, "grip_low": -6.0}[name]
+		pl.volume_db = {"heartbeat": -2.0, "heartbeat2": -9.0, "danger": -4.0, "caution": -8.0, "recover": -6.0, "grip_low": -6.0, "grab_big": -4.0, "grab_mid": -5.0, "grab_small": -6.0, "step_foot": -8.0, "miss": -12.0}[name]
 		add_child(pl)
 		_sfx[name] = pl
 	var g := Gradient.new()
@@ -599,6 +603,7 @@ func _physics_process(_delta: float) -> void:
 		queue_redraw()
 		return
 	var result := session.step()
+	_feel_tick()
 	_hud_tick(_delta)
 	_balance_tick(_delta)
 	if result.begins_with("fall:"):
@@ -1733,3 +1738,22 @@ func _draw_grip_warnings() -> void:
 			var t := "%s %d%%" % ["왼손" if hand == PoseSolver.LH else "오른손", roundi(float(session.rules.stamina[hand]))]
 			draw_string_outline(font, c + Vector2(-80 * ui_k, -r - 8 * ui_k), t, HORIZONTAL_ALIGNMENT_CENTER, 160 * ui_k, int(20 * ui_k), int(5 * ui_k), Color(0.08, 0.06, 0.05, 0.9))
 			draw_string(font, c + Vector2(-80 * ui_k, -r - 8 * ui_k), t, HORIZONTAL_ALIGNMENT_CENTER, 160 * ui_k, int(20 * ui_k), col)
+
+
+## 이번 틱에 새로 생긴 잡기·헛놓기 사건으로 소리·진동·가루(GrabFeel, docs/superpowers/specs/2026-11-19-1-feel-design.md §1.4).
+func _feel_tick() -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	for ev in session.technique_log:
+		if int(ev.seq) <= _feel_seq:
+			continue
+		var key := str(ev.get("key", ""))
+		var f := GrabFeel.pick(ev, route.slots.get(key, {}))
+		if f.is_empty():
+			continue
+		if _feel_gate.allow(f.sound, now):
+			_play(str(f.sound))
+		if int(f.vib_ms) > 0 and _feel_gate.allow_vibe(now):
+			_vibrate(int(f.vib_ms), float(f.vib_amp))
+		if f.puff != &"" and session.limbs.has(StringName(ev.get("limb", &""))):
+			puffs.append({"pos": session.limbs[StringName(ev.limb)].pos, "kind": f.puff})
+	_feel_seq = session.event_seq
