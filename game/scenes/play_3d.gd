@@ -425,6 +425,16 @@ func _pose_targets(delta: float) -> Dictionary:
 		for key in TREMBLE_KEYS:
 			if t.has(key):
 				t[key] = (t[key] as Vector3) + off
+	# 손 힘 경고 떨림(GripWarning, 표현만): 그 손의 팔꿈치 아래만 흔든다
+	for hand in [PoseSolver.LH, PoseSolver.RH]:
+		var tr := GripWarning.tremble(int(logic.grip_level[hand])) if logic.warnings else Vector2.ZERO
+		if tr.x > 0.0:
+			var s2 := Time.get_ticks_msec() / 1000.0
+			var o := Vector3(sin(TAU * tr.y * s2), sin(TAU * tr.y * s2 * 1.31 + 0.7), 0) * tr.x
+			var side := "L" if hand == PoseSolver.LH else "R"
+			for key in ["wrist_" + side, "hand_" + side]:
+				if t.has(key):
+					t[key] = (t[key] as Vector3) + o
 	return t
 
 

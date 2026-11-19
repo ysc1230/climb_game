@@ -50,6 +50,8 @@ var ui_k := 1.0
 var px_per_m := 100.0
 var wall_origin := Vector2.ZERO  # 월드 (0, cam_y)가 놓일 화면 위치
 var log_lines: PackedStringArray = []
+## 손 힘 경고 단계(GripWarning) 손마다. 붙은 손만 경고, 떠 있으면 NONE.
+var grip_level := {PoseSolver.LH: GripWarning.NONE, PoseSolver.RH: GripWarning.NONE}
 ## false이면 벽·홀드·인형을 그리지 않고 패드·HUD만 그린다(3D 표현 계층이 월드를 그림).
 var draw_world := true
 ## 월드(m) ↔ 화면(px) 변환. play_3d가 카메라 투영으로 덮어쓴다. 비면 2D 변환을 쓴다.
@@ -202,13 +204,13 @@ func _flash(text: String, ticks := 120) -> void:
 
 ## 효과음과 화면 가장자리 빛 텍스처를 만든다.
 func _build_feedback() -> void:
-	for name in ["heartbeat", "heartbeat2", "danger", "caution", "recover"]:
+	for name in ["heartbeat", "heartbeat2", "danger", "caution", "recover", "grip_low"]:
 		var path := "res://art/sfx/%s.wav" % ("heartbeat" if name == "heartbeat2" else name)
 		if not ResourceLoader.exists(path):
 			continue
 		var pl := AudioStreamPlayer.new()
 		pl.stream = load(path)
-		pl.volume_db = {"heartbeat": -2.0, "heartbeat2": -9.0, "danger": -4.0, "caution": -8.0, "recover": -6.0}[name]
+		pl.volume_db = {"heartbeat": -2.0, "heartbeat2": -9.0, "danger": -4.0, "caution": -8.0, "recover": -6.0, "grip_low": -6.0}[name]
 		add_child(pl)
 		_sfx[name] = pl
 	var g := Gradient.new()
@@ -518,6 +520,16 @@ func _hud_tick(real_dt: float) -> void:
 		var v: float = session.rules.stamina[hand]
 		_stam_up[hand] = v > float(_stam_prev.get(hand, v)) + 0.0001
 		_stam_prev[hand] = v
+		var prev: int = grip_level[hand]
+		var lv: int = GripWarning.level(v, prev) if session.attached().has(hand) else GripWarning.NONE
+		grip_level[hand] = lv
+		if lv > prev and warnings:  # 들어가는 순간만 진동·소리(고급은 게이지만)
+			if lv == GripWarning.DANGER:
+				_vibrate(40)
+				get_tree().create_timer(0.12).timeout.connect(_vibrate.bind(40))
+				_play("grip_low")
+			else:
+				_vibrate(30)
 	_notice_left = maxf(0.0, _notice_left - real_dt)
 	var mv: String = session.rules.moves.korean()
 	if mv != _last_move:
@@ -800,7 +812,7 @@ func _draw_pads(size: Vector2) -> void:
 			draw_arc(p.center, p.radius + 8 * ui_k, 0, TAU, 48, Color(1.0, 0.82, 0.3, 0.45 + 0.5 * pl), 6 * ui_k)
 		# 손 패드 바로 위 팔 힘 게이지(기획 §5)
 		if PoseSolver.is_hand(limb):
-			hud.draw_pad_stamina(self, p.center, p.radius, ui_k, float(session.rules.stamina[limb]), bool(_stam_up.get(limb, false)), col, target, not warnings)
+			hud.draw_pad_stamina(self, p.center, p.radius, ui_k, float(session.rules.stamina[limb]), bool(_stam_up.get(limb, false)), col, target, not warnings, int(grip_level[limb]))
 
 
 ## 패드 그림(D패드 모양, 2026-11-13 사용자: 그림만): 네 방향 화살표와 가운데 원, 누르고 있으면 손잡이가 손가락 위치에. 조작은 끌기 그대로.
@@ -875,6 +887,7 @@ func _draw_hud(size: Vector2) -> void:
 	})
 	overlay.pause_rect = top_btns.pause
 	overlay.detail_rect = top_btns.detail if warnings else Rect2()
+	_draw_grip_warnings()
 	if not detail_mode and not paused and warnings:
 		_draw_notice(size, ph)
 	var y := size.y - 20 * ui_k
@@ -1699,3 +1712,24 @@ func _draw_hold_select(size: Vector2) -> void:
 		draw_line(pc + Vector2(-8, -8) * k, pc + Vector2(8, 8) * k, Color("ff8a6a"), 3.0 * k)
 		draw_line(pc + Vector2(-8, 8) * k, pc + Vector2(8, -8) * k, Color("ff8a6a"), 3.0 * k)
 		draw_string(font, pc + Vector2(-140 * k, -20 * k), preview.text, HORIZONTAL_ALIGNMENT_CENTER, 280 * k, int(18 * k), Color("ff8a6a"))
+
+
+## 손 힘 경고: 붙은 손 둘레에 깜빡이는 빛, 위험이면 "왼손 20%"(docs/superpowers/specs/2026-11-19-1-feel-design.md §1.3).
+## 고급(warnings 끔)은 그리지 않는다. 손 그림 색을 바꾸는 대신 손 둘레 빛으로 물들인다(모델이 한 장 텍스처라서).
+func _draw_grip_warnings() -> void:
+	if not warnings:
+		return
+	for hand in [PoseSolver.LH, PoseSolver.RH]:
+		var lv: int = grip_level[hand]
+		if lv == GripWarning.NONE:
+			continue
+		var c := w2s(session.limbs[hand].pos)
+		var on := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * GripWarning.blink_hz(lv))
+		var col := Color("ff5a3c") if lv == GripWarning.DANGER else Color("ff9a3c")
+		var r := (34.0 if lv == GripWarning.DANGER else 28.0) * ui_k
+		draw_circle(c, r, Color(col, 0.18 + 0.25 * on))
+		draw_arc(c, r, 0, TAU, 32, Color(col, 0.55 + 0.4 * on), 3.0 * ui_k)
+		if lv == GripWarning.DANGER:
+			var t := "%s %d%%" % ["왼손" if hand == PoseSolver.LH else "오른손", roundi(float(session.rules.stamina[hand]))]
+			draw_string_outline(font, c + Vector2(-80 * ui_k, -r - 8 * ui_k), t, HORIZONTAL_ALIGNMENT_CENTER, 160 * ui_k, int(20 * ui_k), int(5 * ui_k), Color(0.08, 0.06, 0.05, 0.9))
+			draw_string(font, c + Vector2(-80 * ui_k, -r - 8 * ui_k), t, HORIZONTAL_ALIGNMENT_CENTER, 160 * ui_k, int(20 * ui_k), col)

@@ -129,7 +129,8 @@ func _progress(ci: CanvasItem, r: Rect2, k: float, best: float, now: float) -> v
 ## 손 패드 바로 위 팔 힘 게이지(기획 §5). 입력은 받지 않는다. 좌우는 패드 테두리 색(side_col)으로 얇게 테두리.
 ## 정상: 바만 / 힘 부족(< 45): 숫자 + "!" / 위험(< 20): 빨강 + 굵은 테두리 / 회복 중: 위 화살표.
 ## plain(고급): 바만 그린다(숫자·"!"·빨간 테두리 경고 없음).
-func draw_pad_stamina(ci: CanvasItem, pad_center: Vector2, pad_r: float, k: float, value: float, recovering: bool, side_col: Color, highlight := false, plain := false) -> void:
+## warn_level(GripWarning): 주의·위험이면 바 테두리가 깜빡인다(고급에서도 — docs/superpowers/specs/2026-11-19-1-feel-design.md §1.3).
+func draw_pad_stamina(ci: CanvasItem, pad_center: Vector2, pad_r: float, k: float, value: float, recovering: bool, side_col: Color, highlight := false, plain := false, warn_level := 0) -> void:
 	var w := pad_r * 2.0
 	var bh := 14.0 * k
 	var r := Rect2(Vector2(pad_center.x - pad_r, pad_center.y - pad_r - 22 * k - bh), Vector2(w, bh))
@@ -140,7 +141,13 @@ func draw_pad_stamina(ci: CanvasItem, pad_center: Vector2, pad_r: float, k: floa
 	var col := GOOD if value >= 45.0 else (WARN if value >= 20.0 else BAD)
 	if f > 0.0:
 		panel(ci, Rect2(r.position, Vector2(maxf(4 * k, r.size.x * f), r.size.y)), k, col, Color(0, 0, 0, 0), 6)
-	if danger or highlight:
+	if warn_level > GripWarning.NONE:
+		var on := sin(Time.get_ticks_msec() / 1000.0 * TAU * GripWarning.blink_hz(warn_level)) > 0.0
+		var wc := BAD if warn_level == GripWarning.DANGER else WARN
+		if on:
+			ci.draw_rect(r.grow(6 * k), Color(wc, 0.95), false, 4.0 * k)
+			panel(ci, r, k, Color(wc, 0.35), Color(0, 0, 0, 0), 6)
+	elif danger or highlight:
 		ci.draw_rect(r.grow(6 * k), Color(BAD, 0.9) if danger else Color(GOLD, 0.9), false, 2.5 * k)
 	var ty := r.position.y - 8 * k
 	if low:
