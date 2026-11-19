@@ -9,7 +9,9 @@ const INK := Color("302820")
 var font: Font
 ## 비어 있지 않으면 결과 오버레이 {seconds, falls, no_fall, time, time_limit, next, saved}.
 var result := {}
-var result_ms := 0  # 결과 카드가 뜬 시각(아래에서 0.25초 동안 올라옴)
+var result_ms := 0
+## 떨어진 뒤 조언 카드 {cause, advice}. 화면 어디를 눌러도 다시 시작.
+var fall_card := {}  # 결과 카드가 뜬 시각(아래에서 0.25초 동안 올라옴)
 ## 비어 있지 않으면 튜토리얼 시작 설명 카드 {title, purpose, when, how}. 탭하면 사라진다(그동안 플레이 멈춤).
 var tutorial: TutorialRunner
 var tutorial_done := false
@@ -29,7 +31,7 @@ var detail_rect := Rect2()  # 위쪽 [i] 상세 정보 버튼 자리
 
 ## 결과·완료 화면이 떠 있어 플레이를 멈추는가.
 func blocking() -> bool:
-	return not result.is_empty() or tutorial_done
+	return not result.is_empty() or tutorial_done or not fall_card.is_empty()
 
 
 ## 다른 곳(hud.gd)이 그린 버튼을 누름 판정에 넣는다.
@@ -39,6 +41,8 @@ func add_buttons(list: Array) -> void:
 
 ## 마지막으로 그린 버튼 중 pos를 덮는 것의 동작. 없으면 "".
 func tap(pos: Vector2) -> String:
+	if not fall_card.is_empty():
+		return "fall_retry"
 	for i in range(_buttons.size() - 1, -1, -1):
 		var b: Dictionary = _buttons[i]
 		if b.has("circle"):  # 동그란 버튼 [중심, 반지름](위험 게이지 자동 도움)
@@ -60,6 +64,9 @@ func draw(ci: CanvasItem, size: Vector2, k: float, paused: bool, selecting: bool
 	_buttons = []
 	if not result.is_empty():
 		_draw_result(ci, size, k)
+		return
+	if not fall_card.is_empty():
+		_draw_fall_card(ci, size, k)
 		return
 	if tutorial_done:
 		_draw_done(ci, size, k)
@@ -196,3 +203,20 @@ func _button(ci: CanvasItem, r: Rect2, text: String, action: String, k: float, s
 	var size := int(fs * k)
 	ci.draw_string(font, Vector2(r.position.x, r.position.y + r.size.y * 0.5 + size * 0.35), text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, size, INK if strong else Color.WHITE)
 	_buttons.append({"rect": r, "action": action})
+
+
+## 떨어진 뒤 조언 카드(화면 위쪽 가운데): 원인 한 줄 + 다음에 할 일 한 줄 + "눌러서 다시".
+func _draw_fall_card(ci: CanvasItem, size: Vector2, k: float) -> void:
+	var w := minf(900.0 * k, size.x - 40 * k)
+	var h := (150.0 if str(fall_card.get("advice", "")) != "" else 110.0) * k
+	var panel := Rect2(Vector2((size.x - w) * 0.5, 110 * k), Vector2(w, h))  # 위쪽: 매트에 떨어진 캐릭터를 가리지 않게
+	ci.draw_rect(panel, Color(0.12, 0.11, 0.1, 0.94))
+	ci.draw_rect(panel, CREAM, false, 3.0)
+	var x := panel.position.x + 28 * k
+	var tw := w - 56 * k
+	var y := panel.position.y + 44 * k
+	ci.draw_string(font, Vector2(x, y), "! " + str(fall_card.cause), HORIZONTAL_ALIGNMENT_LEFT, tw, int(24 * k), Color("ff9a7a"))
+	if str(fall_card.get("advice", "")) != "":
+		y += 40 * k
+		ci.draw_string(font, Vector2(x, y), "→ " + str(fall_card.advice), HORIZONTAL_ALIGNMENT_LEFT, tw, int(24 * k), Color.WHITE)
+	ci.draw_string(font, Vector2(x, panel.end.y - 18 * k), "화면을 누르면 처음부터 다시", HORIZONTAL_ALIGNMENT_RIGHT, tw, int(18 * k), Color(1, 1, 1, 0.6))

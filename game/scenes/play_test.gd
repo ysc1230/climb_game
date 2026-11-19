@@ -57,6 +57,10 @@ var _feel_gate := GrabFeel.Gate.new()
 var puffs: Array = []
 ## 루트 읽기(RoutePreview, 일반 문제 시작·다시) 진행 중이면 객체, 아니면 null. 그동안 입력·시간 멈춤.
 var route_preview: RoutePreview = null
+## 물리 낙하(docs/superpowers/specs/2026-11-19-1-feel-design.md §1.2): 3D가 가져갈 시작 요청 {hands, first, vel}, 건너뛰기, 조언.
+var fall_request := {}
+var fall_skip := false
+var _fall_advice := {}
 ## 완등 축하(docs/superpowers/specs/2026-11-19-1-feel-design.md §1.1): 남은 초. 0이 되면 결과 카드.
 var celebrate_left := 0.0
 const CELEBRATE_SECONDS := 1.5
@@ -136,6 +140,7 @@ func _ready() -> void:
 	_layout()
 	_after_reset("시작")
 	session.hold_on_clear = tutorial == null  # 완등하면 탑 자세로 멈춰 축하(튜토리얼은 지금 흐름 그대로)
+	session.hold_on_fall = tutorial == null  # 떨어지면 물리 낙하 장면 → 조언 카드
 	_start_preview()
 
 
@@ -401,6 +406,12 @@ func _log(text: String) -> void:
 
 func _input(event: InputEvent) -> void:
 	var press: bool = (event is InputEventScreenTouch or (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT)) and event.pressed
+	if press and (session.falling or session.halted == &"fall") and overlay.fall_card.is_empty():
+		fall_skip = true  # 낙하 장면 건너뛰기
+		if not draw_world:
+			return
+		on_fall_scene_done()
+		return
 	if route_preview != null or celebrate_left > 0.0:
 		if press:  # 누르면 연출을 건너뛴다
 			if route_preview != null:
@@ -468,6 +479,8 @@ func _overlay_action(act: String) -> void:
 			overlay.help_open = not overlay.help_open
 		"retry":
 			_retry()
+		"fall_retry":
+			_fall_retry()
 		"rescue":
 			_rescue()
 		"next_course":
@@ -496,6 +509,7 @@ func _retry() -> void:
 	_start_tutorial()
 	_after_reset("다시 시작")
 	session.hold_on_clear = tutorial == null
+	session.hold_on_fall = tutorial == null
 	_start_preview()
 
 
@@ -635,12 +649,15 @@ func _physics_process(_delta: float) -> void:
 		_danger_tick(_delta, false)  # 위험에 들어가는 순간 잠깐 멈칫(신호용, 판정 틱을 쉰다)
 		queue_redraw()
 		return
+	var hands_before: Array = session.attached().keys().filter(func(l): return PoseSolver.is_hand(l))
 	var result := session.step()
 	_feel_tick()
 	_hud_tick(_delta)
 	_balance_tick(_delta)
 	if result.begins_with("fall:"):
 		_fall_cause = danger.fall_cause(result.trim_prefix("fall:")) if warnings else "떨어졌어요"
+		if session.hold_on_fall:
+			_begin_fall_scene(result.trim_prefix("fall:"), hands_before)
 	_danger_tick(_delta, not session.selecting)
 	best_height = maxf(best_height, _height())
 	_take_messages()
@@ -652,12 +669,20 @@ func _physics_process(_delta: float) -> void:
 	match result:
 		"fall:NO_SUPPORT", "fall:BALANCE_LOST":
 			_apply(router.cancel_all())
-			_flash(_fall_cause, 300)  # 왜 떨어졌는지 한 줄(DangerFeedback.fall_cause)
+			if not session.hold_on_fall:
+				_flash(_fall_cause, 300)  # 조언 카드가 없을 때만(튜토리얼)  # 왜 떨어졌는지 한 줄(DangerFeedback.fall_cause)
 			queue_redraw()
 			return
 		"unresolved":
 			_log("힘 계산 실패: 일시정지")
 			_pause()
+			return
+		"landed":
+			if not draw_world:
+				pass  # 3D 장면이 끝나면 on_fall_scene_done
+			else:
+				on_fall_scene_done()  # 2D 시험 장면: 낙하 연출 없이 바로 카드
+			queue_redraw()
 			return
 		"respawn":
 			best_height = 0.0
@@ -1865,3 +1890,52 @@ func _draw_preview_labels() -> void:
 		draw_string_outline(font, p - Vector2(60 * ui_k, 0), "탑", HORIZONTAL_ALIGNMENT_CENTER, 120 * ui_k, int(26 * ui_k), int(6 * ui_k), Color(0.08, 0.06, 0.05, 0.9))
 		draw_string(font, p - Vector2(60 * ui_k, 0), "탑", HORIZONTAL_ALIGNMENT_CENTER, 120 * ui_k, int(26 * ui_k), Color("f1d59a"))
 		break
+
+
+## 떨어지는 순간: 3D 낙하 인형 요청과 조언(원인 + 다음에 할 일)을 만든다.
+func _begin_fall_scene(reason: String, hands_before: Array) -> void:
+	var first: StringName = danger.last_release.get("limb", &"") if not danger.last_release.is_empty() else &""
+	var v := session.body.vel
+	fall_request = {"hands": hands_before, "first": first, "vel": Vector3(v.x, v.y, 0.0)}
+	var kind := &"BALANCE"
+	if reason == "NO_SUPPORT":
+		kind = &"NO_SUPPORT"
+	if danger.kind == &"BARN_DOOR":
+		kind = &"BARN_DOOR"
+	if bool(danger.last_release.get("slip", false)):
+		kind = &"FATIGUE"
+	var plan := {}
+	var limb_pos := {}
+	var body_pos := session.body.pos
+	if not _safe_pose.is_empty():
+		var tmp := ClimbSession.new(route)
+		tmp.reset_to(_safe_pose)
+		plan = AutoRescue.plan(tmp)
+		body_pos = tmp.body.pos
+		for l in tmp.limbs:
+			limb_pos[l] = tmp.limbs[l].pos
+	var slot_pos := {}
+	for key in route.slots:
+		slot_pos[key] = route.slots[key].pos
+	_fall_advice = {"cause": _fall_cause if _fall_cause != "" else "떨어졌어요",
+		"advice": FallAdvice.text(plan, kind, limb_pos, body_pos, slot_pos) if warnings else ""}
+
+
+## 낙하 장면이 끝남(매트에 멈춤·건너뛰기): 조언 카드를 띄운다.
+func on_fall_scene_done() -> void:
+	if not overlay.fall_card.is_empty() or _fall_advice.is_empty():
+		return
+	overlay.fall_card = _fall_advice
+	queue_redraw()
+
+
+## 조언 카드를 누름: 처음 자세로 다시(새 시도).
+func _fall_retry() -> void:
+	overlay.fall_card = {}
+	_fall_advice = {}
+	fall_request = {}
+	session.reset()
+	attempt.start(session.falls)
+	best_height = 0.0
+	_after_reset("")
+	_fall_cause = ""

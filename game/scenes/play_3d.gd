@@ -173,9 +173,9 @@ func _build_wall() -> void:
 			add_child(panel)
 		y += h
 		i += 1
-	# 바닥 매트
+	# 바닥 매트(윗면 y = MAT_TOP_Y, 낙하 인형이 같은 값을 쓴다)
 	var mat := _mesh(_box(Vector3(9.0, 0.25, 4.0)), _toon(Color("4a5a55"), Color("2c3532")), true)
-	mat.position = Vector3(0, -0.20, 1.6)
+	mat.position = Vector3(0, MAT_TOP_Y - 0.125, 1.6)
 	add_child(mat)
 	# 좌우 비활성 볼륨: 각진 다면체와 측면 벽(공간감, 판정 없음). 벽 판 바깥에 둔다
 	for side in [-1, 1]:
@@ -418,7 +418,7 @@ func _process(delta: float) -> void:
 		return
 	_update_camera()
 	_spawn_puffs()
-	var t := _pose_targets(delta)
+	var t := _fall_targets(delta)
 	if skeleton:
 		_pose_model(t, delta)
 		_update_face()
@@ -430,6 +430,47 @@ func _process(delta: float) -> void:
 
 
 var climber_pose := ClimberPose.new()
+const MAT_TOP_Y := -0.075
+const WALL_Z := 0.02
+## 물리 낙하 장면(FallSim, docs/superpowers/specs/2026-11-19-1-feel-design.md §1.2). logic.fall_request가 오면 시작.
+var fall_sim: FallSim = null
+var _fall_angle := 0.0
+var _last_t := {}
+
+
+## 낙하 장면이면 인형 점, 아니면 평소 목표. 장면이 끝나면 logic에 알린다.
+func _fall_targets(delta: float) -> Dictionary:
+	if not logic.fall_request.is_empty() and fall_sim == null and not _last_t.is_empty():
+		var req: Dictionary = logic.fall_request
+		var pins := {}
+		for hand in req.hands:
+			var s := "L" if hand == PoseSolver.LH else "R"
+			var at := 0.0 if hand == req.first else FallSim.RELEASE_DELAY
+			pins["hand_" + s] = at
+			pins["wrist_" + s] = at
+		fall_sim = FallSim.new()
+		fall_sim.start(_last_t, req.vel, pins, MAT_TOP_Y, WALL_Z)
+		logic.fall_request = {}
+	if fall_sim != null:
+		if logic.fall_skip:
+			fall_sim.skip()
+			logic.fall_skip = false
+		fall_sim.step(minf(delta, 1.0 / 30.0))
+		var t: Dictionary = fall_sim.points().duplicate()
+		var up := ((t.chest as Vector3) - (t.pelvis as Vector3)).normalized()
+		t["up"] = up
+		_fall_angle = rad_to_deg(atan2(-up.x, up.y))
+		# 카메라가 떨어지는 몸을 따라 내려가 매트가 보이게
+		var want := maxf((t.pelvis as Vector3).y + 0.12 * logic.PLAY_H, 1.6)
+		logic.cam_y = lerpf(logic.cam_y, want, 1.0 - exp(-6.0 * delta))
+		if fall_sim.done():
+			logic.on_fall_scene_done()
+		if logic.session.halted != &"fall" and not logic.session.falling:
+			fall_sim = null  # 다시 시작됨
+		return t
+	var t := _pose_targets(delta)
+	_last_t = t
+	return t
 
 
 const TREMBLE_KEYS := ["pelvis", "spine", "chest", "neck", "head", "head_top", "shoulder_L", "shoulder_R", "hip_L", "hip_R"]
@@ -493,7 +534,7 @@ func _pose_model(t: Dictionary, delta: float) -> void:
 		if t[key] is Vector3 and key != "up":
 			local[key] = inv * (t[key] as Vector3)
 	var free_feet := {"L": ClimberPose._free(logic.session, &"LF"), "R": ClimberPose._free(logic.session, &"RF")}
-	var frames := rig.solve(local, logic.session.body.angle, logic.session.body.yaw, free_feet)
+	var frames := rig.solve(local, _fall_angle if fall_sim != null else logic.session.body.angle, logic.session.body.yaw, free_feet)
 	_apply_look(frames, inv, delta)
 	_grip_hands(frames, delta)
 	for name in RigPose.bone_names():
