@@ -36,3 +36,13 @@ func test_feel_dedupe_same_window() -> void:
 	runner.check(g.allow(&"step_foot", 0.091), "다른 소리는 따로")
 	runner.check(g.allow_vibe(0.00), "처음 진동")
 	runner.check(not g.allow_vibe(0.05), "0.08초 안 진동 하나만")
+
+
+## 한 틱에 여러 손발이 잡으면 가장 센 것 하나만(소리·진동, 작업 1 최종 검토 #4).
+func test_strongest_of_tick() -> void:
+	var foot := {"sound": &"step_foot", "vib_ms": 12, "vib_amp": 0.3, "puff": &"dust"}
+	var big := {"sound": &"grab_big", "vib_ms": 22, "vib_amp": 0.7, "puff": &"chalk"}
+	var miss := {"sound": &"miss", "vib_ms": 0, "vib_amp": 0.0, "puff": &""}
+	runner.check(GrabFeel.strongest([foot, big]) == big, "발보다 큰 손홀드")
+	runner.check(GrabFeel.strongest([miss, foot]) == foot, "헛놓기보다 발")
+	runner.check(GrabFeel.strongest([]).is_empty(), "없으면 빈 것")

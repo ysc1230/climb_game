@@ -204,6 +204,8 @@ func _reset(reason: String) -> void:
 
 ## 세션이 다시 시작된 뒤 표시 쪽 정리(입력 초기화·카메라·문구).
 func _after_reset(reason: String, ticks := 120) -> void:
+	for hand in grip_level:
+		grip_level[hand] = GripWarning.NONE  # 지난 시도의 손 힘 경고를 남기지 않는다
 	_close_ui()
 	router.cancel_all()
 	cam_y = session.body.pos.y + 0.12 * PLAY_H
@@ -406,13 +408,17 @@ func _log(text: String) -> void:
 
 func _input(event: InputEvent) -> void:
 	var press: bool = (event is InputEventScreenTouch or (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT)) and event.pressed
-	if press and (session.falling or session.halted == &"fall") and overlay.fall_card.is_empty():
+	if press and session.hold_on_fall and (session.falling or session.halted == &"fall") and overlay.fall_card.is_empty():
 		fall_skip = true  # 낙하 장면 건너뛰기
 		if not draw_world:
 			return
 		on_fall_scene_done()
 		return
 	if route_preview != null or celebrate_left > 0.0:
+		if event is InputEventScreenTouch and not event.pressed:
+			_overlay_event(event.index, event.position, false)  # [다시] 등을 누른 손가락의 뗌: 삼킴 표시를 지운다
+		elif event is InputEventMouseButton and not event.pressed:
+			_overlay_event(-1, event.position, false)
 		if press:  # 누르면 연출을 건너뛴다
 			if route_preview != null:
 				route_preview.skip()
@@ -598,6 +604,8 @@ func _notification(what: int) -> void:
 
 
 func _pause(manual := false) -> void:
+	if route_preview != null or celebrate_left > 0.0:
+		return  # 루트 읽기·축하는 짧고 판정이 멈춰 있다. 여기서 멈추면 둘 다 끝나지 않아 갇힌다(작업 1 최종 검토)
 	if paused or overlay.blocking() or (not manual and OS.get_cmdline_user_args().has("--no-auto-pause")):
 		return
 	_close_ui()
@@ -1807,6 +1815,7 @@ func _draw_grip_warnings() -> void:
 ## 이번 틱에 새로 생긴 잡기·헛놓기 사건으로 소리·진동·가루(GrabFeel, docs/superpowers/specs/2026-11-19-1-feel-design.md §1.4).
 func _feel_tick() -> void:
 	var now := Time.get_ticks_msec() / 1000.0
+	var feels: Array = []
 	for ev in session.technique_log:
 		if int(ev.seq) <= _feel_seq:
 			continue
@@ -1814,13 +1823,16 @@ func _feel_tick() -> void:
 		var f := GrabFeel.pick(ev, route.slots.get(key, {}))
 		if f.is_empty():
 			continue
-		if _feel_gate.allow(f.sound, now):
-			_play(str(f.sound))
-		if int(f.vib_ms) > 0 and _feel_gate.allow_vibe(now):
-			_vibrate(int(f.vib_ms), float(f.vib_amp))
+		feels.append(f)
 		if f.puff != &"" and session.limbs.has(StringName(ev.get("limb", &""))):
 			puffs.append({"pos": session.limbs[StringName(ev.limb)].pos, "kind": f.puff})
 	_feel_seq = session.event_seq
+	var top := GrabFeel.strongest(feels)  # 한 틱에 소리·진동은 가장 센 것 하나(가루는 손발마다)
+	if not top.is_empty():
+		if _feel_gate.allow(top.sound, now):
+			_play(str(top.sound))
+		if int(top.vib_ms) > 0 and _feel_gate.allow_vibe(now):
+			_vibrate(int(top.vib_ms), float(top.vib_amp))
 
 
 ## 일반 문제 시작·다시: 탑이 보이는 높이에서 시작 높이까지 카메라를 내린다(RoutePreview). 튜토리얼은 생략.
@@ -1932,6 +1944,9 @@ func on_fall_scene_done() -> void:
 ## 조언 카드를 누름: 처음 자세로 다시(새 시도).
 func _fall_retry() -> void:
 	overlay.fall_card = {}
+	fall_skip = false
+	paused = false
+	prepare_left = 0.0
 	_fall_advice = {}
 	fall_request = {}
 	session.reset()

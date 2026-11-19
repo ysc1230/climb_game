@@ -89,3 +89,12 @@ func test_fallsim_skip_and_resume() -> void:
 	sim.skip()
 	runner.check(sim.done(), "건너뛰면 끝")
 	runner.check(_all_ok(sim), "끝 자세도 매트 위")
+
+
+## 뼈대 점이 아닌 값("up" 방향 등)은 인형에 넣지 않는다(작업 1 최종 검토 #7).
+func test_fallsim_ignores_non_skeleton_keys() -> void:
+	var t := _pose()
+	t["up"] = Vector3(0, 1, 0)
+	var sim := FallSim.new()
+	sim.start(t, Vector3.ZERO, {}, MAT, WALL)
+	runner.check(not sim.points().has("up"), "up은 점이 아님")

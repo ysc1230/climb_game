@@ -25,6 +25,15 @@ static func pick(ev: Dictionary, slot: Dictionary) -> Dictionary:
 	return {}
 
 
+## 한 틱의 손맛들 중 가장 센 것(진동 세기, 같으면 앞의 것). 한 틱에 소리·진동은 이것 하나만.
+static func strongest(feels: Array) -> Dictionary:
+	var best := {}
+	for f in feels:
+		if best.is_empty() or float(f.vib_amp) > float(best.vib_amp):
+			best = f
+	return best
+
+
 ## 같은 소리·진동 겹침 막기.
 class Gate:
 	var _last := {}

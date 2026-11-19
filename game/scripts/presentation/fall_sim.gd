@@ -43,8 +43,12 @@ func start(points: Dictionary, vel: Vector3, pins: Dictionary, mat_top_y: float,
 	_pins = pins.duplicate()
 	_pos = {}
 	_prev = {}
+	var names := {}
+	for e in EDGES:
+		names[e[0]] = true
+		names[e[1]] = true
 	for k in points:
-		if points[k] is Vector3:
+		if points[k] is Vector3 and names.has(k):  # "up" 같은 방향 값은 점이 아니다
 			var p: Vector3 = points[k]
 			p.y = maxf(p.y, _mat)
 			p.z = maxf(p.z, _wall)
