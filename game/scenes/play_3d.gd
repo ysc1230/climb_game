@@ -33,6 +33,7 @@ func _ready() -> void:
 	logic = $UI/PlayTest
 	logic.draw_world = false
 	logic.w2s_fn = world_to_screen
+	logic.limb_chain_fn = limb_chain_screen
 	logic.s2w_fn = screen_to_wall
 	_build_environment()
 	_build_wall()
@@ -710,3 +711,20 @@ func _update_foot_marks() -> void:
 		var flag: bool = l.state == "Flag" or (l.state == "Dragging" and logic.session.rules.flag_ready.has(foot))
 		flag_marks[foot].visible = flag
 		flag_marks[foot].position = Vector3(p.x, p.y + 0.12, Tuning.CONTACT_DEPTH + 0.12 + (float(l.flag_depth) if l.state == "Flag" else 0.0))
+
+
+## 팔다리 뼈대의 화면 점(팔: 어깨·팔꿈치·손목, 다리: 엉덩이·무릎·발목). 2D 겹쳐 그리기용(docs/49 팔다리 힘 분포).
+const LIMB_CHAINS := {&"LH": ["upperarm_L", "forearm_L", "hand_L"], &"RH": ["upperarm_R", "forearm_R", "hand_R"],
+	&"LF": ["thigh_L", "shin_L", "foot_L"], &"RF": ["thigh_R", "shin_R", "foot_R"]}
+
+
+func limb_chain_screen(limb: StringName) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	if skeleton == null or camera == null:
+		return out
+	for b in LIMB_CHAINS[limb]:
+		var i := skeleton.find_bone(b)
+		if i < 0:
+			return PackedVector2Array()
+		out.append(camera.unproject_position((skeleton.global_transform * skeleton.get_bone_global_pose(i)).origin))
+	return out

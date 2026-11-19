@@ -54,6 +54,7 @@ var log_lines: PackedStringArray = []
 var draw_world := true
 ## 월드(m) ↔ 화면(px) 변환. play_3d가 카메라 투영으로 덮어쓴다. 비면 2D 변환을 쓴다.
 var w2s_fn := Callable()
+var limb_chain_fn := Callable()  # 3D 장면이 주는 팔다리 뼈대 화면 점(없으면 2D 판정 관절로)
 var s2w_fn := Callable()
 ## 자동 로드 Game(없으면 null). 이름으로 직접 부르지 않는다(헤드리스 테스트에서 자동 로드가 없을 수 있음).
 var game: Node
@@ -1015,21 +1016,49 @@ func _near_hold(p: Vector2, r: float) -> bool:
 	return false
 
 
-## 팔다리 힘 분포: 네 패드 둘레에 그 손발이 받치는 몸무게 몫(호 + %). 붙지 않은 손발은 "–".
-## 벽 위에는 그리지 않는다(홀드를 가리지 않게). 패드 색 = 그 손발 색.
+## 팔다리 힘 분포(2026-11-19 사용자 결정 "뼈대 막대"): 팔(어깨·팔꿈치·손목)·다리(엉덩이·무릎·발목)를 막대로 그리고,
+## 그 손발이 받치는 몸무게 몫(합 100%)으로 색을 입힌다. 0% 연회색 → 15% 초록 → 35% 노랑 → 55% 이상 주황빨강.
+## 숫자는 팔꿈치 바깥 위, 무릎 바깥 아래(팔·다리 글자가 겹치지 않게). 뗀 손발은 가는 흰 막대와 "–".
+const LOAD_STOPS := [[0.0, Color("dcd6cc")], [0.15, Color("8fd18a")], [0.35, Color("f3c94f")], [0.55, Color("f0663f")]]
+
+
+static func load_color(x: float) -> Color:
+	for i in LOAD_STOPS.size() - 1:
+		if x <= LOAD_STOPS[i + 1][0]:
+			return (LOAD_STOPS[i][1] as Color).lerp(LOAD_STOPS[i + 1][1], (x - LOAD_STOPS[i][0]) / (LOAD_STOPS[i + 1][0] - LOAD_STOPS[i][0]))
+	return LOAD_STOPS[-1][1]
+
+
+func _limb_chain(limb: StringName) -> PackedVector2Array:
+	if limb_chain_fn.is_valid():
+		var pts: PackedVector2Array = limb_chain_fn.call(limb)
+		if pts.size() == 3:
+			return pts
+	var b := session.body
+	var j := PoseSolver.joint_position(b.pos, b.angle, limb, b.yaw)
+	var e: Vector2 = session.limbs[limb].pos
+	var hand := PoseSolver.is_hand(limb)
+	var mid := _two_bone(j, e, Tuning.ARM_UPPER if hand else Tuning.LEG_UPPER, Tuning.ARM_LOWER if hand else Tuning.LEG_LOWER, PoseSolver.side_sign(limb))
+	return PackedVector2Array([w2s(j), w2s(mid), w2s(e)])
+
+
 func _draw_loads() -> void:
 	var loads := session.limb_loads()
-	for limb in router.pads:
-		var p: Dictionary = router.pads[limb]
-		var r: float = p.radius + 13 * ui_k
-		var c: Vector2 = p.center
-		var on: bool = session.attached().has(limb)
-		var ld: float = loads.get(limb, 0.0)
-		draw_arc(c, r, 0, TAU, 64, Color(0, 0, 0, 0.35), 8 * ui_k, true)
-		if on and ld > 0.005:
-			draw_arc(c, r, -PI / 2, -PI / 2 + TAU * clampf(ld, 0.0, 1.0), 64, LIMB_COLORS[limb], 6 * ui_k, true)
-		var t := ("%d%%" % roundi(ld * 100.0)) if on else "–"
-		_outlined(Vector2(c.x - 60 * ui_k, c.y + p.radius * 0.45), t, 20, 120 * ui_k, Color(1, 1, 1, 0.95))
+	var att := session.attached()
+	for limb in [&"LF", &"RF", &"LH", &"RH"]:
+		var pts := _limb_chain(limb)
+		var on: bool = att.has(limb)
+		var x: float = loads.get(limb, 0.0)
+		var col := load_color(x) if on else Color(1, 1, 1, 0.45)
+		var wdt := (9.0 if on else 5.0) * ui_k
+		draw_polyline(pts, Color(BAL_INK, 0.85), wdt + 5 * ui_k, true)
+		draw_polyline(pts, col, wdt, true)
+		for p in pts:
+			draw_circle(p, wdt * 0.75, BAL_INK)
+			draw_circle(p, wdt * 0.45, col)
+		var side := PoseSolver.side_sign(limb)
+		var lp: Vector2 = pts[1] + Vector2(side * 46 * ui_k, -16 * ui_k if PoseSolver.is_hand(limb) else 24 * ui_k)
+		_outlined(Vector2(lp.x - 40 * ui_k, lp.y + 8 * ui_k), ("%d%%" % roundi(x * 100.0)) if on else "–", 22, 80 * ui_k, col.lightened(0.2) if on else Color.WHITE)
 
 
 ## 경고 화면(docs/18 "떨어지기 전 경고"). 글자를 읽지 않아도 알게: 화면 가장자리 빛, 캐릭터 둘레 남은 시간 고리,
