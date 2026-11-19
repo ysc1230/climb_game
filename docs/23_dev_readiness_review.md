@@ -277,3 +277,7 @@ REF01과의 남은 차이: 실제 리깅 캐릭터와 의상, 손으로 그린 �
 - 크로스 시 몸통 충돌(경로 body-collision 검사, Ruling 8).
 - 실기기(안드로이드) 검증: 기술 선택 UI 터치 조작, 패드 데드포인트 속도 감각, 틱·판단기 비용.
 - 이월된 minor(progress 기록): 판단기 DEADPOINT_* 상수의 Tuning 이전, play_test.gd 분량(약 600줄) tech_ui 분리, 비활성 상태 기술 탭 피드백 등.
+
+### 2026-11-20 작업 1 연출·손맛 (0.9.52)
+
+설계 docs/superpowers/specs/2026-11-19-1-feel-design.md, 계획 docs/superpowers/plans/2026-11-19-feel.md. 판정 수치 변경 없음(6문제 봇 결과 작업 전과 같음). 헤드리스 테스트 324개 통과. 화면은 데스크톱 캡처로만 확인(docs/images/feel_*.png, reach_*.png) — 기기 확인 전.
