@@ -679,7 +679,7 @@ func _curl_fingers(frames: Dictionary, _delta: float) -> void:
 
 
 const LOOK_MAX_DEG := 80.0   # 머리를 돌리는 최대 각
-const LOOK_BACK_DEG := 125.0 # 정상·추락 때 어깨 너머로 돌아보는 각
+const LOOK_BACK_DEG := 125.0 # 정상 때 어깨 너머로 돌아보는 각
 const LOOK_SPEED := 6.0      # 1/s, 목표 방향으로 따라가는 빠르기
 var face_meshes := {}        # 표정 이름 -> MeshInstance3D(FX_face_*)
 var face_now := ""
@@ -727,6 +727,11 @@ func _look_target() -> Variant:
 	return best
 
 
+## 어깨 너머로 돌아보는가: 정상을 잡았을 때만. 떨어질 때·착지 장면은 몸이 벽을 본 채라 머리만 뒤로 돌면 무서워 보여 돌아보지 않는다(2026-11-20 사용자).
+static func looks_back(happy: bool, falling: bool) -> bool:
+	return happy and not falling
+
+
 func _apply_look(frames: Dictionary, inv: Transform3D, delta: float) -> void:
 	if not frames.has("head"):
 		return
@@ -735,8 +740,8 @@ func _apply_look(frames: Dictionary, inv: Transform3D, delta: float) -> void:
 	var target: Variant = _look_target()
 	var body_up0: Vector3 = (head.basis * Vector3.UP).normalized()
 	var side0: Vector3 = (head.basis * Vector3.RIGHT).normalized()
-	if face_now == "happy" or logic.session.falling:
-		# 정상을 잡았을 때·떨어질 때는(떨어지기 직전 경고 중에는 돌아보지 않는다 — 벽을 보고 버텨야 함) 어깨 너머로 카메라 쪽을 돌아본다(표정이 보이는 순간).
+	if looks_back(face_now == "happy", logic.session.falling or fall_sim != null):
+		# 정상을 잡았을 때는 어깨 너머로 카메라 쪽을 돌아본다(표정이 보이는 순간).
 		want = Quaternion(body_up0, deg_to_rad(LOOK_BACK_DEG)) * Quaternion(side0, -0.12)
 	elif target != null:
 		# 옆으로 먼저 돌리고(좌우 1m에 약 80°) 위아래는 조금만 든다. 얼굴이 벽을 보므로 옆으로 돌아야 표정이 보인다.
