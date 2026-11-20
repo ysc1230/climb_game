@@ -220,6 +220,32 @@ func _do(action: String, arg: String) -> void:
 			mine_delete = ""
 		"mine_delete_no":
 			mine_delete = ""
+		"make_view":
+			make_view = arg
+			make_msg = ""
+			_close_input()
+			if arg == "browse" and browse_rows.is_empty():
+				_browse_load(false)
+		"browse_sort":
+			browse_sort = arg
+			_browse_load(false)
+		"browse_grade":
+			browse_grade = arg
+			_browse_load(false)
+		"browse_more":
+			_browse_load(true)
+		"shared_play":
+			_fetch_and_play(arg)
+		"star":
+			_star(int(arg))
+		"report":
+			_report(int(arg))
+		"input_open":
+			_open_input(arg)
+		"input_go":
+			_input_go()
+		"input_close":
+			_close_input()
 		"display":
 			game.get_flow().set_display(arg, not game.progress.display_on(arg))
 		"control":
@@ -688,9 +714,36 @@ var make_msg := ""
 var mine_delete := ""
 
 
+var make_view := "mine"     # "mine" 내 문제 / "browse" 둘러보기(공개 목록)
+var browse_rows: Array = []
+var browse_sort := "stars"
+var browse_grade := ""
+var browse_busy := false
+var browse_more := false
+var my_stars := {}           # 서버 문제 id → true(내가 준 별)
+var _input_edit: LineEdit
+var input_mode := ""         # "code" 코드로 열기 / "nick" 별명 바꾸기
+
+
 func _draw_make(size: Vector2) -> void:
 	var x := 80.0 * k
 	var y := 130.0 * k
+	for v in [["mine", "내 문제"], ["browse", "둘러보기"]]:
+		_button(Rect2(Vector2(x, y), Vector2(170, 56) * k), v[1], "make_view", v[0], 22, make_view == v[0])
+		x += 186 * k
+	_button(Rect2(Vector2(x, y), Vector2(190, 56) * k), "코드로 열기", "input_open", "code", 22)
+	x += 206 * k
+	var nick: String = game.progress.nickname if game.progress.nickname != "" else "(처음 올릴 때 정해요)"
+	_text(Vector2(x + 10 * k, y + 36 * k), "별명: " + nick, 19, DIM)
+	_button(Rect2(Vector2(size.x - 250 * k, y), Vector2(170, 56) * k), "별명 바꾸기", "input_open", "nick", 20)
+	x = 80.0 * k
+	y += 80 * k
+	if input_mode != "":
+		_draw_input(size)
+		return
+	if make_view == "browse":
+		_draw_browse(size, Vector2(x, y))
+		return
 	_button(Rect2(Vector2(x, y), Vector2(240, 64) * k), "+ 새 문제", "edit", "", 26, true)
 	_text(Vector2(x + 270 * k, y + 40 * k), "벽에 홀드를 놓아 문제를 만들고 직접 올라 봐요. 인터넷 없이 이 기기에 저장돼요.", 19, DIM)
 	y += 96 * k
@@ -726,6 +779,185 @@ func _draw_make(size: Vector2) -> void:
 		_text(box.position + Vector2(30, 60) * k, "이 문제를 지울까요? 되돌릴 수 없어요.", 24, Color.WHITE)
 		_button(Rect2(box.position + Vector2(30, 130) * k, Vector2(250, 60) * k), "지우기", "mine_delete_yes", mine_delete, 24, true)
 		_button(Rect2(box.position + Vector2(320, 130) * k, Vector2(250, 60) * k), "그만두기", "mine_delete_no", "", 24)
+
+
+func _draw_browse(size: Vector2, at: Vector2) -> void:
+	var x := at.x
+	var y := at.y
+	if not game.share().enabled():
+		_text(Vector2(x, y + 40 * k), "공유 서버가 아직 준비되지 않았어요.", 22, DIM)
+		return
+	for s in [["stars", "별 많은 순"], ["new", "최신"]]:
+		_button(Rect2(Vector2(x, y), Vector2(150, 48) * k), s[1], "browse_sort", s[0], 19, browse_sort == s[0])
+		x += 160 * k
+	x += 20 * k
+	for g in ["", "V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7"]:
+		_button(Rect2(Vector2(x, y), Vector2(66, 48) * k), "전체" if g == "" else g, "browse_grade", g, 17, browse_grade == g)
+		x += 72 * k
+	y += 64 * k
+	if browse_busy and browse_rows.is_empty():
+		_text(Vector2(at.x, y + 40 * k), "서버 연결 중…", 22, DIM)
+		return
+	if browse_rows.is_empty():
+		_text(Vector2(at.x, y + 40 * k), make_msg if make_msg != "" else "아직 공개된 문제가 없어요.", 21, DIM)
+		return
+	var cw := 470.0 * k
+	var ch := 150.0 * k
+	var cols := 3
+	var shown := mini(browse_rows.size(), 6)
+	for i in shown:
+		var row: Dictionary = browse_rows[i]
+		var r := Rect2(Vector2(at.x + (i % cols) * (cw + 16 * k), y + int(i / cols) * (ch + 16 * k)), Vector2(cw, ch))
+		draw_rect(r, CARD)
+		draw_rect(r, Color(1, 1, 1, 0.35), false, 2.0)
+		_text(r.position + Vector2(16, 36) * k, str(row.get("name", "")), 23, Color.WHITE)
+		_text(r.position + Vector2(16, 66) * k, "%s · %s · ★%d · 완등 %d" % [row.get("grade", ""), row.get("author_name", ""), int(row.get("stars", 0)), int(row.get("clears", 0))], 17, CREAM)
+		var by := r.end.y - 58 * k
+		var starred: bool = my_stars.has(str(row.get("id", "")))
+		_button(Rect2(Vector2(r.position.x + 16 * k, by), Vector2(170, 46) * k), "올라 보기", "shared_play", str(row.get("code", "")), 19, true)
+		_button(Rect2(Vector2(r.position.x + 196 * k, by), Vector2(130, 46) * k), ("★ 별 줌" if starred else "☆ 별"), "star", str(i), 18, starred)
+		_button(Rect2(Vector2(r.position.x + 336 * k, by), Vector2(118, 46) * k), "신고", "report", str(i), 18)
+	if browse_more:
+		_button(Rect2(Vector2(at.x, size.y - 90 * k), Vector2(200, 50) * k), "더 받기", "browse_more", "", 20)
+	if make_msg != "":
+		_text(Vector2(at.x + 230 * k, size.y - 58 * k), make_msg, 19, Color(1, 0.75, 0.6))
+
+
+func _draw_input(size: Vector2) -> void:
+	var box := Rect2(Vector2(size.x * 0.5 - 340 * k, 240 * k), Vector2(680, 250) * k)
+	draw_rect(box, Color(0.1, 0.09, 0.08, 0.97))
+	draw_rect(box, CREAM, false, 3.0)
+	_text(box.position + Vector2(30, 50) * k, "공유 코드 6글자를 넣어 주세요" if input_mode == "code" else "별명(최대 12자)", 22, Color.WHITE)
+	_input_edit.position = box.position + Vector2(30, 80) * k
+	_input_edit.size = Vector2(620, 60) * k
+	_input_edit.add_theme_font_size_override("font_size", int(28 * k))
+	_button(Rect2(box.position + Vector2(30, 170) * k, Vector2(290, 56) * k), "열기" if input_mode == "code" else "바꾸기", "input_go", "", 22, true)
+	_button(Rect2(box.position + Vector2(360, 170) * k, Vector2(290, 56) * k), "그만두기", "input_close", "", 22)
+	if make_msg != "":
+		_text(box.position + Vector2(30, 290) * k, make_msg, 19, Color(1, 0.75, 0.6))
+
+
+func _open_input(mode: String) -> void:
+	input_mode = mode
+	make_msg = ""
+	if _input_edit == null:
+		_input_edit = LineEdit.new()
+		add_child(_input_edit)
+	_input_edit.visible = true
+	_input_edit.max_length = 6 if mode == "code" else 12
+	_input_edit.text = "" if mode == "code" else game.progress.nickname
+	_input_edit.grab_focus()
+
+
+func _close_input() -> void:
+	input_mode = ""
+	if _input_edit != null:
+		_input_edit.visible = false
+
+
+func _input_go() -> void:
+	var t := _input_edit.text
+	if input_mode == "nick":
+		if game.get_flow().set_nickname(t):
+			_close_input()
+		else:
+			make_msg = "별명에 쓸 수 없는 말이 있거나 비어 있어요"
+		queue_redraw()
+		return
+	var code := ShareCode.normalize(t)
+	if not ShareCode.is_valid(code):
+		make_msg = "코드는 6글자예요(0·O·1·I는 쓰지 않아요)"
+		queue_redraw()
+		return
+	_fetch_and_play(code)
+
+
+func _browse_load(more: bool) -> void:
+	if browse_busy:
+		return
+	browse_busy = true
+	make_msg = ""
+	if not more:
+		browse_rows = []
+	queue_redraw()
+	var share: ShareClient = game.share()
+	var off := browse_rows.size()
+	var res: Dictionary = await share.rows(func(): return share.api.browse(browse_sort, browse_grade, off))
+	if res.ok:
+		browse_rows += res.rows
+		browse_more = res.rows.size() >= ShareApi.PAGE
+		var st: Dictionary = await share.rows(func(): return share.api.my_stars())
+		if st.ok:
+			my_stars = {}
+			for r in st.rows:
+				my_stars[str(r.get("route_id", ""))] = true
+	else:
+		make_msg = res.error
+	browse_busy = false
+	queue_redraw()
+
+
+## 코드로 문제 전체를 받아 이 기기에 두고 연다(이미 받아 둔 같은 판이면 서버 없이).
+func _fetch_and_play(code: String) -> void:
+	make_msg = "받는 중…"
+	queue_redraw()
+	var share: ShareClient = game.share()
+	var res: Dictionary = await share.rows(func(): return share.api.by_code(code))
+	if not res.ok:
+		if not SharedRoutes.load_entry(code).is_empty() and game.play_shared(code):
+			return  # 서버가 안 되면 받아 둔 판으로
+		make_msg = res.error
+		queue_redraw()
+		return
+	if res.rows.is_empty():
+		make_msg = "그 코드의 문제를 찾지 못했어요"
+		queue_redraw()
+		return
+	var row: Dictionary = res.rows[0]
+	var data = row.get("data")
+	if not data is Dictionary or SharedRoutes.too_new(data):
+		make_msg = "앱을 업데이트해 주세요(더 새 판의 문제예요)"
+		queue_redraw()
+		return
+	var meta := {"id": str(row.get("id", "")), "code": code, "name": str(row.get("name", "")), "grade": str(row.get("grade", "")),
+		"author_name": str(row.get("author_name", "")), "version": int(row.get("version", 1))}
+	if not SharedRoutes.save(code, meta, data) or not game.play_shared(code):
+		make_msg = "이 문제를 열 수 없어요"
+		queue_redraw()
+
+
+## 별: 완등한 사람만(서버가 확인). 다시 누르면 거둔다.
+func _star(i: int) -> void:
+	if i < 0 or i >= browse_rows.size():
+		return
+	var row: Dictionary = browse_rows[i]
+	var id := str(row.get("id", ""))
+	if not game.progress.is_cleared(SharedRoutes.local_id(str(row.get("code", "")))):
+		make_msg = ShareApi.E_CLEAR
+		queue_redraw()
+		return
+	var on := not my_stars.has(id)
+	var share: ShareClient = game.share()
+	var res: Dictionary = await share.rows(func(): return share.api.set_star(id, on))
+	if res.ok:
+		if on:
+			my_stars[id] = true
+		else:
+			my_stars.erase(id)
+		row["stars"] = int(res.rows[0]) if not res.rows.is_empty() and (res.rows[0] is float or res.rows[0] is int) else int(row.get("stars", 0)) + (1 if on else -1)
+	else:
+		make_msg = res.error
+	queue_redraw()
+
+
+func _report(i: int) -> void:
+	if i < 0 or i >= browse_rows.size():
+		return
+	var share: ShareClient = game.share()
+	var id := str(browse_rows[i].get("id", ""))
+	var res: Dictionary = await share.rows(func(): return share.api.report(id, ""))
+	make_msg = "신고했어요. 고마워요" if res.ok else res.error
+	queue_redraw()
 
 
 # ---------- 도우미 ----------

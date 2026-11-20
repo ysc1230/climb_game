@@ -117,3 +117,15 @@
 - 시작 자세는 find_target + 시작에서 버티는지 봇으로 한 번 확인(넘어지면 "시작 자세를 만들 수 없어요").
 - [봇 검사]의 "가장 높이 간 곳 표시"는 하지 않았다(탐색기가 높이를 모으지 않음). 결과 문구만.
 - 두 손가락 돌리기 대신 돌리기 도구에서 가로로 끌기 + 버튼.
+
+### 6B 공유 — 앱 쪽 준비 (2026-11-21, 서버 미생성)
+
+- 서버 표·정책·함수: `server/supabase/migrations/20261121000000_climb_share.sql`(routes·clears·stars·reports, RLS, publish_route·get_route_by_code·record_clear·set_star·report_route, 코드는 서버가 만듦, 하루 20번, data 32KB, 신고 3건 숨김). **아직 적용하지 않았다** — Supabase 프로젝트 만들기가 자동 권한 검사에서 막혀 사용자 확인을 기다린다.
+- 앱: `ShareCode`, `ShareApi`(요청 만들기·응답 해석, 가짜 응답으로 시험), `ShareClient`(HTTPRequest·익명 로그인 세션 user://share_session.json·끊기면 한 번 다시), `SharedRoutes`(받은 문제를 S_코드로 바꿔 user://shared_routes에), `WordFilter`, `ShareConfig`(URL·공개 키, 비면 "공유 서버 준비 중").
+- 화면: 만들기 화면 [저장] → 저장·공유 창(올리기 조건, [친구에게 코드로]·[모두에게 공개], 코드·[복사]). 홈 만들기 탭 [내 문제]·[둘러보기](별 많은 순·최신, 등급 거르기, 20개씩, 별·신고)·[코드로 열기]·[별명 바꾸기]. 받은 문제를 완등하면 서버에 완등 기록(별 자격).
+- 시험: test_share(5). 서버 정책 시험·기기 두 대 시험은 서버를 만든 뒤.
+
+만든 사람 판단:
+- 별명 바꾸기는 설정 탭이 아니라 만들기 탭 위에 둠(공유와 같은 자리).
+- 올릴 때 문제 JSON에 author_run {seconds, score, version}을 넣는다(만든 사람 완등 기록).
+- 둘러보기 카드는 한 화면 6개(3×2), [더 받기]로 다음 20개.

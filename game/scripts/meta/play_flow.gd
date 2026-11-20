@@ -21,6 +21,29 @@ func add_custom(route: RouteDef) -> void:
 	index.put(route)
 
 
+## 올린 내 문제 정보를 남긴다(작업 6B).
+func set_shared(route_id: String, info: Dictionary) -> void:
+	progress.shared[route_id] = info
+	SaveStore.save(progress, save_path)
+
+
+## 별명(최대 12자). 비어 있으면 "클라이머" + 숫자 넷으로 정해 저장한다.
+func nickname() -> String:
+	if progress.nickname == "":
+		progress.nickname = "클라이머%04d" % (randi() % 10000)
+		SaveStore.save(progress, save_path)
+	return progress.nickname
+
+
+func set_nickname(n: String) -> bool:
+	n = n.strip_edges().substr(0, 12)
+	if n == "" or not WordFilter.ok(n):
+		return false
+	progress.nickname = n
+	SaveStore.save(progress, save_path)
+	return true
+
+
 ## 공유(서버)에 올린 내 문제인가(작업 6 §4). 올린 판을 고치면 새 판이 된다.
 func is_published(route_id: String) -> bool:
 	return progress.shared.has(route_id)

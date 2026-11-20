@@ -26,6 +26,25 @@ var editing_route_id := ""
 var first_run_sent := false
 
 var _flow: PlayFlow
+var _share: ShareClient
+
+
+## 공유 서버 연결(작업 6B). 처음 쓸 때 만든다.
+func share() -> ShareClient:
+	if _share == null:
+		_share = ShareClient.new()
+		add_child(_share)
+	return _share
+
+
+## 공유 코드로 받은 문제를 연다(받아 둔 파일이 있어야 함).
+func play_shared(code: String) -> bool:
+	var r := SharedRoutes.load_route(code)
+	if r == null or not r.errors.is_empty():
+		return false
+	get_flow().add_custom(r)
+	play(r.route_id)
+	return true
 
 
 func get_flow() -> PlayFlow:
@@ -72,7 +91,13 @@ func home(focus := {}) -> void:
 
 
 func finish_clear(seconds: float, falls: int, extra := {}) -> Dictionary:
-	return get_flow().finish_clear(seconds, falls, extra)
+	var res := get_flow().finish_clear(seconds, falls, extra)
+	# 받은 공유 문제를 완등하면 서버에 완등 기록(별 자격·완등 수). 실패해도 게임은 그대로.
+	if current_route_id.begins_with("S_") and share().enabled():
+		var meta: Dictionary = SharedRoutes.load_entry(current_route_id.trim_prefix("S_")).get("meta", {})
+		if str(meta.get("id", "")) != "":
+			share().rows(func(): return share().api.record_clear(str(meta.id), int(meta.get("version", 1))))
+	return res
 
 
 func finish_tutorial() -> bool:

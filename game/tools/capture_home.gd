@@ -46,5 +46,17 @@ func _process(_d: float) -> bool:
 		home.queue_redraw()
 	if frame == 45:
 		_shot("holds")  # 홀드 사전(작업 4 §4.4)
+		home.tab = "make"
+		home.queue_redraw()
+	if frame == 55:
+		_shot("make")  # 만들기 탭(작업 6)
+		home.make_view = "browse"
+		home.browse_rows = [
+			{"id": "a", "code": "AB23CD", "name": "옆으로 비껴", "grade": "V2", "author_name": "클라이머1234", "stars": 12, "clears": 30},
+			{"id": "b", "code": "XY45ZW", "name": "작은 저그 길", "grade": "V4", "author_name": "벽타기", "stars": 3, "clears": 7}]
+		home.my_stars = {"a": true}
+		home.queue_redraw()
+	if frame == 65:
+		_shot("browse")  # 둘러보기(공유 서버 없이 가짜 목록)
 		return true
 	return false

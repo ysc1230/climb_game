@@ -35,6 +35,9 @@ var _press := {}          # {pos, hold, wall(Vector2), moved}
 var _pinch_d := 0.0
 var _bot_thread: Thread
 var _bot_result := {}
+var share_open := false   # 저장·공유 창
+var share_busy := false
+var share_code := ""
 
 
 func _ready() -> void:
@@ -154,7 +157,7 @@ func _pinch_dist() -> float:
 
 func _down(pos: Vector2) -> void:
 	_press = {}
-	if _hit_button(pos) >= 0 or not _wall_rect().has_point(pos) or view == null:
+	if share_open or _hit_button(pos) >= 0 or not _wall_rect().has_point(pos) or view == null:
 		return
 	var w: Vector2 = view.screen_to_wall(pos)
 	_press = {"pos": pos, "wall": w, "hold": _hold_at(w), "moved": false}
@@ -291,7 +294,18 @@ func _do(action: String, arg: String) -> void:
 			selected = ""
 			_changed()
 		"save":
-			_say("저장했어요" if MyRoutes.save(draft) else "저장하지 못했어요")
+			if not MyRoutes.save(draft):
+				_say("저장하지 못했어요")
+			else:
+				share_open = true
+				share_code = str(game.progress.shared.get(draft.route_id, {}).get("code", "")) if game != null else ""
+		"share_close":
+			share_open = false
+		"publish":
+			_publish(arg)
+		"copy":
+			DisplayServer.clipboard_set(share_code)
+			_say("코드를 복사했어요")
 		"climb":
 			if not _problems.is_empty():
 				_say(_problems[0])
@@ -307,6 +321,62 @@ func _do(action: String, arg: String) -> void:
 				_bot_thread.start(func() -> Dictionary: return {"ok": PathExplorer.explore(r, {}, false, 5000).ok})
 				_say("봇이 길을 찾는 중… (최대 5초)")
 	queue_redraw()
+
+
+## 올리기(§3·§4): 서버에 문제 JSON을 올리고 공유 코드를 받는다. vis: "link" 친구에게 코드로 / "public" 모두에게 공개.
+func _publish(vis: String) -> void:
+	if share_busy or game == null:
+		return
+	if not WordFilter.ok(draft.name):
+		_say("문제 이름에 쓸 수 없는 말이 있어요")
+		return
+	share_busy = true
+	queue_redraw()
+	var flow = game.get_flow()
+	var nick: String = flow.nickname()
+	var data := draft.to_route_dict()
+	var c: Dictionary = game.progress.cleared.get(draft.route_id, {})
+	data["author_run"] = {"seconds": float(c.get("best_seconds", 0.0)), "score": c.get("best_score", -1), "version": draft.version}
+	var d := draft
+	var res: Dictionary = await game.share().rows(func(): return game.share().api.publish(d.route_id, d.name, nick, d.grade, data, d.version, vis))
+	share_busy = false
+	if not res.ok:
+		_say(res.error)
+		return
+	var row: Dictionary = res.rows[0] if not res.rows.is_empty() else {}
+	share_code = str(row.get("code", ""))
+	flow.set_shared(draft.route_id, {"code": share_code, "id": str(row.get("id", "")), "visibility": vis, "version": draft.version})
+	draft.freeze()
+	_say("올렸어요! 코드 " + share_code)
+	queue_redraw()
+
+
+func _draw_share(size: Vector2) -> void:
+	_buttons = []
+	var box := Rect2(Vector2(size.x * 0.5 - 380 * k, size.y * 0.5 - 200 * k), Vector2(760, 400) * k)
+	draw_rect(box, Color(0.1, 0.09, 0.08, 0.97))
+	draw_rect(box, CREAM, false, 3.0)
+	var x := box.position.x + 30 * k
+	var y := box.position.y + 56 * k
+	_text(Vector2(x, y), "이 기기에 저장했어요", 26, CREAM)
+	y += 44 * k
+	var can: bool = game != null and draft.can_publish(game.progress)
+	if share_code != "":
+		_text(Vector2(x, y), "공유 코드", 20, DIM)
+		_text(Vector2(x, y + 64 * k), share_code, 56, Color.WHITE)
+		_button(Rect2(Vector2(x + 330 * k, y + 14 * k), Vector2(150, 56) * k), "복사", "copy", "", 22)
+		y += 100 * k
+	if game == null or not game.share().enabled():
+		_wrap(Vector2(x, y + 10 * k), "공유 서버가 아직 준비되지 않았어요. 만든 문제는 이 기기에서 계속 올라 볼 수 있어요.", 700 * k, 20, DIM)
+	elif not can:
+		var why: String = _problems[0] if not _problems.is_empty() else "직접 도움 없이 한 번 완등해야 올릴 수 있어요([올라 보기])"
+		_wrap(Vector2(x, y + 10 * k), "아직 올릴 수 없어요: " + why, 700 * k, 20, Color(1, 0.75, 0.6))
+	elif share_busy:
+		_text(Vector2(x, y + 30 * k), "올리는 중…", 24, Color.WHITE)
+	else:
+		_button(Rect2(Vector2(x, y + 10 * k), Vector2(330, 64) * k), "친구에게 코드로", "publish", "link", 22)
+		_button(Rect2(Vector2(x + 360 * k, y + 10 * k), Vector2(330, 64) * k), "모두에게 공개", "publish", "public", 22, true)
+	_button(Rect2(Vector2(box.end.x - 180 * k, box.end.y - 76 * k), Vector2(150, 56) * k), "닫기", "share_close", "", 22)
 
 
 # ---------- 그리기 ----------
@@ -339,6 +409,8 @@ func _draw() -> void:
 	var st := "홀드 %d/%d · 높이 %.1fm · 판 %d · " % [draft.holds.size(), RouteDraft.MAX_HOLDS, top_y, draft.version]
 	st += "막는 것 없음 — 올라 볼 수 있어요" if _problems.is_empty() else _problems[0]
 	_text(Vector2(16 * k, size.y - 14 * k), st, 19, CREAM if _problems.is_empty() else Color(1, 0.75, 0.6))
+	if share_open:
+		_draw_share(size)
 	if message != "":
 		var r := Rect2(Vector2(size.x * 0.5 - 330 * k, 90 * k), Vector2(660, 54) * k)
 		draw_rect(r, Color(0, 0, 0, 0.8))
