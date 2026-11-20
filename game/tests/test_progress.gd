@@ -263,15 +263,17 @@ func test_display_settings() -> void:
 ## 몸 옮기기 설정(작업 2): 기본은 가운데 끌기·민감도 3·반응 3°·함께 쓰기 켜짐, 범위 밖 값은 고침, 저장·불러오기.
 func test_control_settings() -> void:
 	var p := Progress.new()
-	runner.check(p.control_get("body") == "drag" and int(p.control_get("tilt_sens")) == 3 and is_equal_approx(float(p.control_get("tilt_dead")), 3.0) and bool(p.control_get("tilt_with_drag")), "기본값 %s" % [p.control])
+	runner.check(p.control_get("body") == "drag" and int(p.control_get("tilt_sens")) == 5 and is_equal_approx(float(p.control_get("tilt_dead")), 10.0) and bool(p.control_get("tilt_with_drag")), "기본값 민감도 5·10° %s" % [p.control])
 	p.set_control("body", "tilt")
 	p.set_control("tilt_sens", 9)
+	runner.check(int(p.control_get("tilt_sens")) == 9, "민감도 1~10 %s" % [p.control])
+	p.set_control("tilt_sens", 14)
 	p.set_control("tilt_dead", -2)
-	runner.check(p.control_get("body") == "tilt" and int(p.control_get("tilt_sens")) == 5 and is_equal_approx(float(p.control_get("tilt_dead")), 0.0), "범위로 자름 %s" % [p.control])
+	runner.check(p.control_get("body") == "tilt" and int(p.control_get("tilt_sens")) == 10 and is_equal_approx(float(p.control_get("tilt_dead")), 0.0), "범위로 자름 %s" % [p.control])
 	var q := Progress.from_dict(JSON.parse_string(JSON.stringify(p.to_dict())))
-	runner.check(q.control_get("body") == "tilt" and int(q.control_get("tilt_sens")) == 5, "저장 뒤에도 그대로 %s" % [q.control])
-	var r := Progress.from_dict({"control": {"body": "nope", "x": 1, "tilt_dead": 20}})
-	runner.check(r.control_get("body") == "drag" and not r.control.has("x") and is_equal_approx(float(r.control_get("tilt_dead")), 10.0), "모르는 값·키는 버리고 범위로 %s" % [r.control])
+	runner.check(q.control_get("body") == "tilt" and int(q.control_get("tilt_sens")) == 10, "저장 뒤에도 그대로 %s" % [q.control])
+	var r := Progress.from_dict({"control": {"body": "nope", "x": 1, "tilt_dead": 35}})
+	runner.check(r.control_get("body") == "drag" and not r.control.has("x") and is_equal_approx(float(r.control_get("tilt_dead")), 20.0), "모르는 값·키는 버리고 범위로(각도 0~20°) %s" % [r.control])
 
 
 ## 작업 3 저장(판 2): 시도 통계·플래시·최고 점수·도움·문제 판 바뀜·기록 지우기.
@@ -288,6 +290,9 @@ func test_flash_and_best_score() -> void:
 	p.start_attempt(r)
 	res = p.record_clear(r, 60.0, 0, {"score": 65})
 	runner.check(not res.flash and not res.new_best_score and res.new_best_time and p.cleared[r.route_id].best_score == 70 and p.cleared[r.route_id].flash, "점수는 최고 유지, 시간은 새 최고 %s" % [res])
+	p.start_attempt(r)
+	res = p.record_clear(r, 90.0, 0, {"score": 70.37})
+	runner.check(res.new_best_score and is_equal_approx(float(p.cleared[r.route_id].best_score), 70.37), "소수 둘째 자리 차이도 새 최고 %s" % [p.cleared[r.route_id]])
 
 
 func test_helped_clear_counts_but_no_records() -> void:

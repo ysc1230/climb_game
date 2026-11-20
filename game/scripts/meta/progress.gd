@@ -28,8 +28,11 @@ var look := {}  # 캐릭터 외형 {body, hair, top, bottom, chalk, shoes}(docs/
 const DISPLAY_DEFAULTS := {"balance": true, "loads": false, "balance_hint": true, "dev_info": false, "ghost": true}
 var display := {}
 ## 몸 옮기기(작업 2, docs/superpowers/specs/2026-11-19-2-tilt-design.md). body: "drag" 가운데 끌기 | "tilt" 휴대폰 기울이기.
-## tilt_sens 1~5, tilt_dead 반응 시작 각도 0~10°, tilt_with_drag 기울이기 중에도 가운데 끌기. 키가 없으면 CONTROL_DEFAULTS.
-const CONTROL_DEFAULTS := {"body": "drag", "tilt_sens": 3, "tilt_dead": 3.0, "tilt_with_drag": true}
+## tilt_sens 1~10, tilt_dead 반응 시작 각도 0~20°, tilt_with_drag 기울이기 중에도 가운데 끌기. 키가 없으면 CONTROL_DEFAULTS.
+## 기본 민감도 5·각도 10°(2026-11-20 사용자).
+const CONTROL_DEFAULTS := {"body": "drag", "tilt_sens": 5, "tilt_dead": 10.0, "tilt_with_drag": true}
+const TILT_SENS_MAX := 10
+const TILT_DEAD_MAX := 20.0
 var control := {}
 var seen_tips: Array = []  # 처음 한 번 안내를 본 것(docs/33 §5). 진행 초기화 때 함께 지운다
 const LEVELS: Array[String] = ["beginner", "intermediate", "advanced"]  # advanced 고급(2026-11-10): 경고·알림 없음
@@ -87,9 +90,9 @@ func set_control(key: String, value: Variant) -> void:
 			if str(value) in ["drag", "tilt"]:
 				control[key] = str(value)
 		"tilt_sens":
-			control[key] = clampi(int(value), 1, 5)
+			control[key] = clampi(int(value), 1, TILT_SENS_MAX)
 		"tilt_dead":
-			control[key] = clampf(float(value), 0.0, 10.0)
+			control[key] = clampf(float(value), 0.0, TILT_DEAD_MAX)
 		"tilt_with_drag":
 			control[key] = bool(value)
 
@@ -232,8 +235,8 @@ func record_clear(route: RouteDef, seconds: float, falls: int, extra := {}) -> D
 			res.new_best_time = true
 			if extra.has("ghost"):
 				c["ghost"] = extra.ghost
-		if extra.has("score") and (not c.has("best_score") or int(extra.score) > int(c.best_score)):
-			c["best_score"] = int(extra.score)
+		if extra.has("score") and (not c.has("best_score") or float(extra.score) > float(c.best_score)):
+			c["best_score"] = snappedf(float(extra.score), 0.01)
 			c["best_score_parts"] = extra.get("parts", {})
 			res.new_best_score = true
 		if int(stats.get(route.route_id, {}).get("attempts", 0)) == 1:

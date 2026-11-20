@@ -145,7 +145,7 @@ const SCORE_ROWS := [["energy", "힘 아끼기", 30], ["stable", "안정", 25], 
 ## 총점(크게) / 100 + 도움·새 최고 + 다섯 항목 막대.
 func _draw_score(ci: CanvasItem, at: Vector2, w: float, k: float) -> void:
 	var helped := bool(result.get("helped", false))
-	var total := str(int(result.score))
+	var total := ScoreCalc.format(float(result.score))
 	ci.draw_string(font, at + Vector2(0, 74 * k), total, HORIZONTAL_ALIGNMENT_LEFT, -1, int(80 * k), Color.WHITE)
 	var tw := font.get_string_size(total, HORIZONTAL_ALIGNMENT_LEFT, -1, int(80 * k)).x
 	ci.draw_string(font, at + Vector2(tw + 10 * k, 74 * k), "/ 100", HORIZONTAL_ALIGNMENT_LEFT, -1, int(28 * k), Color(1, 1, 1, 0.6))
@@ -154,13 +154,13 @@ func _draw_score(ci: CanvasItem, at: Vector2, w: float, k: float) -> void:
 		tag = "도움 — 최고 기록에 들어가지 않아요"
 	elif bool(result.get("new_best_score", false)):
 		tag = "새 최고 점수"
-	elif int(result.get("best_score", -1)) >= 0:
-		tag = "내 최고 %d" % int(result.best_score)
+	elif float(result.get("best_score", -1)) >= 0.0:
+		tag = "내 최고 %s" % ScoreCalc.format(float(result.best_score))
 	ci.draw_string(font, at + Vector2(tw + 110 * k, 74 * k), tag, HORIZONTAL_ALIGNMENT_LEFT, w - tw - 110 * k, int(20 * k), Color("ffb070") if helped else Color("8fe388"))
 	var parts: Dictionary = result.get("parts", {})
 	var y := at.y + 112 * k
 	for row in SCORE_ROWS:
-		var v := int(parts.get(row[0], 0))
+		var v := float(parts.get(row[0], 0))
 		ci.draw_string(font, Vector2(at.x, y + 22 * k), row[1], HORIZONTAL_ALIGNMENT_LEFT, -1, int(21 * k), Color.WHITE)
 		var bar := Rect2(Vector2(at.x + 150 * k, y + 6 * k), Vector2(w - 250 * k, 18 * k))
 		if row[0] == "technique" and v < 0:
@@ -168,7 +168,7 @@ func _draw_score(ci: CanvasItem, at: Vector2, w: float, k: float) -> void:
 		else:
 			ci.draw_rect(bar, Color(1, 1, 1, 0.1))
 			ci.draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(float(v) / float(row[2]), 0.0, 1.0), bar.size.y)), CREAM)
-			ci.draw_string(font, Vector2(bar.end.x + 12 * k, y + 22 * k), "%d / %d" % [v, row[2]], HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), Color(1, 1, 1, 0.85))
+			ci.draw_string(font, Vector2(bar.end.x + 12 * k, y + 22 * k), "%s / %d" % [ScoreCalc.format(v), row[2]], HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), Color(1, 1, 1, 0.85))
 		y += 44 * k
 
 

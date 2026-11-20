@@ -458,5 +458,6 @@ attached_position_tolerance는 고정 접점 오차의 검수 한계다. 이 값
 - **사용자 보고:** "아무런 손 홀드를 잡고 있지 않음에도 떨어지지 않아."
 - **원인:** 두 발이 바닥 발판(플랫폼)에 있으면 손이 하나도 없어도 지지가 성립했다. 11-10에 뗀 손발을 허공 균형 자리에 두게 되면서, 두 손을 다 놓고 서 있는 장면이 쉽게 생겼다.
 - **바꾼 것:** 플랫폼 지지는 손이 하나라도 홀드를 잡고 있을 때만 인정한다(ClimbRules.platform_holds). 두 손을 모두 놓으면 바닥 발판 위에서도 지지 없음(GRACE)이 되고, 같은 날 사용자 결정으로 초급·중급 1.5초, 고급 0.15초 뒤 떨어진다(ClimbRules.apply_level, docs/18 "난이도 셋"). 지지 없음 동안에는 불균형 예산을 쓰지 않는다.
+- **2026-11-20 사용자:** 붙은 손이 하나도 없으면(Attached·Armed 손 없음) 유예 없이 그 틱에 NO_SUPPORT(`ClimbRules.no_hands`). 마지막 손이 미끄러진 틱도 같다. 지지 없음(GRACE) 유예는 손이 붙어 있지만 하중 자격이 없을 때만 남는다. 다이노 비행은 규칙 틱을 돌지 않으므로 그대로다.
 - **같은 기준을 쓰는 곳:** 떼기 전 위험 예측(ClimbSession.release_risk), 자동 도움 탐색(AutoRescue).
 - 테스트: test_danger_feedback.test_platform_needs_a_hand

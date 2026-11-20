@@ -76,15 +76,17 @@
 
 문제 JSON에 `score_ref {spent_per_m, grabs}`, `score_gates [{technique, slot}]`(작업 3 §3.1, `tools/score_ref.gd`).
 
-### 몸 옮기기 설정 (2026-11-20, 작업 2)
+### 몸 옮기기 설정 (2026-11-20, 작업 2 · 같은 날 범위 넓힘)
 
 `Progress.control`(저장 키 `control`)에 둔다. 키가 없으면 `Progress.CONTROL_DEFAULTS`. 모르는 키·값은 불러올 때 버리고 숫자는 범위로 자른다(`Progress.set_control`). 기록 자격·판정 수치는 바꾸지 않는다(기울이기는 가운데 끌기와 같은 `rules.body_goal` 입구).
 
 | 키 | 값 | 기본 |
 | --- | --- | --- |
 | body | "drag" 가운데 끌기 · "tilt" 휴대폰 기울이기 | "drag" |
-| tilt_sens | 1~5 (최대 각도 25/20/15/11/8°) | 3 |
-| tilt_dead | 반응 시작 각도 0~10° | 3 |
+| tilt_sens | 1~10 (반응 시작 뒤 끝까지 더 기울일 각도 25/20/15/11/8/6.5/5/4/3/2.5°) | 5 |
+| tilt_dead | 반응 시작 각도 0~20° | 10 |
+
+2026-11-20 사용자 "민감도 5, 각도 10도를 기준으로 하고 민감도와 각도를 더 추가": 기본값을 3·3°에서 5·10°로, 민감도 6~10과 각도 11~20°를 더했다. 1~5의 각도는 그대로라 예전 저장 값은 같은 느낌이다. 바꾼 적 없는 사람은 새 기본값을 받는다.
 | tilt_with_drag | 기울이기 중에도 가운데 끌기 | true |
 
 입력 명령 `body_tilt {offset: Vector2, active: bool}`: active가 처음 참이 되는 순간의 골반이 기준점, 목표 = 기준점 + offset(최대 `Tuning.BODY_GOAL_MAX`). active가 거짓이 되면 목표를 지운다(자동 자세). 가운데를 끄는 동안은 끌기가 이긴다.

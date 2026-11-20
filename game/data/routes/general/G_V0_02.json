@@ -374,6 +374,7 @@
  ],
  "score_ref": {
   "grabs": 10,
+  "quality": 0.884,
   "spent_per_m": 22.65
  },
  "score_gates": []

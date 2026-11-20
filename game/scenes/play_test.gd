@@ -1396,11 +1396,14 @@ func _draw_danger(size: Vector2) -> void:
 		var cc := Color(1.0, 0.25, 0.18) if fast else Color(1.0, 0.8, 0.2)
 		draw_circle(p.center, p.radius, Color(cc, 0.25 + 0.25 * blink))
 		draw_arc(p.center, p.radius + 6 * ui_k, 0, TAU, 48, Color(cc, 0.95), 7.0 * ui_k)
-		_draw_bang(p.center + Vector2(p.radius * 0.72, -p.radius * 0.72), 22.0 * ui_k, cc)
+		# 남은 마지막 손(DROP)은 큰 빨간 느낌표(2026-11-20 사용자)
+		var drop: bool = danger.caution[limb] == &"DROP"
+		_draw_bang(p.center + Vector2(p.radius * 0.72, -p.radius * 0.72), (32.0 if drop else 22.0) * ui_k, cc)
 		var txt := "떼면 바로 떨어져요" if fast else DangerFeedback.caution_text(danger.caution[limb])
 		_outlined(_pad_label_pos(p), txt, 26, 320 * ui_k, cc.lightened(0.25))
 	if not danger.caution.is_empty() and not danger.danger:
-		_draw_bang(Vector2(head.x, maxf(head.y - 20 * ui_k, top)), 26.0 * ui_k, Color(1.0, 0.8, 0.2))
+		var red := danger.caution.values().has(&"DROP")
+		_draw_bang(Vector2(head.x, maxf(head.y - 20 * ui_k, top)), (34.0 if red else 26.0) * ui_k, Color(1.0, 0.25, 0.18) if red else Color(1.0, 0.8, 0.2))
 	# ③ 회복
 	if danger.recover_left > 0.0:
 		var a := danger.recover_left / DangerFeedback.RECOVER_SHOW
@@ -1429,6 +1432,8 @@ func _draw_danger(size: Vector2) -> void:
 
 ## 주의 종류(release_risk)에 따라 떼면 떨어지기까지의 시간(초).
 func _fall_seconds(k: StringName) -> float:
+	if k == &"DROP":
+		return 0.0
 	var ticks := session.rules.grace_budget if k == &"GRACE" else session.rules.imbalance_budget
 	return ticks * Tuning.DT
 

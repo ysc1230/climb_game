@@ -403,7 +403,7 @@ func _best_air_point(limb: StringName) -> Vector2:
 
 
 ## 붙어 있는 limb을 지금 떼면 어떻게 되나(예고 경고, 2026-11-09). 몸은 그대로 둔 채 그 접점만 뺀 힘 계산.
-## &"" 버틸 수 있음, &"GRACE" 버틸 손·플랫폼이 없음, &"FORCE" 힘 균형이 깨짐, &"BARN_DOOR" 몸이 문처럼 돌아감.
+## &"" 버틸 수 있음, &"DROP" 남은 마지막 손이라 떼면 바로 떨어짐(2026-11-20), &"GRACE" 버틸 손·플랫폼이 없음, &"FORCE" 힘 균형이 깨짐, &"BARN_DOOR" 몸이 문처럼 돌아감.
 ## 떼고 나면 몸이 지지 쪽으로 저절로 옮겨 가 회복할 수도 있다(REBALANCING) — 예고는 "위험할 수 있음"이다.
 func release_risk(limb: StringName) -> StringName:
 	var att := attached()
@@ -413,6 +413,8 @@ func release_risk(limb: StringName) -> StringName:
 	var eps := _endpoints()
 	for l in att:
 		eps.erase(l)
+	if ClimbRules.no_hands(att):
+		return &"DROP"
 	var platform := on_platform(att)
 	if rules._eligible_hand_count(body.pos, body.angle, att, body.yaw) == 0 and not ClimbRules.platform_holds(platform, att):
 		return &"GRACE"

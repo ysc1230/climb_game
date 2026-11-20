@@ -45,7 +45,7 @@ func test_axes_and_scale() -> void:
 
 
 func test_sensitivity_ranges() -> void:
-	for case in [[1, 25.0], [2, 20.0], [3, 15.0], [4, 11.0], [5, 8.0]]:
+	for case in [[1, 25.0], [2, 20.0], [3, 15.0], [4, 11.0], [5, 8.0], [6, 6.5], [7, 5.0], [8, 4.0], [9, 3.0], [10, 2.5], [11, 2.5], [0, 25.0]]:
 		runner.check(is_equal_approx(TiltMapper.range_deg(case[0]), case[1]), "민감도 %d → %.0f°" % case)
 	var m := _mapper(5)
 	var r := _hold(m, _g(40.0, 30.0))

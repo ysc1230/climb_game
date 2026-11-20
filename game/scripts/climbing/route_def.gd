@@ -109,6 +109,8 @@ func _read(d: Dictionary) -> void:
 	var sr = d.get("score_ref", {})
 	if sr is Dictionary and not sr.is_empty():
 		score_ref = {"spent_per_m": float(sr.get("spent_per_m", 0.0)), "grabs": int(sr.get("grabs", 0))}
+		if sr.has("quality"):  # 정답 순서 재생의 잡은 자리 품질 평균(2026-11-20, 정확한 손발 품질 몫의 기준)
+			score_ref["quality"] = float(sr.quality)
 	for g in d.get("score_gates", []):
 		if g is Dictionary and slots.has(str(g.get("slot", ""))):
 			score_gates.append({"technique": StringName(str(g.get("technique", ""))), "slot": str(g.slot)})

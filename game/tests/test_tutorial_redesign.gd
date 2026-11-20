@@ -87,7 +87,7 @@ func test_release_risk_on_fixture() -> void:
 	runner.check(d.s.release_risk(&"RH") == &"", "두 손이면 오른손을 떼도 버팀")
 	d.s.apply_input([{"type": "detach", "limb": &"LH"}])
 	d.tick()
-	runner.check(d.s.release_risk(&"RH") == &"GRACE", "남은 한 손을 떼면 버틸 손 없음")
+	runner.check(d.s.release_risk(&"RH") == &"DROP", "남은 한 손을 떼면 바로 떨어짐")
 
 
 ## 튜토리얼 데이터에 옛 문구가 남지 않는다(docs/33 §3.2). 지금은 튜토리얼 파일이 없어도 통과한다.

@@ -31,33 +31,14 @@ func test_select_freezes_time() -> void:
 	runner.check(s.tick_count == ticks + 1, "닫으면 시간이 다시 흐른다")
 
 
-func test_select_freezes_grace_counter() -> void:
+## 두 손을 모두 떼면 바로 떨어지므로(2026-11-20) 손 없이 기술 고르기를 열어 버틸 틈이 없다.
+func test_no_hands_no_select_window() -> void:
 	var s := _session()
 	s.apply_input([{"type": "detach", "limb": &"LF"}])
 	s.step()
 	s.apply_input([{"type": "detach", "limb": &"LH"}, {"type": "detach", "limb": &"RH"}])
-	var n := 0
-	var result := ""
-	for i in 2:  # 허공으로 벌린다(무지지 카운터가 이미 오르는 중)
-		s.apply_input([{"type": "move", "limb": &"LH", "delta": Vector2(-1, 0) * 2.5 * Tuning.DT},
-			{"type": "move", "limb": &"RH", "delta": Vector2(1, 0) * 2.5 * Tuning.DT}])
-		s.step()
-	# 허공에서 모두 놓아 Free로 만든다(Dragging이면 열 수 없음)
-	s.apply_input([{"type": "cancel", "limb": &"LH"}, {"type": "cancel", "limb": &"RH"}, {"type": "cancel", "limb": &"LF"}])  # Dragging → Free
-	while s.rules.unsupported_ticks < 4 and n < 20:
-		result = s.step()
-		n += 1
-	runner.check(s.rules.unsupported_ticks == 4 and result == "", "전제: 무지지 4틱 (%d, %s)" % [s.rules.unsupported_ticks, result])
-	runner.check(s.open_select(), "무지지 중에도 열린다(드래그 아님)")
-	for i in 600:
-		s.step()
-	runner.check(s.rules.unsupported_ticks == 4 and not s.falling, "600틱 뒤에도 4틱")
-	s.close_select()
-	for i in 4:
-		result = s.step()
-		runner.check(result == "", "유예 안 %d" % i)
-	result = s.step()
-	runner.check(result == "fall:NO_SUPPORT", "9번째 틱에 추락 (%s)" % result)
+	runner.check(s.step() == "fall:NO_SUPPORT", "두 손을 떼는 첫 틱에 추락")
+	runner.check(not s.open_select(), "떨어지는 중에는 열 수 없음")
 
 
 func test_cannot_open_while_dragging() -> void:

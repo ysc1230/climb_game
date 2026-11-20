@@ -29,8 +29,12 @@ static func measure(route: RouteDef) -> Dictionary:
 	var bot := SessionBot.run(route, route.intended_moves, {}, rec)
 	var d := rec.to_dict()
 	var h := maxf(ScoreCalc.top_y(route) - float(d.start_y), 0.5)
-	var grabs: int = d.events.filter(func(e): return e.type == "grab").size()
-	return {"ok": bot.ok(), "failure": bot.failure, "ref": {"spent_per_m": snappedf(float(d.spent) / h, 0.01), "grabs": grabs}, "gates": gates(route), "record": d}
+	var grab_ev: Array = d.events.filter(func(e): return e.type == "grab")
+	var q := 0.0
+	for e in grab_ev:
+		q += float(e.get("quality", 1.0))
+	q = q / grab_ev.size() if not grab_ev.is_empty() else 1.0
+	return {"ok": bot.ok(), "failure": bot.failure, "ref": {"spent_per_m": snappedf(float(d.spent) / h, 0.01), "grabs": grab_ev.size(), "quality": snappedf(q, 0.001)}, "gates": gates(route), "record": d}
 
 
 ## crux_steps의 단계에서 기술로 잡는·딛는 슬롯.
@@ -54,7 +58,7 @@ func _measure(route: RouteDef, write: bool) -> bool:
 	for g in m.gates:
 		route.score_gates.append({"technique": StringName(g.technique), "slot": g.slot})
 	var s := ScoreCalc.score(m.record, route)
-	print("   봇 점수 %d %s" % [s.total, s.parts])
+	print("   봇 점수 %s %s" % [ScoreCalc.format(s.total), s.parts])
 	if write:  # 문제 JSON은 tools/score_ref_write.py가 원래 키 순서·숫자 표기를 지켜 고친다
 		print("SCORE_JSON %s %s" % [ContentIndex.route_path(route.route_id), JSON.stringify({"score_ref": m.ref, "score_gates": m.gates})])
 	return true

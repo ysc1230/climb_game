@@ -51,13 +51,16 @@ func test_small_offset_single_hand_rebalances_in_time() -> void:
 			runner.check(out == "BALANCE_LOST@18", "COM %.2fm 어긋남은 18틱 후 균형 상실, 실제 %s" % [case[0], out])
 
 
-func test_grace_nine_ticks_without_hands() -> void:
-	var rules := ClimbRules.new()
-	var feet := {&"LF": START[&"LF"], &"RF": START[&"RF"]}
-	var body := BodyState.new(Vector2(0, 0.83))
-	rules.reset(body, START, {}, false)
-	var out := _run(rules, body, feet, 30)
-	runner.check(out == "NO_SUPPORT@9", "무지지 9틱 후 실패, 실제 %s" % out)
+## 두 손이 모두 떨어지면 유예 없이 그 틱에 떨어진다(2026-11-20 사용자: "경고 없이 무조건").
+func test_no_hands_falls_immediately() -> void:
+	for lv in ["beginner", "intermediate", "advanced"]:
+		var rules := ClimbRules.new()
+		ClimbRules.apply_level(rules, lv)
+		var feet := {&"LF": START[&"LF"], &"RF": START[&"RF"]}
+		var body := BodyState.new(Vector2(0, 0.83))
+		rules.reset(body, START, {}, false)
+		var out := _run(rules, body, feet, 30)
+		runner.check(out == "NO_SUPPORT@1", "%s: 손이 없으면 첫 틱에 추락, 실제 %s" % [lv, out])
 
 
 func test_mc07_high_foot_attached_but_not_loaded() -> void:
@@ -69,22 +72,6 @@ func test_mc07_high_foot_attached_but_not_loaded() -> void:
 	rules.reset(body, att, {}, false)
 	_run(rules, body, att, 30)
 	runner.check(not rules.loaded_feet.has(&"LF"), "높은 발은 Unloaded, loaded=%s" % [rules.loaded_feet])
-
-
-func test_mc14_regrab_on_last_grace_tick_counts() -> void:
-	# 무지지 8틱 뒤 9번째 틱에 손을 잡으면 같은 틱에 지지가 먼저 성립 → 무지지 실패 없음
-	var rules := ClimbRules.new()
-	var body := BodyState.new(Vector2(0, 0.83))
-	rules.reset(body, START, {}, false)
-	var feet := {&"LF": START[&"LF"], &"RF": START[&"RF"]}
-	runner.check(_run(rules, body, feet, 8).is_empty(), "8틱까지는 유예")
-	var out := rules.tick(body, START, {}, false, false)
-	runner.check(out.is_empty(), "9번째 틱 재잡기로 지지 회복, 실제 %s" % out)
-	runner.check(rules.unsupported_ticks == 0, "무지지 카운트 0")
-	# 2026-11-10: 지지 없음(GRACE) 동안에는 불균형 예산을 쓰지 않는다(두 손을 놓으면 1.5초 뒤 떨어진다는 사용자 규칙과 맞춤)
-	runner.check(rules.imbalance_ticks == 0, "무지지 동안 불균형 예산은 쓰지 않음 (%d)" % rules.imbalance_ticks)
-	_run(rules, body, START, 6)
-	runner.check(rules.imbalance_ticks == 0 and rules.balance_confirmed(), "6틱 확인 후 균형 확인")
 
 
 func test_slipped_hand_is_reported() -> void:

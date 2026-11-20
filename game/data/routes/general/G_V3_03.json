@@ -556,6 +556,7 @@
  "validation_status": "Draft",
  "score_ref": {
   "grabs": 18,
+  "quality": 0.86,
   "spent_per_m": 58.23
  },
  "score_gates": [

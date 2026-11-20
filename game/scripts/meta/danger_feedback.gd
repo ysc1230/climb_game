@@ -2,6 +2,7 @@ class_name DangerFeedback
 extends RefCounted
 ## 떨어지기 전 경고 3단계(2026-11-09 사용자: "경고라는 느낌이 전혀 없다, 게임하다 바로 알 수 있게").
 ## ① 주의(노랑): 붙은 손발 패드를 누른 순간, 그 손발을 떼면 버티지 못하는 자세면(ClimbSession.release_risk).
+##    남은 마지막 손(DROP)이면 빨간 느낌표 — 떼는 순간 경고 없이 떨어진다(2026-11-20 사용자).
 ## ② 위험(빨강): 지지 상태가 균형 회복 중(REBALANCING)·지지 없음(GRACE)에 들어간 동안.
 ##    들어가는 순간 0.15초 멈칫(HITSTOP, 신호용), 심장 박동 진동·소리(HEARTBEAT 간격).
 ## ③ 회복(초록): 위험에서 떨어지지 않고 빠져나온 순간 RECOVER_SHOW 동안.
@@ -222,6 +223,8 @@ static func reason_short(k: StringName) -> String:
 
 ## 주의 단계 패드 글자.
 static func caution_text(k: StringName) -> String:
+	if k == &"DROP":
+		return "떼면 바로 떨어져요"
 	return "떼면 떨어져요" if k == &"GRACE" else "떼면 위험해요"
 
 

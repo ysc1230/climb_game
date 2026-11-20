@@ -83,7 +83,7 @@ func test_all_hands_off_falls() -> void:
 		if n == 7:  # 허공에서 두 손 모두 놓기
 			s.apply_input([{"type": "release", "limb": &"LH"}, {"type": "release", "limb": &"RH"}])
 	runner.check(result == "fall:NO_SUPPORT", "두 손을 떼면 NO_SUPPORT 추락 (%s, %d틱)" % [result, n])
-	runner.check(n <= Tuning.UNSUPPORTED_GRACE_TICKS, "마지막 지지 손이 떠난 뒤 유예 %d틱 이내 추락 (%d틱)" % [Tuning.UNSUPPORTED_GRACE_TICKS, n])
+	runner.check(n == 1, "두 손이 모두 떨어진 첫 틱에 추락 (%d틱)" % n)
 	runner.check(s.falling and s.falls == 1, "falling 상태와 falls 증가")
 
 

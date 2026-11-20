@@ -386,12 +386,12 @@ func _draw_best(pos: Vector2, w: float, route: RouteDef) -> void:
 	var rec: Dictionary = game.progress.cleared.get(route.route_id, {})
 	var parts := []
 	if rec.has("best_score"):
-		parts.append("최고 %d점" % int(rec.best_score))
+		parts.append("최고 %s점" % ScoreCalc.format(float(rec.best_score)))
 	if rec.has("best_seconds"):
 		parts.append(preload("res://scenes/play_overlay.gd").format_seconds(float(rec.best_seconds)))
 	var line := " · ".join(parts)
 	if line == "" and rec.get("prev", {}).has("best_score"):
-		line = "이전 판 최고 %d점" % int(rec.prev.best_score)
+		line = "이전 판 최고 %s점" % ScoreCalc.format(float(rec.prev.best_score))
 	draw_string(font, Vector2(pos.x, pos.y), line, HORIZONTAL_ALIGNMENT_LEFT, w - 120 * k, int(18 * k), Color.WHITE if parts.size() > 0 else DIM)
 	if not rec.is_empty() or game.progress.stats.has(route.route_id):
 		_button(Rect2(Vector2(pos.x + w - 112 * k, pos.y - 26 * k), Vector2(112, 36) * k), "기록 지우기", "wipe_ask", route.route_id, 16)
@@ -703,7 +703,7 @@ func _draw_control_settings(at: Vector2, w: float) -> void:
 	y += 100 * k
 	var sens := int(p.control_get("tilt_sens"))
 	var dead := float(p.control_get("tilt_dead"))
-	for row in [["민감도", str(sens), "tilt_sens", sens, 1.0], ["반응 시작 각도", "%d°" % int(dead), "tilt_dead", dead, 1.0]]:
+	for row in [["민감도", "%d / %d" % [sens, Progress.TILT_SENS_MAX], "tilt_sens", sens, 1.0], ["반응 시작 각도", "%d°" % int(dead), "tilt_dead", dead, 1.0]]:
 		draw_string(font, Vector2(x, y + 40 * k), row[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(24 * k), Color.WHITE)
 		var bx := x + w - 250 * k
 		_button(Rect2(Vector2(bx, y + 4 * k), Vector2(64, 56) * k), "−", "control", "%s=%s" % [row[2], float(row[3]) - float(row[4])], 28)

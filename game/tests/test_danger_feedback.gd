@@ -92,7 +92,7 @@ func test_release_tracking_and_cause() -> void:
 
 func test_release_risk_predicts_no_support() -> void:
 	var s := _session({&"LH": 1, &"LF": 1})
-	runner.check(s.release_risk(&"LH") == &"GRACE", "손 하나·발 하나: 손을 떼면 버틸 손 없음")
+	runner.check(s.release_risk(&"LH") == &"DROP", "손 하나·발 하나: 남은 손을 떼면 바로 떨어짐(DROP)")
 	runner.check(s.release_risk(&"RH") == &"", "붙지 않은 손은 위험 없음")
 	var full := _session({&"LH": 1, &"RH": 1, &"LF": 1, &"RF": 1})
 	runner.check(full.release_risk(&"LF") == &"", "네 손발 시작 자세에서 발 하나 떼기는 안전")
@@ -110,7 +110,7 @@ func test_beginner_budget_ten_times() -> void:
 		var s := _session({&"LF": 1})
 		ClimbRules.apply_level(s.rules, lv)
 		var n := _ticks_to_fall(s)
-		runner.check(n == (9 if lv == "advanced" else 90), "%s: 손이 없으면 %d틱에 떨어짐(%d)" % [lv, 9 if lv == "advanced" else 90, n])
+		runner.check(n == 1, "%s: 손이 없으면 난이도와 상관없이 바로 떨어짐(%d)" % [lv, n])
 		runner.check(s.rules.imbalance_budget == (180 if lv == "beginner" else 18), "%s 균형 잃음 예산" % lv)
 
 
@@ -156,4 +156,4 @@ func test_platform_needs_a_hand() -> void:
 	for i in 30:
 		runner.check(not s.step().begins_with("fall:"), "한 손 + 바닥 발판은 버팀")
 	s.apply_input([{"type": "detach", "limb": &"RH"}])
-	runner.check(_ticks_to_fall(s) == s.rules.grace_budget, "두 손을 모두 놓으면 바닥 발판 위에서도 떨어짐")
+	runner.check(_ticks_to_fall(s) == 1, "두 손을 모두 놓으면 바닥 발판 위에서도 바로 떨어짐")

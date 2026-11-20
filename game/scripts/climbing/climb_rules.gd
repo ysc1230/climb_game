@@ -173,6 +173,12 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 		if intents.has(foot) and not all_hints.has(foot):
 			all_hints[foot] = MoveClassifier.FLAG
 	moves.update(body.pos, body.angle, attached, intents, endpoints, all_hints, body.yaw)
+	# 두 손이 모두 떨어지면 유예·경고 없이 그 틱에 떨어진다(2026-11-20 사용자: "경고 없이 무조건").
+	if no_hands(attached):
+		phase = Phase.GRACE
+		imbalance_cause = &""
+		unsupported_ticks = maxi(unsupported_ticks + 1, 1)
+		return "NO_SUPPORT"
 	var has_hand := _eligible_hand_count(body.pos, body.angle, attached, body.yaw) > 0
 	var result: Dictionary
 	if has_hand or platform_holds(platform, attached):
@@ -215,6 +221,11 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 		var remain := attached.duplicate()
 		for hand in slipped:
 			remain.erase(hand)
+		if no_hands(remain):  # 마지막 손이 미끄러지면 바로 떨어진다
+			phase = Phase.GRACE
+			imbalance_cause = &""
+			last = {"status": SupportSolver.Status.INFEASIBLE, "loads": {}, "u": {}, "residual": INF}
+			return "NO_SUPPORT"
 		if _eligible_hand_count(body.pos, body.angle, remain, body.yaw) == 0 and not platform_holds(platform, remain):
 			if phase != Phase.GRACE:
 				unsupported_ticks += 1
@@ -364,6 +375,11 @@ static func apply_level(r: ClimbRules, level: String) -> void:
 ## 않은데 떨어지지 않는다"). 두 손을 모두 놓으면 바닥 발판 위에서도 지지 없음(GRACE) → 떨어진다.
 static func platform_holds(platform: bool, attached: Dictionary) -> bool:
 	return platform and (attached.has(PoseSolver.LH) or attached.has(PoseSolver.RH))
+
+
+## 붙은 손이 하나도 없는가(Attached·Armed 손 없음). 이때는 바로 떨어진다.
+static func no_hands(attached: Dictionary) -> bool:
+	return not attached.has(PoseSolver.LH) and not attached.has(PoseSolver.RH)
 
 
 ## 지금 위험 상태의 남은 예산 비율(1 → 0)과 남은 틱. 위험이 아니면 [1.0, -1].

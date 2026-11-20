@@ -7,10 +7,11 @@ extends RefCounted
 ## 맞춰 돌려 준다고 보고(screen_aligned) — 기기 확인 전. 돌려 주지 않는 기기면 orientation으로 돌린다.
 
 const FILTER := 0.15
-const RANGES := [25.0, 20.0, 15.0, 11.0, 8.0]  # 민감도 1~5 → 최대 각도(°)
+## 민감도 1~10 → 반응 시작 각도에서 끝까지 가는 데 더 기울일 각도(°). 1~5는 처음 값 그대로, 6~10을 더함(2026-11-20).
+const RANGES := [25.0, 20.0, 15.0, 11.0, 8.0, 6.5, 5.0, 4.0, 3.0, 2.5]
 
-var sensitivity := 3
-var deadzone := 3.0
+var sensitivity := 5
+var deadzone := 10.0
 var screen_aligned := true
 var orientation := DisplayServer.SCREEN_LANDSCAPE
 var _ref := Vector2.ZERO
@@ -19,7 +20,7 @@ var _has_ref := false
 
 
 static func range_deg(sens: int) -> float:
-	return RANGES[clampi(sens, 1, 5) - 1]
+	return RANGES[clampi(sens, 1, RANGES.size()) - 1]
 
 
 static func available(g: Vector3) -> bool:
