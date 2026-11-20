@@ -193,9 +193,12 @@ func test_courses_json_content() -> void:
 func test_index_real_data() -> void:
 	# 2026-11-11: G_V3_02(B안 몸에 맞춰 다시 배치). 2026-11-14: G_V3_03(더미 몸, 하이스텝. 처음 G_V5_01이었으나 체감으로 V3, docs/41).
 	var idx := ContentIndex.load_all()
-	runner.check(idx.grades() == (["V0", "V1", "V3", "V8"] as Array[String]), "등급 %s" % [idx.grades()])
-	# 2026-11-15: 새 문제(docs/44) — V0 징검다리, V1 비스듬히, V3 높은 디딤, V8 실금.
-	runner.check(idx.general("V0").map(func(r): return r.route_id) == ["G_V0_02"] and idx.general("V1").size() == 1 and idx.general("V8").size() == 1, "V0·V1·V8 문제")
+	# 2026-11-21 작업 5: 빈 등급을 채움(등급마다 2개 이상), 실금은 V4로(route_id 그대로).
+	runner.check(idx.grades() == (["V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7"] as Array[String]), "등급 %s" % [idx.grades()])
+	for g in idx.grades():
+		runner.check(idx.general(g).size() >= 2, "%s 문제 2개 이상 (%d)" % [g, idx.general(g).size()])
+	var ids_4 := idx.general("V4").map(func(r): return r.route_id)
+	runner.check(ids_4 == ["G_V8_01", "G_V4_01"], "V4: 실금이 먼저(order 1) %s" % [ids_4])
 	var ids_g := idx.general("V3").map(func(r): return r.route_id)
 	runner.check(ids_g == ["G_V3_02", "G_V3_03", "G_V3_04"], "V3 문제 %s" % [ids_g])
 	runner.check(idx.route("G_V3_02") != null and idx.route("NOPE") == null, "route 조회")

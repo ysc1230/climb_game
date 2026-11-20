@@ -1,0 +1,363 @@
+{
+ "bounds": {
+  "x_max": 1.5,
+  "x_min": -1.5,
+  "y_max": 4.5,
+  "y_min": 0.0
+ },
+ "check_swapped": false,
+ "content_version": 1,
+ "crux_steps": {},
+ "fail_line_y": -0.5,
+ "goal_slots": [
+  "G_V0_03/G01/goal_left",
+  "G_V0_03/G01/goal_right"
+ ],
+ "grade": "V0",
+ "holds": [
+  {
+   "hold_id": "H01",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      -0.36,
+      1.5
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H02",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      0.36,
+      1.5
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H03",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      -0.4,
+      1.95
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H04",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      0.3,
+      1.95
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H05",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      -0.38,
+      2.33
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H06",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      0.45,
+      2.33
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F01",
+   "slots": [
+    {
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_chip",
+     "pos": [
+      -0.15,
+      0.1
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F02",
+   "slots": [
+    {
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_chip",
+     "pos": [
+      0.18,
+      0.1
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F03",
+   "slots": [
+    {
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_big",
+     "pos": [
+      -0.25,
+      0.5
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F04",
+   "slots": [
+    {
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_big",
+     "pos": [
+      0.3,
+      0.6
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F05",
+   "slots": [
+    {
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_big",
+     "pos": [
+      -0.17,
+      0.95
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F06",
+   "slots": [
+    {
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_big",
+     "pos": [
+      0.22,
+      0.98
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "G01",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "goal",
+     "pos": [
+      -0.15,
+      2.75
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "goal_left"
+    },
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "goal",
+     "pos": [
+      0.25,
+      2.75
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "goal_right"
+    }
+   ]
+  }
+ ],
+ "intended_moves": [
+  [
+   "LF",
+   "G_V0_03/F03/foot_1"
+  ],
+  [
+   "RF",
+   "G_V0_03/F04/foot_1"
+  ],
+  [
+   "LH",
+   "G_V0_03/H03/hand_1"
+  ],
+  [
+   "RH",
+   "G_V0_03/H04/hand_1"
+  ],
+  [
+   "LF",
+   "G_V0_03/F05/foot_1"
+  ],
+  [
+   "RF",
+   "G_V0_03/F06/foot_1"
+  ],
+  [
+   "LH",
+   "G_V0_03/H05/hand_1"
+  ],
+  [
+   "RH",
+   "G_V0_03/H06/hand_1"
+  ],
+  [
+   "LH",
+   "G_V0_03/G01/goal_left"
+  ],
+  [
+   "RH",
+   "G_V0_03/G01/goal_right"
+  ]
+ ],
+ "mode": "general",
+ "name_ko": "넓은 계단",
+ "note": "작업 5 V0: 손발 하나씩. 저그 L·큰 발판이 가깝게 계단처럼 이어진다. 쉬는 자리는 어디서나. 관문 없음.",
+ "order": 2,
+ "platforms": [
+  {
+   "foot_slot_keys": [
+    "G_V0_03/F01/foot_1",
+    "G_V0_03/F02/foot_1"
+   ],
+   "platform_id": "P00",
+   "top_y": 0.1,
+   "x_range": [
+    -0.5,
+    0.6
+   ]
+  }
+ ],
+ "required_techniques": [],
+ "route_id": "G_V0_03",
+ "start_pose": {
+  "angle": 0.0,
+  "pelvis": [
+   0.05,
+   0.75
+  ],
+  "slots": {
+   "LF": "G_V0_03/F01/foot_1",
+   "LH": "G_V0_03/H01/hand_1",
+   "RF": "G_V0_03/F02/foot_1",
+   "RH": "G_V0_03/H02/hand_1"
+  }
+ },
+ "time_medal_seconds": 120,
+ "validation_status": "Draft",
+ "score_ref": {
+  "grabs": 10,
+  "quality": 0.978,
+  "spent_per_m": 16.87
+ },
+ "score_gates": []
+}

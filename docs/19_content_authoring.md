@@ -133,4 +133,6 @@ GeometryChecked는 완성된 배치의 모든 시작/CP·경로 자세에 대한
 
 등급 문제와 기술 과정 문제는 [29. 기술별 사용 조건과 문제 제작 절차](29_technique_conditions_and_authoring.md)의 카드와 5장 절차로 만든다. 검증은 `tools/route_check.gd`(ContentCheck: 의도 경로, 기술 금지 재생, 등급 측정)와 카드에 적힌 우회 재생이다.
 
+작업 5 일반 문제는 `tools/routes/route_specs.py`의 표를 `python3 tools/routes/gen_routes.py [route_id]`로 JSON에 쓴다(score_ref는 보존). `tools/routes/check.sh <id>`가 생성 + route_check 요약, `tools/gate_check.gd`가 관문 R7 검사·탐색기 기술 금지를 한다(docs/48 §11.3).
+
 일반 문제의 정답 순서나 content_version·tuning_version을 바꾸면 AI 고스트·시범 보기 기록을 다시 만든다: `godot --headless --path game --script res://tools/ai_ghost_write.gd [-- route_id]` → `game/data/ai_ghosts/<route_id>.json`. 낡은 기록은 게임이 쓰지 않고, 테스트(test_ghost)가 잡는다.
