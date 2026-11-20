@@ -704,6 +704,9 @@ func _overlay_action(act: String) -> void:
 			_end_tutorial_rules()
 			game.skip_basic()
 			game.home({"tab": "general", "grade": "V0"})
+		"general_v0":
+			_end_tutorial_rules()
+			game.home({"tab": "general", "grade": "V0"})  # V0 설명 카드는 홈이 처음 한 번 띄운다
 
 
 ## 같은 문제를 처음부터(시간·추락 새로 셈, 튜토리얼은 첫 단계부터).

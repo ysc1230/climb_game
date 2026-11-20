@@ -63,6 +63,19 @@
 
 발판에 붙은 상태와 발이 실제 하중을 받치는 상태를 구분한다. 후자는 PoseSolver가 매 틱 갱신하는 런타임 값이며 원본 콘텐츠의 상수 값이 아니다.
 
+### 저장 판 2 (2026-11-20, 작업 3)
+
+`Progress.SCHEMA_VERSION` 2. 판 1 저장도 그대로 읽는다(빈 `stats`).
+
+| 자리 | 내용 |
+| --- | --- |
+| `cleared[route_id]` | 완등한 문제만(키가 있으면 완등·해금에 셈). content_version, no_fall(문제를 연 뒤 추락 0), time, best_seconds, best_score, best_score_parts, flash, ghost(`GhostTrack.to_dict`, 10Hz, 소수 셋째 자리), prev(문제가 바뀌기 전 판의 best_score·best_seconds·flash). 최고 기록·플래시·고스트는 도움 없는 시도만 |
+| `stats[route_id]` | 시도한 모든 문제. content_version, attempts, falls, fall_heights(시도별 가장 높은 골반 높이, 최근 20개). 판이 바뀌면 0부터. 판정·해금에 쓰지 않음 |
+
+기록 지우기(`Progress.wipe_route`)는 그 문제의 `cleared`와 `stats`를 지운다. 해금은 기록에서 다시 계산한다.
+
+문제 JSON에 `score_ref {spent_per_m, grabs}`, `score_gates [{technique, slot}]`(작업 3 §3.1, `tools/score_ref.gd`).
+
 ### 몸 옮기기 설정 (2026-11-20, 작업 2)
 
 `Progress.control`(저장 키 `control`)에 둔다. 키가 없으면 `Progress.CONTROL_DEFAULTS`. 모르는 키·값은 불러올 때 버리고 숫자는 범위로 자른다(`Progress.set_control`). 기록 자격·판정 수치는 바꾸지 않는다(기울이기는 가운데 끌기와 같은 `rules.body_goal` 입구).

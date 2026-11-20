@@ -66,6 +66,7 @@ func _ready() -> void:
 	choosing_level = progress.level == ""
 	if not choosing_level:
 		_first_run_tutorial()
+	_maybe_grade_card()
 	queue_redraw()
 
 
@@ -89,6 +90,45 @@ func _default_grade() -> String:
 func _set_tab(t: String) -> void:
 	tab = t
 	game.get_flow().set_last_tab(t)
+	_maybe_grade_card()
+
+
+## 등급 설명 카드(작업 3 §3.6): 일반 탭에서 열린 등급을 처음 볼 때 한 번(Progress.seen_tips).
+var grade_card := ""
+## 기록 지우기 확인 창의 문제 ID("" = 닫힘, 작업 3 §3.3).
+var wipe_ask := ""
+
+
+func _maybe_grade_card() -> void:
+	if game == null or tab != "general" or choosing_level or grade == "" or not game.progress.grade_unlocked(grade, game.index):
+		return
+	if not game.progress.seen_tips.has(GradeInfo.tip_id(grade)):
+		grade_card = grade
+
+
+## 창(등급 설명·기록 지우기 확인): 그 창의 버튼만 누를 수 있다.
+func _draw_modals(size: Vector2) -> void:
+	if grade_card == "" and wipe_ask == "":
+		return
+	_buttons = []
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.6))
+	var w := 820.0 * k
+	var h := 330.0 * k
+	var p := Rect2(Vector2(size.x * 0.5 - w * 0.5, size.y * 0.5 - h * 0.5), Vector2(w, h))
+	draw_rect(p, Color(0.12, 0.11, 0.1, 0.97))
+	draw_rect(p, CREAM, false, 3.0)
+	var x := p.position.x + 40 * k
+	var tw := w - 80 * k
+	if grade_card != "":
+		draw_string(font, Vector2(x, p.position.y + 70 * k), GradeInfo.label(grade_card), HORIZONTAL_ALIGNMENT_LEFT, tw, int(38 * k), CREAM)
+		draw_multiline_string(font, Vector2(x, p.position.y + 130 * k), GradeInfo.text(grade_card), HORIZONTAL_ALIGNMENT_LEFT, tw, int(26 * k), 3, Color.WHITE)
+		_button(Rect2(Vector2(p.get_center().x - 120 * k, p.end.y - 90 * k), Vector2(240, 64) * k), "시작해요", "grade_card_ok", "", 24, true)
+		return
+	var r: RouteDef = game.index.route(wipe_ask)
+	draw_string(font, Vector2(x, p.position.y + 64 * k), "%s 기록을 지울까요?" % (_route_name(r) if r != null else wipe_ask), HORIZONTAL_ALIGNMENT_LEFT, tw, int(30 * k), CREAM)
+	draw_multiline_string(font, Vector2(x, p.position.y + 114 * k), "완등·최고 점수·최고 시간·고스트·떨어진 횟수가 지워져요. 플래시에 다시 도전할 수 있어요.\n이 문제 완등이 지워져서 다음 등급이 다시 잠길 수 있어요.", HORIZONTAL_ALIGNMENT_LEFT, tw, int(21 * k), 4, Color.WHITE)
+	_button(Rect2(Vector2(p.get_center().x - 260 * k, p.end.y - 90 * k), Vector2(240, 64) * k), "지우기", "wipe_yes", wipe_ask, 24, true)
+	_button(Rect2(Vector2(p.get_center().x + 20 * k, p.end.y - 90 * k), Vector2(240, 64) * k), "취소", "wipe_no", "", 24)
 
 
 # ---------- 입력 ----------
@@ -140,6 +180,17 @@ func _do(action: String, arg: String) -> void:
 			course_id = ""
 		"grade":
 			grade = arg
+			_maybe_grade_card()
+		"grade_card_ok":
+			game.get_flow().mark_tip(GradeInfo.tip_id(grade_card))
+			grade_card = ""
+		"wipe_ask":
+			wipe_ask = arg
+		"wipe_yes":
+			game.get_flow().wipe_route(arg)
+			wipe_ask = ""
+		"wipe_no":
+			wipe_ask = ""
 		"course":
 			course_id = arg
 		"courses":
@@ -205,6 +256,8 @@ func _draw() -> void:
 		_draw_level_choice(size)
 	elif choosing_look:
 		_draw_look(size)
+	else:
+		_draw_modals(size)
 
 
 ## 난이도 고르기 창. 다른 버튼을 덮고(앞서 등록된 버튼은 지움) 카드 두 장만 누를 수 있다.
@@ -270,7 +323,7 @@ func _draw_general(size: Vector2) -> void:
 	for g in gs:
 		var open := progress.grade_unlocked(g, idx)
 		var r := Rect2(Vector2(x, y), Vector2(150, 76) * k)
-		var sub := "완료 %d/%d" % [progress.cleared_count(g, idx), idx.general(g).size()] if open else "잠김"
+		var sub := "%s · %d/%d" % [GradeInfo.name_of(g), progress.cleared_count(g, idx), idx.general(g).size()] if open else "잠김"
 		_button(r, "", "grade", g, 26, g == grade)
 		var tc := INK if g == grade else (Color.WHITE if open else DIM)
 		draw_string(font, Vector2(r.position.x, r.position.y + 34 * k), g, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(28 * k), tc)
@@ -309,11 +362,15 @@ func _draw_problem_card(r: Rect2, route: RouteDef) -> void:
 	var w := r.size.x - 36 * k
 	var y := r.position.y + 44 * k
 	draw_string(font, Vector2(x, y), _route_name(route), HORIZONTAL_ALIGNMENT_LEFT, w, int(26 * k), Color.WHITE)
-	y += 40 * k
-	draw_multiline_string(font, Vector2(x, y), "필요 기술: " + _tech_names(route.required_techniques), HORIZONTAL_ALIGNMENT_LEFT, w, int(18 * k), 2, DIM)
-	y += 56 * k
+	y += 30 * k
+	draw_string(font, Vector2(x, y), GradeInfo.label(route.grade), HORIZONTAL_ALIGNMENT_LEFT, w, int(18 * k), CREAM)
+	y += 30 * k
+	draw_multiline_string(font, Vector2(x, y), "필요 기술: " + _tech_names(route.required_techniques), HORIZONTAL_ALIGNMENT_LEFT, w, int(17 * k), 2, DIM)
+	y += 48 * k
 	_draw_medals(Vector2(x, y), route)
-	y += 40 * k
+	y += 30 * k
+	_draw_best(Vector2(x, y), w, route)
+	y += 20 * k
 	if lock != "":
 		_lock(Vector2(x + 8 * k, y + 2 * k), CREAM)
 		draw_multiline_string(font, Vector2(x + 26 * k, y + 10 * k), lock, HORIZONTAL_ALIGNMENT_LEFT, w - 26 * k, int(20 * k), 2, CREAM)
@@ -324,16 +381,32 @@ func _draw_problem_card(r: Rect2, route: RouteDef) -> void:
 	_button(Rect2(Vector2(x, r.end.y - 70 * k), Vector2(w, 54 * k)), "▶ 시작", "play", route.route_id, 24, true)
 
 
-## 메달 3개를 글자로: "✓ 완등  – 무추락  – 시간".
+## 최고 점수·최고 시간 한 줄(+ 이전 판 기록은 흐리게)과 [기록 지우기](기록이 있을 때만).
+func _draw_best(pos: Vector2, w: float, route: RouteDef) -> void:
+	var rec: Dictionary = game.progress.cleared.get(route.route_id, {})
+	var parts := []
+	if rec.has("best_score"):
+		parts.append("최고 %d점" % int(rec.best_score))
+	if rec.has("best_seconds"):
+		parts.append(preload("res://scenes/play_overlay.gd").format_seconds(float(rec.best_seconds)))
+	var line := " · ".join(parts)
+	if line == "" and rec.get("prev", {}).has("best_score"):
+		line = "이전 판 최고 %d점" % int(rec.prev.best_score)
+	draw_string(font, Vector2(pos.x, pos.y), line, HORIZONTAL_ALIGNMENT_LEFT, w - 120 * k, int(18 * k), Color.WHITE if parts.size() > 0 else DIM)
+	if not rec.is_empty() or game.progress.stats.has(route.route_id):
+		_button(Rect2(Vector2(pos.x + w - 112 * k, pos.y - 26 * k), Vector2(112, 36) * k), "기록 지우기", "wipe_ask", route.route_id, 16)
+
+
+## 메달을 글자로: "✓ 완등  – 플래시  – 무추락  – 시간".
 func _draw_medals(pos: Vector2, route: RouteDef) -> void:
 	var rec: Dictionary = game.progress.cleared.get(route.route_id, {})
-	var medals := [["완등", not rec.is_empty()], ["무추락", rec.get("no_fall", false)], ["시간", rec.get("time", false)]]
+	var medals := [["완등", not rec.is_empty()], ["플래시", rec.get("flash", false)], ["무추락", rec.get("no_fall", false)], ["시간", rec.get("time", false)]]
 	var x := pos.x
 	for m in medals:
 		var got: bool = m[1]
 		var t: String = ("✓ " if got else "– ") + str(m[0])
 		draw_string(font, Vector2(x, pos.y), t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(19 * k), CREAM if got else DIM)
-		x += font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(19 * k)).x + 16 * k
+		x += font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(19 * k)).x + 12 * k
 
 
 ## 문제가 요구하는 버튼 기술 중 아직 잠긴 것을 가르치는 과정 ID(없으면 "").

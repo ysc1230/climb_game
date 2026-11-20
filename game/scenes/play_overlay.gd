@@ -192,8 +192,11 @@ func _draw_done(ci: CanvasItem, size: Vector2, k: float) -> void:
 	var acts := [["나가기", "list"]] if has_list else [["다시", "retry"]]
 	var w := 400.0
 	if not next_course.is_empty():
-		acts.append(["다음", "next_course"])
+		acts.append(["다음 수업", "next_course"])
 		w = 560.0
+	if has_list:  # 수업 뒤 일반 문제 V0부터(작업 3 §3.7, [내 문제 만들기]는 작업 6 뒤)
+		acts.append(["일반 문제 V0부터", "general_v0"])
+		w += 240.0
 	_button_row(ci, Rect2(Vector2(size.x * 0.5 - w * 0.5 * k, size.y * 0.5), Vector2(w, 64) * k), acts, k)
 
 
