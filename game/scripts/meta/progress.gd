@@ -25,7 +25,7 @@ var last_tab := "general"
 var level := ""
 var look := {}  # 캐릭터 외형 {body, hair, top, bottom, chalk, shoes}(docs/34 §7). 비면 기본(남성 기본 조합)
 ## 화면 표시 켜고 끄기(설정 탭, docs/49 v0.2). 키가 없으면 DISPLAY_DEFAULTS.
-const DISPLAY_DEFAULTS := {"balance": true, "loads": false, "balance_hint": true, "dev_info": false}
+const DISPLAY_DEFAULTS := {"balance": true, "loads": false, "balance_hint": true, "dev_info": false, "ghost": true}
 var display := {}
 ## 몸 옮기기(작업 2, docs/superpowers/specs/2026-11-19-2-tilt-design.md). body: "drag" 가운데 끌기 | "tilt" 휴대폰 기울이기.
 ## tilt_sens 1~5, tilt_dead 반응 시작 각도 0~10°, tilt_with_drag 기울이기 중에도 가운데 끌기. 키가 없으면 CONTROL_DEFAULTS.

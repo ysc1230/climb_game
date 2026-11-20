@@ -143,7 +143,75 @@ func _ready() -> void:
 	session.hold_on_fall = tutorial == null  # 떨어지면 물리 낙하 장면 → 조언 카드
 	if game != null:
 		_setup_tilt(game.progress)
+	_new_attempt()
 	_start_preview()
+
+
+## ---------- 점수·고스트(작업 3, docs/superpowers/specs/2026-11-19-3-score-design.md) ----------
+var score_rec := ScoreRecorder.new()
+var ghost_rec := GhostTrack.new()
+var ghost_best: GhostTrack = null  # 내 최고 기록 고스트(설정 "ghost", 기록이 있을 때만)
+var _attempt_top := -INF  # 이번 시도에서 가장 높이 올라간 골반 높이(힌트·시범 보기)
+
+
+## 새 시도: 점수·자세 기록을 새로 하고 시도 수를 센다(튜토리얼 제외).
+func _new_attempt() -> void:
+	score_rec = ScoreRecorder.new()
+	ghost_rec = GhostTrack.new()
+	_attempt_top = session.body.pos.y
+	ghost_best = null
+	if game != null and tutorial == null:
+		game.get_flow().start_attempt()
+		var c: Dictionary = game.progress.cleared.get(route.route_id, {})
+		if game.progress.display_on("ghost") and c.has("ghost") and int(c.get("content_version", -1)) == route.content_version:
+			ghost_best = GhostTrack.from_dict(c.ghost)
+			if ghost_best.frames.is_empty():
+				ghost_best = null
+
+
+## 판정 틱마다(시간이 흐른 틱): 점수 기록·자세 기록·가장 높은 골반.
+func _record_tick(result: String, dt: float) -> void:
+	if tutorial != null:
+		return
+	score_rec.tick(session, result)
+	if dt > 0.0:
+		ghost_rec.record(session, dt)
+	_attempt_top = maxf(_attempt_top, session.body.pos.y)
+
+
+## 고스트 그리기: 내 최고 기록(시도 시간에 맞춰 흰색 30%). 루트 읽기·낙하·완등 축하 중에는 숨긴다.
+func _draw_ghosts() -> void:
+	if ghost_best != null and route_preview == null and not session.falling and session.halted == &"" and attempt.seconds <= ghost_best.duration() + 1.0:
+		_draw_ghost_figure(ghost_best.sample(attempt.seconds), Color(1, 1, 1, 0.3))
+
+
+## 자세 기록 한 장면을 막대 사람으로(골반 → 어깨·고관절 → 손발 끝, 머리 원). 판정 관절 위치(PoseSolver)를 그대로 쓴다.
+func _draw_ghost_figure(g: Dictionary, col: Color) -> void:
+	if g.is_empty():
+		return
+	var pel: Vector2 = g.pelvis
+	var ang: float = g.angle
+	var yaw: float = g.yaw
+	var w := 6.0 * ui_k
+	var sh_l := PoseSolver.joint_position(pel, ang, &"LH", yaw)
+	var sh_r := PoseSolver.joint_position(pel, ang, &"RH", yaw)
+	var neck := (sh_l + sh_r) * 0.5
+	draw_line(w2s(pel), w2s(neck), col, w * 1.6)
+	draw_line(w2s(sh_l), w2s(sh_r), col, w)
+	var up := (neck - pel).normalized()
+	draw_circle(w2s(neck + up * 0.16), 0.11 * px_per_m, col)
+	for limb in GhostTrack.LIMBS:
+		var root := PoseSolver.joint_position(pel, ang, limb, yaw)
+		var end: Vector2 = g.limbs[limb]
+		if not PoseSolver.is_hand(limb):
+			draw_line(w2s(pel), w2s(root), col, w)
+		draw_line(w2s(root), w2s(end), col, w)
+		draw_circle(w2s(end), (5.0 if g.attached[limb] else 3.5) * ui_k, col)
+
+
+## 자동 도움·힌트를 쓴 시도: 최고 기록·플래시에 넣지 않는다.
+func _mark_helped() -> void:
+	score_rec.helped = true
 
 
 ## 문제가 튜토리얼이면 단계 실행기를 만들고 첫 단계를 시작한다. 기술 버튼도 정한다.
@@ -368,6 +436,7 @@ func _rescue() -> void:
 	_apply(router.cancel_all())
 	if tutorial == null:
 		rescue_left -= 1  # 튜토리얼 연습은 횟수를 쓰지 않는다(반복해서 익힘)
+		_mark_helped()
 	danger.reset()
 	_play("recover")
 	_vibrate(25, 0.4)
@@ -545,6 +614,7 @@ func _retry() -> void:
 	_after_reset("다시 시작")
 	session.hold_on_clear = tutorial == null
 	session.hold_on_fall = tutorial == null
+	_new_attempt()
 	_start_preview()
 
 
@@ -702,6 +772,9 @@ func _physics_process(_delta: float) -> void:
 	best_height = maxf(best_height, _height())
 	_take_messages()
 	var dt := attempt.tick(Tuning.DT, session.selecting)  # 고르는 중에는 0(시간·도움말 타이머 멈춤)
+	_record_tick(result, dt)
+	if result.begins_with("fall:") and game != null and tutorial == null:
+		game.get_flow().record_fall(_attempt_top)
 	attempt.on_result(result, session.falls)  # respawn: 새 시도(Ruling I)
 	if tutorial != null and _tutorial_tick(result, dt):
 		queue_redraw()
@@ -791,11 +864,20 @@ func _tutorial_tick(result: String, dt: float) -> bool:
 ## 완등 결과 오버레이(28 §5). Game이 있으면 기록·저장하고 [다음]을 정한다.
 func _show_result() -> void:
 	var falls := attempt.falls(session.falls)
+	if tutorial == null:
+		falls = session.falls  # 무추락: 문제를 연 뒤로 한 번도 안 떨어짐(작업 3 §3.3)
 	var r := {"seconds": attempt.seconds, "falls": falls, "no_fall": falls == 0, "time_limit": route.time_medal_seconds,
 		"time": route.time_medal_seconds > 0.0 and attempt.seconds <= route.time_medal_seconds, "next": "", "saved": true}
-	if overlay.has_list:
-		var rec: Dictionary = game.finish_clear(attempt.seconds, falls)  # 메달은 기록한 쪽 판정을 그대로 쓴다
-		for key in ["no_fall", "time", "saved"]:
+	var extra := {}
+	if tutorial == null:
+		var sc := ScoreCalc.score(score_rec.to_dict(), route)
+		r["score"] = sc.total
+		r["parts"] = sc.parts
+		r["helped"] = sc.helped
+		extra = {"score": sc.total, "parts": sc.parts, "helped": sc.helped, "ghost": ghost_rec.to_dict()}
+	if overlay.has_list and game != null:
+		var rec: Dictionary = game.finish_clear(attempt.seconds, falls, extra)  # 메달은 기록한 쪽 판정을 그대로 쓴다
+		for key in ["no_fall", "time", "saved", "flash", "new_best_score", "new_best_time", "best_score", "best_seconds"]:
 			if rec.has(key):
 				r[key] = rec[key]
 		var flow: PlayFlow = game.get_flow()
@@ -994,6 +1076,7 @@ func _draw_hud(size: Vector2) -> void:
 	})
 	overlay.pause_rect = top_btns.pause
 	overlay.detail_rect = top_btns.detail if warnings else Rect2()
+	_draw_ghosts()
 	_draw_grip_warnings()
 	_draw_preview_labels()
 	if not detail_mode and not paused and warnings:
@@ -1998,3 +2081,4 @@ func _fall_retry() -> void:
 	best_height = 0.0
 	_after_reset("")
 	_fall_cause = ""
+	_new_attempt()

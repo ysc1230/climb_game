@@ -82,34 +82,85 @@ func draw(ci: CanvasItem, size: Vector2, k: float, paused: bool, selecting: bool
 		_draw_tutorial(ci, size, k)
 
 
+## 결과 카드(작업 3 §3.2, 휴대폰 가로): 왼쪽 총점·다섯 항목 막대, 오른쪽 시간·메달 칩, 아래 버튼.
+## result: {seconds, falls, no_fall, time, time_limit, saved, next, score?, parts?, helped?, flash?, new_best_score?, new_best_time?, best_score?, best_seconds?}
 func _draw_result(ci: CanvasItem, size: Vector2, k: float) -> void:
 	ci.draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.6))
 	var rise := 1.0 - ease(clampf((Time.get_ticks_msec() - result_ms) / 250.0, 0.0, 1.0), 0.4)
-	var panel := Rect2(Vector2(size.x * 0.5 - 330 * k, size.y * 0.5 - 220 * k + rise * size.y * 0.6), Vector2(660, 440) * k)
+	var pw := minf(1040.0 * k, size.x - 40 * k)
+	var ph := minf(560.0 * k, size.y - 30 * k)
+	var panel := Rect2(Vector2(size.x * 0.5 - pw * 0.5, size.y * 0.5 - ph * 0.5 + rise * size.y * 0.6), Vector2(pw, ph))
 	ci.draw_rect(panel, Color(0.12, 0.11, 0.1, 0.95))
 	ci.draw_rect(panel, CREAM, false, 3.0)
 	var x := panel.position.x
-	var w := panel.size.x
 	var y := panel.position.y
-	ci.draw_string(font, Vector2(x, y + 70 * k), "완등!", HORIZONTAL_ALIGNMENT_CENTER, w, int(46 * k), CREAM)
-	ci.draw_string(font, Vector2(x, y + 130 * k), "시간 %s · 추락 %d번" % [format_seconds(result.seconds), result.falls], HORIZONTAL_ALIGNMENT_CENTER, w, int(26 * k), Color.WHITE)
+	var lw := pw * 0.55
+	ci.draw_string(font, Vector2(x + 36 * k, y + 58 * k), "완등!", HORIZONTAL_ALIGNMENT_LEFT, -1, int(40 * k), CREAM)
+	if result.has("score"):
+		_draw_score(ci, Vector2(x + 36 * k, y + 80 * k), lw - 60 * k, k)
+	var rx := x + lw + 10 * k
+	var rw := pw - lw - 46 * k
+	var ty := y + 58 * k
+	ci.draw_string(font, Vector2(rx, ty), "시간 %s" % format_seconds(result.seconds), HORIZONTAL_ALIGNMENT_LEFT, -1, int(28 * k), Color.WHITE)
+	if bool(result.get("new_best_time", false)) and not bool(result.get("helped", false)):
+		ci.draw_string(font, Vector2(rx, ty), "새 최고 시간", HORIZONTAL_ALIGNMENT_RIGHT, rw, int(20 * k), Color("8fe388"))
+	elif float(result.get("best_seconds", -1.0)) > 0.0:
+		ci.draw_string(font, Vector2(rx, ty + 32 * k), "내 최고 %s" % format_seconds(float(result.best_seconds)), HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), Color(1, 1, 1, 0.7))
+	ty += 70 * k
 	var limit: float = result.get("time_limit", 0.0)
-	var time_label := "시간 메달(%s 안)" % format_seconds(limit) if limit > 0.0 else "시간 메달(기준 없음)"
-	var medals := [["완등", true], ["무추락", result.no_fall], [time_label, result.time]]
-	for i in medals.size():
-		var got: bool = medals[i][1]
-		var mark := "✓ 받음" if got else "– 못 받음"
-		ci.draw_string(font, Vector2(x + 120 * k, y + (185 + i * 40) * k), medals[i][0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(24 * k), Color.WHITE)
-		ci.draw_string(font, Vector2(x, y + (185 + i * 40) * k), mark, HORIZONTAL_ALIGNMENT_RIGHT, w - 120 * k, int(24 * k), CREAM if got else Color(1, 1, 1, 0.6))
+	var chips := [["완등", true], ["플래시", bool(result.get("flash", false))], ["무추락", bool(result.no_fall)],
+		["시간(%s 안)" % format_seconds(limit) if limit > 0.0 else "시간(기준 없음)", bool(result.time)]]
+	for c in chips:
+		var got: bool = c[1]
+		var r := Rect2(Vector2(rx, ty), Vector2(rw, 46 * k))
+		ci.draw_rect(r, CREAM if got else Color(1, 1, 1, 0.06))
+		ci.draw_rect(r, Color(CREAM, 0.6), false, 2.0)
+		ci.draw_string(font, Vector2(r.position.x + 16 * k, r.position.y + 32 * k), ("✓ " if got else "– ") + str(c[0]), HORIZONTAL_ALIGNMENT_LEFT, rw - 20 * k, int(22 * k), Color(0.1, 0.08, 0.06) if got else Color(1, 1, 1, 0.55))
+		ty += 56 * k
+	if bool(result.get("flash", false)):
+		ci.draw_string(font, Vector2(rx, ty + 16 * k), "처음 시도에 한 번에 올랐어요!", HORIZONTAL_ALIGNMENT_LEFT, rw, int(19 * k), CREAM)
 	if not result.get("saved", true):
-		ci.draw_string(font, Vector2(x, y + 320 * k), "기록을 저장하지 못했어요", HORIZONTAL_ALIGNMENT_CENTER, w, int(20 * k), Color("ff8a6a"))
+		ci.draw_string(font, Vector2(x, panel.end.y - 96 * k), "기록을 저장하지 못했어요", HORIZONTAL_ALIGNMENT_CENTER, pw, int(20 * k), Color("ff8a6a"))
 	var acts := []
 	if str(result.get("next", "")) != "":
 		acts.append(["다음", "next"])
 	acts.append(["다시", "retry"])
 	if has_list:
 		acts.append(["목록", "list"])
-	_button_row(ci, Rect2(Vector2(x, y + 350 * k), Vector2(w, 64 * k)), acts, k)
+	_button_row(ci, Rect2(Vector2(x + pw * 0.2, panel.end.y - 80 * k), Vector2(pw * 0.6, 60 * k)), acts, k)
+
+
+const SCORE_ROWS := [["energy", "힘 아끼기", 30], ["stable", "안정", 25], ["precise", "정확한 손발", 20], ["technique", "기술", 15], ["finish", "마무리", 10]]
+
+
+## 총점(크게) / 100 + 도움·새 최고 + 다섯 항목 막대.
+func _draw_score(ci: CanvasItem, at: Vector2, w: float, k: float) -> void:
+	var helped := bool(result.get("helped", false))
+	var total := str(int(result.score))
+	ci.draw_string(font, at + Vector2(0, 74 * k), total, HORIZONTAL_ALIGNMENT_LEFT, -1, int(80 * k), Color.WHITE)
+	var tw := font.get_string_size(total, HORIZONTAL_ALIGNMENT_LEFT, -1, int(80 * k)).x
+	ci.draw_string(font, at + Vector2(tw + 10 * k, 74 * k), "/ 100", HORIZONTAL_ALIGNMENT_LEFT, -1, int(28 * k), Color(1, 1, 1, 0.6))
+	var tag := ""
+	if helped:
+		tag = "도움 — 최고 기록에 들어가지 않아요"
+	elif bool(result.get("new_best_score", false)):
+		tag = "새 최고 점수"
+	elif int(result.get("best_score", -1)) >= 0:
+		tag = "내 최고 %d" % int(result.best_score)
+	ci.draw_string(font, at + Vector2(tw + 110 * k, 74 * k), tag, HORIZONTAL_ALIGNMENT_LEFT, w - tw - 110 * k, int(20 * k), Color("ffb070") if helped else Color("8fe388"))
+	var parts: Dictionary = result.get("parts", {})
+	var y := at.y + 112 * k
+	for row in SCORE_ROWS:
+		var v := int(parts.get(row[0], 0))
+		ci.draw_string(font, Vector2(at.x, y + 22 * k), row[1], HORIZONTAL_ALIGNMENT_LEFT, -1, int(21 * k), Color.WHITE)
+		var bar := Rect2(Vector2(at.x + 150 * k, y + 6 * k), Vector2(w - 250 * k, 18 * k))
+		if row[0] == "technique" and v < 0:
+			ci.draw_string(font, Vector2(bar.position.x, y + 22 * k), "이 문제는 기술 점수가 없어요", HORIZONTAL_ALIGNMENT_LEFT, -1, int(18 * k), Color(1, 1, 1, 0.5))
+		else:
+			ci.draw_rect(bar, Color(1, 1, 1, 0.1))
+			ci.draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(float(v) / float(row[2]), 0.0, 1.0), bar.size.y)), CREAM)
+			ci.draw_string(font, Vector2(bar.end.x + 12 * k, y + 22 * k), "%d / %d" % [v, row[2]], HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), Color(1, 1, 1, 0.85))
+		y += 44 * k
 
 
 ## 튜토리얼 완료 화면.

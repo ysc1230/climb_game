@@ -127,3 +127,25 @@ func test_tilt_only_drops_center_drag() -> void:
 	n._apply([{"type": "body_start", "limb": &"BODY"}])
 	runner.check(n.session.body_dragging(), "함께 쓰기면 가운데 끌기도 됨")
 	n.free()
+
+
+## 작업 3: 시도 동안 점수 기록을 모으고, 결과에 점수·항목·도움이 실린다(게임 노드 없이).
+func test_result_carries_score() -> void:
+	var n := _make()
+	n._new_attempt()
+	for i in 30:
+		var r: String = n.session.step()
+		n._record_tick(r, 1.0 / 60.0)
+	n._show_result()
+	var res: Dictionary = n.overlay.result
+	runner.check(res.has("score") and res.has("parts") and res.parts.has("energy") and not bool(res.helped), "결과에 점수 %s" % [res])
+	n.free()
+
+
+func test_rescue_marks_helped() -> void:
+	var n := _make()
+	n._new_attempt()
+	n._mark_helped()
+	n._show_result()
+	runner.check(bool(n.overlay.result.helped), "자동 도움을 쓰면 도움 표시")
+	n.free()
