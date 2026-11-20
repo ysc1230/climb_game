@@ -137,6 +137,22 @@ func test_grade_unlock_skips_empty_grade() -> void:
 	_cleanup()
 
 
+## 작업 5 §5.4: 그 등급 문제를 하나라도 완등했으면 그 등급은 계속 열려 있다(V2가 새로 생겨 V3의 앞 등급이 바뀌어도 다시 잠기지 않음).
+func test_grade_stays_open_once_cleared() -> void:
+	_general("G_V0_01", "V0", 1)
+	_general("G_V2_01", "V2", 1)
+	_general("G_V3_01", "V3", 1)
+	_write(FIX + "/courses.json", {"courses": []})
+	var idx := ContentIndex.load_all(FIX)
+	var p := Progress.new()
+	p.skip_basic()
+	p.record_clear(idx.route("G_V3_01"), 30.0, 0)
+	runner.check(not p.is_cleared("G_V2_01") and p.grade_unlocked("V3", idx), "V2를 안 깼어도 V3 완등 기록이 있으면 V3 열림")
+	runner.check(p.grade_lock_text("V3", idx) == "", "문구 없음")
+	runner.check(not p.grade_unlocked("V2", idx), "V2는 V0 규칙대로 잠김")
+	_cleanup()
+
+
 func test_unlocked_buttons_after_tutorial() -> void:
 	var idx := _index()
 	var p := Progress.new()

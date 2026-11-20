@@ -146,7 +146,10 @@ func clears_needed(prev: String, index: ContentIndex) -> int:
 	return mini(GRADE_CLEAR_NEEDED, index.general(prev).size())
 
 
+## 그 등급 문제를 하나라도 완등했으면 계속 열림(작업 5 §5.4: 새 등급이 생겨 앞 등급이 바뀌어도 하던 등급이 다시 잠기지 않게).
 func grade_unlocked(grade: String, index: ContentIndex) -> bool:
+	if cleared_count(grade, index) > 0:
+		return true
 	var n := grade.substr(1).to_int()
 	var prev := prerequisite_grade(grade, index) if n > 0 else ""
 	if prev == "":
