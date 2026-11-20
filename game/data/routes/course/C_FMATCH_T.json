@@ -1,75 +1,37 @@
 {
- "route_id": "C_FMATCH_T",
- "content_version": 1,
- "validation_status": "Draft",
- "mode": "course",
- "grade": "V0",
- "order": 0,
- "name_ko": "합발",
+ "bounds": {
+  "x_max": 1.8,
+  "x_min": -1.5,
+  "y_max": 4.0,
+  "y_min": 0.0
+ },
+ "check_swapped": false,
+ "content_version": 2.0,
  "course_id": "C_FMATCH",
  "course_slot": "tutorial",
- "required_techniques": [],
- "check_swapped": false,
- "note": "기술 수업(docs/47): 풋스왑과 같은 자리지만 파란 홀드라 두 발이 함께 선다. 두 발을 모은 뒤 오른발을 멀리 옮긴다.",
- "bounds": {
-  "x_min": -1.5,
-  "x_max": 1.8,
-  "y_min": 0.0,
-  "y_max": 4.0
- },
  "fail_line_y": -0.5,
- "platforms": [
-  {
-   "platform_id": "P00",
-   "top_y": 0.1,
-   "x_range": [
-    -0.5,
-    0.8
-   ],
-   "foot_slot_keys": [
-    "C_FMATCH_T/F01/foot_1",
-    "C_FMATCH_T/F02/foot_1"
-   ]
-  }
- ],
- "start_pose": {
-  "pelvis": [
-   -0.1,
-   0.95
-  ],
-  "angle": 0.0,
-  "slots": {
-   "LH": "C_FMATCH_T/H01/hand_1",
-   "RH": "C_FMATCH_T/H02/hand_1",
-   "LF": "C_FMATCH_T/F03/foot_1",
-   "RF": "C_FMATCH_T/B01/hand_1"
-  }
- },
  "goal_slots": [
   "C_FMATCH_T/G01/goal_left",
   "C_FMATCH_T/G01/goal_right"
  ],
+ "grade": "V0",
  "holds": [
   {
    "hold_id": "H01",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      -0.1,
-      1.8
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.08
-     }
+     "hold_type": "jug",
+     "pos": [
+      -0.1,
+      1.8
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -77,22 +39,18 @@
    "hold_id": "H02",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      0.45,
-      1.85
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.08
-     }
+     "hold_type": "jug",
+     "pos": [
+      0.45,
+      1.85
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -100,22 +58,18 @@
    "hold_id": "H03",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      1.05,
-      1.95
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.08
-     }
+     "hold_type": "jug",
+     "pos": [
+      1.05,
+      1.95
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -123,23 +77,21 @@
    "hold_id": "B01",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      0.2,
-      0.5
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
      "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.13,
       "matchable": true
-     }
+     },
+     "hold_type": "jug",
+     "pos": [
+      0.2,
+      0.5
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -147,18 +99,18 @@
    "hold_id": "F01",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      -0.12,
-      0.1
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.05
-     }
+     "hold_type": "foot_chip",
+     "pos": [
+      -0.12,
+      0.1
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -166,18 +118,18 @@
    "hold_id": "F02",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      0.25,
-      0.1
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.05
-     }
+     "hold_type": "foot_chip",
+     "pos": [
+      0.25,
+      0.1
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -185,18 +137,18 @@
    "hold_id": "F03",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      -0.5,
-      0.5
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.05
-     }
+     "hold_type": "foot_chip",
+     "pos": [
+      -0.5,
+      0.5
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -204,18 +156,18 @@
    "hold_id": "F05",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      1.33,
-      0.6
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.05
-     }
+     "hold_type": "foot_chip",
+     "pos": [
+      1.33,
+      0.6
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -223,18 +175,18 @@
    "hold_id": "F06",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      0.35,
-      0.8
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.05
-     }
+     "hold_type": "foot_chip",
+     "pos": [
+      0.35,
+      0.8
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -242,26 +194,32 @@
    "hold_id": "G01",
    "slots": [
     {
-     "slot_id": "goal_left",
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "goal",
      "pos": [
       0.65,
       2.15
      ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "goal_left"
+    },
+    {
      "allowed": [
       "LH",
       "RH"
-     ]
-    },
-    {
-     "slot_id": "goal_right",
+     ],
+     "hold_type": "goal",
      "pos": [
       1.05,
       2.15
      ],
-     "allowed": [
-      "LH",
-      "RH"
-     ]
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "goal_right"
     }
    ]
   }
@@ -304,13 +262,44 @@
    "C_FMATCH_T/G01/goal_right"
   ]
  ],
+ "mode": "course",
+ "name_ko": "합발",
+ "note": "기술 수업(docs/47): 풋스왑과 같은 자리지만 파란 홀드라 두 발이 함께 선다. 두 발을 모은 뒤 오른발을 멀리 옮긴다.",
+ "order": 0,
+ "platforms": [
+  {
+   "foot_slot_keys": [
+    "C_FMATCH_T/F01/foot_1",
+    "C_FMATCH_T/F02/foot_1"
+   ],
+   "platform_id": "P00",
+   "top_y": 0.1,
+   "x_range": [
+    -0.5,
+    0.8
+   ]
+  }
+ ],
+ "required_techniques": [],
+ "route_id": "C_FMATCH_T",
+ "start_pose": {
+  "angle": 0.0,
+  "pelvis": [
+   -0.1,
+   0.95
+  ],
+  "slots": {
+   "LF": "C_FMATCH_T/F03/foot_1",
+   "LH": "C_FMATCH_T/H01/hand_1",
+   "RF": "C_FMATCH_T/B01/hand_1",
+   "RH": "C_FMATCH_T/H02/hand_1"
+  }
+ },
  "tutorial_steps": [
   {
-   "step_id": "FM1",
-   "text_ko": "먼저 오른발을 오른쪽 멀리 노란 발판으로 뻗어 보세요. 몸을 옮겨도 좋아요.",
    "goal_event": {
-    "type": "miss",
-    "limb": "RF"
+    "limb": "RF",
+    "type": "miss"
    },
    "help_ko": [
     "오른발 패드를 오른쪽 끝까지 끌어요. 가운데를 끌어 몸을 옮겨도 안 닿아요",
@@ -320,45 +309,45 @@
    "rules": {
     "fatigue_drain": false,
     "techniques": []
-   }
+   },
+   "step_id": "FM1",
+   "text_ko": "먼저 오른발을 오른쪽 멀리 노란 발판으로 뻗어 보세요. 몸을 옮겨도 좋아요."
   },
   {
-   "step_id": "FM2",
-   "text_ko": "왼발을 오른발이 딛은 파란 홀드에 같이 올려요. 파란 홀드에는 두 발이 함께 설 수 있어요.",
    "goal_event": {
-    "type": "grab",
     "limb": "LF",
-    "slot": "C_FMATCH_T/B01/hand_1"
+    "slot": "C_FMATCH_T/B01/hand_1",
+    "type": "grab"
    },
    "help_ko": [
     "왼발 패드를 파란 홀드로 끌어요",
     "하얗게 빛나면 떼요"
    ],
+   "rules": {
+    "fatigue_drain": false,
+    "techniques": []
+   },
    "start_pose": {
+    "angle": 0.0,
     "pelvis": [
      -0.1,
      0.95
     ],
-    "angle": 0.0,
     "slots": {
-     "LH": "C_FMATCH_T/H01/hand_1",
-     "RH": "C_FMATCH_T/H02/hand_1",
      "LF": "C_FMATCH_T/F03/foot_1",
-     "RF": "C_FMATCH_T/B01/hand_1"
+     "LH": "C_FMATCH_T/H01/hand_1",
+     "RF": "C_FMATCH_T/B01/hand_1",
+     "RH": "C_FMATCH_T/H02/hand_1"
     }
    },
-   "rules": {
-    "fatigue_drain": false,
-    "techniques": []
-   }
+   "step_id": "FM2",
+   "text_ko": "왼발을 오른발이 딛은 파란 홀드에 같이 올려요. 파란 홀드에는 두 발이 함께 설 수 있어요."
   },
   {
-   "step_id": "FM3",
-   "text_ko": "두 발이 모였어요. 이제 오른발을 오른쪽 멀리 발판으로 뻗어요. 가운데를 오른쪽으로 끌어 몸을 옮기면 닿아요.",
    "goal_event": {
-    "type": "grab",
     "limb": "RF",
-    "slot": "C_FMATCH_T/F05/foot_1"
+    "slot": "C_FMATCH_T/F05/foot_1",
+    "type": "grab"
    },
    "help_ko": [
     "가운데를 누른 채 오른쪽으로 끌고, 다른 손가락으로 오른발 패드를 오른쪽으로 끌어요",
@@ -367,15 +356,15 @@
    "rules": {
     "fatigue_drain": false,
     "techniques": []
-   }
+   },
+   "step_id": "FM3",
+   "text_ko": "두 발이 모였어요. 이제 오른발을 오른쪽 멀리 발판으로 뻗어요. 가운데를 오른쪽으로 끌어 몸을 옮기면 닿아요."
   },
   {
-   "step_id": "FM_F1",
-   "text_ko": "오른손을 오른쪽 노란 홀드로 옮겨요.",
    "goal_event": {
-    "type": "grab",
     "limb": "RH",
-    "slot": "C_FMATCH_T/H03/hand_1"
+    "slot": "C_FMATCH_T/H03/hand_1",
+    "type": "grab"
    },
    "help_ko": [
     "오른손 패드를 오른쪽으로 끌어요",
@@ -384,15 +373,15 @@
    "rules": {
     "fatigue_drain": false,
     "techniques": []
-   }
+   },
+   "step_id": "FM_F1",
+   "text_ko": "오른손을 오른쪽 노란 홀드로 옮겨요."
   },
   {
-   "step_id": "FM_F2",
-   "text_ko": "왼손을 가운데 노란 홀드로 옮겨요.",
    "goal_event": {
-    "type": "grab",
     "limb": "LH",
-    "slot": "C_FMATCH_T/H02/hand_1"
+    "slot": "C_FMATCH_T/H02/hand_1",
+    "type": "grab"
    },
    "help_ko": [
     "왼손 패드를 오른쪽으로 끌어요",
@@ -401,15 +390,15 @@
    "rules": {
     "fatigue_drain": false,
     "techniques": []
-   }
+   },
+   "step_id": "FM_F2",
+   "text_ko": "왼손을 가운데 노란 홀드로 옮겨요."
   },
   {
-   "step_id": "FM_F3",
-   "text_ko": "왼발을 높은 노란 발판에 올려요.",
    "goal_event": {
-    "type": "grab",
     "limb": "LF",
-    "slot": "C_FMATCH_T/F06/foot_1"
+    "slot": "C_FMATCH_T/F06/foot_1",
+    "type": "grab"
    },
    "help_ko": [
     "왼발 패드를 위로 끌어요",
@@ -418,11 +407,11 @@
    "rules": {
     "fatigue_drain": false,
     "techniques": []
-   }
+   },
+   "step_id": "FM_F3",
+   "text_ko": "왼발을 높은 노란 발판에 올려요."
   },
   {
-   "step_id": "FM4",
-   "text_ko": "한 홀드에 두 발을 모으는 것이 합발이에요. 두 손으로 정상을 잡아요.",
    "goal_event": {
     "type": "clear"
    },
@@ -433,7 +422,10 @@
    "rules": {
     "fatigue_drain": false,
     "techniques": []
-   }
+   },
+   "step_id": "FM4",
+   "text_ko": "한 홀드에 두 발을 모으는 것이 합발이에요. 두 손으로 정상을 잡아요."
   }
- ]
+ ],
+ "validation_status": "Draft"
 }

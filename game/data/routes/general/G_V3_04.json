@@ -1,79 +1,38 @@
 {
- "route_id": "G_V3_04",
- "content_version": 1,
- "validation_status": "Draft",
- "mode": "general",
- "grade": "V3",
- "order": 3,
- "name_ko": "높은 디딤",
- "required_techniques": [
-  "T_HIGH_STEP"
- ],
+ "bounds": {
+  "x_max": 1.5,
+  "x_min": -1.5,
+  "y_max": 4.5,
+  "y_min": 0.0
+ },
+ "check_swapped": false,
+ "content_version": 2.0,
  "crux_steps": {
   "T_HIGH_STEP": 3
  },
- "check_swapped": false,
- "note": "2026-11-15 새로 짠 V3(docs/44). 반폭 0.06, 발판 적음, 왼발 하이스텝(#3, 0.95m) 필수.",
- "bounds": {
-  "x_min": -1.5,
-  "x_max": 1.5,
-  "y_min": 0.0,
-  "y_max": 4.5
- },
  "fail_line_y": -0.5,
- "platforms": [
-  {
-   "platform_id": "P00",
-   "top_y": 0.1,
-   "x_range": [
-    -0.5,
-    0.6
-   ],
-   "foot_slot_keys": [
-    "G_V3_04/F01/foot_1",
-    "G_V3_04/F02/foot_1"
-   ]
-  }
- ],
- "start_pose": {
-  "pelvis": [
-   0.05,
-   0.75
-  ],
-  "angle": 0.0,
-  "slots": {
-   "LH": "G_V3_04/H01/hand_1",
-   "RH": "G_V3_04/H02/hand_1",
-   "LF": "G_V3_04/F01/foot_1",
-   "RF": "G_V3_04/F02/foot_1"
-  }
- },
  "goal_slots": [
   "G_V3_04/G01/goal_left",
   "G_V3_04/G01/goal_right"
  ],
- "time_medal_seconds": 120,
+ "grade": "V3",
  "holds": [
   {
    "hold_id": "H01",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      -0.2,
-      1.5
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.07
-     }
+     "hold_type": "jug",
+     "pos": [
+      -0.2,
+      1.5
+     ],
+     "rot_deg": 0,
+     "size": "S",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -81,22 +40,18 @@
    "hold_id": "H02",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      0.25,
-      1.5
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.07
-     }
+     "hold_type": "jug",
+     "pos": [
+      0.25,
+      1.5
+     ],
+     "rot_deg": 0,
+     "size": "S",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -104,22 +59,18 @@
    "hold_id": "H03",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      -0.2,
-      1.95
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.06
-     }
+     "hold_type": "jug",
+     "pos": [
+      -0.2,
+      1.95
+     ],
+     "rot_deg": 0,
+     "size": "S",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -127,22 +78,18 @@
    "hold_id": "H04",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      0.25,
-      2.3
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.06
-     }
+     "hold_type": "jug",
+     "pos": [
+      0.25,
+      2.3
+     ],
+     "rot_deg": 0,
+     "size": "S",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -150,22 +97,18 @@
    "hold_id": "H05",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      -0.05,
-      2.7
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.06
-     }
+     "hold_type": "jug",
+     "pos": [
+      -0.05,
+      2.7
+     ],
+     "rot_deg": 0,
+     "size": "S",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -173,18 +116,18 @@
    "hold_id": "F01",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      -0.12,
-      0.1
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.05
-     }
+     "hold_type": "foot_chip",
+     "pos": [
+      -0.12,
+      0.1
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -192,18 +135,18 @@
    "hold_id": "F02",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      0.25,
-      0.1
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.05
-     }
+     "hold_type": "foot_chip",
+     "pos": [
+      0.25,
+      0.1
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -211,18 +154,18 @@
    "hold_id": "F03",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      -0.15,
-      0.35
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.05
-     }
+     "hold_type": "foot_chip",
+     "pos": [
+      -0.15,
+      0.35
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -230,18 +173,18 @@
    "hold_id": "F04",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      0.25,
-      0.45
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.05
-     }
+     "hold_type": "foot_chip",
+     "pos": [
+      0.25,
+      0.45
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -249,18 +192,18 @@
    "hold_id": "F05",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      -0.2,
-      0.95
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.05
-     }
+     "hold_type": "foot_chip",
+     "pos": [
+      -0.2,
+      0.95
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -268,26 +211,32 @@
    "hold_id": "G01",
    "slots": [
     {
-     "slot_id": "goal_left",
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "goal",
      "pos": [
       -0.15000000000000002,
       3.1
      ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "goal_left"
+    },
+    {
      "allowed": [
       "LH",
       "RH"
-     ]
-    },
-    {
-     "slot_id": "goal_right",
+     ],
+     "hold_type": "goal",
      "pos": [
       0.25,
       3.1
      ],
-     "allowed": [
-      "LH",
-      "RH"
-     ]
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "goal_right"
     }
    ]
   }
@@ -334,15 +283,52 @@
    "G_V3_04/G01/goal_left"
   ]
  ],
- "score_ref": {
-  "grabs": 10,
-  "quality": 0.748,
-  "spent_per_m": 50.01
- },
+ "mode": "general",
+ "name_ko": "높은 디딤",
+ "note": "2026-11-15 새로 짠 V3(docs/44). 반폭 0.06, 발판 적음, 왼발 하이스텝(#3, 0.95m) 필수.",
+ "order": 3,
+ "platforms": [
+  {
+   "foot_slot_keys": [
+    "G_V3_04/F01/foot_1",
+    "G_V3_04/F02/foot_1"
+   ],
+   "platform_id": "P00",
+   "top_y": 0.1,
+   "x_range": [
+    -0.5,
+    0.6
+   ]
+  }
+ ],
+ "required_techniques": [
+  "T_HIGH_STEP"
+ ],
+ "route_id": "G_V3_04",
  "score_gates": [
   {
    "slot": "G_V3_04/F05/foot_1",
    "technique": "T_HIGH_STEP"
   }
- ]
+ ],
+ "score_ref": {
+  "grabs": 10,
+  "quality": 0.748,
+  "spent_per_m": 50.01
+ },
+ "start_pose": {
+  "angle": 0.0,
+  "pelvis": [
+   0.05,
+   0.75
+  ],
+  "slots": {
+   "LF": "G_V3_04/F01/foot_1",
+   "LH": "G_V3_04/H01/hand_1",
+   "RF": "G_V3_04/F02/foot_1",
+   "RH": "G_V3_04/H02/hand_1"
+  }
+ },
+ "time_medal_seconds": 120,
+ "validation_status": "Draft"
 }

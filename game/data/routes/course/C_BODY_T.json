@@ -1,74 +1,36 @@
 {
- "route_id": "C_BODY_T",
- "content_version": 1,
- "validation_status": "Draft",
- "mode": "course",
- "grade": "V0",
- "order": 0,
- "name_ko": "몸통 옮기기",
+ "bounds": {
+  "x_max": 1.8,
+  "x_min": -1.5,
+  "y_max": 4.0,
+  "y_min": 0.0
+ },
+ "content_version": 2.0,
  "course_id": "C_BODY",
  "course_slot": "tutorial",
- "required_techniques": [],
- "note": "v1(2026-11-14, docs/42 수업 2): 시작 자세 + 오른쪽 먼 손홀드 H07. 몸통을 오른쪽으로 끌어야 오른손이 닿는다. 피로 끔. 정상 홀드는 검사용(시작 자세에서 닿음)이고 수업은 H07을 잡으면 끝난다.",
- "bounds": {
-  "x_min": -1.5,
-  "x_max": 1.8,
-  "y_min": 0.0,
-  "y_max": 4.0
- },
  "fail_line_y": -0.5,
- "platforms": [
-  {
-   "platform_id": "P00",
-   "top_y": 0.1,
-   "x_range": [
-    -0.4,
-    0.8
-   ],
-   "foot_slot_keys": [
-    "C_BODY_T/F01/foot_1",
-    "C_BODY_T/F02/foot_1"
-   ]
-  }
- ],
- "start_pose": {
-  "pelvis": [
-   0.1,
-   0.76
-  ],
-  "angle": 0.0,
-  "slots": {
-   "LH": "C_BODY_T/H01/hand_1",
-   "RH": "C_BODY_T/H02/hand_1",
-   "LF": "C_BODY_T/F01/foot_1",
-   "RF": "C_BODY_T/F02/foot_1"
-  }
- },
  "goal_slots": [
   "C_BODY_T/G01/goal_left",
   "C_BODY_T/G01/goal_right"
  ],
+ "grade": "V0",
  "holds": [
   {
    "hold_id": "H01",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      -0.1,
-      1.85
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.12
-     }
+     "hold_type": "jug",
+     "pos": [
+      -0.1,
+      1.85
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -76,22 +38,18 @@
    "hold_id": "H02",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      0.3,
-      1.85
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.12
-     }
+     "hold_type": "jug",
+     "pos": [
+      0.3,
+      1.85
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -99,15 +57,18 @@
    "hold_id": "F01",
    "slots": [
     {
-     "slot_id": "foot_1",
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_chip",
      "pos": [
       -0.05,
       0.1
      ],
-     "allowed": [
-      "LF",
-      "RF"
-     ]
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -115,15 +76,18 @@
    "hold_id": "F02",
    "slots": [
     {
-     "slot_id": "foot_1",
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_chip",
      "pos": [
       0.25,
       0.1
      ],
-     "allowed": [
-      "LF",
-      "RF"
-     ]
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -131,22 +95,18 @@
    "hold_id": "H07",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      1.15,
-      1.75
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.12
-     }
+     "hold_type": "jug",
+     "pos": [
+      1.15,
+      1.75
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -154,26 +114,32 @@
    "hold_id": "G01",
    "slots": [
     {
-     "slot_id": "goal_left",
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "goal",
      "pos": [
       0.0,
       2.0
      ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "goal_left"
+    },
+    {
      "allowed": [
       "LH",
       "RH"
-     ]
-    },
-    {
-     "slot_id": "goal_right",
+     ],
+     "hold_type": "goal",
      "pos": [
       0.3,
       2.0
      ],
-     "allowed": [
-      "LH",
-      "RH"
-     ]
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "goal_right"
     }
    ]
   }
@@ -188,14 +154,45 @@
    "C_BODY_T/G01/goal_right"
   ]
  ],
+ "mode": "course",
+ "name_ko": "몸통 옮기기",
+ "note": "v1(2026-11-14, docs/42 수업 2): 시작 자세 + 오른쪽 먼 손홀드 H07. 몸통을 오른쪽으로 끌어야 오른손이 닿는다. 피로 끔. 정상 홀드는 검사용(시작 자세에서 닿음)이고 수업은 H07을 잡으면 끝난다.",
+ "order": 0,
+ "platforms": [
+  {
+   "foot_slot_keys": [
+    "C_BODY_T/F01/foot_1",
+    "C_BODY_T/F02/foot_1"
+   ],
+   "platform_id": "P00",
+   "top_y": 0.1,
+   "x_range": [
+    -0.4,
+    0.8
+   ]
+  }
+ ],
+ "required_techniques": [],
+ "route_id": "C_BODY_T",
+ "start_pose": {
+  "angle": 0.0,
+  "pelvis": [
+   0.1,
+   0.76
+  ],
+  "slots": {
+   "LF": "C_BODY_T/F01/foot_1",
+   "LH": "C_BODY_T/H01/hand_1",
+   "RF": "C_BODY_T/F02/foot_1",
+   "RH": "C_BODY_T/H02/hand_1"
+  }
+ },
  "tutorial_steps": [
   {
-   "step_id": "BD1",
-   "text_ko": "패드 사이 가운데를 누른 채 오른쪽으로 끌어 몸을 옮겨요.",
    "goal_event": {
-    "type": "body",
     "dx_min": 0.2,
-    "seconds": 0.5
+    "seconds": 0.5,
+    "type": "body"
    },
    "help_ko": [
     "네 패드 사이 빈 곳을 눌러요",
@@ -204,15 +201,15 @@
    "rules": {
     "fatigue_drain": false,
     "techniques": []
-   }
+   },
+   "step_id": "BD1",
+   "text_ko": "패드 사이 가운데를 누른 채 오른쪽으로 끌어 몸을 옮겨요."
   },
   {
-   "step_id": "BD2",
-   "text_ko": "가운데를 누른 채로, 다른 손가락으로 오른손을 노란 홀드까지 뻗어요.",
    "goal_event": {
-    "type": "grab",
     "limb": "RH",
-    "slot": "C_BODY_T/H07/hand_1"
+    "slot": "C_BODY_T/H07/hand_1",
+    "type": "grab"
    },
    "help_ko": [
     "한 손가락은 가운데에 그대로 두어요",
@@ -221,7 +218,10 @@
    "rules": {
     "fatigue_drain": false,
     "techniques": []
-   }
+   },
+   "step_id": "BD2",
+   "text_ko": "가운데를 누른 채로, 다른 손가락으로 오른손을 노란 홀드까지 뻗어요."
   }
- ]
+ ],
+ "validation_status": "Draft"
 }

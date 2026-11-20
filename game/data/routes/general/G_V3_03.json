@@ -6,7 +6,7 @@
   "y_min": 0.0
  },
  "check_swapped": false,
- "content_version": 2.0,
+ "content_version": 3.0,
  "crux_steps": {
   "T_HIGH_STEP": 8.0
  },
@@ -25,17 +25,13 @@
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1.0,
-       0.0
-      ],
-      "half_width": 0.06
-     },
+     "hold_type": "jug",
      "pos": [
       -0.31,
       1.55
      ],
+     "rot_deg": 0,
+     "size": "S",
      "slot_id": "hand_1"
     }
    ]
@@ -48,17 +44,13 @@
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1.0,
-       0.0
-      ],
-      "half_width": 0.06
-     },
+     "hold_type": "jug",
      "pos": [
       0.35,
       1.55
      ],
+     "rot_deg": 0,
+     "size": "S",
      "slot_id": "hand_1"
     }
    ]
@@ -71,17 +63,13 @@
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1.0,
-       0.0
-      ],
-      "half_width": 0.05
-     },
+     "hold_type": "jug",
      "pos": [
       -0.3,
       1.86
      ],
+     "rot_deg": 0,
+     "size": "S",
      "slot_id": "hand_1"
     }
    ]
@@ -94,17 +82,13 @@
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1.0,
-       0.0
-      ],
-      "half_width": 0.04
-     },
+     "hold_type": "crimp",
      "pos": [
       -0.5,
       2.02
      ],
+     "rot_deg": 0,
+     "size": "M",
      "slot_id": "hand_1"
     }
    ]
@@ -117,17 +101,13 @@
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1.0,
-       0.0
-      ],
-      "half_width": 0.04
-     },
+     "hold_type": "crimp",
      "pos": [
       -0.75,
       2.25
      ],
+     "rot_deg": 0,
+     "size": "M",
      "slot_id": "hand_1"
     }
    ]
@@ -140,17 +120,13 @@
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1.0,
-       0.0
-      ],
-      "half_width": 0.045
-     },
+     "hold_type": "crimp",
      "pos": [
       -0.35,
       2.5
      ],
+     "rot_deg": 0,
+     "size": "M",
      "slot_id": "hand_1"
     }
    ]
@@ -163,17 +139,13 @@
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1.0,
-       0.0
-      ],
-      "half_width": 0.04
-     },
+     "hold_type": "crimp",
      "pos": [
       -0.3,
       2.78
      ],
+     "rot_deg": 0,
+     "size": "M",
      "slot_id": "hand_1"
     }
    ]
@@ -187,17 +159,15 @@
       "RH"
      ],
      "hand_area": {
-      "dir": [
-       1.0,
-       0.0
-      ],
-      "half_width": 0.13,
       "matchable": true
      },
+     "hold_type": "jug",
      "pos": [
       -0.35,
       3.08
      ],
+     "rot_deg": 0,
+     "size": "L",
      "slot_id": "hand_1"
     }
    ]
@@ -210,17 +180,13 @@
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1.0,
-       0.0
-      ],
-      "half_width": 0.04
-     },
+     "hold_type": "crimp",
      "pos": [
       0.19,
       3.3
      ],
+     "rot_deg": 0,
+     "size": "M",
      "slot_id": "hand_1"
     }
    ]
@@ -233,13 +199,13 @@
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.04
-     },
+     "hold_type": "foot_chip",
      "pos": [
       -0.12,
       0.1
      ],
+     "rot_deg": 0,
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -252,13 +218,13 @@
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.04
-     },
+     "hold_type": "foot_chip",
      "pos": [
       0.25,
       0.1
      ],
+     "rot_deg": 0,
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -271,13 +237,13 @@
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.04
-     },
+     "hold_type": "foot_chip",
      "pos": [
       -0.3,
       0.4
      ],
+     "rot_deg": 0,
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -290,13 +256,13 @@
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.04
-     },
+     "hold_type": "foot_chip",
      "pos": [
       -0.12,
       0.6
      ],
+     "rot_deg": 0,
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -309,13 +275,13 @@
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.04
-     },
+     "hold_type": "foot_chip",
      "pos": [
       -0.42,
       0.78
      ],
+     "rot_deg": 0,
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -328,13 +294,13 @@
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.04
-     },
+     "hold_type": "foot_chip",
      "pos": [
       -0.15,
       0.98
      ],
+     "rot_deg": 0,
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -347,13 +313,13 @@
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.04
-     },
+     "hold_type": "foot_chip",
      "pos": [
       -0.64,
       1.55
      ],
+     "rot_deg": 0,
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -366,13 +332,13 @@
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.04
-     },
+     "hold_type": "foot_chip",
      "pos": [
       0.02,
       1.55
      ],
+     "rot_deg": 0,
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -385,13 +351,13 @@
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.04
-     },
+     "hold_type": "foot_chip",
      "pos": [
       -0.3,
       1.76
      ],
+     "rot_deg": 0,
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -404,13 +370,13 @@
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.04
-     },
+     "hold_type": "foot_chip",
      "pos": [
       0.1,
       2.05
      ],
+     "rot_deg": 0,
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -423,10 +389,13 @@
       "LH",
       "RH"
      ],
+     "hold_type": "goal",
      "pos": [
       -0.15,
       3.62
      ],
+     "rot_deg": 0,
+     "size": "M",
      "slot_id": "goal_left"
     },
     {
@@ -434,10 +403,13 @@
       "LH",
       "RH"
      ],
+     "hold_type": "goal",
      "pos": [
       0.25,
       3.62
      ],
+     "rot_deg": 0,
+     "size": "M",
      "slot_id": "goal_right"
     }
    ]
@@ -539,6 +511,17 @@
   "T_HIGH_STEP"
  ],
  "route_id": "G_V3_03",
+ "score_gates": [
+  {
+   "slot": "G_V3_03/F07/foot_1",
+   "technique": "T_HIGH_STEP"
+  }
+ ],
+ "score_ref": {
+  "grabs": 18,
+  "quality": 0.86,
+  "spent_per_m": 58.23
+ },
  "start_pose": {
   "angle": 0.0,
   "pelvis": [
@@ -553,16 +536,5 @@
   }
  },
  "time_medal_seconds": 150.0,
- "validation_status": "Draft",
- "score_ref": {
-  "grabs": 18,
-  "quality": 0.86,
-  "spent_per_m": 58.23
- },
- "score_gates": [
-  {
-   "slot": "G_V3_03/F07/foot_1",
-   "technique": "T_HIGH_STEP"
-  }
- ]
+ "validation_status": "Draft"
 }

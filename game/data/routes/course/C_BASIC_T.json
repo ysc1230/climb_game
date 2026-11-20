@@ -1,74 +1,36 @@
 {
- "route_id": "C_BASIC_T",
- "content_version": 1,
- "validation_status": "Draft",
- "mode": "course",
- "grade": "V0",
- "order": 0,
- "name_ko": "기본 조작",
+ "bounds": {
+  "x_max": 1.5,
+  "x_min": -1.5,
+  "y_max": 4.0,
+  "y_min": 0.0
+ },
+ "content_version": 2.0,
  "course_id": "C_BASIC",
  "course_slot": "tutorial",
- "required_techniques": [],
- "note": "v1(2026-11-14, docs/42 수업 0): 사용자 더미 몸에 맞춘 짧은 사다리. 손 → 손 → 발 → 발 순서로 두 번 오르고 정상. 모든 단계 피로 끔.",
- "bounds": {
-  "x_min": -1.5,
-  "x_max": 1.5,
-  "y_min": 0.0,
-  "y_max": 4.0
- },
  "fail_line_y": -0.5,
- "platforms": [
-  {
-   "platform_id": "P00",
-   "top_y": 0.1,
-   "x_range": [
-    -0.4,
-    0.8
-   ],
-   "foot_slot_keys": [
-    "C_BASIC_T/F01/foot_1",
-    "C_BASIC_T/F02/foot_1"
-   ]
-  }
- ],
- "start_pose": {
-  "pelvis": [
-   0.1,
-   0.76
-  ],
-  "angle": 0.0,
-  "slots": {
-   "LH": "C_BASIC_T/H01/hand_1",
-   "RH": "C_BASIC_T/H02/hand_1",
-   "LF": "C_BASIC_T/F01/foot_1",
-   "RF": "C_BASIC_T/F02/foot_1"
-  }
- },
  "goal_slots": [
   "C_BASIC_T/G01/goal_left",
   "C_BASIC_T/G01/goal_right"
  ],
+ "grade": "V0",
  "holds": [
   {
    "hold_id": "H01",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      -0.1,
-      1.85
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.12
-     }
+     "hold_type": "jug",
+     "pos": [
+      -0.1,
+      1.85
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -76,22 +38,18 @@
    "hold_id": "H02",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      0.3,
-      1.85
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.12
-     }
+     "hold_type": "jug",
+     "pos": [
+      0.3,
+      1.85
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -99,15 +57,18 @@
    "hold_id": "F01",
    "slots": [
     {
-     "slot_id": "foot_1",
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_chip",
      "pos": [
       -0.05,
       0.1
      ],
-     "allowed": [
-      "LF",
-      "RF"
-     ]
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -115,15 +76,18 @@
    "hold_id": "F02",
    "slots": [
     {
-     "slot_id": "foot_1",
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_chip",
      "pos": [
       0.25,
       0.1
      ],
-     "allowed": [
-      "LF",
-      "RF"
-     ]
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -131,22 +95,18 @@
    "hold_id": "H03",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      -0.1,
-      1.96
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.12
-     }
+     "hold_type": "jug",
+     "pos": [
+      -0.1,
+      1.96
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -154,22 +114,18 @@
    "hold_id": "H04",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      0.3,
-      1.96
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.12
-     }
+     "hold_type": "jug",
+     "pos": [
+      0.3,
+      1.96
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -177,15 +133,18 @@
    "hold_id": "F03",
    "slots": [
     {
-     "slot_id": "foot_1",
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_chip",
      "pos": [
       -0.05,
       0.35
      ],
-     "allowed": [
-      "LF",
-      "RF"
-     ]
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -193,15 +152,18 @@
    "hold_id": "F04",
    "slots": [
     {
-     "slot_id": "foot_1",
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_chip",
      "pos": [
       0.25,
       0.35
      ],
-     "allowed": [
-      "LF",
-      "RF"
-     ]
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -209,22 +171,18 @@
    "hold_id": "H05",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      -0.1,
-      2.2
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.12
-     }
+     "hold_type": "jug",
+     "pos": [
+      -0.1,
+      2.2
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -232,22 +190,18 @@
    "hold_id": "H06",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      0.3,
-      2.2
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.12
-     }
+     "hold_type": "jug",
+     "pos": [
+      0.3,
+      2.2
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -255,15 +209,18 @@
    "hold_id": "F05",
    "slots": [
     {
-     "slot_id": "foot_1",
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_chip",
      "pos": [
       -0.05,
       0.6
      ],
-     "allowed": [
-      "LF",
-      "RF"
-     ]
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -271,15 +228,18 @@
    "hold_id": "F06",
    "slots": [
     {
-     "slot_id": "foot_1",
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_chip",
      "pos": [
       0.25,
       0.6
      ],
-     "allowed": [
-      "LF",
-      "RF"
-     ]
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -287,26 +247,32 @@
    "hold_id": "G01",
    "slots": [
     {
-     "slot_id": "goal_left",
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "goal",
      "pos": [
       -0.1,
       2.44
      ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "goal_left"
+    },
+    {
      "allowed": [
       "LH",
       "RH"
-     ]
-    },
-    {
-     "slot_id": "goal_right",
+     ],
+     "hold_type": "goal",
      "pos": [
       0.3,
       2.44
      ],
-     "allowed": [
-      "LH",
-      "RH"
-     ]
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "goal_right"
     }
    ]
   }
@@ -353,14 +319,45 @@
    "C_BASIC_T/G01/goal_right"
   ]
  ],
+ "mode": "course",
+ "name_ko": "기본 조작",
+ "note": "v1(2026-11-14, docs/42 수업 0): 사용자 더미 몸에 맞춘 짧은 사다리. 손 → 손 → 발 → 발 순서로 두 번 오르고 정상. 모든 단계 피로 끔.",
+ "order": 0,
+ "platforms": [
+  {
+   "foot_slot_keys": [
+    "C_BASIC_T/F01/foot_1",
+    "C_BASIC_T/F02/foot_1"
+   ],
+   "platform_id": "P00",
+   "top_y": 0.1,
+   "x_range": [
+    -0.4,
+    0.8
+   ]
+  }
+ ],
+ "required_techniques": [],
+ "route_id": "C_BASIC_T",
+ "start_pose": {
+  "angle": 0.0,
+  "pelvis": [
+   0.1,
+   0.76
+  ],
+  "slots": {
+   "LF": "C_BASIC_T/F01/foot_1",
+   "LH": "C_BASIC_T/H01/hand_1",
+   "RF": "C_BASIC_T/F02/foot_1",
+   "RH": "C_BASIC_T/H02/hand_1"
+  }
+ },
  "tutorial_steps": [
   {
-   "step_id": "B1",
-   "text_ko": "왼손을 노란 홀드로 옮겨 잡아요.",
    "goal_event": {
-    "type": "grab",
     "limb": "LH",
-    "slot": "C_BASIC_T/H03/hand_1"
+    "slot": "C_BASIC_T/H03/hand_1",
+    "type": "grab"
    },
    "help_ko": [
     "왼쪽 위 손 패드를 누른 채 끌어요",
@@ -369,15 +366,15 @@
    "rules": {
     "fatigue_drain": false,
     "techniques": []
-   }
+   },
+   "step_id": "B1",
+   "text_ko": "왼손을 노란 홀드로 옮겨 잡아요."
   },
   {
-   "step_id": "B2",
-   "text_ko": "오른손도 노란 홀드로 옮겨요.",
    "goal_event": {
-    "type": "grab",
     "limb": "RH",
-    "slot": "C_BASIC_T/H04/hand_1"
+    "slot": "C_BASIC_T/H04/hand_1",
+    "type": "grab"
    },
    "help_ko": [
     "오른쪽 위 손 패드를 끌어요",
@@ -386,15 +383,15 @@
    "rules": {
     "fatigue_drain": false,
     "techniques": []
-   }
+   },
+   "step_id": "B2",
+   "text_ko": "오른손도 노란 홀드로 옮겨요."
   },
   {
-   "step_id": "B3",
-   "text_ko": "왼발을 노란 발판에 올려요.",
    "goal_event": {
-    "type": "grab",
     "limb": "LF",
-    "slot": "C_BASIC_T/F03/foot_1"
+    "slot": "C_BASIC_T/F03/foot_1",
+    "type": "grab"
    },
    "help_ko": [
     "왼쪽 아래 발 패드를 끌어요",
@@ -403,15 +400,15 @@
    "rules": {
     "fatigue_drain": false,
     "techniques": []
-   }
+   },
+   "step_id": "B3",
+   "text_ko": "왼발을 노란 발판에 올려요."
   },
   {
-   "step_id": "B4",
-   "text_ko": "오른발도 올려요. 몸이 따라 올라가요.",
    "goal_event": {
-    "type": "grab",
     "limb": "RF",
-    "slot": "C_BASIC_T/F04/foot_1"
+    "slot": "C_BASIC_T/F04/foot_1",
+    "type": "grab"
    },
    "help_ko": [
     "오른쪽 아래 발 패드를 끌어요",
@@ -420,15 +417,15 @@
    "rules": {
     "fatigue_drain": false,
     "techniques": []
-   }
+   },
+   "step_id": "B4",
+   "text_ko": "오른발도 올려요. 몸이 따라 올라가요."
   },
   {
-   "step_id": "B5",
-   "text_ko": "손을 하나씩 다음 노란 홀드로 옮겨요.",
    "goal_event": {
-    "type": "grab",
     "limb": "LH",
-    "slot": "C_BASIC_T/H05/hand_1"
+    "slot": "C_BASIC_T/H05/hand_1",
+    "type": "grab"
    },
    "help_ko": [
     "손을 하나씩 옮겨요",
@@ -437,15 +434,15 @@
    "rules": {
     "fatigue_drain": false,
     "techniques": []
-   }
+   },
+   "step_id": "B5",
+   "text_ko": "손을 하나씩 다음 노란 홀드로 옮겨요."
   },
   {
-   "step_id": "B6",
-   "text_ko": "다른 손도 옮겨요.",
    "goal_event": {
-    "type": "grab",
     "limb": "RH",
-    "slot": "C_BASIC_T/H06/hand_1"
+    "slot": "C_BASIC_T/H06/hand_1",
+    "type": "grab"
    },
    "help_ko": [
     "손을 하나씩 옮겨요",
@@ -454,15 +451,15 @@
    "rules": {
     "fatigue_drain": false,
     "techniques": []
-   }
+   },
+   "step_id": "B6",
+   "text_ko": "다른 손도 옮겨요."
   },
   {
-   "step_id": "B7",
-   "text_ko": "발도 하나씩 올려요.",
    "goal_event": {
-    "type": "grab",
     "limb": "LF",
-    "slot": "C_BASIC_T/F05/foot_1"
+    "slot": "C_BASIC_T/F05/foot_1",
+    "type": "grab"
    },
    "help_ko": [
     "발을 하나씩 올려요",
@@ -471,15 +468,15 @@
    "rules": {
     "fatigue_drain": false,
     "techniques": []
-   }
+   },
+   "step_id": "B7",
+   "text_ko": "발도 하나씩 올려요."
   },
   {
-   "step_id": "B8",
-   "text_ko": "다른 발도 올려요. 위쪽 '현재 높이'가 늘어요.",
    "goal_event": {
-    "type": "grab",
     "limb": "RF",
-    "slot": "C_BASIC_T/F06/foot_1"
+    "slot": "C_BASIC_T/F06/foot_1",
+    "type": "grab"
    },
    "help_ko": [
     "발을 하나씩 올려요",
@@ -488,11 +485,11 @@
    "rules": {
     "fatigue_drain": false,
     "techniques": []
-   }
+   },
+   "step_id": "B8",
+   "text_ko": "다른 발도 올려요. 위쪽 '현재 높이'가 늘어요."
   },
   {
-   "step_id": "B9",
-   "text_ko": "두 손으로 맨 위 크림색 홀드를 잡으면 끝나요.",
    "goal_event": {
     "type": "clear"
    },
@@ -503,7 +500,10 @@
    "rules": {
     "fatigue_drain": false,
     "techniques": []
-   }
+   },
+   "step_id": "B9",
+   "text_ko": "두 손으로 맨 위 크림색 홀드를 잡으면 끝나요."
   }
- ]
+ ],
+ "validation_status": "Draft"
 }

@@ -1,75 +1,36 @@
 {
- "route_id": "G_V8_01",
- "content_version": 2,
- "validation_status": "Draft",
- "mode": "general",
- "grade": "V8",
- "order": 1,
- "name_ko": "실금",
- "required_techniques": [],
- "crux_steps": {},
- "check_swapped": false,
- "note": "2026-11-15 새로 짠 V8 시범 문제(docs/44). 손홀드 반폭 0.03(피로 ×2.5), 발판 반폭 0.03, 발 전용 발판 3개뿐. 하이스텝 두 번(#4 왼발 1.1m, #10 오른발이 손홀드 H04 2.2m)과 한 발 구간. 쉬는 자리 없음. 봇 의도 경로 완등 31초, 최저 손 피로 22. 하이스텝 금지 검사는 #1(오른발 0.5m)부터 하이스텝으로 판정돼 필수 확인 못 함 → 필수 기술 없음으로 둠. v2(2026-11-19, docs/48 R1 발 하중 나누기): 한 발 구간이 진짜로 힘들어져(봇 속도로도 오른손 소진) 가운데 손홀드 H03~H07 반폭 0.03 → 0.05. 봇 최저 손 피로 11. v3(2026-11-19): 사용자 \"기존과 지금의 중간\" → 발 몫을 예전과 반반 섞음(FOOT_LOAD_BLEND 0.5). 가운데 손홀드 0.05 → 0.04, 봇 최저 손 피로 14.",
  "bounds": {
-  "x_min": -1.5,
   "x_max": 1.5,
-  "y_min": 0.0,
-  "y_max": 4.5
+  "x_min": -1.5,
+  "y_max": 4.5,
+  "y_min": 0.0
  },
+ "check_swapped": false,
+ "content_version": 3.0,
+ "crux_steps": {},
  "fail_line_y": -0.5,
- "platforms": [
-  {
-   "platform_id": "P00",
-   "top_y": 0.1,
-   "x_range": [
-    -0.5,
-    0.6
-   ],
-   "foot_slot_keys": [
-    "G_V8_01/F01/foot_1",
-    "G_V8_01/F02/foot_1"
-   ]
-  }
- ],
- "start_pose": {
-  "pelvis": [
-   0.05,
-   0.75
-  ],
-  "angle": 0.0,
-  "slots": {
-   "LH": "G_V8_01/H01/hand_1",
-   "RH": "G_V8_01/H02/hand_1",
-   "LF": "G_V8_01/F01/foot_1",
-   "RF": "G_V8_01/F02/foot_1"
-  }
- },
  "goal_slots": [
   "G_V8_01/G01/goal_left",
   "G_V8_01/G01/goal_right"
  ],
- "time_medal_seconds": 120,
+ "grade": "V8",
  "holds": [
   {
    "hold_id": "H01",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      -0.2,
-      1.5
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.04
-     }
+     "hold_type": "crimp",
+     "pos": [
+      -0.2,
+      1.5
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -77,22 +38,18 @@
    "hold_id": "H02",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      0.22,
-      1.5
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.04
-     }
+     "hold_type": "crimp",
+     "pos": [
+      0.22,
+      1.5
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -100,22 +57,18 @@
    "hold_id": "H03",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      -0.38,
-      2.0
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.04
-     }
+     "hold_type": "crimp",
+     "pos": [
+      -0.38,
+      2.0
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -123,22 +76,18 @@
    "hold_id": "H04",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      0.2,
-      2.2
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.04
-     }
+     "hold_type": "crimp",
+     "pos": [
+      0.2,
+      2.2
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -146,22 +95,18 @@
    "hold_id": "H05",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      -0.2,
-      2.4
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.04
-     }
+     "hold_type": "crimp",
+     "pos": [
+      -0.2,
+      2.4
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -169,22 +114,18 @@
    "hold_id": "H06",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      0.3,
-      2.95
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.04
-     }
+     "hold_type": "crimp",
+     "pos": [
+      0.3,
+      2.95
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -192,22 +133,18 @@
    "hold_id": "H07",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      -0.22,
-      3.05
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.04
-     }
+     "hold_type": "crimp",
+     "pos": [
+      -0.22,
+      3.05
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -215,18 +152,18 @@
    "hold_id": "F01",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      -0.12,
-      0.1
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.03
-     }
+     "hold_type": "foot_chip",
+     "pos": [
+      -0.12,
+      0.1
+     ],
+     "rot_deg": 0,
+     "size": "S",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -234,18 +171,18 @@
    "hold_id": "F02",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      0.25,
-      0.1
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.03
-     }
+     "hold_type": "foot_chip",
+     "pos": [
+      0.25,
+      0.1
+     ],
+     "rot_deg": 0,
+     "size": "S",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -253,18 +190,18 @@
    "hold_id": "F03",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      -0.22,
-      0.45
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.03
-     }
+     "hold_type": "foot_big",
+     "pos": [
+      -0.22,
+      0.45
+     ],
+     "rot_deg": 0,
+     "size": "S",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -272,18 +209,18 @@
    "hold_id": "F04",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      0.3,
-      0.5
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.03
-     }
+     "hold_type": "foot_big",
+     "pos": [
+      0.3,
+      0.5
+     ],
+     "rot_deg": 0,
+     "size": "S",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -291,18 +228,18 @@
    "hold_id": "F05",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      -0.28,
-      1.1
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.03
-     }
+     "hold_type": "foot_big",
+     "pos": [
+      -0.28,
+      1.1
+     ],
+     "rot_deg": 0,
+     "size": "S",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -310,26 +247,32 @@
    "hold_id": "G01",
    "slots": [
     {
-     "slot_id": "goal_left",
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "goal",
      "pos": [
       -0.1,
       3.42
      ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "goal_left"
+    },
+    {
      "allowed": [
       "LH",
       "RH"
-     ]
-    },
-    {
-     "slot_id": "goal_right",
+     ],
+     "hold_type": "goal",
      "pos": [
       0.30000000000000004,
       3.42
      ],
-     "allowed": [
-      "LH",
-      "RH"
-     ]
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "goal_right"
     }
    ]
   }
@@ -388,10 +331,45 @@
    "G_V8_01/G01/goal_right"
   ]
  ],
+ "mode": "general",
+ "name_ko": "실금",
+ "note": "2026-11-15 새로 짠 V8 시범 문제(docs/44). 손홀드 반폭 0.03(피로 ×2.5), 발판 반폭 0.03, 발 전용 발판 3개뿐. 하이스텝 두 번(#4 왼발 1.1m, #10 오른발이 손홀드 H04 2.2m)과 한 발 구간. 쉬는 자리 없음. 봇 의도 경로 완등 31초, 최저 손 피로 22. 하이스텝 금지 검사는 #1(오른발 0.5m)부터 하이스텝으로 판정돼 필수 확인 못 함 → 필수 기술 없음으로 둠. v2(2026-11-19, docs/48 R1 발 하중 나누기): 한 발 구간이 진짜로 힘들어져(봇 속도로도 오른손 소진) 가운데 손홀드 H03~H07 반폭 0.03 → 0.05. 봇 최저 손 피로 11. v3(2026-11-19): 사용자 \"기존과 지금의 중간\" → 발 몫을 예전과 반반 섞음(FOOT_LOAD_BLEND 0.5). 가운데 손홀드 0.05 → 0.04, 봇 최저 손 피로 14.",
+ "order": 1,
+ "platforms": [
+  {
+   "foot_slot_keys": [
+    "G_V8_01/F01/foot_1",
+    "G_V8_01/F02/foot_1"
+   ],
+   "platform_id": "P00",
+   "top_y": 0.1,
+   "x_range": [
+    -0.5,
+    0.6
+   ]
+  }
+ ],
+ "required_techniques": [],
+ "route_id": "G_V8_01",
+ "score_gates": [],
  "score_ref": {
   "grabs": 13,
   "quality": 0.675,
   "spent_per_m": 103.4
  },
- "score_gates": []
+ "start_pose": {
+  "angle": 0.0,
+  "pelvis": [
+   0.05,
+   0.75
+  ],
+  "slots": {
+   "LF": "G_V8_01/F01/foot_1",
+   "LH": "G_V8_01/H01/hand_1",
+   "RF": "G_V8_01/F02/foot_1",
+   "RH": "G_V8_01/H02/hand_1"
+  }
+ },
+ "time_medal_seconds": 120,
+ "validation_status": "Draft"
 }

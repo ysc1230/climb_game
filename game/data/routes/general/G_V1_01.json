@@ -1,75 +1,36 @@
 {
- "route_id": "G_V1_01",
- "content_version": 1,
- "validation_status": "Draft",
- "mode": "general",
- "grade": "V1",
- "order": 1,
- "name_ko": "비스듬히",
- "required_techniques": [],
- "crux_steps": {},
- "check_swapped": false,
- "note": "2026-11-15 새로 짠 V1(docs/44). 반폭 0.10, 오른쪽 위로 비스듬히.",
  "bounds": {
-  "x_min": -1.5,
   "x_max": 1.5,
-  "y_min": 0.0,
-  "y_max": 4.5
+  "x_min": -1.5,
+  "y_max": 4.5,
+  "y_min": 0.0
  },
+ "check_swapped": false,
+ "content_version": 2.0,
+ "crux_steps": {},
  "fail_line_y": -0.5,
- "platforms": [
-  {
-   "platform_id": "P00",
-   "top_y": 0.1,
-   "x_range": [
-    -0.5,
-    0.6
-   ],
-   "foot_slot_keys": [
-    "G_V1_01/F01/foot_1",
-    "G_V1_01/F02/foot_1"
-   ]
-  }
- ],
- "start_pose": {
-  "pelvis": [
-   0.05,
-   0.75
-  ],
-  "angle": 0.0,
-  "slots": {
-   "LH": "G_V1_01/H01/hand_1",
-   "RH": "G_V1_01/H02/hand_1",
-   "LF": "G_V1_01/F01/foot_1",
-   "RF": "G_V1_01/F02/foot_1"
-  }
- },
  "goal_slots": [
   "G_V1_01/G01/goal_left",
   "G_V1_01/G01/goal_right"
  ],
- "time_medal_seconds": 120,
+ "grade": "V1",
  "holds": [
   {
    "hold_id": "H01",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      -0.32,
-      1.5
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.1
-     }
+     "hold_type": "jug",
+     "pos": [
+      -0.32,
+      1.5
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -77,22 +38,18 @@
    "hold_id": "H02",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      0.27,
-      1.48
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.1
-     }
+     "hold_type": "jug",
+     "pos": [
+      0.27,
+      1.48
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -100,22 +57,18 @@
    "hold_id": "H03",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      0.37,
-      1.85
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.1
-     }
+     "hold_type": "jug",
+     "pos": [
+      0.37,
+      1.85
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -123,22 +76,18 @@
    "hold_id": "H04",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      0.05,
-      2.15
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.1
-     }
+     "hold_type": "jug",
+     "pos": [
+      0.05,
+      2.15
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -146,22 +95,18 @@
    "hold_id": "H05",
    "slots": [
     {
-     "slot_id": "hand_1",
-     "pos": [
-      0.4,
-      2.35
-     ],
      "allowed": [
       "LH",
       "RH"
      ],
-     "hand_area": {
-      "dir": [
-       1,
-       0
-      ],
-      "half_width": 0.1
-     }
+     "hold_type": "jug",
+     "pos": [
+      0.4,
+      2.35
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
     }
    ]
   },
@@ -169,18 +114,18 @@
    "hold_id": "F01",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      -0.12,
-      0.1
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.05
-     }
+     "hold_type": "foot_chip",
+     "pos": [
+      -0.12,
+      0.1
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -188,18 +133,18 @@
    "hold_id": "F02",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      0.25,
-      0.1
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.05
-     }
+     "hold_type": "foot_chip",
+     "pos": [
+      0.25,
+      0.1
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -207,18 +152,18 @@
    "hold_id": "F03",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      0.1,
-      0.45
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.05
-     }
+     "hold_type": "foot_chip",
+     "pos": [
+      0.1,
+      0.45
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -226,18 +171,18 @@
    "hold_id": "F04",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      0.45,
-      0.65
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.05
-     }
+     "hold_type": "foot_chip",
+     "pos": [
+      0.45,
+      0.65
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -245,18 +190,18 @@
    "hold_id": "F05",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      0.1,
-      0.95
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.05
-     }
+     "hold_type": "foot_chip",
+     "pos": [
+      0.1,
+      0.95
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -264,18 +209,18 @@
    "hold_id": "F06",
    "slots": [
     {
-     "slot_id": "foot_1",
-     "pos": [
-      0.45,
-      1.15
-     ],
      "allowed": [
       "LF",
       "RF"
      ],
-     "foot_area": {
-      "half_width": 0.05
-     }
+     "hold_type": "foot_chip",
+     "pos": [
+      0.45,
+      1.15
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -283,26 +228,32 @@
    "hold_id": "G01",
    "slots": [
     {
-     "slot_id": "goal_left",
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "goal",
      "pos": [
       0.09999999999999998,
       2.7
      ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "goal_left"
+    },
+    {
      "allowed": [
       "LH",
       "RH"
-     ]
-    },
-    {
-     "slot_id": "goal_right",
+     ],
+     "hold_type": "goal",
      "pos": [
       0.5,
       2.7
      ],
-     "allowed": [
-      "LH",
-      "RH"
-     ]
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "goal_right"
     }
    ]
   }
@@ -345,10 +296,45 @@
    "G_V1_01/G01/goal_right"
   ]
  ],
+ "mode": "general",
+ "name_ko": "비스듬히",
+ "note": "2026-11-15 새로 짠 V1(docs/44). 반폭 0.10, 오른쪽 위로 비스듬히.",
+ "order": 1,
+ "platforms": [
+  {
+   "foot_slot_keys": [
+    "G_V1_01/F01/foot_1",
+    "G_V1_01/F02/foot_1"
+   ],
+   "platform_id": "P00",
+   "top_y": 0.1,
+   "x_range": [
+    -0.5,
+    0.6
+   ]
+  }
+ ],
+ "required_techniques": [],
+ "route_id": "G_V1_01",
+ "score_gates": [],
  "score_ref": {
   "grabs": 9,
   "quality": 0.965,
   "spent_per_m": 16.58
  },
- "score_gates": []
+ "start_pose": {
+  "angle": 0.0,
+  "pelvis": [
+   0.05,
+   0.75
+  ],
+  "slots": {
+   "LF": "G_V1_01/F01/foot_1",
+   "LH": "G_V1_01/H01/hand_1",
+   "RF": "G_V1_01/F02/foot_1",
+   "RH": "G_V1_01/H02/hand_1"
+  }
+ },
+ "time_medal_seconds": 120,
+ "validation_status": "Draft"
 }
