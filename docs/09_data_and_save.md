@@ -228,6 +228,7 @@ selected_color_id는 CH04_01~03 중 해금된 항목만 허용하며 초기값�
 | SessionTransient | technique_select_open | TechniqueSelect 여부(영구 저장 안 함) |
 
 - 기존 점 슬롯은 hand_area/foot_area의 center로 옮기고 반폭 기본값(손 0.08m, 발 반높이 0.04m)을 쓴다. 변환한 루트는 content_version을 올린다.
+- **홀드 종류(2026-11-20, 작업 4, tuning_version 11):** 슬롯에 `hold_type`(jug/crimp/sloper/pinch/pocket/goal/foot_chip/foot_big), `size`(S/M/L, 기본 M), `rot_deg`(0~355, 5의 배수, 기본 0)를 쓰면 `RouteDef`가 종류 표(`game/data/hold_types.json`, docs/04 §10.7)로 hand_area·foot_area·grip_modes를 만든다. 새 필드가 있으면 옛 필드보다 우선하고, 손홀드는 `hand_area.matchable`만 따로 쓴다(포켓은 무시). 새 필드가 없으면 옛 형식 그대로 읽는다. 발 종류에 손 허용, 손 종류에 손 비허용이면 오류. 16문제는 모두 새 형식으로 옮겼고 content_version을 1 올렸다(저장된 최고 기록은 이전 판으로, 고스트는 지워짐 — 작업 3 규칙).
 - 기술 이벤트: TechniqueStarted/Succeeded/Cancelled/Failed(기술 ID, 쪽, 홀드, 잡은 위치 품질, 실패 이유, tick). 진단·튜토리얼 판정용이며 능력치·보상에 쓰지 않는다.
 - `game/data/techniques.json`: 기술 정의(id, name_ko, phase, body_parts, sides, flow, purpose_tags, purpose_ko, when_ko, how_ko, mistakes). 판단 로직은 코드, 설명은 데이터. 표시 문구 변경은 content_version과 무관하다.
 - 공중 자세·실행 중 기술은 영구 저장하지 않는다. 앱 재실행 복구는 기존 CP 정책을 따른다.
