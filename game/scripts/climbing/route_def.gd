@@ -5,7 +5,7 @@ extends RefCounted
 var route_id := ""
 var content_version := 0
 var validation_status := "Draft"
-var slots := {}          # 전체 슬롯 키 -> {pos, allowed, hand_area?, foot_area?, grip_modes, pivot_allowed, hook}
+var slots := {}          # 전체 슬롯 키 -> {pos, allowed, hand_area?, foot_area?, grip_modes, pivot_allowed, hook, hold_type, size, rot_deg, fatigue_mult, foot_share, window}
 var platforms := []      # {platform_id, x_range: Vector2, foot_slot_keys: Array}
 var start_pelvis := Vector2.ZERO
 var start_angle := 0.0
@@ -145,6 +145,21 @@ func _read_slot(s: Dictionary, allowed: Array[StringName]) -> Dictionary:
 	slot.grip_modes = modes
 	slot.pivot_allowed = bool(s.get("pivot_allowed", true))
 	slot.hook = bool(s.get("hook", false))
+	# 작업 4: 종류·크기·방향(새 필드)이 있으면 영역·그립 방식을 그것으로 만든다(옛 필드보다 우선). 없으면 옛 형식 그대로.
+	slot.hold_type = &""
+	slot.size = ""
+	slot.rot_deg = 0
+	slot.fatigue_mult = 1.0
+	slot.foot_share = 1.0
+	slot.window = []
+	if s.has("hold_type"):
+		var err := HoldTypes.field_error(s, hand)
+		if err != "":
+			errors.append("슬롯 %s: %s" % [s.get("slot_id", "?"), err])
+		else:
+			HoldTypes.fill(slot, s)
+			if hand and not fa.has("half_width"):
+				slot.foot_area.half_width = maxf(0.04, float(slot.hand_area.half_width))
 	return slot
 
 
