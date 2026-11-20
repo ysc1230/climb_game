@@ -50,19 +50,50 @@ func _course_buttons(course_id: String) -> Array[StringName]:
 
 ## 지금 문제 완등을 기록하고 저장한다. 이번 시도의 메달 {cleared, no_fall, time, seconds, falls, saved}를 돌려준다.
 ## 튜토리얼(메달 없음)과 없는 문제는 기록하지 않고 빈 사전.
-func finish_clear(seconds: float, falls: int) -> Dictionary:
+func finish_clear(seconds: float, falls: int, extra := {}) -> Dictionary:
 	var route := current_route()
 	if route == null or route.course_slot == "tutorial":
 		return {}
-	progress.record_clear(route, seconds, falls)
+	var rec := progress.record_clear(route, seconds, falls, extra)
+	var c: Dictionary = progress.cleared.get(route.route_id, {})
 	return {
 		"cleared": true,
+		"flash": rec.flash,
+		"new_best_score": rec.new_best_score,
+		"new_best_time": rec.new_best_time,
+		"best_score": c.get("best_score", -1),
+		"best_seconds": c.get("best_seconds", -1.0),
 		"no_fall": falls == 0,
 		"time": route.time_medal_seconds > 0.0 and seconds <= route.time_medal_seconds,
 		"seconds": seconds,
 		"falls": falls,
 		"saved": SaveStore.save(progress, save_path),
 	}
+
+
+## 지금 문제의 새 시도(작업 3 통계). 튜토리얼은 세지 않는다. 돌려줌: 시도 수(0 = 세지 않음).
+func start_attempt() -> int:
+	var route := current_route()
+	if route == null or route.course_slot == "tutorial":
+		return 0
+	var n := progress.start_attempt(route)
+	SaveStore.save(progress, save_path)
+	return n
+
+
+## 지금 문제에서 떨어짐(그 시도의 가장 높은 골반 높이).
+func record_fall(height: float) -> void:
+	var route := current_route()
+	if route == null or route.course_slot == "tutorial":
+		return
+	progress.record_fall(route, height)
+	SaveStore.save(progress, save_path)
+
+
+## 문제 기록 지우기(작업 3 §3.3).
+func wipe_route(route_id: String) -> bool:
+	progress.wipe_route(route_id)
+	return SaveStore.save(progress, save_path)
 
 
 ## 지금 튜토리얼 완료를 기록하고 저장한다.

@@ -47,8 +47,8 @@ func home(focus := {}) -> void:
 	get_tree().change_scene_to_file(HOME_SCENE)
 
 
-func finish_clear(seconds: float, falls: int) -> Dictionary:
-	return get_flow().finish_clear(seconds, falls)
+func finish_clear(seconds: float, falls: int, extra := {}) -> Dictionary:
+	return get_flow().finish_clear(seconds, falls, extra)
 
 
 func finish_tutorial() -> bool:

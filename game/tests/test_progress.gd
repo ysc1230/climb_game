@@ -272,3 +272,77 @@ func test_control_settings() -> void:
 	runner.check(q.control_get("body") == "tilt" and int(q.control_get("tilt_sens")) == 5, "저장 뒤에도 그대로 %s" % [q.control])
 	var r := Progress.from_dict({"control": {"body": "nope", "x": 1, "tilt_dead": 20}})
 	runner.check(r.control_get("body") == "drag" and not r.control.has("x") and is_equal_approx(float(r.control_get("tilt_dead")), 10.0), "모르는 값·키는 버리고 범위로 %s" % [r.control])
+
+
+## 작업 3 저장(판 2): 시도 통계·플래시·최고 점수·도움·문제 판 바뀜·기록 지우기.
+func _v(id := "G_V3_03") -> RouteDef:
+	return RouteDef.load_json(ContentIndex.route_path(id))
+
+
+func test_flash_and_best_score() -> void:
+	var p := Progress.new()
+	var r := _v()
+	runner.check(p.start_attempt(r) == 1, "첫 시도")
+	var res := p.record_clear(r, 80.0, 0, {"score": 70, "parts": {"energy": 20}})
+	runner.check(res.flash and res.new_best_score and p.cleared[r.route_id].flash and p.cleared[r.route_id].best_score == 70, "첫 시도 완등은 플래시 %s" % [p.cleared[r.route_id]])
+	p.start_attempt(r)
+	res = p.record_clear(r, 60.0, 0, {"score": 65})
+	runner.check(not res.flash and not res.new_best_score and res.new_best_time and p.cleared[r.route_id].best_score == 70 and p.cleared[r.route_id].flash, "점수는 최고 유지, 시간은 새 최고 %s" % [res])
+
+
+func test_helped_clear_counts_but_no_records() -> void:
+	var p := Progress.new()
+	var r := _v()
+	p.start_attempt(r)
+	var res := p.record_clear(r, 50.0, 0, {"score": 90, "helped": true, "ghost": {"t": [0]}})
+	var c: Dictionary = p.cleared[r.route_id]
+	runner.check(p.is_cleared(r.route_id) and not res.flash and not c.has("best_score") and not c.has("best_seconds") and not c.has("ghost"), "도움 완등: 완등은 인정, 기록은 안 남김 %s" % [c])
+
+
+func test_stats_and_falls() -> void:
+	var p := Progress.new()
+	var r := _v()
+	p.start_attempt(r)
+	for h in [1.2, 1.3, 2.0]:
+		p.record_fall(r, h)
+	runner.check(p.fall_count(r.route_id) == 3 and p.stats[r.route_id].fall_heights == [1.2, 1.3, 2.0], "추락 수·높이 %s" % [p.stats[r.route_id]])
+	for i in 30:
+		p.record_fall(r, 0.5)
+	runner.check(p.stats[r.route_id].fall_heights.size() == 20, "높이는 최근 20개")
+	runner.check(not p.is_cleared(r.route_id), "통계만 있으면 완등 아님(해금에 안 셈)")
+
+
+func test_content_version_change() -> void:
+	var p := Progress.new()
+	var r := _v()
+	p.start_attempt(r)
+	p.record_fall(r, 1.0)
+	p.record_clear(r, 50.0, 0, {"score": 80, "ghost": {"t": [0]}})
+	r.content_version += 1
+	runner.check(p.start_attempt(r) == 1 and p.fall_count(r.route_id) == 0, "판이 바뀌면 통계는 0부터")
+	var res := p.record_clear(r, 70.0, 1, {"score": 60})
+	var c: Dictionary = p.cleared[r.route_id]
+	runner.check(c.best_score == 60 and c.prev.best_score == 80 and is_equal_approx(c.prev.best_seconds, 50.0) and not c.has("ghost"), "이전 판 기록으로 옮김 %s" % [c])
+	runner.check(res.flash, "새 판의 첫 시도 완등은 플래시")
+
+
+func test_wipe_route() -> void:
+	var p := Progress.new()
+	var r := _v()
+	p.start_attempt(r)
+	p.record_fall(r, 1.0)
+	p.record_clear(r, 50.0, 0, {"score": 80})
+	p.wipe_route(r.route_id)
+	runner.check(not p.is_cleared(r.route_id) and p.fall_count(r.route_id) == 0 and not p.stats.has(r.route_id), "기록 지우기")
+
+
+func test_schema_1_save_loads() -> void:
+	var old := {"schema_version": 1, "seq": 3, "cleared": {"G_V0_02": {"content_version": 1, "no_fall": true, "time": false, "best_seconds": 42.0}}, "tutorials": {}, "level": "beginner"}
+	var path := "user://test_schema1.json"
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_string(JSON.stringify(old))
+	f.close()
+	var p := SaveStore.load(path)
+	runner.check(p.is_cleared("G_V0_02") and p.level == "beginner" and p.stats.is_empty(), "판 1 저장을 읽음 %s" % [p.to_dict()])
+	runner.check(int(p.to_dict().schema_version) == Progress.SCHEMA_VERSION and Progress.SCHEMA_VERSION == 2, "다시 저장하면 판 2")
+	DirAccess.remove_absolute(path)

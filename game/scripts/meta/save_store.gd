@@ -8,7 +8,8 @@ const DEFAULT_PATH := "user://save.json"
 static func load(path := DEFAULT_PATH) -> Progress:
 	if FileAccess.file_exists(path):
 		var data = JSON.parse_string(FileAccess.get_file_as_string(path))
-		if typeof(data) == TYPE_DICTIONARY and int(data.get("schema_version", -1)) == Progress.SCHEMA_VERSION:
+		var v := int(data.get("schema_version", -1)) if typeof(data) == TYPE_DICTIONARY else -1
+		if v >= 1 and v <= Progress.SCHEMA_VERSION:  # 이전 판도 읽는다(판 1 → 2는 stats만 비어 있음)
 			return Progress.from_dict(data)
 	return Progress.new()
 

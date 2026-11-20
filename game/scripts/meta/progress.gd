@@ -3,7 +3,8 @@ extends RefCounted
 ## docs/28 §5.3·§6·§7.2·§9 진행 기록과 해금 계산. 해금은 저장하지 않고 기록에서 매번 계산한다.
 ## 해금은 보이는 버튼·열리는 문제만 바꾸며 판정 수치에는 영향이 없다.
 
-const SCHEMA_VERSION := 1
+const SCHEMA_VERSION := 2  # 2(2026-11-20 작업 3): stats 추가, cleared에 점수·플래시·고스트·이전 판. 판 1도 읽는다
+const FALL_HEIGHTS_MAX := 20
 const BASIC_COURSE := "C_BASIC"
 const BASIC_TUTORIAL := "C_BASIC_T"   # courses.json의 C_BASIC 튜토리얼 route_id
 const GRADE_CLEAR_NEEDED := 2   # 다음 등급을 여는 완등 수
@@ -12,7 +13,11 @@ const TEXT_FIRST_RUN := "기본 조작을 먼저 해 주세요"
 const TEXT_PREV_STEP := "앞 단계를 먼저 깨 주세요"
 
 var seq := 0
-var cleared := {}   # route_id -> {content_version, no_fall, time, best_seconds}
+## route_id -> {content_version, no_fall, time, best_seconds, best_score, best_score_parts, flash, ghost, prev}(완등한 문제만 — 키가 있으면 완등)
+## 최고 기록(best_*·flash·ghost)은 도움 없는 시도만. prev: 문제가 바뀌기 전 판의 {best_score, best_seconds, flash}.
+var cleared := {}
+## route_id -> {content_version, attempts, falls, fall_heights}(시도한 모든 문제, 작업 3). 판정·해금에 쓰지 않는다.
+var stats := {}
 var tutorials := {}   # route_id -> true
 var basic_skipped := false
 var last_tab := "general"
@@ -41,7 +46,7 @@ static func object_particle(word: String) -> String:
 
 func to_dict() -> Dictionary:
 	return {"schema_version": SCHEMA_VERSION, "seq": seq, "cleared": cleared, "tutorials": tutorials,
-		"basic_skipped": basic_skipped, "last_tab": last_tab, "level": level, "seen_tips": seen_tips, "look": look, "display": display, "control": control}
+		"basic_skipped": basic_skipped, "last_tab": last_tab, "level": level, "seen_tips": seen_tips, "look": look, "display": display, "control": control, "stats": stats}
 
 
 static func from_dict(d: Dictionary) -> Progress:
@@ -49,6 +54,8 @@ static func from_dict(d: Dictionary) -> Progress:
 	p.seq = int(d.get("seq", 0))
 	p.cleared = d.get("cleared", {}).duplicate(true)
 	p.tutorials = d.get("tutorials", {}).duplicate(true)
+	var st = d.get("stats", {})
+	p.stats = st.duplicate(true) if st is Dictionary else {}
 	p.basic_skipped = bool(d.get("basic_skipped", false))
 	p.last_tab = str(d.get("last_tab", "general"))
 	p.level = str(d.get("level", ""))
@@ -202,17 +209,73 @@ func _previous_step_done(route: RouteDef, index: ContentIndex) -> bool:
 	return true
 
 
-func record_clear(route: RouteDef, seconds: float, falls: int) -> void:
+## 완등 기록. extra: {score, parts, helped, ghost}(작업 3). falls는 문제를 연 뒤 추락 수(무추락 메달).
+## 돌려줌: {flash, new_best_score, new_best_time}. 도움 시도는 완등만 남기고 최고 기록·플래시·고스트는 건드리지 않는다.
+func record_clear(route: RouteDef, seconds: float, falls: int, extra := {}) -> Dictionary:
 	var old: Dictionary = cleared.get(route.route_id, {})
-	var best := seconds
-	if old.has("best_seconds"):
-		best = minf(float(old.best_seconds), seconds)
-	cleared[route.route_id] = {
-		"content_version": route.content_version,
-		"no_fall": bool(old.get("no_fall", false)) or falls == 0,
-		"time": bool(old.get("time", false)) or (route.time_medal_seconds > 0.0 and seconds <= route.time_medal_seconds),
-		"best_seconds": best,
-	}
+	var c := {}
+	if not old.is_empty() and int(old.get("content_version", route.content_version)) != route.content_version:
+		var prev := {}
+		for k in ["best_score", "best_seconds", "flash"]:
+			if old.has(k):
+				prev[k] = old[k]
+		c = {"prev": prev}  # 문제가 바뀜: 이전 판 기록으로 옮기고 새로 잰다(고스트는 홀드가 달라 지움)
+	else:
+		c = old.duplicate(true)
+	c["content_version"] = route.content_version
+	c["no_fall"] = bool(c.get("no_fall", false)) or falls == 0
+	c["time"] = bool(c.get("time", false)) or (route.time_medal_seconds > 0.0 and seconds <= route.time_medal_seconds)
+	var res := {"flash": false, "new_best_score": false, "new_best_time": false}
+	if not bool(extra.get("helped", false)):
+		if not c.has("best_seconds") or seconds < float(c.best_seconds):
+			c["best_seconds"] = seconds
+			res.new_best_time = true
+			if extra.has("ghost"):
+				c["ghost"] = extra.ghost
+		if extra.has("score") and (not c.has("best_score") or int(extra.score) > int(c.best_score)):
+			c["best_score"] = int(extra.score)
+			c["best_score_parts"] = extra.get("parts", {})
+			res.new_best_score = true
+		if int(stats.get(route.route_id, {}).get("attempts", 0)) == 1:
+			c["flash"] = true
+			res.flash = true
+	cleared[route.route_id] = c
+	return res
+
+
+## 새 시도 시작(문제를 열 때·[다시]·떨어진 뒤 다시). 돌려줌: 그 문제의 시도 수. 문제가 바뀌었으면 통계를 0부터.
+func start_attempt(route: RouteDef) -> int:
+	var s := _stats(route)
+	s.attempts = int(s.attempts) + 1
+	return int(s.attempts)
+
+
+## 떨어짐 하나와 그 시도에서 가장 높이 올라간 골반 높이(힌트·시범 보기).
+func record_fall(route: RouteDef, height: float) -> void:
+	var s := _stats(route)
+	s.falls = int(s.falls) + 1
+	var hs: Array = s.fall_heights
+	hs.append(snappedf(height, 0.01))
+	while hs.size() > FALL_HEIGHTS_MAX:
+		hs.pop_front()
+
+
+func fall_count(route_id: String) -> int:
+	return int(stats.get(route_id, {}).get("falls", 0))
+
+
+func _stats(route: RouteDef) -> Dictionary:
+	var s: Dictionary = stats.get(route.route_id, {})
+	if s.is_empty() or int(s.get("content_version", route.content_version)) != route.content_version:
+		s = {"content_version": route.content_version, "attempts": 0, "falls": 0, "fall_heights": []}
+		stats[route.route_id] = s
+	return s
+
+
+## 이 문제 기록 지우기(작업 3 §3.3): 완등·최고 기록·고스트·시도 통계. 해금은 기록에서 다시 계산된다.
+func wipe_route(route_id: String) -> void:
+	cleared.erase(route_id)
+	stats.erase(route_id)
 
 
 func record_tutorial(route_id: String) -> void:
