@@ -710,7 +710,8 @@ func balance_view() -> Dictionary:
 	for f in [PoseSolver.LF, PoseSolver.RF]:
 		if att.has(f) and rules.loaded_feet.has(f):
 			var w := ClimbRules.foot_weight(body.pos, body.angle, body.yaw, f, att[f])
-			feet.append({"limb": f, "pos": att[f], "share": (1.0 - Tuning.FOOT_LOAD_BLEND) + Tuning.FOOT_LOAD_BLEND * w})
+			var share: float = limbs[f].contact.foot_share if limbs[f].get("contact") != null else 1.0
+			feet.append({"limb": f, "pos": att[f], "share": ((1.0 - Tuning.FOOT_LOAD_BLEND) + Tuning.FOOT_LOAD_BLEND * w) * share})
 	var ph := rules.phase
 	var state := "danger" if ph == ClimbRules.Phase.REBALANCING or ph == ClimbRules.Phase.GRACE else \
 		("ok" if rules.foot_support >= Tuning.REST_FOOT_SUPPORT - 0.0001 and ph == ClimbRules.Phase.STABLE else "strain")

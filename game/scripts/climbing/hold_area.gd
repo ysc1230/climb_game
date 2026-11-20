@@ -28,6 +28,16 @@ static func project_foot(slot: Dictionary, point: Vector2) -> Dictionary:
 	return {"point": slot.pos + area.up * s, "v": v, "quality": q}
 
 
+## 슬로퍼 몸 창(작업 4 §4.1): 몸(골반) x가 홀드 중심에서 좌우 window[0] 안이면 1, window[1] 밖이면 window[2], 사이는 선형.
+## 접점 품질에 곱한다(품질은 피로·최대 하중·반각에 들어감). 창이 없으면 1.
+static func window_factor(window: Array, hold_x: float, x: float) -> float:
+	if window.size() < 3 or not is_finite(x):
+		return 1.0
+	var d := absf(x - hold_x)
+	var t := clampf((d - float(window[0])) / (float(window[1]) - float(window[0])), 0.0, 1.0)
+	return lerpf(1.0, float(window[2]), t)
+
+
 ## 손 접촉 구간(선분 좌표, 중심 기준 부호 있는 거리 s 주변 +-0.04).
 static func hand_interval(slot: Dictionary, point: Vector2) -> Vector2:
 	var area: Dictionary = slot.hand_area

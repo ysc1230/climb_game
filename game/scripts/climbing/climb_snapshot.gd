@@ -60,6 +60,7 @@ static func copy_contact(c: ContactInfo) -> ContactInfo:
 	n.axis = c.axis
 	n.half_angle = c.half_angle
 	n.half_width = c.half_width
+	n.copy_hold_from(c)
 	return n
 
 

@@ -277,13 +277,13 @@ static func contact_for(route: RouteDef, tech_id: StringName, limb: StringName, 
 	var slot: Dictionary = route.slots[key]
 	if not PoseSolver.is_hand(limb):
 		var edge := &"outside" if tech_id == T_OUTSIDE_EDGE else &"inside"
-		return ContactInfo.make(key, point, HoldArea.project_foot(slot, point).quality, &"foot", edge)
+		return ContactInfo.make(key, point, HoldArea.project_foot(slot, point).quality, &"foot", edge).apply_slot(slot)
 	var gm: Dictionary = slot.grip_modes[0]
 	var ci := ContactInfo.make(key, point, HoldArea.project_hand(slot, point).quality, gm.mode, &"")
 	ci.axis = gm.axis
 	ci.half_angle = gm.half_angle
 	ci.half_width = float(slot.hand_area.half_width)
-	return ci
+	return ci.apply_slot(slot)
 
 
 ## 기술별 홀드 조건(27 §10)을 지금 자세에서 본다. 거리·관절·힘은 보지 않는다. 패드 풋스왑도 T_FOOT_SWAP으로 쓴다.

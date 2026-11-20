@@ -113,9 +113,9 @@ func contacts_for(pelvis: Vector2, angle_deg: float, attached: Dictionary, feet:
 			continue
 		if PoseSolver.is_hand(limb):
 			if _hand_eligible(pelvis, angle_deg, limb, attached[limb], yaw_deg):
-				out.append(_contact_of(limb, attached[limb]))
+				out.append(_contact_of(limb, attached[limb], pelvis.x))
 		elif feet.has(limb):
-			out.append(_contact_of(limb, attached[limb]))
+			out.append(_contact_of(limb, attached[limb], pelvis.x))
 	return out
 
 
@@ -125,6 +125,14 @@ func _mode_of(limb: StringName) -> StringName:
 
 func _quality_of(limb: StringName) -> float:
 	return contact_meta[limb].quality if contact_meta.has(limb) else 1.0
+
+
+## 몸 위치를 반영한 접점 품질: 슬로퍼는 몸 창 배율(HoldArea.window_factor)을 곱한다. pelvis_x가 NAN이면 그대로.
+func quality_at(limb: StringName, pelvis_x: float) -> float:
+	if not contact_meta.has(limb):
+		return 1.0
+	var c: ContactInfo = contact_meta[limb]
+	return c.quality * HoldArea.window_factor(c.window, c.hold_x, pelvis_x)
 
 
 ## 손 하중 자격. 언더클링은 하중 받는 발이 1개 이상 있어야 한다(docs/04 §10).
@@ -137,12 +145,12 @@ func _eligible_hand_count(pelvis: Vector2, angle_deg: float, attached: Dictionar
 
 
 ## 품질·방식을 반영한 접점: 최대 하중 × (0.5+0.5q), 반각 × (0.6+0.4q).
-func _contact_of(limb: StringName, pos: Vector2) -> Dictionary:
+func _contact_of(limb: StringName, pos: Vector2, pelvis_x: float = NAN) -> Dictionary:
 	var base := SupportSolver.contact(limb, pos)
 	if not contact_meta.has(limb):
 		return SupportSolver.contact_with(limb, pos, base.axis, base.half_angle, base.max_load * load_scale)
 	var info: ContactInfo = contact_meta[limb]
-	var q := info.quality
+	var q := quality_at(limb, pelvis_x)
 	var half: float = info.half_angle if info.half_angle > 0.0 else base.half_angle
 	return SupportSolver.contact_with(limb, pos, info.axis, half * (0.6 + 0.4 * q), base.max_load * (0.5 + 0.5 * q) * load_scale)
 
@@ -262,7 +270,8 @@ func _apply_fatigue(result: Dictionary, attached: Dictionary, platform: bool, mo
 	for foot in loaded_feet:
 		if attached.has(foot):
 			var w := foot_weight(body.pos, body.angle, body.yaw, foot, attached[foot]) if body != null else 1.0
-			foot_support += (1.0 - Tuning.FOOT_LOAD_BLEND) + Tuning.FOOT_LOAD_BLEND * w
+			var share := float(contact_meta[foot].foot_share) if contact_meta.has(foot) else 1.0  # 작은 발판 0.85(작업 4)
+			foot_support += ((1.0 - Tuning.FOOT_LOAD_BLEND) + Tuning.FOOT_LOAD_BLEND * w) * share
 	var strain := barn_strain(result)
 	var still := phase == Phase.STABLE and speed <= Fatigue.STABLE_SPEED and not moving and strain <= 1.0
 	rest_confirm_ticks = rest_confirm_ticks + 1 if still else 0
@@ -275,11 +284,11 @@ func _apply_fatigue(result: Dictionary, attached: Dictionary, platform: bool, mo
 	for hand in [PoseSolver.LH, PoseSolver.RH]:
 		var rate := Fatigue.FREE_HAND_RATE
 		if attached.has(hand):
-			rate = Fatigue.attached_hand_rate(phase == Phase.REBALANCING, platform, rest_ok, foot_support, hands_attached, result.u.get(hand, 0.0), low_load, _quality_of(hand))
+			rate = Fatigue.attached_hand_rate(phase == Phase.REBALANCING, platform, rest_ok, foot_support, hands_attached, result.u.get(hand, 0.0), low_load, quality_at(hand, body.pos.x if body != null else NAN))
 		if rate < 0.0:
 			rate *= float(fatigue_multiplier.get(hand, 1.0)) * drain_scale
 			if contact_meta.has(hand):
-				rate *= Fatigue.size_multiplier(contact_meta[hand].half_width)
+				rate *= Fatigue.size_multiplier(contact_meta[hand].half_width) * contact_meta[hand].fatigue_mult
 			if attached.has(hand) and result.get("loads", {}).get(hand, 0.0) >= SupportSolver.BARN_MIN_LOAD:
 				rate *= strain
 		stamina[hand] = Fatigue.apply(stamina[hand], rate, Tuning.DT, fatigue_disabled)

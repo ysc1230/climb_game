@@ -220,7 +220,7 @@ static func contact_for(slot_key: String, slots: Dictionary, limb: StringName, p
 	if PoseSolver.is_hand(limb):
 		return _hand_contact(slot_key, slot, point, HoldArea.project_hand(slot, point).quality, slot.grip_modes[0])
 	var qf: float = HoldArea.project_foot(slot, point).quality
-	return ContactInfo.make(slot_key, point, qf, &"foot", &"inside")
+	return ContactInfo.make(slot_key, point, qf, &"foot", &"inside").apply_slot(slot)
 
 
 static func _hand_contact(slot_key: String, slot: Dictionary, point: Vector2, q: float, gm: Dictionary) -> ContactInfo:
@@ -228,7 +228,7 @@ static func _hand_contact(slot_key: String, slot: Dictionary, point: Vector2, q:
 	ci.axis = gm.axis
 	ci.half_angle = gm.half_angle
 	ci.half_width = float(slot.hand_area.half_width)
-	return ci
+	return ci.apply_slot(slot)
 
 
 ## 패드 잡기 방향 자동 선택(docs/28 §4.3). 손은 홀드의 grip_modes마다 접점을 만들어 지금 자세에서 힘 계산을 하고,
