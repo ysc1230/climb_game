@@ -26,6 +26,10 @@ var course_slot := ""  # "tutorial" / "easy" / "normal" / "hard"
 var tutorial_steps: Array = []
 var crux_steps := {}  # 기술 ID(StringName) -> intended_moves 인덱스
 var check_swapped := false  # 좌우 손 순서를 바꾼 재생도 검증할지
+## 점수(작업 3 §3.1): 검사 봇이 정답 순서로 오른 1m당 쓴 손 힘·잡기 수. 비면 힘 아끼기·잡기 초과를 재지 않는다.
+var score_ref := {}
+## 기술 관문 [{technique: StringName, slot: String}](crux_steps에서 옮겨 적음, tools/score_ref.gd).
+var score_gates: Array = []
 var errors: PackedStringArray = []
 
 const MODES := ["general", "course"]
@@ -102,6 +106,14 @@ func _read(d: Dictionary) -> void:
 	else:
 		errors.append("crux_steps는 사전이어야 함")
 	check_swapped = bool(d.get("check_swapped", false))
+	var sr = d.get("score_ref", {})
+	if sr is Dictionary and not sr.is_empty():
+		score_ref = {"spent_per_m": float(sr.get("spent_per_m", 0.0)), "grabs": int(sr.get("grabs", 0))}
+	for g in d.get("score_gates", []):
+		if g is Dictionary and slots.has(str(g.get("slot", ""))):
+			score_gates.append({"technique": StringName(str(g.get("technique", ""))), "slot": str(g.slot)})
+		else:
+			errors.append("score_gates 항목이 잘못됨: %s" % [g])
 
 
 static func _vec(a, fallback: Vector2) -> Vector2:
