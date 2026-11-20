@@ -14,14 +14,18 @@ const MAX_RETRY := 30
 
 var route: RouteDef
 var banned := {}       # 금지한 이동 서명 → true
+var forbid := {}       # 세션 금지 플래그. 탐색에서도 그 기술이 필요한 이동을 빼고(GateCheck.forbidden), 재생에도 넘긴다
+var pull_only := false # 방향 기술 없이: 손은 위로 당기기(축 위)로만 잡는다(GateCheck.as_pull)
 var expanded := 0
 
 
 ## 반환 {ok, steps: [[limb, key], ...], bot: SessionBot(재생 성공한 것), tries, expanded, log: PackedStringArray}.
 ## forbid: 세션 금지 플래그(예: {&"cross": true}). 그 기술 없이 가는 길을 찾을 때 쓴다.
-static func explore(p_route: RouteDef, forbid := {}) -> Dictionary:
+static func explore(p_route: RouteDef, forbid := {}, pull_only := false) -> Dictionary:
 	var ex := PathExplorer.new()
 	ex.route = p_route
+	ex.forbid = forbid
+	ex.pull_only = pull_only
 	var log: PackedStringArray = []
 	for attempt in MAX_RETRY:
 		var path := ex._search()
@@ -115,7 +119,7 @@ func _moves(keys: Dictionary, pose: Vector3) -> Array:
 		var att := _att(rest)
 		var meta := {}
 		for l in rest:
-			meta[l] = GripCheck.contact_for(rest[l], route.slots, l, att[l])
+			meta[l] = _contact(rest[l], l, att[l])
 		var pel := Vector2(p3.x, p3.y)
 		var c := _hold_cost(rest, att, meta, pel, p3.z)
 		if c.is_empty():
@@ -127,6 +131,8 @@ func _moves(keys: Dictionary, pose: Vector3) -> Array:
 			var slot: Dictionary = route.slots[key]
 			var msig := "%s|%s>%s" % [rsig, limb, key]
 			if banned.has(msig) or not PoseSolver.can_reach(pel, p3.z, limb, slot.pos, 0.0):
+				continue
+			if GateCheck.forbidden(forbid, limb, key, slot.pos, pel, p3.z, rest, att):
 				continue
 			var att4 := att.duplicate()
 			att4[limb] = slot.pos
@@ -156,6 +162,11 @@ func _slot_free(key: String, limb: StringName, others: Dictionary) -> bool:
 		if PoseSolver.is_hand(o) != hand or not matchable:
 			return false
 	return true
+
+
+func _contact(key: String, limb: StringName, point: Vector2) -> ContactInfo:
+	var c := GripCheck.contact_for(key, route.slots, limb, point)
+	return GateCheck.as_pull(c) if pull_only and PoseSolver.is_hand(limb) else c
 
 
 func _att(keys: Dictionary) -> Dictionary:
