@@ -53,3 +53,26 @@ static func demo_track(route: RouteDef) -> GhostTrack:
 		if r != "clear":
 			g.record(s, Tuning.DT))
 	return g if bot.ok() and not g.frames.is_empty() else null
+
+
+## 미리 만든 봇 기록(AI 고스트·시범 보기, tools/ai_ghost_write.gd). 문제 판·조정값이 다르거나 없으면 null.
+const AI_DIR := "res://data/ai_ghosts/"
+
+
+static func stored_path(route_id: String) -> String:
+	return AI_DIR + route_id + ".json"
+
+
+static func stored_track(route: RouteDef) -> GhostTrack:
+	var path := stored_path(route.route_id)
+	if not FileAccess.file_exists(path):
+		return null
+	var d = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not d is Dictionary or int(d.get("content_version", -1)) != route.content_version or int(d.get("tuning_version", -1)) != Tuning.TUNING_VERSION:
+		return null
+	var g := GhostTrack.from_dict(d.get("ghost"))
+	return g if not g.frames.is_empty() else null
+
+
+static func stored_dict(route: RouteDef, g: GhostTrack) -> Dictionary:
+	return {"route_id": route.route_id, "content_version": route.content_version, "tuning_version": Tuning.TUNING_VERSION, "ghost": g.to_dict()}

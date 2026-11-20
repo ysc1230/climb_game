@@ -52,3 +52,26 @@ func test_time_of_height() -> void:
 		g.record(s, 0.1)
 	runner.check(absf(g.time_at_height(p0.y + 0.5) - 0.5) < 0.11, "골반이 그 높이에 처음 닿는 때 %.2f" % g.time_at_height(p0.y + 0.5))
 	runner.check(g.time_at_height(p0.y - 5.0) == 0.0, "이미 넘었으면 처음부터")
+
+
+## AI 고스트(2026-11-20 사용자): 봇이 정답 순서로 오른 기록을 설정에서 켜면 같이 보여 준다. 기본은 꺼짐(길을 미리 알려 주므로).
+func test_ai_ghost_setting() -> void:
+	runner.check(Progress.DISPLAY_DEFAULTS.has("ai_ghost") and not Progress.new().display_on("ai_ghost"), "AI 고스트 설정 있음, 기본 꺼짐")
+	var rows: Array = preload("res://scenes/home.gd").DISPLAY_ROWS.filter(func(r): return r[0] == "ai_ghost")
+	runner.check(rows.size() == 1 and rows[0][1] == "AI 고스트", "설정 줄 이름 'AI 고스트' %s" % [rows])
+	var g := HelpPicker.demo_track(RouteDef.load_json("res://data/routes/general/G_V3_03.json"))
+	runner.check(g != null and g.duration() > 1.0, "봇 기록으로 AI 고스트를 만듦")
+
+
+## AI 고스트는 미리 만든 기록(data/ai_ghosts)을 읽는다(휴대폰에서 봇을 돌리면 몇 초 멈춤). 정답 순서가 있는 일반 문제마다 지금 문제·조정값과 맞는 기록이 있어야 한다.
+## 낡았으면: godot --headless --path game --script res://tools/ai_ghost_write.gd
+func test_stored_ai_ghosts_fresh() -> void:
+	var idx := ContentIndex.load_all()
+	for r in idx.all_routes():
+		if r.mode != "general" or r.intended_moves.is_empty():
+			continue
+		var g := HelpPicker.stored_track(r)
+		runner.check(g != null and g.duration() > 1.0, "%s AI 고스트 기록 있음(낡았으면 tools/ai_ghost_write.gd)" % r.route_id)
+	var r0 := RouteDef.load_json("res://data/routes/general/G_V3_03.json")
+	r0.content_version += 1
+	runner.check(HelpPicker.stored_track(r0) == null, "문제 판이 바뀌면 낡은 기록은 안 씀")

@@ -154,6 +154,8 @@ func _ready() -> void:
 var score_rec := ScoreRecorder.new()
 var ghost_rec := GhostTrack.new()
 var ghost_best: GhostTrack = null  # 내 최고 기록 고스트(설정 "ghost", 기록이 있을 때만)
+var ghost_ai: GhostTrack = null  # AI 고스트(설정 "ai_ghost"): 봇이 정답 순서로 오른 기록(시범 보기와 같은 기록)
+const AI_GHOST_COLOR := Color(0.3, 0.72, 1.0, 0.55)
 var _attempt_top := -INF  # 이번 시도에서 가장 높이 올라간 골반 높이(힌트·시범 보기)
 
 
@@ -163,6 +165,7 @@ func _new_attempt() -> void:
 	ghost_rec = GhostTrack.new()
 	_attempt_top = session.body.pos.y
 	ghost_best = null
+	ghost_ai = null
 	hint_slot = ""
 	if game != null and tutorial == null:
 		game.get_flow().start_attempt()
@@ -172,6 +175,9 @@ func _new_attempt() -> void:
 			ghost_best = GhostTrack.from_dict(c.ghost)
 			if ghost_best.frames.is_empty():
 				ghost_best = null
+		if game.progress.display_on("ai_ghost") and _demo_cache == null and not _demo_failed:
+			_demo_cache = HelpPicker.stored_track(route)  # 문제를 열 때는 봇을 돌리지 않는다(멈춤). 미리 만든 기록이 없으면 AI 고스트 없음
+		ghost_ai = _demo_cache if game.progress.display_on("ai_ghost") else null
 
 
 ## 판정 틱마다(시간이 흐른 틱): 점수 기록·자세 기록·가장 높은 골반.
@@ -184,14 +190,21 @@ func _record_tick(result: String, dt: float) -> void:
 	_attempt_top = maxf(_attempt_top, session.body.pos.y)
 
 
-## 고스트 그리기: 내 최고 기록(시도 시간에 맞춰 흰색 30%). 루트 읽기·낙하·완등 축하 중에는 숨긴다.
+## 고스트 그리기: 내 최고 기록(시도 시간에 맞춰 흰색 30%)과 AI 고스트(하늘색, 머리 위 "AI"). 루트 읽기·낙하·완등 축하 중에는 숨긴다.
 func _draw_ghosts() -> void:
 	_draw_hint()
 	_draw_hold_tags()
 	if demo != null:
 		_draw_ghost_figure(demo.sample(demo_t), Color(1, 1, 1, 0.75))
 		return
-	if ghost_best != null and route_preview == null and not session.falling and session.halted == &"" and attempt.seconds <= ghost_best.duration() + 1.0:
+	if route_preview != null or session.falling or session.halted != &"":
+		return
+	if ghost_ai != null and attempt.seconds <= ghost_ai.duration() + 1.0:
+		var g := ghost_ai.sample(attempt.seconds)
+		_draw_ghost_figure(g, AI_GHOST_COLOR)
+		var top := w2s((g.pelvis as Vector2) + Vector2(0, 1.0))
+		_outlined(top - Vector2(60 * ui_k, 0), "AI", 28, 120 * ui_k, Color(0.6, 0.85, 1.0, 0.95))
+	if ghost_best != null and attempt.seconds <= ghost_best.duration() + 1.0:
 		_draw_ghost_figure(ghost_best.sample(attempt.seconds), Color(1, 1, 1, 0.3))
 
 
@@ -287,14 +300,22 @@ func _draw_hint() -> void:
 	draw_arc(c, 46 * ui_k, 0, TAU, 40, Color(1.0, 0.86, 0.45, a * 0.4), 3 * ui_k)
 
 
+## 봇이 정답 순서로 오른 기록. 시범 보기·AI 고스트가 같이 쓴다. 미리 만든 기록(data/ai_ghosts)이 맞으면 그것,
+## 아니면 처음 한 번 봇을 돌린다(몇 초 걸림). 봇이 못 깨면 null.
+func _demo_record() -> GhostTrack:
+	if _demo_cache == null and not _demo_failed:
+		_demo_cache = HelpPicker.stored_track(route)
+		if _demo_cache == null:
+			_demo_cache = HelpPicker.demo_track(route)
+		_demo_failed = _demo_cache == null
+	return _demo_cache
+
+
 ## 시범 보기 열기: 처음 한 번 봇으로 정답 순서를 돌려 기록을 만든다(못 깨면 버튼을 숨김). 게임은 멈춘다.
 func _demo_open() -> void:
-	if _demo_cache == null:
-		_demo_cache = HelpPicker.demo_track(route)
-		if _demo_cache == null:
-			_demo_failed = true
-			_flash("이 문제는 시범을 보여 줄 수 없어요")
-			return
+	if _demo_record() == null:
+		_flash("이 문제는 시범을 보여 줄 수 없어요")
+		return
 	demo = _demo_cache
 	var h := HelpPicker.common_height(_fall_heights())
 	demo_from_t = demo.time_at_height(h - 0.5) if h > -INF else 0.0
