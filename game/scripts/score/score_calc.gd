@@ -11,9 +11,8 @@ const DANGER_PENALTY := 4.0
 const BARN_PENALTY := 3.0
 const MISS_PENALTY := 2.0
 const EXTRA_GRAB_PENALTY := 1.0
-const GATE_AFTER_TICKS := 15  # 패드 기술 라벨이 잡은 뒤 이만큼 늦게 바뀌어도 그 잡기로 친다
-## 패드로 하는 기술 → 판정이 남기는 move 라벨.
-const PAD_LABELS := {&"T_HIGH_STEP": [&"HighStep"], &"T_MATCH": [&"HandMatch"], &"T_CROSS": [&"CrossReach"], &"T_LOCK_OFF": [&"LockOff"]}
+## 패드 기술은 잡기 사건의 tech(ScoreRecorder.grab_techniques, 잡은 순간 자세)로 본다. 판정의 move 라벨은 쓰지 않는다
+## (봇으로 확인: 매치 라벨이 잡은 뒤 1초 늦게 붙고, 하이스텝 라벨은 정답대로 올라도 안 붙음).
 
 
 static func top_y(route: RouteDef) -> float:
@@ -53,31 +52,17 @@ static func score(rec: Dictionary, route: RouteDef) -> Dictionary:
 	return {"total": clampi(total, 0, 100), "parts": parts, "helped": bool(rec.get("helped", false))}
 
 
-## 맞춘 관문 수(관문마다 한 번만). 버튼 기술은 기록의 슬롯, 패드 기술은 그 슬롯을 잡은 잡기와
-## 바로 앞 잡기 사이(또는 잡은 뒤 GATE_AFTER_TICKS 안)에 남은 move 라벨로 본다.
+## 맞춘 관문 수(관문마다 한 번만). 버튼 기술은 기록의 슬롯, 패드 기술은 그 슬롯을 잡은 잡기의 tech, 발 바꾸기는 그 슬롯 사건.
 static func gates_hit(ev: Array, gates: Array) -> int:
 	var hit := 0
 	for g in gates:
-		var tech: StringName = g.technique
+		var tech := str(g.technique)
 		var slot: String = g.slot
-		var ok := false
-		for i in ev.size():
-			var e: Dictionary = ev[i]
-			if e.type == "succeeded" and StringName(str(e.get("id", ""))) == tech and str(e.get("key", "")) == slot:
-				ok = true
-			elif e.type == "pad_foot_swap" and tech == &"T_FOOT_SWAP" and str(e.get("key", "")) == slot:
-				ok = true
-			elif e.type == "grab" and str(e.get("key", "")) == slot and PAD_LABELS.has(tech):
-				var t0 := -INF
-				for j in range(i - 1, -1, -1):
-					if ev[j].type == "grab":
-						t0 = float(ev[j].tick)
-						break
-				for m in ev:
-					if m.type == "move" and StringName(str(m.get("label", ""))) in PAD_LABELS[tech] and float(m.tick) >= t0 and int(m.tick) <= int(e.tick) + GATE_AFTER_TICKS:
-						ok = true
-			if ok:
+		for e in ev:
+			var on_slot := str(e.get("key", "")) == slot
+			if on_slot and ((e.type == "succeeded" and str(e.get("id", "")) == tech) \
+					or (e.type == "pad_foot_swap" and tech == "T_FOOT_SWAP") \
+					or (e.type == "grab" and tech in e.get("tech", []))):
+				hit += 1
 				break
-		if ok:
-			hit += 1
 	return hit

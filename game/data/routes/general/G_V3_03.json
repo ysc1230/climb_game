@@ -553,5 +553,15 @@
   }
  },
  "time_medal_seconds": 150.0,
- "validation_status": "Draft"
+ "validation_status": "Draft",
+ "score_ref": {
+  "grabs": 18,
+  "spent_per_m": 58.23
+ },
+ "score_gates": [
+  {
+   "slot": "G_V3_03/F07/foot_1",
+   "technique": "T_HIGH_STEP"
+  }
+ ]
 }

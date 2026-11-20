@@ -371,5 +371,10 @@
    "RH",
    "G_V0_02/G01/goal_right"
   ]
- ]
+ ],
+ "score_ref": {
+  "grabs": 10,
+  "spent_per_m": 22.65
+ },
+ "score_gates": []
 }

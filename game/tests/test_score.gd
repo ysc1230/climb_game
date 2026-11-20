@@ -64,15 +64,15 @@ func test_precise_misses_and_extra_grabs() -> void:
 func test_gates_once_and_only_on_slot() -> void:
 	var r := _route()
 	var rec := _rec(r)
-	rec.events.append({"type": "move", "tick": 300, "label": &"HighStep"})
-	rec.events.append({"type": "grab", "tick": 305, "key": "G_V3_03/F07/foot_1"})
-	rec.events.append({"type": "move", "tick": 400, "label": &"HighStep"})
-	rec.events.append({"type": "grab", "tick": 405, "key": "G_V3_03/F07/foot_1"})
+	rec.events.append({"type": "grab", "tick": 305, "key": "G_V3_03/F07/foot_1", "tech": ["T_HIGH_STEP"]})
+	rec.events.append({"type": "grab", "tick": 405, "key": "G_V3_03/F07/foot_1", "tech": ["T_HIGH_STEP"]})
 	var s := ScoreCalc.score(rec, r)
-	runner.check(s.parts.technique == 15, "관문 슬롯에서 하이스텝 → 15(두 번 해도 한 번) %s" % [s.parts])
+	runner.check(s.parts.technique == 15, "관문 슬롯에서 하이스텝 → 15(두 번 해도 한 번) %s" % [s])
 	var off := _rec(r)
-	off.events.append({"type": "move", "tick": 300, "label": &"HighStep"})
-	off.events.append({"type": "grab", "tick": 305, "key": "elsewhere"})
+	off.events.append({"type": "grab", "tick": 305, "key": "elsewhere", "tech": ["T_HIGH_STEP"]})
+	var plain := _rec(r)
+	plain.events.append({"type": "grab", "tick": 305, "key": "G_V3_03/F07/foot_1", "tech": []})
+	runner.check(ScoreCalc.score(plain, r).parts.technique == 0, "관문 슬롯이라도 기술 없이 잡으면 0")
 	runner.check(ScoreCalc.score(off, r).parts.technique == 0, "관문 밖 기술은 0")
 	var btn := _rec(r)
 	btn.events.append({"type": "succeeded", "tick": 300, "id": &"T_HIGH_STEP", "key": "G_V3_03/F07/foot_1"})
@@ -106,3 +106,27 @@ func test_recorder_counts_spent_not_recovery() -> void:
 	rec.tick(s, "")
 	runner.check(absf(rec.to_dict().spent - 5.0) < 0.5, "감소 5만 셈(회복 무시) %s" % rec.to_dict().spent)
 	runner.check(rec.to_dict().ticks == 3, "틱 수")
+
+
+## 실제 봇: 정답 순서로 오르면 관문을 맞춘다(V3 세 문제).
+func test_bot_hits_gates() -> void:
+	for id in ["G_V3_02", "G_V3_03", "G_V3_04"]:
+		var r := RouteDef.load_json(ContentIndex.route_path(id))
+		var rec := ScoreRecorder.new()
+		var bot := SessionBot.run(r, r.intended_moves, {}, rec)
+		var gates: Array = load("res://tools/score_ref.gd").gates(r)
+		var gl := []
+		for g in gates:
+			gl.append({"technique": StringName(g.technique), "slot": g.slot})
+		runner.check(bot.ok() and ScoreCalc.gates_hit(rec.to_dict().events, gl) == gl.size(), "%s 관문 %s" % [id, gl])
+
+
+## 문제에 적어 둔 기준값이 지금 정답 순서 재생과 맞는다(문제·조정값을 고치면 tools/score_ref.gd로 다시 잼).
+func test_stored_refs_match_bot() -> void:
+	var idx := ContentIndex.load_all()
+	for r in idx.all_routes():
+		if r.mode != "general":
+			continue
+		var m: Dictionary = load("res://tools/score_ref.gd").measure(r)
+		var ok: bool = not r.score_ref.is_empty() and absf(float(r.score_ref.spent_per_m) - float(m.ref.spent_per_m)) < 0.05 and int(r.score_ref.grabs) == int(m.ref.grabs) and r.score_gates.size() == m.gates.size()
+		runner.check(ok, "%s 기준값 %s ↔ 잰 값 %s" % [r.route_id, r.score_ref, m.ref])

@@ -456,5 +456,15 @@
   }
  },
  "time_medal_seconds": 100.0,
- "validation_status": "Draft"
+ "validation_status": "Draft",
+ "score_ref": {
+  "grabs": 15,
+  "spent_per_m": 28.18
+ },
+ "score_gates": [
+  {
+   "slot": "G_V3_02/H07/hand_1",
+   "technique": "T_MATCH"
+  }
+ ]
 }

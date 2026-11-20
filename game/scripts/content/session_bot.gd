@@ -34,13 +34,17 @@ var log: PackedStringArray = []
 var metrics := {"min_reach_margin": INF, "min_hand_half_width": INF, "max_hand_u": 0.0, "min_stamina": 100.0, "moves": 0, "seconds": 0.0}
 var _pending_grabs: Array = []  # 아직 도달 여유를 재지 않은 잡기 [{limb, key}]
 var cleared := false
+var recorder: ScoreRecorder = null  # 있으면 틱마다 시도 기록(작업 3 점수 기준값, tools/score_ref.gd)
+var on_tick := Callable()  # 있으면 틱마다 on_tick.call(session, 결과)(시범 보기 고스트 기록)
 var _ticks := 0
 var _seen_seq := 0
 
 
-static func run(p_route: RouteDef, steps: Array, forbid := {}) -> SessionBot:
+static func run(p_route: RouteDef, steps: Array, forbid := {}, recorder: ScoreRecorder = null, on_tick := Callable()) -> SessionBot:
 	var bot := SessionBot.new()
 	bot.route = p_route
+	bot.recorder = recorder
+	bot.on_tick = on_tick
 	bot.session = ClimbSession.new(p_route)
 	bot.session.forbid = forbid
 	bot._play(steps)
@@ -283,6 +287,10 @@ func _tick() -> String:
 	var held := _held() if not _pending_grabs.is_empty() else {}
 	var r := session.step()
 	_ticks += 1
+	if recorder != null:
+		recorder.tick(session, r)
+	if on_tick.is_valid():
+		on_tick.call(session, r)
 	if r == "clear":
 		cleared = true
 		_measure_pending(pose, held)  # 세션이 시작 자세로 돌아갔으므로 완등 직전 틱 자세로 잰다

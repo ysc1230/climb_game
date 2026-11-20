@@ -333,5 +333,15 @@
    "LH",
    "G_V3_04/G01/goal_left"
   ]
+ ],
+ "score_ref": {
+  "grabs": 10,
+  "spent_per_m": 50.01
+ },
+ "score_gates": [
+  {
+   "slot": "G_V3_04/F05/foot_1",
+   "technique": "T_HIGH_STEP"
+  }
  ]
 }

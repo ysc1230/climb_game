@@ -62,7 +62,32 @@ func _scan(s: ClimbSession) -> void:
 			for k in ["key", "label", "id", "limb"]:
 				if e.has(k):
 					out[k] = e[k]
+			if out.type == "grab":
+				out["tech"] = grab_techniques(s, StringName(str(e.get("limb", ""))), str(e.get("key", "")))
 			events.append(out)
+
+
+## 잡은 순간 자세로 본 패드 기술(검사기 금지 규칙과 같은 기준, ClimbSession.forbid):
+## 발이 고관절 − HIGH_STEP_BELOW_HIP 이상이면 하이스텝, 손이 반대 손을 넘으면 크로스, 반대 손과 같은 홀드면 매치.
+static func grab_techniques(s: ClimbSession, limb: StringName, key: String) -> Array:
+	if not s.route.slots.has(key) or not s.limbs.has(limb):
+		return []
+	var point: Vector2 = s.route.slots[key].pos
+	var out := []
+	if not PoseSolver.is_hand(limb):
+		var hip := PoseSolver.joint_position(s.body.pos, s.body.angle, limb, s.body.yaw)
+		if point.y >= hip.y - Tuning.HIGH_STEP_BELOW_HIP:
+			out.append("T_HIGH_STEP")
+		return out
+	var other := PoseSolver.RH if limb == PoseSolver.LH else PoseSolver.LH
+	var o: Dictionary = s.limbs[other]
+	if o.state in ["Attached", "Armed"] and o.get("key", "") != null and str(o.get("key", "")) != "":
+		var ox: float = (o.grab as Vector2).x
+		if (limb == PoseSolver.LH and point.x > ox) or (limb == PoseSolver.RH and point.x < ox):
+			out.append("T_CROSS")
+		if key.get_base_dir() == str(o.key).get_base_dir():
+			out.append("T_MATCH")
+	return out
 
 
 static func _pose(s: ClimbSession) -> Dictionary:
