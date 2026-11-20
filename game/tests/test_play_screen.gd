@@ -149,3 +149,32 @@ func test_rescue_marks_helped() -> void:
 	n._show_result()
 	runner.check(bool(n.overlay.result.helped), "자동 도움을 쓰면 도움 표시")
 	n.free()
+
+
+## 막혔을 때 도움: 3번 떨어지면 [힌트], 5번이면 [시범 보기]. 힌트를 켜면 그 시도는 도움.
+func test_help_ladder_buttons() -> void:
+	var n := _make()
+	n._new_attempt()
+	runner.check(n._help_buttons().is_empty(), "처음엔 없음")
+	n.help_falls = 3
+	var b: Array = n._help_buttons()
+	runner.check(b.size() == 1 and b[0].action == "hint", "3번 → 힌트 %s" % [b])
+	n.help_falls = 5
+	runner.check(n._help_buttons().size() == 2, "5번 → 시범 보기도")
+	n._hint_toggle()
+	runner.check(n.hint_slot != "" and n.score_rec.helped, "힌트를 켜면 홀드가 생기고 도움 %s" % n.hint_slot)
+	n._new_attempt()
+	runner.check(n.hint_slot == "" and not n.score_rec.helped, "다음 시도는 다시 보통")
+	n.free()
+
+
+func test_demo_open_close() -> void:
+	var n := _make()
+	n._new_attempt()
+	n._demo_open()
+	runner.check(n.demo != null and n.overlay.blocking(), "시범 보기 중에는 게임이 멈춤")
+	n._demo_tick(1.0)
+	runner.check(n.demo_t > 0.9, "재생")
+	n._demo_close()
+	runner.check(n.demo == null and not n.overlay.blocking(), "닫으면 바로 도전")
+	n.free()

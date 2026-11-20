@@ -31,7 +31,12 @@ var detail_rect := Rect2()  # 위쪽 [i] 상세 정보 버튼 자리
 
 ## 결과·완료 화면이 떠 있어 플레이를 멈추는가.
 func blocking() -> bool:
-	return not result.is_empty() or tutorial_done or not fall_card.is_empty()
+	return not result.is_empty() or tutorial_done or not fall_card.is_empty() or not demo_bar.is_empty()
+
+
+var help_rects: Array = []  # 위쪽 [힌트]·[시범 보기](hud.gd가 그림) [{rect, action}]
+## 시범 보기 중 아래 조작 줄 {speed: 1|2, from_fall: bool, can_from_fall: bool}. 비면 시범 보기 아님.
+var demo_bar := {}
 
 
 ## 다른 곳(hud.gd)이 그린 버튼을 누름 판정에 넣는다.
@@ -68,6 +73,9 @@ func draw(ci: CanvasItem, size: Vector2, k: float, paused: bool, selecting: bool
 	if not fall_card.is_empty():
 		_draw_fall_card(ci, size, k)
 		return
+	if not demo_bar.is_empty():
+		_draw_demo_bar(ci, size, k)
+		return
 	if tutorial_done:
 		_draw_done(ci, size, k)
 		return
@@ -78,6 +86,7 @@ func draw(ci: CanvasItem, size: Vector2, k: float, paused: bool, selecting: bool
 		_buttons.append({"rect": pause_rect, "action": "pause"})  # 버튼 모양은 hud.gd가 그린다
 	if detail_rect.has_area():
 		_buttons.append({"rect": detail_rect, "action": "detail"})
+	_buttons.append_array(help_rects)
 	if tutorial != null and not selecting:
 		_draw_tutorial(ci, size, k)
 
@@ -161,6 +170,18 @@ func _draw_score(ci: CanvasItem, at: Vector2, w: float, k: float) -> void:
 			ci.draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(float(v) / float(row[2]), 0.0, 1.0), bar.size.y)), CREAM)
 			ci.draw_string(font, Vector2(bar.end.x + 12 * k, y + 22 * k), "%d / %d" % [v, row[2]], HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), Color(1, 1, 1, 0.85))
 		y += 44 * k
+
+
+## 시범 보기 중: 위에 안내 한 줄, 아래 [1배/2배] [처음부터/떨어진 곳부터] [그만 보기].
+func _draw_demo_bar(ci: CanvasItem, size: Vector2, k: float) -> void:
+	ci.draw_string_outline(font, Vector2(0, 110 * k), "시범 보기 — 정답 순서로 오르는 모습이에요", HORIZONTAL_ALIGNMENT_CENTER, size.x, int(26 * k), int(6 * k), Color(0.08, 0.06, 0.05, 0.9))
+	ci.draw_string(font, Vector2(0, 110 * k), "시범 보기 — 정답 순서로 오르는 모습이에요", HORIZONTAL_ALIGNMENT_CENTER, size.x, int(26 * k), CREAM)
+	var acts := [["2배속" if int(demo_bar.get("speed", 1)) == 1 else "1배속", "demo_speed"]]
+	if demo_bar.get("can_from_fall", false):
+		acts.append(["처음부터" if demo_bar.get("from_fall", false) else "떨어진 곳부터", "demo_from"])
+	acts.append(["그만 보기", "demo_close"])
+	var w := 220.0 * k * acts.size()
+	_button_row(ci, Rect2(Vector2(size.x * 0.5 - w * 0.5, size.y - 92 * k), Vector2(w, 64 * k)), acts, k)
 
 
 ## 튜토리얼 완료 화면.

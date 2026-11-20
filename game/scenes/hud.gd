@@ -58,8 +58,20 @@ func draw_top(ci: CanvasItem, size: Vector2, k: float, info: Dictionary) -> Dict
 	else:
 		panel(ci, det_r, k, Color(GOLD, 0.9) if detail else PANEL, BORDER, 14)
 		ci.draw_string(font, Vector2(det_r.position.x, det_r.position.y + h * 0.5 + 9 * k), "i", HORIZONTAL_ALIGNMENT_CENTER, h, int(26 * k), Color("3a2a1c") if detail else CREAM)
+	# 막혔을 때 도움 버튼(작업 3 §3.4): [힌트]·[시범 보기]. info.help = [{label, action, on}]
+	var help_out := []
+	var hx0 := det_r.end.x
+	for b in info.get("help", []):
+		var fs := int(21 * k)
+		var hbw := font.get_string_size(str(b.label), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 34 * k
+		var r := Rect2(Vector2(hx0 + 8 * k, m), Vector2(hbw, h))
+		var on: bool = b.get("on", false)
+		panel(ci, r, k, Color(GOLD, 0.9) if on else PANEL, BORDER, 14)
+		ci.draw_string(font, Vector2(r.position.x, r.position.y + h * 0.5 + 8 * k), str(b.label), HORIZONTAL_ALIGNMENT_CENTER, hbw, fs, Color("3a2a1c") if on else CREAM)
+		help_out.append({"rect": r, "action": str(b.action)})
+		hx0 = r.end.x
 	# 한 줄 반투명 띠(이름 ~ 높이)
-	var strip := Rect2(Vector2(det_r.end.x + 8 * k, m), Vector2(size.x - m - det_r.end.x - 8 * k, h))
+	var strip := Rect2(Vector2(hx0 + 8 * k, m), Vector2(size.x - m - hx0 - 8 * k, h))
 	panel(ci, strip, k, Color(PANEL, 0.72), Color(BORDER, 0.35), 14)
 	var cy := strip.get_center().y
 	# 오른쪽: 현재 / 목표 높이
@@ -80,7 +92,7 @@ func draw_top(ci: CanvasItem, size: Vector2, k: float, info: Dictionary) -> Dict
 	ci.draw_string(font, Vector2(tx, cy + 8 * k), str(info.title), HORIZONTAL_ALIGNMENT_LEFT, maxf(40 * k, pr.position.x - tx - 20 * k), int(21 * k), CREAM)
 	if detail:
 		_status_row(ci, size, k, info, strip.end.y + 8 * k)
-	return {"pause": pause_r, "detail": det_r}
+	return {"pause": pause_r, "detail": det_r, "help": help_out}
 
 
 ## 상세 정보 모드의 상태 줄(지지·손 하중·무브).

@@ -160,8 +160,10 @@ func _new_attempt() -> void:
 	ghost_rec = GhostTrack.new()
 	_attempt_top = session.body.pos.y
 	ghost_best = null
+	hint_slot = ""
 	if game != null and tutorial == null:
 		game.get_flow().start_attempt()
+		help_falls = game.progress.fall_count(route.route_id)
 		var c: Dictionary = game.progress.cleared.get(route.route_id, {})
 		if game.progress.display_on("ghost") and c.has("ghost") and int(c.get("content_version", -1)) == route.content_version:
 			ghost_best = GhostTrack.from_dict(c.ghost)
@@ -181,6 +183,10 @@ func _record_tick(result: String, dt: float) -> void:
 
 ## 고스트 그리기: 내 최고 기록(시도 시간에 맞춰 흰색 30%). 루트 읽기·낙하·완등 축하 중에는 숨긴다.
 func _draw_ghosts() -> void:
+	_draw_hint()
+	if demo != null:
+		_draw_ghost_figure(demo.sample(demo_t), Color(1, 1, 1, 0.75))
+		return
 	if ghost_best != null and route_preview == null and not session.falling and session.halted == &"" and attempt.seconds <= ghost_best.duration() + 1.0:
 		_draw_ghost_figure(ghost_best.sample(attempt.seconds), Color(1, 1, 1, 0.3))
 
@@ -207,6 +213,91 @@ func _draw_ghost_figure(g: Dictionary, col: Color) -> void:
 			draw_line(w2s(pel), w2s(root), col, w)
 		draw_line(w2s(root), w2s(end), col, w)
 		draw_circle(w2s(end), (5.0 if g.attached[limb] else 3.5) * ui_k, col)
+
+
+## ---------- 막혔을 때 도움(작업 3 §3.4) ----------
+var help_falls := 0  # 이 문제에서 누적 추락 수(Progress.stats, 기록 지우기로 0)
+var hint_slot := ""  # 이번 시도에서 켠 힌트 홀드("" = 꺼짐)
+var demo: GhostTrack = null  # 시범 보기 중이면 재생할 기록
+var demo_t := 0.0
+var demo_speed := 1
+var demo_from_t := 0.0  # "떨어진 곳부터" 시작 시각
+var _demo_cache: GhostTrack = null
+var _demo_failed := false  # 봇이 못 깨는 문제: [시범 보기]를 숨긴다
+
+
+func _fall_heights() -> Array:
+	if game == null:
+		return []
+	return game.progress.stats.get(route.route_id, {}).get("fall_heights", [])
+
+
+## 위쪽 줄 도움 버튼: 3번 떨어지면 [힌트], 5번이면 [시범 보기]. 튜토리얼·정답 순서 없는 문제는 없음.
+func _help_buttons() -> Array:
+	if tutorial != null or route.intended_moves.is_empty():
+		return []
+	var out := []
+	if help_falls >= HelpPicker.HINT_FALLS:
+		out.append({"label": "힌트", "action": "hint", "on": hint_slot != ""})
+	if help_falls >= HelpPicker.DEMO_FALLS and not _demo_failed:
+		out.append({"label": "시범 보기", "action": "demo"})
+	return out
+
+
+## 힌트 켜기(이 시도만, 도움으로 침). 다시 누르면 반짝임만 끈다(도움 표시는 남음).
+func _hint_toggle() -> void:
+	if hint_slot != "":
+		hint_slot = ""
+		return
+	hint_slot = HelpPicker.hint_slot(route, _fall_heights())
+	if hint_slot != "":
+		_mark_helped()
+
+
+## 힌트 홀드: 1초 주기로 천천히 반짝이는 고리.
+func _draw_hint() -> void:
+	if hint_slot == "" or not route.slots.has(hint_slot) or session.falling or route_preview != null:
+		return
+	var a := 0.35 + 0.65 * (0.5 + 0.5 * sin(TAU * Time.get_ticks_msec() / 1000.0))
+	var c := w2s(route.slots[hint_slot].pos)
+	draw_arc(c, 34 * ui_k, 0, TAU, 40, Color(1.0, 0.86, 0.45, a), 6 * ui_k)
+	draw_arc(c, 46 * ui_k, 0, TAU, 40, Color(1.0, 0.86, 0.45, a * 0.4), 3 * ui_k)
+
+
+## 시범 보기 열기: 처음 한 번 봇으로 정답 순서를 돌려 기록을 만든다(못 깨면 버튼을 숨김). 게임은 멈춘다.
+func _demo_open() -> void:
+	if _demo_cache == null:
+		_demo_cache = HelpPicker.demo_track(route)
+		if _demo_cache == null:
+			_demo_failed = true
+			_flash("이 문제는 시범을 보여 줄 수 없어요")
+			return
+	demo = _demo_cache
+	var h := HelpPicker.common_height(_fall_heights())
+	demo_from_t = demo.time_at_height(h - 0.5) if h > -INF else 0.0
+	demo_speed = 1
+	demo_t = 0.0
+	_apply(router.cancel_all())
+	overlay.demo_bar = {"speed": 1, "from_fall": false, "can_from_fall": demo_from_t > 0.5}
+
+
+func _demo_tick(dt: float) -> void:
+	demo_t += dt * demo_speed
+	var g := demo.sample(demo_t)
+	cam_y = lerpf(cam_y, (g.pelvis as Vector2).y + 0.12 * PLAY_H, 1.0 - exp(-4.0 * dt))
+	if demo_t > demo.duration() + 1.0:
+		_demo_close()
+
+
+## 시범 보기 끝: 시작 자세로 돌아와 바로 도전(보고 난 뒤 시도는 보통 시도).
+func _demo_close() -> void:
+	demo = null
+	overlay.demo_bar = {}
+	session.reset()
+	attempt.start(session.falls)
+	best_height = 0.0
+	_after_reset("도전해 보세요!")
+	_new_attempt()
 
 
 ## 자동 도움·힌트를 쓴 시도: 최고 기록·플래시에 넣지 않는다.
@@ -572,6 +663,18 @@ func _overlay_event(index: int, pos: Vector2, pressed: bool) -> bool:
 
 func _overlay_action(act: String) -> void:
 	match act:
+		"hint":
+			_hint_toggle()
+		"demo":
+			_demo_open()
+		"demo_speed":
+			demo_speed = 3 - demo_speed
+			overlay.demo_bar.speed = demo_speed
+		"demo_from":
+			overlay.demo_bar.from_fall = not overlay.demo_bar.from_fall
+			demo_t = demo_from_t if overlay.demo_bar.from_fall else 0.0
+		"demo_close":
+			_demo_close()
 		"pause":
 			_pause(true)
 		"detail":
@@ -737,6 +840,10 @@ func _physics_process(_delta: float) -> void:
 			_show_result()
 		queue_redraw()
 		return
+	if demo != null:
+		_demo_tick(_delta)
+		queue_redraw()
+		return
 	if overlay.blocking():
 		queue_redraw()
 		return
@@ -775,6 +882,7 @@ func _physics_process(_delta: float) -> void:
 	_record_tick(result, dt)
 	if result.begins_with("fall:") and game != null and tutorial == null:
 		game.get_flow().record_fall(_attempt_top)
+		help_falls = game.progress.fall_count(route.route_id)
 	attempt.on_result(result, session.falls)  # respawn: 새 시도(Ruling I)
 	if tutorial != null and _tutorial_tick(result, dt):
 		queue_redraw()
@@ -1068,12 +1176,13 @@ func _draw_hud(size: Vector2) -> void:
 		title += "  · 추락 %d" % falls
 	if not paused:
 		_draw_danger_glow(size)  # 위쪽 정보 패널보다 먼저(패널이 붉게 흐려지지 않게)
-	var top_btns: Dictionary = hud.draw_top(self, size, ui_k, {"detail": detail_mode and warnings, "no_detail": not warnings,
+	var top_btns: Dictionary = hud.draw_top(self, size, ui_k, {"detail": detail_mode and warnings, "no_detail": not warnings, "help": _help_buttons(),
 		"title": title, "goal_height": _goal_height(), "height": _height(), "best_height": best_height,
 		"stamina": session.rules.stamina, "phase_name": names[ph], "phase_color": colors[ph],
 		"load_l": roundi(hu.get(&"LH", 0.0) * 100), "load_r": roundi(hu.get(&"RH", 0.0) * 100),
 		"move": move, "budget": budget,
 	})
+	overlay.help_rects = top_btns.get("help", [])
 	overlay.pause_rect = top_btns.pause
 	overlay.detail_rect = top_btns.detail if warnings else Rect2()
 	_draw_ghosts()
