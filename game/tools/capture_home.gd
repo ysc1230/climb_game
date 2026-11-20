@@ -1,5 +1,5 @@
 extends SceneTree
-## 홈 일반 탭 확인용(작업 3): 등급 설명 카드, 문제 카드, 기록 지우기 확인 창. 진행 기록은 메모리에서만 바꾼다(저장 안 함).
+## 홈 일반 탭 확인용(작업 3): 등급 설명 카드, 문제 카드, 기록 지우기 확인 창, 홀드 사전(작업 4). 진행 기록은 메모리에서만 바꾼다(저장 안 함).
 ## godot --path game --resolution 1600x720 --script res://tools/capture_home.gd -- <out_prefix>
 
 var home: Node
@@ -40,5 +40,11 @@ func _process(_d: float) -> bool:
 		home.queue_redraw()
 	if frame == 35:
 		_shot("wipe")
+		home.wipe_ask = ""
+		home.tab = "technique"
+		home.tech_view = "holds"
+		home.queue_redraw()
+	if frame == 45:
+		_shot("holds")  # 홀드 사전(작업 4 §4.4)
 		return true
 	return false

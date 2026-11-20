@@ -1,14 +1,150 @@
 {
 	"_doc": "홀드 종류 수치(작업 4 §4.1, docs/04 §10.6). 반폭·반높이는 크기 S/M/L 순, 반각은 M 기준(S −5°, L +5°). modes는 rot 기준 힘 방향 각도(0 = 위, 시계 방향 +).",
-	"size_half_angle": {"S": -5, "M": 0, "L": 5},
+	"size_half_angle": {
+		"S": -5,
+		"M": 0,
+		"L": 5
+	},
 	"types": {
-		"jug": {"name_ko": "저그", "limb": "hand", "half_width": [0.07, 0.09, 0.12], "half_angle": 80, "fatigue": 0.7, "modes": [0]},
-		"crimp": {"name_ko": "크림프", "limb": "hand", "half_width": [0.035, 0.045, 0.06], "half_angle": 50, "fatigue": 1.3, "modes": [0]},
-		"sloper": {"name_ko": "슬로퍼", "limb": "hand", "half_width": [0.08, 0.10, 0.13], "half_angle": 45, "fatigue": 1.15, "modes": [0], "window": [0.12, 0.35, 0.4]},
-		"pinch": {"name_ko": "핀치", "limb": "hand", "half_width": [0.04, 0.05, 0.065], "half_angle": 55, "fatigue": 1.1, "modes": [0, 90, -90]},
-		"pocket": {"name_ko": "포켓", "limb": "hand", "half_width": [0.03, 0.04, 0.05], "half_angle": 60, "fatigue": 1.5, "modes": [0], "no_match": true},
-		"goal": {"name_ko": "탑", "limb": "hand", "half_width": [0.12, 0.12, 0.12], "half_angle": 80, "fatigue": 0.7, "modes": [0], "fixed_size": true},
-		"foot_chip": {"name_ko": "작은 발판", "limb": "foot", "half_height": [0.03, 0.04, 0.05], "half_width": [0.03, 0.045, 0.06], "foot_share": 0.85},
-		"foot_big": {"name_ko": "큰 발판", "limb": "foot", "half_height": [0.05, 0.06, 0.08], "half_width": [0.06, 0.075, 0.09], "foot_share": 1.0}
-	}
+		"jug": {
+			"name_ko": "저그",
+			"limb": "hand",
+			"half_width": [
+				0.07,
+				0.09,
+				0.12
+			],
+			"half_angle": 80,
+			"fatigue": 0.7,
+			"modes": [
+				0
+			],
+			"dir_ko": "아래로 당겨요. 버티는 범위가 가장 넓어요",
+			"feat_ko": "깊게 파인 손잡이. 손 힘이 천천히 빠져 쉬어 가는 자리예요"
+		},
+		"crimp": {
+			"name_ko": "크림프",
+			"limb": "hand",
+			"half_width": [
+				0.035,
+				0.045,
+				0.06
+			],
+			"half_angle": 50,
+			"fatigue": 1.3,
+			"modes": [
+				0
+			],
+			"dir_ko": "아래로 당겨요. 버티는 범위가 좁아요",
+			"feat_ko": "얇은 날. 손가락 끝만 걸려 손 힘이 빨리 빠져요"
+		},
+		"sloper": {
+			"name_ko": "슬로퍼",
+			"limb": "hand",
+			"half_width": [
+				0.08,
+				0.1,
+				0.13
+			],
+			"half_angle": 45,
+			"fatigue": 1.15,
+			"modes": [
+				0
+			],
+			"window": [
+				0.12,
+				0.35,
+				0.4
+			],
+			"dir_ko": "아래로 당겨요. 버티는 범위가 가장 좁아요",
+			"feat_ko": "둥근 덩어리. 몸이 홀드 바로 아래 있어야 잘 버티고, 멀어지면 미끄러워요"
+		},
+		"pinch": {
+			"name_ko": "핀치",
+			"limb": "hand",
+			"half_width": [
+				0.04,
+				0.05,
+				0.065
+			],
+			"half_angle": 55,
+			"fatigue": 1.1,
+			"modes": [
+				0,
+				90,
+				-90
+			],
+			"dir_ko": "아래로, 그리고 양옆으로 당겨도 버텨요",
+			"feat_ko": "휜 갈비. 손으로 집어서 옆으로 당겨도 버텨요"
+		},
+		"pocket": {
+			"name_ko": "포켓",
+			"limb": "hand",
+			"half_width": [
+				0.03,
+				0.04,
+				0.05
+			],
+			"half_angle": 60,
+			"fatigue": 1.5,
+			"modes": [
+				0
+			],
+			"no_match": true,
+			"dir_ko": "아래로 당겨요",
+			"feat_ko": "구멍. 손가락만 들어가 손 힘이 가장 빨리 빠지고, 두 손을 같이 넣을 수 없어요"
+		},
+		"goal": {
+			"name_ko": "탑",
+			"limb": "hand",
+			"half_width": [
+				0.12,
+				0.12,
+				0.12
+			],
+			"half_angle": 80,
+			"fatigue": 0.7,
+			"modes": [
+				0
+			],
+			"fixed_size": true,
+			"dir_ko": "아래로 당겨요",
+			"feat_ko": "두 손으로 잡으면 완등이에요"
+		},
+		"foot_chip": {
+			"name_ko": "작은 발판",
+			"limb": "foot",
+			"half_height": [
+				0.03,
+				0.04,
+				0.05
+			],
+			"half_width": [
+				0.03,
+				0.045,
+				0.06
+			],
+			"foot_share": 0.85,
+			"dir_ko": "위에서 디뎌요",
+			"feat_ko": "작은 칩. 발에 몸무게가 조금 덜 실려요(발 몫 ×0.85)"
+		},
+		"foot_big": {
+			"name_ko": "큰 발판",
+			"limb": "foot",
+			"half_height": [
+				0.05,
+				0.06,
+				0.08
+			],
+			"half_width": [
+				0.06,
+				0.075,
+				0.09
+			],
+			"foot_share": 1.0,
+			"dir_ko": "위에서 디뎌요",
+			"feat_ko": "넓은 턱. 발에 몸무게를 온전히 실을 수 있어요"
+		}
+	},
+	"dir_note_ko": "홀드의 밝은 날이 향한 쪽의 반대로 당겨요. 날이 옆을 보면 옆으로 당기는 사이드풀, 아래를 보면 아래에서 들어 올리는 언더클링이에요"
 }

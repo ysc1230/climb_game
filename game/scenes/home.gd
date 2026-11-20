@@ -240,7 +240,9 @@ func _draw() -> void:
 		_draw_course(size)
 	else:
 		_draw_views(size)
-		if tech_view != "dict":
+		if tech_view == "holds":
+			_draw_hold_dict(size)
+		elif tech_view != "dict":
 			_draw_courses(size)
 		elif tech_id != "":
 			_draw_tech(size)
@@ -442,11 +444,11 @@ func _route_name(route: RouteDef) -> String:
 func _draw_views(size: Vector2) -> void:
 	var w := 240.0 * k
 	var x := 60.0 * k
-	for v in [["learn", "처음 배우기"], ["dict", "기술 사전"]]:
+	for v in [["learn", "처음 배우기"], ["dict", "기술 사전"], ["holds", "홀드 사전"]]:
 		var on: bool = tech_view == v[0]
 		_button(Rect2(Vector2(x, 112 * k), Vector2(w, 50 * k)), ("● " if on else "") + v[1], "view", v[0], 22, on)
 		x += w + 12 * k
-	var hint := "순서대로 따라 하며 배워요" if tech_view != "dict" else "실제 기술을 이 게임에서 어떻게 하는지 찾아봐요"
+	var hint: String = {"dict": "실제 기술을 이 게임에서 어떻게 하는지 찾아봐요", "holds": "홀드 모양마다 손 힘과 버티는 방향이 달라요"}.get(tech_view, "순서대로 따라 하며 배워요")
 	draw_string(font, Vector2(x + 12 * k, 145 * k), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), DIM)
 
 
@@ -489,6 +491,46 @@ func _draw_dict(size: Vector2) -> void:
 		draw_string(font, Vector2(x0, y), str(a.name_ko), HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), Color.WHITE)
 		draw_string(font, Vector2(x0 + 270 * k, y), str(a.why_ko), HORIZONTAL_ALIGNMENT_LEFT, size.x - x0 * 2 - 270 * k, int(19 * k), DIM)
 		y += 34 * k
+
+
+## 홀드 사전(작업 4 §4.4): 종류마다 카드 — 이름, 손 힘 빠짐(또는 발 몫), 버티는 방향, 특징. 색은 용도(손·발)대로.
+const HOLD_DICT_ORDER := ["jug", "crimp", "sloper", "pinch", "pocket", "foot_chip", "foot_big"]
+
+
+func _draw_hold_dict(size: Vector2) -> void:
+	var cols := 4
+	var gap := 16.0 * k
+	var cw := (size.x - 120 * k - (cols - 1) * gap) / cols
+	var ch := 196.0 * k
+	for i in HOLD_DICT_ORDER.size():
+		var type: String = HOLD_DICT_ORDER[i]
+		var t: Dictionary = HoldTypes.types()[type]
+		var r := Rect2(Vector2(60 * k + (i % cols) * (cw + gap), 184 * k + (i / cols) * (ch + gap)), Vector2(cw, ch))
+		var foot: bool = t.limb == "foot"
+		var accent := Color("8fd0bc") if not foot else Color("c4b0d6")
+		draw_rect(r, CARD)
+		draw_rect(Rect2(r.position, Vector2(8 * k, r.size.y)), accent)
+		draw_rect(r, Color(1, 1, 1, 0.7), false, 2.0)
+		var x := r.position.x + 22 * k
+		var w := r.size.x - 36 * k
+		draw_string(font, Vector2(x, r.position.y + 40 * k), str(t.name_ko), HORIZONTAL_ALIGNMENT_LEFT, w, int(26 * k), Color.WHITE)
+		var stat := "발 몫 ×%.2f" % float(t.get("foot_share", 1.0)) if foot else "손 힘 빠짐 ×%.2f %s" % [float(t.fatigue), _drain_word(float(t.fatigue))]
+		draw_string(font, Vector2(x, r.position.y + 72 * k), stat, HORIZONTAL_ALIGNMENT_LEFT, w, int(19 * k), CREAM)
+		draw_multiline_string(font, Vector2(x, r.position.y + 102 * k), str(t.dir_ko), HORIZONTAL_ALIGNMENT_LEFT, w, int(18 * k), 2, DIM)
+		draw_multiline_string(font, Vector2(x, r.position.y + 146 * k), str(t.feat_ko), HORIZONTAL_ALIGNMENT_LEFT, w, int(18 * k), 3, Color.WHITE)
+	var y := 184 * k + 2 * (ch + gap) + 36 * k
+	draw_multiline_string(font, Vector2(60 * k, y), "방향 · " + str(HoldTypes.data().dir_note_ko), HORIZONTAL_ALIGNMENT_LEFT, size.x - 120 * k, int(19 * k), 2, CREAM)
+	draw_string(font, Vector2(60 * k, y + 56 * k), "크기 · 같은 종류도 클수록 잡기 쉽고 손 힘이 덜 빠져요(S·M·L)", HORIZONTAL_ALIGNMENT_LEFT, -1, int(19 * k), DIM)
+
+
+static func _drain_word(f: float) -> String:
+	if f < 0.9:
+		return "(느림)"
+	if f > 1.35:
+		return "(아주 빠름)"
+	if f > 1.05:
+		return "(빠름)"
+	return ""
 
 
 ## 기술 카드: 실제로는 / 게임에서는 / 되는 조건 / 좋아지는 것 / 인식되면.

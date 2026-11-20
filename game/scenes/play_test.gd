@@ -57,6 +57,9 @@ var _feel_gate := GrabFeel.Gate.new()
 var puffs: Array = []
 ## 루트 읽기(RoutePreview, 일반 문제 시작·다시) 진행 중이면 객체, 아니면 null. 그동안 입력·시간 멈춤.
 var route_preview: RoutePreview = null
+## 처음 보는 홀드 종류 이름표(작업 4 §4.4, HoldTips): [{type, key, text, tip}]과 남은 시간(초).
+var hold_tags: Array = []
+var hold_tag_left := 0.0
 ## 물리 낙하(docs/superpowers/specs/2026-11-19-1-feel-design.md §1.2): 3D가 가져갈 시작 요청 {hands, first, vel}, 건너뛰기, 조언.
 var fall_request := {}
 var fall_skip := false
@@ -184,6 +187,7 @@ func _record_tick(result: String, dt: float) -> void:
 ## 고스트 그리기: 내 최고 기록(시도 시간에 맞춰 흰색 30%). 루트 읽기·낙하·완등 축하 중에는 숨긴다.
 func _draw_ghosts() -> void:
 	_draw_hint()
+	_draw_hold_tags()
 	if demo != null:
 		_draw_ghost_figure(demo.sample(demo_t), Color(1, 1, 1, 0.75))
 		return
@@ -252,6 +256,25 @@ func _hint_toggle() -> void:
 	hint_slot = HelpPicker.hint_slot(route, _fall_heights())
 	if hint_slot != "":
 		_mark_helped()
+
+
+## 처음 보는 홀드 종류 이름표: 홀드 오른쪽 위에 짧은 선과 이름(마지막 0.5초 흐려짐).
+func _draw_hold_tags() -> void:
+	if hold_tag_left <= 0.0:
+		return
+	var a := clampf(hold_tag_left / 0.5, 0.0, 1.0)
+	var fs := int(26 * ui_k)
+	for t in hold_tags:
+		if not route.slots.has(t.key):
+			continue
+		var c := w2s(route.slots[t.key].pos)
+		var tip := c + Vector2(30, -30) * ui_k
+		var w := font.get_string_size(t.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 20 * ui_k
+		var box := Rect2(tip + Vector2(0, -fs * 0.9), Vector2(w, fs * 1.4))
+		draw_line(c + Vector2(10, -10) * ui_k, tip, Color(1, 1, 1, 0.9 * a), 2.0 * ui_k)
+		draw_rect(box, Color(0.12, 0.1, 0.08, 0.82 * a))
+		draw_rect(box, Color(1, 1, 1, 0.6 * a), false, 2.0 * ui_k)
+		draw_string(font, box.position + Vector2(10 * ui_k, fs * 1.05), t.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 1, 1, a))
 
 
 ## 힌트 홀드: 1초 주기로 천천히 반짝이는 고리.
@@ -850,6 +873,7 @@ func _physics_process(_delta: float) -> void:
 	if overlay.blocking():
 		queue_redraw()
 		return
+	hold_tag_left = maxf(0.0, hold_tag_left - _delta)
 	if route_preview != null:
 		route_preview.advance(_delta, false)
 		cam_y = route_preview.y()
@@ -2072,6 +2096,11 @@ func _start_preview() -> void:
 	route_preview = null
 	if tutorial != null or route.mode != "general" or route.goal_slots.is_empty():
 		return
+	if warnings and game != null:
+		hold_tags = HoldTips.pick(route, game.progress.seen_tips)
+		for t in hold_tags:
+			game.get_flow().mark_tip(t.tip)
+		hold_tag_left = HoldTips.SECONDS if not hold_tags.is_empty() else 0.0
 	var gy := 0.0
 	for key in route.goal_slots:
 		gy = maxf(gy, (route.slots[key].pos as Vector2).y)
