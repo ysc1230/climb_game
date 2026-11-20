@@ -46,7 +46,7 @@ func _ready() -> void:
 		push_error("홈: 자동 로드 Game이 없어요")
 		return
 	var progress: Progress = game.progress
-	tab = progress.last_tab if progress.last_tab in ["general", "technique", "settings"] else "general"
+	tab = progress.last_tab if progress.last_tab in ["general", "technique", "make", "settings"] else "general"
 	var focus: Dictionary = game.home_focus
 	game.home_focus = {}
 	if focus.has("tab"):
@@ -207,6 +207,19 @@ func _do(action: String, arg: String) -> void:
 		"play":
 			game.play(arg)
 			return
+		"edit":
+			game.edit(arg)
+			return
+		"play_mine":
+			if not game.play_custom(arg):
+				make_msg = "이 문제는 아직 올라 볼 수 없어요(만들기 화면에서 막는 것을 확인해 주세요)"
+		"mine_delete_ask":
+			mine_delete = arg
+		"mine_delete_yes":
+			MyRoutes.remove(arg)
+			mine_delete = ""
+		"mine_delete_no":
+			mine_delete = ""
 		"display":
 			game.get_flow().set_display(arg, not game.progress.display_on(arg))
 		"control":
@@ -236,6 +249,8 @@ func _draw() -> void:
 		_draw_general(size)
 	elif tab == "settings":
 		_draw_settings(size)
+	elif tab == "make":
+		_draw_make(size)
 	elif course_id != "":
 		_draw_course(size)
 	else:
@@ -302,10 +317,10 @@ func _draw_level_choice(size: Vector2) -> void:
 
 ## 위 탭 두 개. 고른 탭은 채운 바탕 + 아래 막대 + "●" 표시(색만으로 구분하지 않음).
 func _draw_tabs(size: Vector2) -> void:
-	var w := 180.0 * k
+	var w := 160.0 * k
 	var h := 64.0 * k
-	var x := size.x * 0.5 - w * 1.5 - 16 * k - 140 * k  # 오른쪽 위 [캐릭터]·[난이도]와 겹치지 않게
-	for t in [["general", "일반"], ["technique", "기술"], ["settings", "설정"]]:
+	var x := size.x * 0.5 - (w * 4.0 + 48 * k) * 0.5 - 140 * k  # 오른쪽 위 [캐릭터]·[난이도]와 겹치지 않게
+	for t in [["general", "일반"], ["technique", "기술"], ["make", "만들기"], ["settings", "설정"]]:
 		var on: bool = tab == t[0]
 		var r := Rect2(Vector2(x, 20 * k), Vector2(w, h))
 		_button(r, ("● " if on else "") + t[1], "tab", t[0], 28, on)
@@ -665,6 +680,52 @@ func _draw_slot_row(r: Rect2, slot: String, route_id: String) -> void:
 	else:
 		_draw_medals(Vector2(sx, cy), route)
 	_button(Rect2(Vector2(r.end.x - 200 * k, r.position.y + 9 * k), Vector2(180 * k, r.size.y - 18 * k)), "▶ 시작", "play", route_id, 22, true)
+
+
+# ---------- 만들기 탭(작업 6) ----------
+
+var make_msg := ""
+var mine_delete := ""
+
+
+func _draw_make(size: Vector2) -> void:
+	var x := 80.0 * k
+	var y := 130.0 * k
+	_button(Rect2(Vector2(x, y), Vector2(240, 64) * k), "+ 새 문제", "edit", "", 26, true)
+	_text(Vector2(x + 270 * k, y + 40 * k), "벽에 홀드를 놓아 문제를 만들고 직접 올라 봐요. 인터넷 없이 이 기기에 저장돼요.", 19, DIM)
+	y += 96 * k
+	_text(Vector2(x, y), "내 문제", 26, CREAM)
+	y += 20 * k
+	var mine := MyRoutes.list()
+	if mine.is_empty():
+		_text(Vector2(x, y + 40 * k), "아직 만든 문제가 없어요.", 21, DIM)
+	var cw := 440.0 * k
+	var ch := 170.0 * k
+	for i in mini(mine.size(), 6):
+		var m: Dictionary = mine[i]
+		var r := Rect2(Vector2(x + (i % 3) * (cw + 20 * k), y + int(i / 3) * (ch + 20 * k)), Vector2(cw, ch))
+		draw_rect(r, CARD)
+		draw_rect(r, Color(1, 1, 1, 0.35), false, 2.0)
+		var nm: String = m.name if m.name != "" else "(이름 없음)"
+		_text(r.position + Vector2(16, 40) * k, nm, 24, Color.WHITE)
+		var c: Dictionary = game.progress.cleared.get(m.route_id, {})
+		var done := int(c.get("content_version", -1)) == int(m.version) and c.has("best_seconds")
+		_text(r.position + Vector2(16, 72) * k, "예상 %s · 판 %d · %s" % [m.grade, m.version, "직접 완등함" if done else "아직 완등 전"], 18, CREAM if done else DIM)
+		var bw := (cw - 52 * k) / 3.0
+		var by := r.end.y - 62 * k
+		_button(Rect2(Vector2(r.position.x + 16 * k, by), Vector2(bw, 48 * k)), "고치기", "edit", m.route_id, 20)
+		_button(Rect2(Vector2(r.position.x + 26 * k + bw, by), Vector2(bw, 48 * k)), "올라 보기", "play_mine", m.route_id, 20, true)
+		_button(Rect2(Vector2(r.position.x + 36 * k + bw * 2, by), Vector2(bw, 48 * k)), "지우기", "mine_delete_ask", m.route_id, 20)
+	if make_msg != "":
+		_text(Vector2(x, size.y - 40 * k), make_msg, 19, Color(1, 0.75, 0.6))
+	if mine_delete != "":
+		var box := Rect2(Vector2(size.x * 0.5 - 300 * k, size.y * 0.5 - 110 * k), Vector2(600, 220) * k)
+		_buttons = []
+		draw_rect(box, Color(0.1, 0.09, 0.08, 0.97))
+		draw_rect(box, CREAM, false, 3.0)
+		_text(box.position + Vector2(30, 60) * k, "이 문제를 지울까요? 되돌릴 수 없어요.", 24, Color.WHITE)
+		_button(Rect2(box.position + Vector2(30, 130) * k, Vector2(250, 60) * k), "지우기", "mine_delete_yes", mine_delete, 24, true)
+		_button(Rect2(box.position + Vector2(320, 130) * k, Vector2(250, 60) * k), "그만두기", "mine_delete_no", "", 24)
 
 
 # ---------- 도우미 ----------

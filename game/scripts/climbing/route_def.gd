@@ -32,7 +32,7 @@ var score_ref := {}
 var score_gates: Array = []
 var errors: PackedStringArray = []
 
-const MODES := ["general", "course"]
+const MODES := ["general", "course", "custom"]  # custom: 문제 만들기(작업 6)
 const COURSE_SLOTS := ["tutorial", "easy", "normal", "hard"]
 static var _technique_ids := {}  # 기술 ID -> true (techniques.json, 처음 쓸 때 읽음)
 
@@ -207,7 +207,7 @@ func _validate() -> void:
 ## docs/28 §8.1 문제 필드 검사. mode가 없으면(시험 전용 루트) 과정·등급 필드만 형식 검사한다.
 func _validate_meta() -> void:
 	if mode != "" and not MODES.has(mode):
-		errors.append("mode는 general/course: %s" % mode)
+		errors.append("mode는 general/course/custom: %s" % mode)
 	var grade_re := RegEx.create_from_string("^V\\d+$")
 	if (mode != "" or grade != "") and grade_re.search(grade) == null:
 		errors.append("grade 형식 오류(V0, V1, …): '%s'" % grade)

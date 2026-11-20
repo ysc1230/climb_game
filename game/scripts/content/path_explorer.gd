@@ -16,18 +16,23 @@ var route: RouteDef
 var banned := {}       # 금지한 이동 서명 → true
 var forbid := {}       # 세션 금지 플래그. 탐색에서도 그 기술이 필요한 이동을 빼고(GateCheck.forbidden), 재생에도 넘긴다
 var pull_only := false # 방향 기술 없이: 손은 위로 당기기(축 위)로만 잡는다(GateCheck.as_pull)
+var deadline := 0      # Time.get_ticks_msec() 기준 탐색 마감(0 = 없음). 문제 만들기 [봇 검사]는 5초(작업 6 §3)
 var expanded := 0
 
 
 ## 반환 {ok, steps: [[limb, key], ...], bot: SessionBot(재생 성공한 것), tries, expanded, log: PackedStringArray}.
 ## forbid: 세션 금지 플래그(예: {&"cross": true}). 그 기술 없이 가는 길을 찾을 때 쓴다.
-static func explore(p_route: RouteDef, forbid := {}, pull_only := false) -> Dictionary:
+static func explore(p_route: RouteDef, forbid := {}, pull_only := false, time_limit_ms := 0) -> Dictionary:
 	var ex := PathExplorer.new()
 	ex.route = p_route
 	ex.forbid = forbid
 	ex.pull_only = pull_only
+	ex.deadline = Time.get_ticks_msec() + time_limit_ms if time_limit_ms > 0 else 0
 	var log: PackedStringArray = []
 	for attempt in MAX_RETRY:
+		if ex.deadline > 0 and Time.get_ticks_msec() > ex.deadline:
+			log.append("탐색 %d: 시간 상한" % (attempt + 1))
+			break
 		var path := ex._search()
 		if path.is_empty():
 			log.append("탐색 %d: 길을 찾지 못함(펼친 상태 %d)" % [attempt + 1, ex.expanded])
@@ -69,7 +74,7 @@ func _search() -> Array:
 				path.push_front(prev[cur][1])
 				cur = prev[cur][0]
 			return path
-		if done.size() > MAX_STATES:
+		if done.size() > MAX_STATES or (deadline > 0 and Time.get_ticks_msec() > deadline):
 			break
 		var pose := _settle(keys, seeds[sig])
 		if not is_finite(pose.x):

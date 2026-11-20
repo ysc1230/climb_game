@@ -16,6 +16,16 @@ func _init(p_index: ContentIndex, p_progress: Progress, p_save_path := SaveStore
 	save_path = p_save_path
 
 
+## 만든 문제(작업 6)를 이번 실행의 목록에 넣는다(플레이·완등 기록이 일반 문제와 같은 길로 간다).
+func add_custom(route: RouteDef) -> void:
+	index.put(route)
+
+
+## 공유(서버)에 올린 내 문제인가(작업 6 §4). 올린 판을 고치면 새 판이 된다.
+func is_published(route_id: String) -> bool:
+	return progress.shared.has(route_id)
+
+
 func current_route() -> RouteDef:
 	return index.route(current_route_id) if current_route_id != "" else null
 
@@ -214,6 +224,8 @@ func list_target(route_id: String) -> Dictionary:
 	var r := index.route(route_id)
 	if r == null:
 		return {"tab": progress.last_tab}
+	if r.mode == "custom":
+		return {"tab": "make"}
 	if r.mode == "course":
 		return {"tab": "technique", "course": r.course_id}
 	return {"tab": "general", "grade": r.grade}

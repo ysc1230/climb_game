@@ -232,3 +232,11 @@ selected_color_id는 CH04_01~03 중 해금된 항목만 허용하며 초기값�
 - 기술 이벤트: TechniqueStarted/Succeeded/Cancelled/Failed(기술 ID, 쪽, 홀드, 잡은 위치 품질, 실패 이유, tick). 진단·튜토리얼 판정용이며 능력치·보상에 쓰지 않는다.
 - `game/data/techniques.json`: 기술 정의(id, name_ko, phase, body_parts, sides, flow, purpose_tags, purpose_ko, when_ko, how_ko, mistakes). 판단 로직은 코드, 설명은 데이터. 표시 문구 변경은 content_version과 무관하다.
 - 공중 자세·실행 중 기술은 영구 저장하지 않는다. 앱 재실행 복구는 기존 CP 정책을 따른다.
+
+## 작업 6 만든 문제 (2026-11-21)
+
+- 문제 JSON `mode: "custom"`(RouteDef.MODES), `schema: 1`(RouteDraft.SCHEMA, 앱이 모르는 더 새 판이면 열지 않음). 형식은 일반 문제와 같고 intended_moves는 비어 있다. route_id = "U_" + 10글자(MyRoutes.new_id). 탑은 홀드 하나(G01)에 두 칸(±0.2m). 두 시작 발이 바닥 가까이(≤ 0.15m) 발판이면 바닥 받침(platform) P00을 만든다. 시작 골반은 PoseSolver.find_target으로 계산.
+- 저장: `user://my_routes/<route_id>.json` = {draft: RouteDraft.to_dict(), route: 문제 JSON, saved_at}. 인터넷 없이 저장·플레이. 플레이할 때 ContentIndex.put으로 이번 실행 목록에 넣어 완등·점수 기록이 일반 문제와 같은 길(Progress.cleared)로 간다.
+- 판: 완등했거나 올린 판을 고치기 시작하면 content_version +1(RouteDraft.freeze).
+- 올리기 조건: 막는 것 없음 + 만든 사람이 이 판을 도움 없이 완등(cleared[route_id].content_version == 판, best_seconds 있음).
+- Progress에 `shared`(올린 내 문제 route_id → {code, visibility, version}), `nickname`(최대 12자)을 더했다(6B에서 씀).

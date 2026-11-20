@@ -121,6 +121,12 @@ func route(route_id: String) -> RouteDef:
 	return _routes.get(route_id)
 
 
+## 만든 문제(mode custom, 작업 6)를 넣거나 바꾼다. 등급 목록(general)에는 넣지 않는다.
+func put(r: RouteDef) -> void:
+	if r != null and r.mode == "custom":
+		_routes[r.route_id] = r
+
+
 ## 읽은 모든 문제(일반·과정), route_id 순. 콘텐츠 검사(ContentCheck)용.
 func all_routes() -> Array[RouteDef]:
 	var ids := _routes.keys()

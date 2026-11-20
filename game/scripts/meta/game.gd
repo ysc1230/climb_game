@@ -5,6 +5,7 @@ extends Node
 
 const HOME_SCENE := "res://scenes/home.tscn"
 const PLAY_SCENE := "res://scenes/play_3d.tscn"
+const EDITOR_SCENE := "res://scenes/editor.tscn"
 
 var progress: Progress:
 	get:
@@ -19,6 +20,8 @@ var current_route_id: String:
 		get_flow().current_route_id = v
 ## 홈으로 돌아갈 때 열 위치 {tab, grade?, course?}. 홈이 한 번 읽고 비운다.
 var home_focus := {}
+## 만들기 화면에서 고치는 내 문제(작업 6). [올라 보기] 뒤 홈 대신 만들기 화면으로 돌아간다.
+var editing_route_id := ""
 ## 첫 실행 기본 조작 튜토리얼로 한 번 보냈는지(이번 실행 동안).
 var first_run_sent := false
 
@@ -37,8 +40,29 @@ func play(route_id: String) -> void:
 	get_tree().change_scene_to_file(PLAY_SCENE)
 
 
-## 홈으로. focus를 주면 그 위치, 아니면 지금 문제의 목록(등급 또는 과정 화면)을 연다.
+## 만들기 화면을 연다(작업 6). route_id가 비면 새 문제.
+func edit(route_id := "") -> void:
+	editing_route_id = route_id
+	current_route_id = ""
+	get_tree().change_scene_to_file(EDITOR_SCENE)
+
+
+## 이 기기에 저장한 내 문제를 연다(인터넷 없이).
+func play_custom(route_id: String) -> bool:
+	var r := MyRoutes.load_route(route_id)
+	if r == null or not r.errors.is_empty():
+		return false
+	get_flow().add_custom(r)
+	play(route_id)
+	return true
+
+
+## 홈으로. 만들기 화면에서 [올라 보기]로 온 문제면 만들기 화면으로 돌아간다. focus를 주면 그 위치, 아니면 지금 문제의 목록(등급 또는 과정 화면)을 연다.
 func home(focus := {}) -> void:
+	if focus.is_empty() and editing_route_id != "" and current_route_id == editing_route_id:
+		current_route_id = ""
+		get_tree().change_scene_to_file(EDITOR_SCENE)
+		return
 	if not focus.is_empty():
 		home_focus = focus
 	elif current_route_id != "":

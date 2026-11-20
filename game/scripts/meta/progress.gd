@@ -34,6 +34,9 @@ const CONTROL_DEFAULTS := {"body": "drag", "tilt_sens": 5, "tilt_dead": 10.0, "t
 const TILT_SENS_MAX := 10
 const TILT_DEAD_MAX := 20.0
 var control := {}
+## 만들기(작업 6): 올린 내 문제 route_id → {code, visibility, version}, 별명(비면 처음 공유할 때 "클라이머1234"처럼 정함), 받은 공유 문제의 별.
+var shared := {}
+var nickname := ""
 var seen_tips: Array = []  # 처음 한 번 안내를 본 것(docs/33 §5). 진행 초기화 때 함께 지운다
 const LEVELS: Array[String] = ["beginner", "intermediate", "advanced"]  # advanced 고급(2026-11-10): 경고·알림 없음
 
@@ -49,7 +52,8 @@ static func object_particle(word: String) -> String:
 
 func to_dict() -> Dictionary:
 	return {"schema_version": SCHEMA_VERSION, "seq": seq, "cleared": cleared, "tutorials": tutorials,
-		"basic_skipped": basic_skipped, "last_tab": last_tab, "level": level, "seen_tips": seen_tips, "look": look, "display": display, "control": control, "stats": stats}
+		"basic_skipped": basic_skipped, "last_tab": last_tab, "level": level, "seen_tips": seen_tips, "look": look, "display": display, "control": control, "stats": stats,
+		"shared": shared, "nickname": nickname}
 
 
 static func from_dict(d: Dictionary) -> Progress:
@@ -72,6 +76,9 @@ static func from_dict(d: Dictionary) -> Progress:
 	if ct is Dictionary:
 		for key in ct:
 			p.set_control(str(key), ct[key])
+	var sh = d.get("shared", {})
+	p.shared = sh.duplicate(true) if sh is Dictionary else {}
+	p.nickname = str(d.get("nickname", "")).substr(0, 12)
 	var lk = d.get("look", {})
 	p.look = lk.duplicate() if lk is Dictionary else {}
 	if not p.level in LEVELS:
