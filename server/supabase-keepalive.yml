@@ -1,0 +1,14 @@
+# 공유 서버(Supabase 무료판)는 1주일 쓰이지 않으면 잠든다. 하루 한 번 공개 목록을 불러 깨워 둔다(작업 6 §5).
+# 공개 키(publishable)는 앱에도 들어 있는 공개 값이다.
+name: supabase-keepalive
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -sf "https://oeznmrjwlmsxdbsjgoof.supabase.co/rest/v1/routes?select=id&limit=1" \
+            -H "apikey: sb_publishable_2NHC4o6UxSFpHtqB0WD6IQ_ABjU-xlm" -o /dev/null -w "%{http_code}\n"

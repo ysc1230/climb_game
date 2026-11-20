@@ -80,6 +80,7 @@ end $$;
 create or replace function public.publish_route(p_local_id text, p_name text, p_author_name text, p_grade text,
     p_data jsonb, p_version int, p_visibility text) returns table (code text, id uuid)
 language plpgsql security definer set search_path = public as $$
+#variable_conflict use_column
 declare
   uid uuid := auth.uid();
   r public.routes;
@@ -149,7 +150,13 @@ begin
   update public.routes set reports = n, hidden = (n >= 3) where id = p_route;
 end $$;
 
+-- 함수는 기본으로 모두(public)에게 실행 권한이 있어 먼저 거둔다.
 revoke all on function public._new_code() from public, anon, authenticated;
+revoke all on function public.publish_route(text, text, text, text, jsonb, int, text) from public, anon;
+revoke all on function public.get_route_by_code(text) from public;
+revoke all on function public.record_clear(uuid, int) from public, anon;
+revoke all on function public.set_star(uuid, boolean) from public, anon;
+revoke all on function public.report_route(uuid, text) from public, anon;
 grant execute on function public.publish_route(text, text, text, text, jsonb, int, text) to authenticated;
 grant execute on function public.get_route_by_code(text) to anon, authenticated;
 grant execute on function public.record_clear(uuid, int) to authenticated;

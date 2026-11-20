@@ -23,7 +23,8 @@ func _init(p_url := "", p_key := "") -> void:
 
 func _headers(auth := true) -> PackedStringArray:
 	var h := PackedStringArray(["apikey: " + key, "Content-Type: application/json"])
-	h.append("Authorization: Bearer " + (token if auth and token != "" else key))
+	if auth and token != "":  # 공개 키(sb_publishable_…)는 JWT가 아니라 Authorization에 넣지 않는다
+		h.append("Authorization: Bearer " + token)
 	return h
 
 

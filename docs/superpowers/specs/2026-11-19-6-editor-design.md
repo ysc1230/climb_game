@@ -118,9 +118,9 @@
 - [봇 검사]의 "가장 높이 간 곳 표시"는 하지 않았다(탐색기가 높이를 모으지 않음). 결과 문구만.
 - 두 손가락 돌리기 대신 돌리기 도구에서 가로로 끌기 + 버튼.
 
-### 6B 공유 — 앱 쪽 준비 (2026-11-21, 서버 미생성)
+### 6B 공유 (2026-11-21)
 
-- 서버 표·정책·함수: `server/supabase/migrations/20261121000000_climb_share.sql`(routes·clears·stars·reports, RLS, publish_route·get_route_by_code·record_clear·set_star·report_route, 코드는 서버가 만듦, 하루 20번, data 32KB, 신고 3건 숨김). **아직 적용하지 않았다** — Supabase 프로젝트 만들기가 자동 권한 검사에서 막혀 사용자 확인을 기다린다.
+- 서버 표·정책·함수: `server/supabase/migrations/20261121000000_climb_share.sql`(routes·clears·stars·reports, RLS, publish_route·get_route_by_code·record_clear·set_star·report_route, 코드는 서버가 만듦, 하루 20번, data 32KB, 신고 3건 숨김). 사용자 승인(2026-11-21) 뒤 같은 조직에 `climb_game` 프로젝트(ref oeznmrjwlmsxdbsjgoof, ap-northeast-2)를 만들고 적용했다. 정책 시험 9개 통과(SQL로 사용자 넷을 흉내: 코드 형식, 다시 올리면 같은 코드, 완등 없이 별 막힘, 남의 문제 고치기 막힘, 링크 공개는 목록에 안 보이고 코드로는 열림, 완등 뒤 별, 신고 3건이면 숨김). 보안 점검: _new_code search_path 고침, 나머지 경고는 설계대로(쓰기는 함수로만).
 - 앱: `ShareCode`, `ShareApi`(요청 만들기·응답 해석, 가짜 응답으로 시험), `ShareClient`(HTTPRequest·익명 로그인 세션 user://share_session.json·끊기면 한 번 다시), `SharedRoutes`(받은 문제를 S_코드로 바꿔 user://shared_routes에), `WordFilter`, `ShareConfig`(URL·공개 키, 비면 "공유 서버 준비 중").
 - 화면: 만들기 화면 [저장] → 저장·공유 창(올리기 조건, [친구에게 코드로]·[모두에게 공개], 코드·[복사]). 홈 만들기 탭 [내 문제]·[둘러보기](별 많은 순·최신, 등급 거르기, 20개씩, 별·신고)·[코드로 열기]·[별명 바꾸기]. 받은 문제를 완등하면 서버에 완등 기록(별 자격).
 - 시험: test_share(5). 서버 정책 시험·기기 두 대 시험은 서버를 만든 뒤.
@@ -129,3 +129,6 @@
 - 별명 바꾸기는 설정 탭이 아니라 만들기 탭 위에 둠(공유와 같은 자리).
 - 올릴 때 문제 JSON에 author_run {seconds, score, version}을 넣는다(만든 사람 완등 기록).
 - 둘러보기 카드는 한 화면 6개(3×2), [더 받기]로 다음 20개.
+- 공개 키(sb_publishable_…)는 JWT가 아니라 로그인 전 요청에는 Authorization 머리글을 넣지 않는다.
+- 잠들기 막기: `server/supabase-keepalive.yml`(하루 한 번). 지금 GitHub 토큰에 workflow 권한이 없어 `.github/workflows/`로 올리지 못했다 — 사용자가 옮겨 넣어야 하고, 예약 작업은 기본 가지(main)에서만 돈다.
+- **남은 것:** Supabase 대시보드에서 익명 로그인(Authentication → Sign In / Providers → Anonymous) 켜기(도구로 바꿀 수 없음). 켠 뒤 실제 요청으로 올리기·코드로 열기를 확인하고 APK를 낸다.

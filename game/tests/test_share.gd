@@ -14,6 +14,7 @@ func test_requests() -> void:
 	var api := ShareApi.new("https://x.supabase.co", "sb_publishable_k")
 	var r := api.sign_in()
 	runner.check(r.method == HTTPClient.METHOD_POST and r.url == "https://x.supabase.co/auth/v1/signup" and r.headers.has("apikey: sb_publishable_k"), "익명 로그인 %s" % [r])
+	runner.check(not Array(r.headers).any(func(x): return x.begins_with("Authorization")), "로그인 전에는 Authorization 없음")
 	api.token = "T"
 	r = api.publish("U_abc", "문제", "클라이머1", "V3", {"route_id": "U_abc"}, 2, "public")
 	var body = JSON.parse_string(r.body)
