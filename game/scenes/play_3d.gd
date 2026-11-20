@@ -158,48 +158,72 @@ static func deco_spots(slots: Dictionary, half_w: float, top: float, r: RandomNu
 	return out
 
 
+const WALL_PLY := Color("c27a52")   # 합판 판넬(참고 그림의 주황 합판)
+const VOLUME_SAND := Color("d2b07a")  # 볼륨(모래·황토색)
+const MAT_GRAY := Color("6b6f72")
+
+
 func _build_wall() -> void:
 	var top: float = logic.route.slots.values().reduce(func(a, s): return maxf(a, s.pos.y), 0.0) + 2.5
 	var half_w := wall_half_width(logic.route.slots)
-	# 활성 등반 평면: 슬롯이 놓이는 큰 판(살짝 기울어진 패널로 나눔). 모든 홀드가 판 안에 들어가게 넓힌다
-	var y := -0.6
-	var i := 0
-	while y < top:
-		var h := rng.randf_range(0.9, 1.4)
-		for col in [-1, 1]:
-			var panel := _mesh(_box(Vector3(half_w, h, 0.08)), _toon(WALL_CLAY.lerp(WALL_SAND, rng.randf() * 0.5), WALL_OLIVE, true), true)
-			panel.position = Vector3(col * half_w * 0.5, y + h * 0.5, -0.06 - rng.randf() * 0.03)
-			panel.rotation_degrees = Vector3(rng.randf_range(-2, 2), rng.randf_range(-3, 3) * col, 0)
-			add_child(panel)
-		y += h
-		i += 1
-	# 바닥 매트(윗면 y = MAT_TOP_Y, 낙하 인형이 같은 값을 쓴다)
-	var mat := _mesh(_box(Vector3(9.0, 0.25, 4.0)), _toon(Color("4a5a55"), Color("2c3532")), true)
+	# 활성 등반 평면: 한 장의 큰 판. 합판 판넬·이음선·볼트 구멍은 셰이더가 월드 좌표로 그린다(작업 4 §4.3)
+	var wall := _mesh(_box(Vector3(half_w * 2.0, top + 0.6, 0.08)), _toon(WALL_PLY, WALL_OLIVE, true), true)
+	wall.position = Vector3(0, (top - 0.6) * 0.5, -0.06)
+	add_child(wall)
+	# 바닥 매트(윗면 y = MAT_TOP_Y, 낙하 인형이 같은 값을 쓴다): 회색 천, 1m 이음선
+	var mat_m := _toon(MAT_GRAY, MAT_GRAY.darkened(0.45))
+	mat_m.set_shader_parameter("mat_pattern", true)
+	var mat := _mesh(_box(Vector3(9.0, 0.25, 4.0)), mat_m, true)
 	mat.position = Vector3(0, MAT_TOP_Y - 0.125, 1.6)
 	add_child(mat)
-	# 좌우 비활성 볼륨: 각진 다면체와 측면 벽(공간감, 판정 없음). 벽 판 바깥에 둔다
+	# 옆벽: 같은 합판 톤을 어둡게, 화면 밖으로 빠지게(판정 없음)
 	for side in [-1, 1]:
-		var wing := _mesh(_box(Vector3(2.4, top + 1.0, 0.2)), _toon(WALL_SAND.darkened(0.08), WALL_OLIVE, true), true)
+		var wing := _mesh(_box(Vector3(2.4, top + 1.0, 0.2)), _toon(WALL_PLY.darkened(0.28), WALL_OLIVE.darkened(0.2), true), true)
 		wing.position = Vector3(side * (half_w + 1.2), (top - 1.0) * 0.5, 0.35)
 		wing.rotation_degrees = Vector3(0, -side * 38, 0)
 		add_child(wing)
-		for k in 6:
-			var size := rng.randf_range(0.35, 0.8)
-			var prism := _mesh(_prism(Vector3(size, size * 1.3, size * 0.7)), _toon(WALL_OLIVE if k % 2 == 0 else WALL_SAND, WALL_OLIVE.darkened(0.3)), true)
-			var along := rng.randf_range(-0.9, 0.9)
-			var wing_dir := Vector3(cos(deg_to_rad(-side * 38)), 0, -sin(deg_to_rad(-side * 38)))
-			var wing_normal := Vector3(0, 0, 1).rotated(Vector3.UP, deg_to_rad(-side * 38))
-			prism.position = wing.position + wing_dir * along + wing_normal * (0.1 + size * 0.2)
-			prism.position.y = rng.randf_range(0.6, top - 1.0)
-			prism.rotation_degrees = Vector3(-90, -side * 38, rng.randf_range(0, 360))
-			add_child(prism)
-	# 활성 벽 위의 장식 볼륨(접점 없는 돌출): 가장자리에, 홀드와 겹치지 않는 자리에만
+	# 볼륨: 벽에 붙은 삼각기둥·상자(볼트). 벽 가장자리, 홀드와 겹치지 않는 자리에만(deco_spots)
+	var k := 0
 	for d in deco_spots(logic.route.slots, half_w, top, rng):
-		var sz: float = d[2]
-		var deco := _mesh(_prism(Vector3(sz, sz * 1.4, sz * 0.5)), _toon(WALL_SAND, WALL_OLIVE), true)
-		deco.position = Vector3(d[0], d[1], 0.05)
-		deco.rotation_degrees = Vector3(0, 0, rng.randf_range(0, 360))
-		add_child(deco)
+		_add_volume(Vector2(d[0], d[1]), d[2], k % 2 == 0)
+		k += 1
+
+
+## 벽에 붙은 볼륨 하나. tri: 삼각기둥(세로 능선이 벽에서 튀어나옴), 아니면 납작한 상자. 겉면에 볼트 머리 몇 개.
+func _add_volume(p: Vector2, size: float, tri: bool) -> void:
+	var m := _toon(VOLUME_SAND.darkened(0.18 + rng.randf() * 0.12), WALL_OLIVE.darkened(0.2))  # 홀드보다 먼저 눈에 띄지 않게 벽과 비슷한 밝기
+	m.set_shader_parameter("speckle", true)
+	var out := size * (0.7 if tri else 0.45)
+	var v: MeshInstance3D
+	if tri:
+		# 가로 능선: 윗빗면은 밝고 아랫빗면은 그늘(주광이 위에서) — 정면 카메라에서도 입체로 읽힌다
+		v = _mesh(_prism(Vector3(size, out, size * 1.5)), m, true)
+		v.basis = Basis(Vector3(0, 0, 1), PI / 2.0 + deg_to_rad(rng.randf_range(-10, 10))) * Basis(Vector3(1, 0, 0), PI / 2.0)
+		v.position = Vector3(p.x, p.y, -0.02 + out * 0.5)
+	else:
+		v = _mesh(_box(Vector3(size, size * 0.8, out * 0.6)), m, true)
+		v.rotation_degrees = Vector3(rng.randf_range(-22, -12), rng.randf_range(-20, 20), rng.randf_range(-6, 6))
+		v.position = Vector3(p.x, p.y, -0.02 + out * 0.3)
+	add_child(v)
+	var bolt_m := _toon(INK, INK)
+	for i in 3:
+		var b := MeshInstance3D.new()
+		var cyl := CylinderMesh.new()
+		cyl.top_radius = 0.012
+		cyl.bottom_radius = 0.012
+		cyl.height = 0.006
+		cyl.radial_segments = 6
+		b.mesh = cyl
+		b.material_override = bolt_m
+		var t := (float(i) - 1.0) * 0.35
+		if tri:
+			# 윗빗면 가운데 줄
+			b.position = Vector3(p.x + t * size, p.y + size * 0.25, -0.02 + out * 0.5 + 0.004)
+			b.rotation_degrees = Vector3(90, 0, 0)
+		else:
+			b.position = Vector3(p.x + t * size * 0.6, p.y + size * 0.2, -0.02 + out * 0.6 + 0.004)
+			b.rotation_degrees = Vector3(90, 0, 0)
+		add_child(b)
 
 
 func _box(size: Vector3) -> BoxMesh:
