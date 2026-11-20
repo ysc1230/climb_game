@@ -96,3 +96,22 @@ func test_old_format_unchanged() -> void:
 func test_invalid_fields() -> void:
 	for bad in [_slot("blob"), _slot("jug", "XL"), _slot("jug", "M", 7), _slot("jug", "M", 360), _slot("foot_chip").merged({"allowed": ["LH"]}, true)]:
 		runner.check(not _route([bad]).errors.is_empty(), "잘못된 값은 오류 %s" % [bad])
+
+
+## 그림: 종류마다 그 종류의 메시(작업 4 §4.2). 모든 변형이 holds.glb에 있다.
+func test_hold_meshes_by_type() -> void:
+	var P3 := preload("res://scenes/play_3d.gd")
+	var names := {}
+	var root: Node = load("res://art/holds/holds.glb").instantiate()
+	for n in root.find_children("*", "MeshInstance3D", true, false):
+		names[String(n.name)] = true
+	root.free()
+	for type in P3.TYPE_VARIANTS:
+		runner.check(HoldTypes.has(type), "그림 종류 %s는 종류 표에 있음" % type)
+		for v in P3.TYPE_VARIANTS[type]:
+			runner.check(names.has(v), "메시 %s 있음" % v)
+	for type in HoldTypes.types():
+		var s := _one(type)
+		runner.check(P3.hold_variant("k1", s, false).begins_with(type + "_") or type == "goal", "%s 슬롯은 %s 메시" % [type, P3.hold_variant("k1", s, false)])
+	runner.check(P3.hold_variant("k1", {}, true) == "goal_0", "탑은 goal_0")
+	runner.check(P3.hold_variant("k1", {"hand_area": {"half_width": 0.04}}, false).begins_with("crimp_"), "옛 형식 작은 손홀드는 크림프 모양")

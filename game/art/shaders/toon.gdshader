@@ -6,6 +6,8 @@ uniform vec4 albedo : source_color = vec4(0.65, 0.42, 0.29, 1.0);
 uniform vec4 shade : source_color = vec4(0.37, 0.38, 0.28, 1.0);
 uniform float bands = 3.0;
 uniform bool wall_pattern = false;
+// 홀드 레진 질감(작업 4 §4.2): 점박이 얼룩(물체 좌표라 홀드와 같이 돈다).
+uniform bool speckle = false;
 // 텍스처 캐릭터(Tripo, docs/36): 색은 텍스처 × albedo, 그늘은 밝기 × shade_mult(색별 shade 대신).
 uniform bool use_texture = false;
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap;
@@ -14,11 +16,13 @@ uniform float bolt_spacing = 0.2;
 uniform vec4 bolt_color : source_color = vec4(0.19, 0.16, 0.13, 1.0);
 
 varying vec3 wpos;
+varying vec3 lpos;
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	lpos = VERTEX;
 }
 
 void fragment() {
@@ -33,6 +37,11 @@ void fragment() {
 		float bolt = 1.0 - smoothstep(0.055, 0.08, d);
 		float grain = hash(floor(wpos.xy * 60.0)) * 0.06 - 0.03;
 		c = mix(c + grain, bolt_color.rgb, bolt * 0.85);
+	}
+	if (speckle) {
+		vec3 q = floor(lpos * 140.0);
+		float n = hash(q.xy + q.z * 17.0);
+		c *= n > 0.9 ? 0.82 : (n < 0.08 ? 1.08 : 1.0);
 	}
 	ALBEDO = c;
 }

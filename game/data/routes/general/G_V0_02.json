@@ -342,8 +342,8 @@
  "score_gates": [],
  "score_ref": {
   "grabs": 10,
-  "quality": 0.884,
-  "spent_per_m": 22.65
+  "quality": 0.885,
+  "spent_per_m": 21.37
  },
  "start_pose": {
   "angle": 0.0,

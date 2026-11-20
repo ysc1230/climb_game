@@ -186,7 +186,7 @@
       2.76
      ],
      "rot_deg": 0,
-     "size": "L",
+     "size": "M",
      "slot_id": "hand_1"
     }
    ]
@@ -450,8 +450,8 @@
  ],
  "score_ref": {
   "grabs": 15,
-  "quality": 0.752,
-  "spent_per_m": 28.18
+  "quality": 0.756,
+  "spent_per_m": 44.66
  },
  "start_pose": {
   "angle": 0.0,

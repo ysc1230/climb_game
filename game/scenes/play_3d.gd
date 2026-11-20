@@ -229,15 +229,14 @@ const HOLD_COLORS := {
 	"foot": [Color("5e4c70"), Color("c4b0d6")],
 	"goal": [Color("d9b872"), Color("f1d59a")],
 }
-## 크기 등급(손홀드 반폭 기준, v8): 보이는 크기 = 잡는 크기. 작은 홀드는 잡기 반경도 작다(GripCheck.radius_for).
-const HAND_SIZE_CLASSES := [
-	[0.05, ["hs_crimp_1", "hs_nub_0", "hs_pocket_0"]],                     # 아주 작음
-	[0.09, ["hs_crimp_0", "hs_edge_1", "hs_pinch_0", "hs_pocket_0", "hs_nub_1"]],  # 작음
-	[0.13, ["hs_edge_0", "hm_jug_0", "hs_nub_0", "hm_sloper_0"]],          # 중간
-	[0.17, ["hm_jug_0", "hm_sloper_0"]],                                   # 큼
-	[INF, ["hl_jug_0", "hl_sloper_0"]],                                    # 아주 큼
-]
-const HOLD_FOOT := ["f_chip_0", "f_chip_1", "f_chip_2", "f_edge_0"]
+## 종류별 메시 변형(작업 4 §4.2, tools/holds/make_holds.py v3). 같은 종류 안에서는 키 해시로 고정된 무작위.
+const TYPE_VARIANTS := {
+	"jug": ["jug_0", "jug_1", "jug_2"], "crimp": ["crimp_0", "crimp_1", "crimp_2"], "sloper": ["sloper_0", "sloper_1"],
+	"pinch": ["pinch_0", "pinch_1"], "pocket": ["pocket_0", "pocket_1"], "foot_chip": ["foot_chip_0", "foot_chip_1", "foot_chip_2"],
+	"foot_big": ["foot_big_0", "foot_big_1"], "goal": ["goal_0"],
+}
+## 옛 형식 슬롯(종류 없음, 시험 루트): 손홀드 반폭으로 종류를 짐작한다(v8 크기 등급).
+const LEGACY_HAND := [[0.05, "crimp"], [0.08, "pinch"], [INF, "jug"]]
 var _hold_mesh_cache := {}
 
 
@@ -250,18 +249,33 @@ func _hold_mesh(name: String) -> Mesh:
 	return _hold_mesh_cache.get(name)
 
 
-## 슬롯에 놓을 홀드 메시 이름(크기 등급 안에서 키 해시로 고정된 무작위).
+## 슬롯에 놓을 홀드 메시 이름: 종류의 변형 중 키 해시로 고른다. 옛 형식은 반폭으로 종류를 짐작.
 static func hold_variant(key: String, slot: Dictionary, is_goal: bool) -> String:
 	var h := absi(hash(key))
+	var type := str(slot.get("hold_type", ""))
 	if is_goal:
-		return "goal"
-	if not slot.has("hand_area"):
-		return HOLD_FOOT[h % HOLD_FOOT.size()]
-	var hw := float(slot.hand_area.half_width)
-	for c in HAND_SIZE_CLASSES:
-		if hw < float(c[0]):
-			return c[1][h % (c[1] as Array).size()]
-	return "hl_jug_0"
+		type = "goal"
+	elif type == "":
+		type = "foot_chip"
+		if slot.has("hand_area"):
+			for c in LEGACY_HAND:
+				if float(slot.hand_area.half_width) < float(c[0]):
+					type = c[1]
+					break
+	var list: Array = TYPE_VARIANTS[type]
+	return list[h % list.size()]
+
+
+## 메시 면의 역할: 0 몸체, 1 윗날, 2 어두운 면(볼트·저그 속·포켓 구멍). glTF는 안 쓴 재질 칸을 빼므로 순서가 아니라
+## 재질 이름(*_body, *_lip, bolt)으로 정한다.
+static func surface_role(mesh: Mesh, si: int) -> int:
+	var m := mesh.surface_get_material(si)
+	var n := m.resource_name if m != null else ""
+	if n.ends_with("_lip"):
+		return 1
+	if n == "bolt":
+		return 2
+	return 0
 
 
 ## 보이는 길이(잡는 방향): 손 2·반폭 + 2·두께, 발 2·발 반폭 + 0.02. 메시 원래 길이로 나눈 균일 배율.
@@ -289,14 +303,17 @@ func _build_holds() -> void:
 		var hold := MeshInstance3D.new()
 		hold.mesh = mesh
 		var cols: Array = HOLD_COLORS[kind]
-		var mats := [_toon(cols[0], cols[0].darkened(0.45)), _toon(cols[1], cols[1].darkened(0.35)), _toon(INK, INK.darkened(0.3))]
+		var mats := [_toon(cols[0], cols[0].darkened(0.45)), _toon(cols[1], cols[1].darkened(0.35)), _toon(cols[0].darkened(0.62), INK)]
+		for m in mats.slice(0, 2):
+			m.set_shader_parameter("speckle", true)
 		for si in mesh.get_surface_count():
-			var m: ShaderMaterial = mats[mini(si, 2)]
+			var m: ShaderMaterial = mats[surface_role(mesh, si)]
 			m.next_pass.set_shader_parameter("width", 0.006)
 			hold.set_surface_override_material(si, m)
 		var p: Vector2 = slot.pos
 		hold.position = Vector3(p.x, p.y, 0.0)
-		hold.rotation = Vector3(0, 0, ang + deg_to_rad(rng.randf_range(-8, 8)))
+		var tilt := 0.0 if str(slot.get("hold_type", "")) != "" else deg_to_rad(rng.randf_range(-8, 8))  # 종류 홀드는 rot_deg 그대로
+		hold.rotation = Vector3(0, 0, ang + tilt)
 		hold.scale = Vector3.ONE * hold_view_scale(slot, mesh, is_goal) * rng.randf_range(0.95, 1.05)
 		add_child(hold)
 		climber_pose.surface_depth[key] = mesh.get_aabb().end.z * hold.scale.z  # 홀드 겉면(손발을 여기 얹는다)

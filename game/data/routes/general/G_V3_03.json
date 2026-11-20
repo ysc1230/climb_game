@@ -25,13 +25,13 @@
       "LH",
       "RH"
      ],
-     "hold_type": "jug",
+     "hold_type": "pinch",
      "pos": [
       -0.31,
       1.55
      ],
      "rot_deg": 0,
-     "size": "S",
+     "size": "M",
      "slot_id": "hand_1"
     }
    ]
@@ -44,13 +44,13 @@
       "LH",
       "RH"
      ],
-     "hold_type": "jug",
+     "hold_type": "pinch",
      "pos": [
       0.35,
       1.55
      ],
      "rot_deg": 0,
-     "size": "S",
+     "size": "M",
      "slot_id": "hand_1"
     }
    ]
@@ -63,13 +63,13 @@
       "LH",
       "RH"
      ],
-     "hold_type": "jug",
+     "hold_type": "crimp",
      "pos": [
       -0.3,
       1.86
      ],
      "rot_deg": 0,
-     "size": "S",
+     "size": "L",
      "slot_id": "hand_1"
     }
    ]
@@ -88,7 +88,7 @@
       2.02
      ],
      "rot_deg": 0,
-     "size": "M",
+     "size": "L",
      "slot_id": "hand_1"
     }
    ]
@@ -126,7 +126,7 @@
       2.5
      ],
      "rot_deg": 0,
-     "size": "M",
+     "size": "L",
      "slot_id": "hand_1"
     }
    ]
@@ -353,8 +353,8 @@
      ],
      "hold_type": "foot_chip",
      "pos": [
-      -0.3,
-      1.76
+      -0.15,
+      1.7
      ],
      "rot_deg": 0,
      "size": "M",
@@ -519,8 +519,8 @@
  ],
  "score_ref": {
   "grabs": 18,
-  "quality": 0.86,
-  "spent_per_m": 58.23
+  "quality": 0.933,
+  "spent_per_m": 97.01
  },
  "start_pose": {
   "angle": 0.0,
