@@ -75,6 +75,8 @@ func _trace_limb(pose: ClimberPose, l: StringName, pb: Vector3, i: int) -> void:
 			var row := ""
 			for v in c.bad:
 				row += "." if v <= 0.0 else ("o" if v < 0.05 else "X")
+			if OS.get_environment("BADS") != "":
+				row += " | " + " ".join(c.bad.map(func(v): return "%.2f" % v))
 			if OS.get_environment("PARTS") != "":
 				for thd in [float(OS.get_environment("PARTS")), thp]:
 					var th := deg_to_rad(thd)
@@ -93,7 +95,7 @@ func _parts(l: StringName, _pose: ClimberPose, mid: Vector3) -> String:
 	var sd := "L" if PoseSolver.side_sign(l) < 0 else "R"
 	var root: Vector3 = t[("shoulder_" if hand else "hip_") + sd]
 	var end: Vector3 = t[("wrist_" if hand else "ankle_") + sd]
-	var frame := Anatomy.body_basis(_last_s.body.angle, _last_s.body.yaw)
+	var frame := Anatomy.body_basis(_last_s.body.angle, float(_last_t.get("yaw", _last_s.body.yaw)))
 	var up: Vector3 = t.up
 	var pelvis: Vector3 = t.pelvis
 	var out := {}
@@ -149,15 +151,15 @@ func _scenario(route: RouteDef, limb: StringName, dy: float) -> void:
 		_last_s = s
 		if _trace(route, limb, dy, i) and OS.get_environment("LIMB") != "":
 			_trace_limb(pose, StringName(OS.get_environment("LIMB")), pb, i)
-			print("  d%d 깊이%.2f 범위%s 목표%.2f" % [i, pose.depth, PoseSolver.body_depth_range(s.body.pos, s.body.angle, s.attached(), s.body.yaw), float(pose._target.depth)])
+			print("  d%d 깊이%.2f 범위%s 목표%.2f 비틀기%.0f→%.0f" % [i, pose.depth, PoseSolver.body_depth_range(s.body.pos, s.body.angle, s.attached(), float(t.get("yaw", s.body.yaw))), float(pose._target.depth), pose.twist, float(pose._target.get("twist", 0.0))])
 		sw.poses += 1
 		sw._record_flips(t, s, i)
-		for v in Anatomy.check(t, s.body.angle, s.body.yaw, AnatomySweep._free_map(s)):
+		for v in Anatomy.check(t, s.body.angle, float(t.get("yaw", s.body.yaw)), AnatomySweep._free_map(s)):
 			var key := "%s/%s" % [v.kind, v.limb]
 			sw.counts[key] = sw.counts.get(key, 0) + 1
 			if OS.get_environment("VIOL") != "" and route.route_id == OS.get_environment("VIOL").split(" ")[0] and String(limb) == OS.get_environment("VIOL").split(" ")[1] and is_equal_approx(dy, float(OS.get_environment("VIOL").split(" ")[2])):
 				print("  v%d %s %.3f 골반(%.2f,%.2f,%.2f) 무릎R(%.2f,%.2f,%.2f) 팔꿈치R(%.2f,%.2f,%.2f)" % [i, key, v.value, t.pelvis.x, t.pelvis.y, t.pelvis.z, t.knee_R.x, t.knee_R.y, t.knee_R.z, t.elbow_R.x, t.elbow_R.y, t.elbow_R.z])
-		var frames := rig.solve(t, s.body.angle, s.body.yaw, {"L": false, "R": false})
+		var frames := rig.solve(t, s.body.angle, float(t.get("yaw", s.body.yaw)), {"L": false, "R": false})
 		_grip(frames, s)
 		for sd in ["L", "R"]:
 			for b in LIMB_BONES:

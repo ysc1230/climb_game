@@ -85,6 +85,30 @@ func test_start_poses_clean() -> void:
 		runner.check(v.is_empty(), "%s 시작 자세 위반 %s" % [r.route_id, v])
 
 
+## V3-4 높은 디딤(2026-11-21 사용자 화면): 네 손발을 잡은 채 몸을 왼쪽 위로 끌었다가 오른쪽으로 옮기면 왼팔이 펴져
+## 골반이 벽에 붙고, 많이 굽은 오른팔 팔꿈치가 들렸다가 벽을 뚫고 가슴 앞 안쪽으로 접혔다. 팔꿈치는 벽 밖에 있어야 한다.
+func test_bent_arm_shift_keeps_elbow_out_of_wall() -> void:
+	var s := ClimbSession.new(ContentIndex.load_all().route("G_V3_04"))
+	var pose := ClimberPose.new()
+	for i in 30:
+		s.step()
+		pose.compute(s, Tuning.DT)
+	s.apply_input([{"type": "body_start"}])
+	var off := Vector2.ZERO
+	var worst := 1.0
+	for i in 260:
+		var goal := Vector2(-0.3, 0.3) if i < 90 else Vector2(0.35, 0.3)
+		var d := (goal - off).limit_length((0.6 if i < 90 else 0.5) * Tuning.DT)
+		off += d
+		s.apply_input([{"type": "body_move", "delta": d}])
+		s.step()
+		var t := pose.compute(s, Tuning.DT)
+		for v in Anatomy.check(t, s.body.angle, float(t.get("yaw", s.body.yaw))):
+			if v.kind == "in_wall" and PoseSolver.is_hand(v.limb):
+				worst = minf(worst, v.value)
+	runner.check(worst >= 0.0, "팔꿈치가 벽 속으로 들어가지 않음(가장 깊이 %.3f m)" % worst)
+
+
 ## 무작위 패드 조작 스윕: 관절이 한 틱에 뒤집히지 않고(굽힘 방향 변화 FLIP_DEG 이하), 불가능한 자세는 드물다.
 ## IK가 고를 수 있었는데 위반한 경우는 반대쪽 가능한 자세로 연속해 돌아가는 짧은 구간뿐이다(5% 이하).
 func test_sweep_regression() -> void:

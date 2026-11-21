@@ -107,7 +107,7 @@ func _run(route: RouteDef, n_ticks: int, seed: int) -> void:
 		_record_twists(t, s.body)
 		_record_flips(t, s, i)
 		_record_jitter(t, s)
-		for v in Anatomy.check(t, s.body.angle, s.body.yaw, _free_map(s)):
+		for v in Anatomy.check(t, s.body.angle, float(t.get("yaw", s.body.yaw)), _free_map(s)):
 			var key := "%s/%s" % [v.kind, v.limb]
 			counts[key] = counts.get(key, 0) + 1
 			if v.kind != "ankle" and _forced(t, s.body, v.limb):
@@ -127,7 +127,7 @@ static func _free_map(s) -> Dictionary:
 func _forced(t: Dictionary, body, limb: StringName) -> bool:
 	var hand := PoseSolver.is_hand(limb)
 	var sd := "L" if PoseSolver.side_sign(limb) < 0 else "R"
-	var frame := Anatomy.body_basis(body.angle, body.yaw)
+	var frame := Anatomy.body_basis(body.angle, float(t.get("yaw", body.yaw)))
 	return LimbIK.min_violation(limb, t[("shoulder_" if hand else "hip_") + sd], t[("wrist_" if hand else "ankle_") + sd], frame, t.pelvis, t.up, ClimberPose._free(session, limb)) > 0.0
 
 
@@ -190,7 +190,7 @@ func jitter_total() -> int:
 
 
 func _record_twists(t: Dictionary, body) -> void:
-	var frame := Anatomy.body_basis(body.angle, body.yaw)
+	var frame := Anatomy.body_basis(body.angle, float(t.get("yaw", body.yaw)))
 	for limb in PoseSolver.LIMBS:
 		var hand := PoseSolver.is_hand(limb)
 		var sd := "L" if PoseSolver.side_sign(limb) < 0 else "R"
@@ -229,7 +229,7 @@ static func run_lift(route: RouteDef, foot: StringName, offset_x: float, rise: f
 		sw.poses += 1
 		sw._record_flips(t, s, i)
 		sw._record_jitter(t, s)
-		for v in Anatomy.check(t, s.body.angle, s.body.yaw, _free_map(s)):
+		for v in Anatomy.check(t, s.body.angle, float(t.get("yaw", s.body.yaw)), _free_map(s)):
 			var key := "%s/%s" % [v.kind, v.limb]
 			sw.counts[key] = sw.counts.get(key, 0) + 1
 			if v.kind != "ankle" and sw._forced(t, s.body, v.limb):
@@ -301,7 +301,7 @@ static func run_reach(route: RouteDef, hand: StringName, dx: float, dy: float, s
 		sw.poses += 1
 		sw._record_flips(t, s, i)
 		sw._record_jitter(t, s)
-		for v in Anatomy.check(t, s.body.angle, s.body.yaw, _free_map(s)):
+		for v in Anatomy.check(t, s.body.angle, float(t.get("yaw", s.body.yaw)), _free_map(s)):
 			var key := "%s/%s" % [v.kind, v.limb]
 			sw.counts[key] = sw.counts.get(key, 0) + 1
 			if v.kind != "ankle" and sw._forced(t, s.body, v.limb):
@@ -333,7 +333,7 @@ static func run_body_shift(route: RouteDef, dx: float, dy: float) -> AnatomySwee
 		sw.poses += 1
 		sw._record_flips(t, s, i)
 		sw._record_jitter(t, s)
-		for v in Anatomy.check(t, s.body.angle, s.body.yaw, _free_map(s)):
+		for v in Anatomy.check(t, s.body.angle, float(t.get("yaw", s.body.yaw)), _free_map(s)):
 			var key := "%s/%s" % [v.kind, v.limb]
 			sw.counts[key] = sw.counts.get(key, 0) + 1
 			if v.kind != "ankle" and sw._forced(t, s.body, v.limb):

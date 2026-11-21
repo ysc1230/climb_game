@@ -22,13 +22,23 @@ const FREE_HAND_DEPTHS := [0.0, -0.06, -0.12]  # 떠 있는 손 끝: 벽 쪽으�
 const LIFT_HOLD_TICKS := 20   # 떠 있는 발의 추가 깊이를 한 번 바꾸면 이만큼은 유지(오락가락 방지)
 const HYSTERESIS := 0.02       # 새 깊이 후보는 지금 목표보다 점수가 이만큼 이상 나을 때만 바꾼다
 const SEARCH_BUDGET := 32      # 프레임당 굽힘 원 계산 상한(불가능한 자세에서 탐색이 길어지지 않게)
+## 몸통 비틀기(표현만, 판정 yaw에 더함). 어느 깊이에서도 팔다리가 불가능하면 몸을 옆으로 틀어 본다(2026-11-21 사용자:
+## V3-4에서 왼팔이 펴져 골반이 벽에 붙자 많이 굽은 오른팔 팔꿈치가 벽을 뚫고 가슴 앞으로 접혔다. 오른 어깨를 벽에서 빼면 자리가 생긴다).
+const TWIST_STEP := 10.0       # 도, 비틀기 후보 간격
+const TWIST_MAX := 30.0        # 도, 판정 yaw에서 더 트는 최대 각
+const TWIST_SPEED := 60.0      # 도/초, 표현 비틀기가 목표로 따라가는 빠르기
+const TWIST_COST := 0.002      # 도당 비용(위반이 같으면 덜 트는 쪽)
+const TWIST_BUDGET := 24       # 비틀기 후보를 볼 때만 더 쓰는 굽힘 원 계산 수
+const TWIST_HOLD_TICKS := 30   # 비틀기를 바꾸면 이만큼은 유지하고, 그 뒤 덜 틀어도 되면 한 단계씩 푼다
 
 var bends := {}        # limb -> 직전 굽힘 축(연속성)
 var depth := NAN       # 표현 골반 깊이(부드럽게 따라감)
 var free_lift := {}    # limb -> 떠 있는 말단의 추가 깊이(부드럽게 따라감)
 var _cache := {}       # 이번 프레임에 구한 굽힘 원(limb·관절·끝 → circle)
-var _target := {}      # 목표 {depth, lift: limb → 추가 깊이}. 가능하면 유지한다
+var _target := {}      # 목표 {depth, lift: limb → 추가 깊이, twist: 판정 yaw에 더할 각}. 가능하면 유지한다
 var _lift_hold := {}   # limb → 떠 있는 발 추가 깊이를 바꾼 뒤 남은 유지 틱
+var twist := 0.0       # 표현 몸통 비틀기(도, 판정 yaw에 더함. 부드럽게 따라감)
+var _twist_hold := 0
 var _budget := 0
 
 
@@ -50,28 +60,32 @@ func compute(session, delta: float) -> Dictionary:
 	_update_display(session, delta)
 	var body = session.body
 	var attached: Dictionary = session.attached()
-	var frame := Anatomy.body_basis(body.angle, body.yaw)
 	var ang := deg_to_rad(body.angle)
 	var up := Vector3(-sin(ang), cos(ang), 0)
 	_cache.clear()
 	_budget = SEARCH_BUDGET
 	for limb in _lift_hold.keys():
 		_lift_hold[limb] = maxi(0, int(_lift_hold[limb]) - 1)
-	var want := _choose(session, body, attached, frame, up)
+	_twist_hold = maxi(0, _twist_hold - 1)
+	var want := _choose(session, body, attached, up)
 	var target_depth: float = want.depth
 	if is_nan(depth):
 		depth = target_depth
+		twist = float(want.twist)
 	else:
 		depth = move_toward(depth, target_depth, DEPTH_SPEED * delta)
+		twist = move_toward(twist, float(want.twist), TWIST_SPEED * delta)
+	var yaw := _yaw(body, twist)
+	var frame := Anatomy.body_basis(body.angle, yaw)
 	var pelvis := Vector3(body.pos.x, body.pos.y, depth)
 	var t := {"pelvis": pelvis, "spine": pelvis + up * SPINE_UP, "chest": pelvis + up * CHEST_UP,
-		"neck": pelvis + up * NECK_UP, "head": pelvis + up * HEAD_UP, "head_top": pelvis + up * HEAD_TOP_UP, "up": up}
+		"neck": pelvis + up * NECK_UP, "head": pelvis + up * HEAD_UP, "head_top": pelvis + up * HEAD_TOP_UP, "up": up, "yaw": yaw}
 	var max_step := LimbIK.PRESENTATION_JOINT_SPEED_DEG * delta
 	for limb in PoseSolver.LIMBS:
 		var hand := PoseSolver.is_hand(limb)
 		var lift_now: float = free_lift.get(limb, 0.0)
 		free_lift[limb] = move_toward(lift_now, float(want.lift[limb]), LIFT_SPEED * delta)
-		var root := _root(body, limb, depth)
+		var root := _root(body, limb, depth, yaw)
 		var end := _end(session, limb, float(free_lift[limb]), depth)
 		var ik := LimbIK.solve_circle(_circle(limb, root, end, frame, pelvis, up, true, _free(session, limb)), bends.get(limb, Vector3.ZERO), max_step)
 		bends[limb] = ik.bend
@@ -96,12 +110,20 @@ static func _free(session, limb: StringName) -> bool:
 
 
 ## 다리는 판정 고관절에서 몸 위쪽으로 LimbIK.hip_raise 올린 화면 회전 중심에서 시작한다.
-static func _root(body, limb: StringName, pelvis_depth: float) -> Vector3:
-	var j2 := PoseSolver.joint_position(body.pos, body.angle, limb, body.yaw)
+## yaw: 표현 yaw(NAN이면 판정 yaw).
+static func _root(body, limb: StringName, pelvis_depth: float, yaw := NAN) -> Vector3:
+	if is_nan(yaw):
+		yaw = body.yaw
+	var j2 := PoseSolver.joint_position(body.pos, body.angle, limb, yaw)
 	if not PoseSolver.is_hand(limb):
 		var ang := deg_to_rad(body.angle)
 		j2 += Vector2(-sin(ang), cos(ang)) * LimbIK.hip_raise
-	return Vector3(j2.x, j2.y, pelvis_depth + PoseSolver.joint_depth_offset(limb, body.yaw))
+	return Vector3(j2.x, j2.y, pelvis_depth + PoseSolver.joint_depth_offset(limb, yaw))
+
+
+## 판정 yaw + 표현 비틀기(골반 yaw 한계 안).
+static func _yaw(body, tw: float) -> float:
+	return clampf(body.yaw + tw, -Tuning.PELVIS_YAW_LIMIT_DEG, Tuning.PELVIS_YAW_LIMIT_DEG)
 
 
 ## 붙은 손발은 홀드 겉면(surface_depth[슬롯 키], 화면이 홀드 메시에서 채움)에 둔다(2026-11-13 사용자: "손이 홀드 안으로
@@ -137,19 +159,25 @@ func _end(session, limb: StringName, lift: float, pelvis_depth: float) -> Vector
 ## 지금 목표가 불가능할 때만 다시 찾는다: 1단계 골반 깊이 후보 모두(떠 있는 말단은 지금 깊이 그대로),
 ## 2단계 떠 있는 말단의 추가 깊이 후보. 새 후보는 지금보다 확실히 나을 때만(HYSTERESIS) 바꾼다.
 ## 점수는 팔다리마다 LimbIK.local_violation(지금 굽힘 쪽에서 가능한 자세가 있는가)의 합.
-func _choose(session, body, attached: Dictionary, frame: Basis, up: Vector3) -> Dictionary:
-	var r := PoseSolver.body_depth_range(body.pos, body.angle, attached, body.yaw)
+func _choose(session, body, attached: Dictionary, up: Vector3) -> Dictionary:
+	if _target.is_empty():
+		_target = {"depth": Tuning.PELVIS_DEPTH_PREFERRED, "lift": {}, "twist": 0.0}
+	var tw: float = _target.twist
+	var r := _depth_range(body, attached, tw)
+	if not r.is_finite() and tw != 0.0:
+		tw = 0.0  # 판정이 바뀌어 지금 비틀기로는 닿지 않음: 풀고 다시
+		_target.twist = 0.0
+		r = _depth_range(body, attached, tw)
 	if not r.is_finite():
 		r = Vector2(Tuning.PELVIS_DEPTH_PREFERRED, Tuning.PELVIS_DEPTH_PREFERRED)
 	var start := clampf(Tuning.PELVIS_DEPTH_PREFERRED, r.x, r.y)
-	if _target.is_empty():
-		_target = {"depth": start, "lift": {}}
 	_target.depth = clampf(float(_target.depth), r.x, r.y)
 	for limb in PoseSolver.LIMBS:
 		if not _free(session, limb) or not _target.lift.has(limb):
 			_target.lift[limb] = 0.0  # 붙은 손발은 띄우지 않는다. 다시 떼면 0부터
-	var cur := _score_depth(session, body, frame, up, _target.depth, _target.lift, true)
+	var cur := _score_depth(session, body, up, _target.depth, _target.lift, true, tw)
 	if cur.total <= 0.0:
+		_relax_twist(session, body, attached, up)
 		return _target
 	var cands: Array[float] = [float(_target.depth)]
 	if absf(start - float(_target.depth)) > 0.001:
@@ -164,7 +192,7 @@ func _choose(session, body, attached: Dictionary, frame: Basis, up: Vector3) -> 
 	var best := {}
 	var best_v := INF
 	for dpt in cands:
-		var res := _score_depth(session, body, frame, up, dpt, _target.lift, false)
+		var res := _score_depth(session, body, up, dpt, _target.lift, false, tw)
 		if res.total < best_v:
 			best_v = res.total
 			best = res
@@ -172,28 +200,76 @@ func _choose(session, body, attached: Dictionary, frame: Basis, up: Vector3) -> 
 			break
 	if best_v > 0.0 and _budget > 0:
 		for dpt in [float(best.get("depth", _target.depth)), float(_target.depth)]:
-			var res := _score_depth(session, body, frame, up, dpt, {}, false)
+			var res := _score_depth(session, body, up, dpt, {}, false, tw)
 			if res.total < best_v:
 				best_v = res.total
 				best = res
 			if best_v <= 0.0 or _budget <= 0:
 				break
+	var best_cost := best_v + TWIST_COST * absf(tw)
+	if best_v > 0.0:
+		# 어느 깊이도 안 되면 몸통을 틀어 본다(덜 트는 쪽부터, 같은 크기는 양쪽 다 보고 더 나은 쪽)
+		_budget += TWIST_BUDGET
+		var mag := TWIST_STEP
+		while mag <= TWIST_MAX + 0.001 and best_v > 0.0 and _budget > 0:
+			for cand in [mag, -mag]:
+				if is_equal_approx(cand, tw) or absf(body.yaw + cand) > Tuning.PELVIS_YAW_LIMIT_DEG:
+					continue
+				var rc := _depth_range(body, attached, cand)
+				if not rc.is_finite():
+					continue
+				for dpt in [rc.y, clampf(Tuning.PELVIS_DEPTH_PREFERRED, rc.x, rc.y), (rc.x + rc.y) * 0.5]:
+					var res := _score_depth(session, body, up, dpt, _target.lift, false, cand)
+					if res.total + TWIST_COST * absf(cand) < best_cost:
+						best_cost = res.total + TWIST_COST * absf(cand)
+						best_v = res.total
+						best = res
+					if res.total <= 0.0 or _budget <= 0:
+						break
+			mag += TWIST_STEP
 	if not best.is_empty() and best_v < float(cur.total) - HYSTERESIS:
 		for limb in PoseSolver.LIMBS:
 			if float(best.lift.get(limb, 0.0)) != float(_target.lift.get(limb, 0.0)):
 				_lift_hold[limb] = LIFT_HOLD_TICKS
-		_target = {"depth": best.depth, "lift": best.lift}
+		if float(best.twist) != tw:
+			_twist_hold = TWIST_HOLD_TICKS
+		_target = {"depth": best.depth, "lift": best.lift, "twist": best.twist}
 	return _target
+
+
+## 비틀기 tw에서 붙은 접점이 모두 닿는 골반 깊이 구간(판정 PoseSolver.body_depth_range, yaw만 표현 값).
+static func _depth_range(body, attached: Dictionary, tw: float) -> Vector2:
+	return PoseSolver.body_depth_range(body.pos, body.angle, attached, _yaw(body, tw))
+
+
+## 지금 목표가 가능하고 비틀었으면, 유지 틱이 지난 뒤 한 단계 덜 튼 자세가 가능할 때 그쪽으로(몸이 계속 틀어져 있지 않게).
+func _relax_twist(session, body, attached: Dictionary, up: Vector3) -> void:
+	var tw: float = _target.twist
+	if tw == 0.0 or _twist_hold > 0:
+		return
+	var cand := move_toward(tw, 0.0, TWIST_STEP)
+	var rc := _depth_range(body, attached, cand)
+	if not rc.is_finite():
+		return
+	for dpt in [clampf(float(_target.depth), rc.x, rc.y), clampf(Tuning.PELVIS_DEPTH_PREFERRED, rc.x, rc.y)]:
+		var res := _score_depth(session, body, up, dpt, _target.lift, true, cand)
+		if res.total <= 0.0:
+			_target = {"depth": dpt, "lift": res.lift, "twist": cand}
+			_twist_hold = TWIST_HOLD_TICKS
+			return
 
 
 ## 골반 깊이 하나의 점수. lifts: limb → 떠 있는 말단 추가 깊이(이것만 씀). 비면 FREE_END_DEPTHS를 모두 본다.
 ## fine이면 정밀 후보(표시와 같은 원)로, 아니면 거친 후보로 예산 안에서 본다.
-func _score_depth(session, body, frame: Basis, up: Vector3, dpt: float, lifts: Dictionary, fine: bool) -> Dictionary:
+## tw: 표현 몸통 비틀기(도).
+func _score_depth(session, body, up: Vector3, dpt: float, lifts: Dictionary, fine: bool, tw: float) -> Dictionary:
 	var pelvis := Vector3(body.pos.x, body.pos.y, dpt)
+	var yaw := _yaw(body, tw)
+	var frame := Anatomy.body_basis(body.angle, yaw)
 	var total := 0.0
 	var lift := {}
 	for limb in PoseSolver.LIMBS:
-		var root := _root(body, limb, dpt)
+		var root := _root(body, limb, dpt, yaw)
 		var free := _free(session, limb)
 		# 떠 있는 손발 끝의 깊이 후보: 발은 벽에서 더 띄우기(무릎 공간), 손은 벽 쪽으로 붙이기(얼굴 앞을 지날 때 머리 공간).
 		# 벽 평면 위치는 판정 그대로. 한 번 바꾸면 LIFT_HOLD_TICKS 동안 유지(손을 띄우고 비키는 선택이 매 틱 바뀌어 떨렸다, 2026-11-08).
@@ -219,12 +295,12 @@ func _score_depth(session, body, frame: Basis, up: Vector3, dpt: float, lifts: D
 		if lv == INF:
 			return {"total": INF}
 		total += lv
-	return {"total": total, "depth": dpt, "lift": lift}
+	return {"total": total, "depth": dpt, "lift": lift, "twist": tw}
 
 
 ## 같은 프레임 안 굽힘 원 캐시. 고르기용은 거친 후보(SEARCH_SAMPLES)·예산 안, force(실제 표시용)는 정밀 후보·예산 무관. 예산이 다 되면 {}.
 func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3, force := false, free := false) -> Dictionary:
-	var key := [limb, root, end, pelvis, force, free]
+	var key := [limb, root, end, pelvis, force, free, frame]
 	if _cache.has(key):
 		return _cache[key]
 	if not force:

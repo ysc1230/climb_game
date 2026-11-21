@@ -48,6 +48,8 @@ const TARGET_MARGIN_DEG := 2.0  # 목표 굽힘 방향을 가능한 구간 경�
 const SWITCH_H := 0.12        # 굽힘 반지름이 이보다 작으면(거의 펴짐) 반대쪽으로 바꿔도 보이지 않는다
 const ESCAPE_SLACK := 0.3     # 건너갈 길의 최대 위반이 지금 위반보다 이만큼 넘게 크면 건너지 않고 머문다
 const STAY_MAX := 0.15        # 단, 지금 위반이 이보다 작을 때만(조금 넘친 자세). 더 커지면 건너간다
+const CROSS_MAX := 0.6        # 팔: 목표(선호 쪽 가능한 자세)까지 가는 길의 최대 위반이 이 아래면 막혀도 미리 건너간다
+const CROSS_STEP_DEG := 8.0   # 미리 건너갈 때 한 틱 최대 각(위팔이 휙 돌아 보이지 않게)
 const ARM_POLE_HIGH := Vector3(0.45, -0.85, -0.25)  # 손이 어깨 위: 팔꿈치 아래·약간 바깥·벽 쪽
 const ARM_POLE_LOW := Vector3(0.55, -0.15, 0.80)    # 손이 어깨 아래·옆: 팔꿈치 뒤·바깥
 const BODY_POLE := {  # 몸 기준(X 오른쪽, Y 위, +Z 등 쪽). s는 오른쪽 +1·왼쪽 −1로 곱한다.
@@ -94,6 +96,9 @@ static func solve_circle(c: Dictionary, prev_bend: Vector3, max_step_deg: float)
 			if _path_viol(bad, th_prev, dirn * dist) > 0.0 and _path_viol(bad, th_prev, -dirn * (TAU - dist)) <= 0.0:
 				dirn = -dirn
 				dist = TAU - dist
+			var cross := _cross(c, at, th_prev, target)
+			if _path_viol(bad, th_prev, dirn * dist) > 0.0 and not is_nan(cross):
+				return _bend_at(c, th_prev + clampf(cross, -minf(step, deg_to_rad(CROSS_STEP_DEG)), minf(step, deg_to_rad(CROSS_STEP_DEG))))
 			var move := minf(dist, step)
 			var done := 0.0
 			while done < move - 0.00001:
@@ -105,6 +110,9 @@ static func solve_circle(c: Dictionary, prev_bend: Vector3, max_step_deg: float)
 		else:
 			# 지금 축이 불가능: 이번 틱 이동분 안에서 1°씩 양쪽으로 정확히 보고 가장 가까운 가능한 곳으로.
 			# 없으면 거친 후보로 정한 탈출 방향으로 이동분만큼(경계에서 표본 간격만큼 오락가락하지 않음).
+			var cross := _cross(c, at, th_prev, target)
+			if not is_nan(cross):
+				return _bend_at(c, th_prev + clampf(cross, -minf(step, deg_to_rad(CROSS_STEP_DEG)), minf(step, deg_to_rad(CROSS_STEP_DEG))))
 			var found := NAN
 			var a := 0.0
 			while a < step - 0.00001 and is_nan(found):
@@ -127,6 +135,34 @@ static func solve_circle(c: Dictionary, prev_bend: Vector3, max_step_deg: float)
 				else:
 					th_new = th_prev + clampf(float(esc.span), -step, step)
 	var bend := (n * cos(th_new) + t * sin(th_new)).normalized()
+	return {"mid": (c.center as Vector3) + bend * float(c.h), "bend": bend}
+
+
+## 팔: 지금 쪽이 막혀 목표(선호 쪽 가능한 자세)로 못 가지만 그 길이 조금만 어긋나면(CROSS_MAX) 미리 건너간다(2026-11-21 사용자:
+## V3-4에서 오른팔 팔꿈치가 옆으로 들린 채 버티다 몸이 더 옮겨진 뒤에야 벽을 깊이 뚫고 아래로 접혔다). 건널 각(부호 있음) 또는 NAN.
+static func _cross(c: Dictionary, at: Callable, th_prev: float, target: float) -> float:
+	if not c.get("cross", false) or float(c.h) < SWITCH_H or at.call(target) > 0.0:
+		return NAN
+	var span := angle_difference(th_prev, target)
+	if absf(span) < deg_to_rad(5.0):
+		return NAN
+	var best := NAN
+	var best_v := CROSS_MAX
+	for sp in [span, span - signf(span) * TAU]:
+		var worst := 0.0
+		var k := 1
+		var n := int(ceil(absf(sp) / deg_to_rad(5.0)))
+		while k <= n:
+			worst = maxf(worst, at.call(th_prev + sp * k / n))
+			k += 1
+		if worst <= best_v:
+			best_v = worst
+			best = sp
+	return best
+
+
+static func _bend_at(c: Dictionary, th: float) -> Dictionary:
+	var bend := ((c.n as Vector3) * cos(th) + (c.t as Vector3) * sin(th)).normalized()
 	return {"mid": (c.center as Vector3) + bend * float(c.h), "bend": bend}
 
 
@@ -283,7 +319,7 @@ static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis,
 				hi = mid_f
 		# 경계에서 TARGET_MARGIN만큼 안쪽(손이 조금 움직여 경계가 옮겨 가도 바로 불가능해지지 않게)
 		target += signf(span) * maxf(0.0, absf(span) * lo - deg_to_rad(TARGET_MARGIN_DEG))
-	return {"dir": dir, "n": n, "t": t, "center": center, "h": h, "bad": bad, "best": best, "target": target, "at": at, "stay": not hand}
+	return {"dir": dir, "n": n, "t": t, "center": center, "h": h, "bad": bad, "best": best, "target": target, "at": at, "stay": not hand, "cross": hand}
 
 
 ## 굽힘 후보 하나의 제약 위반량(0이면 해부학적으로 가능).
