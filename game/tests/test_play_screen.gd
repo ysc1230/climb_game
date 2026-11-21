@@ -75,6 +75,19 @@ func test_fall_retry_clears_state() -> void:
 	n.free()
 
 
+## 조언 카드가 뜨고 FALL_AUTO_RETRY초가 지나면 누르지 않아도 처음부터 다시(2026-11-21 사용자).
+func test_fall_card_auto_retry() -> void:
+	var n := _make()
+	n._fall_advice = {"cause": "떨어졌어요", "advice": ""}
+	n.on_fall_scene_done()
+	n.session.falls = 1
+	n._fall_card_tick(n.FALL_AUTO_RETRY - 0.5)
+	runner.check(not n.overlay.fall_card.is_empty(), "시간 전에는 카드 그대로")
+	n._fall_card_tick(1.0)
+	runner.check(n.overlay.fall_card.is_empty(), "시간이 지나면 저절로 다시")
+	n.free()
+
+
 ## 높은 곳에서 떨어지면 조언 카드에 안전 팁 한 줄(2026-11-20 사용자). 낮으면 없음.
 func test_landing_tip_only_when_high() -> void:
 	var n := _make()

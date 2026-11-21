@@ -12,6 +12,7 @@ var result := {}
 var result_ms := 0
 ## 떨어진 뒤 조언 카드 {cause, advice}. 화면 어디를 눌러도 다시 시작.
 var fall_card := {}  # 결과 카드가 뜬 시각(아래에서 0.25초 동안 올라옴)
+var fall_left := 0.0  # 조언 카드가 저절로 다시 시작하기까지 남은 초
 ## 비어 있지 않으면 튜토리얼 시작 설명 카드 {title, purpose, when, how}. 탭하면 사라진다(그동안 플레이 멈춤).
 var tutorial: TutorialRunner
 var tutorial_done := false
@@ -298,4 +299,4 @@ func _draw_fall_card(ci: CanvasItem, size: Vector2, k: float) -> void:
 	if tip != "":
 		y += 38 * k
 		ci.draw_string(font, Vector2(x, y), "※ " + tip, HORIZONTAL_ALIGNMENT_LEFT, tw, int(21 * k), Color("f1d59a"))
-	ci.draw_string(font, Vector2(x, panel.end.y - 18 * k), "화면을 누르면 처음부터 다시", HORIZONTAL_ALIGNMENT_RIGHT, tw, int(18 * k), Color(1, 1, 1, 0.6))
+	ci.draw_string(font, Vector2(x, panel.end.y - 18 * k), "%d초 뒤 처음부터 다시 · 누르면 바로" % ceili(maxf(fall_left, 0.0)), HORIZONTAL_ALIGNMENT_RIGHT, tw, int(18 * k), Color(1, 1, 1, 0.6))

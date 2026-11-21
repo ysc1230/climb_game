@@ -891,6 +891,8 @@ func _physics_process(_delta: float) -> void:
 		_demo_tick(_delta)
 		queue_redraw()
 		return
+	if not overlay.fall_card.is_empty():
+		_fall_card_tick(_delta)
 	if overlay.blocking():
 		queue_redraw()
 		return
@@ -2228,11 +2230,22 @@ func on_landing(kind: StringName) -> void:
 
 
 ## 낙하 장면이 끝남(착지 동작을 마치고 섬·건너뛰기): 조언 카드를 띄운다.
+## 누르지 않아도 FALL_AUTO_RETRY초 뒤 처음부터 다시(2026-11-21 사용자).
+const FALL_AUTO_RETRY := 4.0
+
+
 func on_fall_scene_done() -> void:
 	if not overlay.fall_card.is_empty() or _fall_advice.is_empty():
 		return
 	overlay.fall_card = _fall_advice
+	overlay.fall_left = FALL_AUTO_RETRY
 	queue_redraw()
+
+
+func _fall_card_tick(delta: float) -> void:
+	overlay.fall_left -= delta
+	if overlay.fall_left <= 0.0:
+		_fall_retry()
 
 
 ## 조언 카드를 누름: 처음 자세로 다시(새 시도).
