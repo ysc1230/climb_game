@@ -165,3 +165,29 @@ func test_elbow_escapes_inward_side() -> void:
 	var line := (end - root).normalized()
 	var side: float = (r.mid - root - line * (r.mid - root).dot(line)).x
 	runner.check(side < -0.1, "2초 뒤 팔꿈치가 바깥쪽이어야 함(가로 %.3f)" % side)
+
+
+## 2026-11-21 사용자("무릎이 많이 굽은 채 반대쪽으로 옮기면 비정상적으로 꺾인다"): 지금 굽힘 쪽이 조금 불가능해졌는데
+## 가능한 쪽으로 가는 길이 모두 크게 불가능(벽 속·뒤로 꺾임)하면, 그 길을 가로지르지 않고 지금 자리 근처에 머문다.
+func test_bend_stays_when_every_path_is_worse() -> void:
+	var viol := func(th: float) -> float:
+		var d := rad_to_deg(fposmod(th, TAU))
+		if d >= 85.0 and d <= 115.0:
+			return 0.0
+		if d >= 200.0 and d <= 300.0:
+			return 0.03 + 0.0005 * absf(d - 250.0)
+		return 1.5
+	var bad: Array[float] = []
+	for k in LimbIK.BEND_SAMPLES:
+		bad.append(viol.call(TAU * k / LimbIK.BEND_SAMPLES))
+	var n := Vector3(0, 0, 1)
+	var dir := Vector3.DOWN
+	var t := dir.cross(n)
+	var c := {"dir": dir, "n": n, "t": t, "center": Vector3.ZERO, "h": 0.3, "bad": bad, "target": deg_to_rad(100.0), "at": viol}
+	var bend := (n * cos(deg_to_rad(240.0)) + t * sin(deg_to_rad(240.0)))
+	var far := 0.0
+	for i in 40:
+		bend = LimbIK.solve_circle(c, bend, 3.0).bend
+		var d := rad_to_deg(fposmod(atan2(bend.dot(t), bend.dot(n)), TAU))
+		far = maxf(far, absf(d - 245.0))
+	runner.check(far <= 55.0, "크게 불가능한 길을 건너지 않음(굽힘 방향이 245°에서 최대 %.0f° 벗어남)" % far)

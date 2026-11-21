@@ -46,6 +46,8 @@ const MID_SPEED := 4.0        # m/s, 팔꿈치·무릎이 굽힘 방향을 바�
 const MAX_TICK_DEG := 20.0   # 한 틱에 굽힘 방향이 도는 최대 각(뒤집혀 보이지 않게)
 const TARGET_MARGIN_DEG := 2.0  # 목표 굽힘 방향을 가능한 구간 경계에서 이만큼 안쪽에 둔다
 const SWITCH_H := 0.12        # 굽힘 반지름이 이보다 작으면(거의 펴짐) 반대쪽으로 바꿔도 보이지 않는다
+const ESCAPE_SLACK := 0.3     # 건너갈 길의 최대 위반이 지금 위반보다 이만큼 넘게 크면 건너지 않고 머문다
+const STAY_MAX := 0.15        # 단, 지금 위반이 이보다 작을 때만(조금 넘친 자세). 더 커지면 건너간다
 const ARM_POLE_HIGH := Vector3(0.45, -0.85, -0.25)  # 손이 어깨 위: 팔꿈치 아래·약간 바깥·벽 쪽
 const ARM_POLE_LOW := Vector3(0.55, -0.15, 0.80)    # 손이 어깨 아래·옆: 팔꿈치 뒤·바깥
 const BODY_POLE := {  # 몸 기준(X 오른쪽, Y 위, +Z 등 쪽). s는 오른쪽 +1·왼쪽 −1로 곱한다.
@@ -111,9 +113,36 @@ static func solve_circle(c: Dictionary, prev_bend: Vector3, max_step_deg: float)
 					found = th_prev + a
 				elif at.call(th_prev - a) <= 0.0:
 					found = th_prev - a
-			th_new = found if not is_nan(found) else th_prev + clampf(float(_escape(bad, th_prev).span), -step, step)
+			if not is_nan(found):
+				th_new = found
+			else:
+				# 가능한 곳까지 가는 길이 지금보다 훨씬 나쁘면(벽 속·뒤로 꺾임을 지남) 건너가지 않고 지금 근처에서 위반이 줄어드는
+				# 쪽으로만 간다(2026-11-21 사용자: 무릎을 많이 굽힌 채 몸을 발 위로 옮기면 무릎이 벽을 뚫고 반대쪽으로 휘돌았다).
+				# 지금 위반이 STAY_MAX를 넘으면(머물면 더 어색함) 건너간다. 무릎만(팔은 머물면 어깨 비틀림 초과가 오래 남아 건너는 편이 낫다:
+				# 해부학 스윕에서 팔 비틀림 위반 262 → 451틱). 거의 펴졌으면(SWITCH_H) 건너가도 보이지 않으니 그대로 간다.
+				var esc := _escape(bad, th_prev)
+				var now_v: float = at.call(th_prev)
+				if c.get("stay", true) and float(c.h) >= SWITCH_H and now_v < STAY_MAX and float(esc.cost) > now_v + ESCAPE_SLACK:
+					th_new = _descend(at, th_prev, now_v, step)
+				else:
+					th_new = th_prev + clampf(float(esc.span), -step, step)
 	var bend := (n * cos(th_new) + t * sin(th_new)).normalized()
 	return {"mid": (c.center as Vector3) + bend * float(c.h), "bend": bend}
+
+
+## 지금 축이 불가능하고 건너갈 길이 더 나쁠 때: 이번 틱 이동분 안에서 1°씩 양쪽을 보고 위반이 가장 작은 곳(지금보다 작을 때만).
+static func _descend(at: Callable, th_prev: float, now_v: float, step: float) -> float:
+	var best := th_prev
+	var best_v := now_v
+	var a := 0.0
+	while a < step - 0.00001:
+		a = minf(a + deg_to_rad(1.0), step)
+		for th in [th_prev + a, th_prev - a]:
+			var v: float = at.call(th)
+			if v < best_v - 0.00001:
+				best = th
+				best_v = v
+	return best
 
 
 ## 직전 축에서 움직일 각(부호 = 방향). 연속성 우선:
@@ -254,7 +283,7 @@ static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis,
 				hi = mid_f
 		# 경계에서 TARGET_MARGIN만큼 안쪽(손이 조금 움직여 경계가 옮겨 가도 바로 불가능해지지 않게)
 		target += signf(span) * maxf(0.0, absf(span) * lo - deg_to_rad(TARGET_MARGIN_DEG))
-	return {"dir": dir, "n": n, "t": t, "center": center, "h": h, "bad": bad, "best": best, "target": target, "at": at}
+	return {"dir": dir, "n": n, "t": t, "center": center, "h": h, "bad": bad, "best": best, "target": target, "at": at, "stay": not hand}
 
 
 ## 굽힘 후보 하나의 제약 위반량(0이면 해부학적으로 가능).

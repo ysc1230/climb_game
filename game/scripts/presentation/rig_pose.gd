@@ -134,7 +134,7 @@ func solve(joints: Dictionary, roll_deg: float, yaw_deg: float = 0.0, free_feet 
 		if name.begins_with("thigh_"):
 			var side := name.right(1)
 			var bend: Vector3 = joints["knee_" + side] - (from_p + joints["ankle_" + side]) * 0.5
-			basis = _twist(basis, name, dir, Vector3.FORWARD, bend, smoothstep(TWIST_BEND_MIN, TWIST_BEND_FULL, (bend - dir * bend.dot(dir)).length()))
+			basis = _thigh_twist(basis, name, dir, bend)
 		elif name.begins_with("foot_"):
 			var side := name.right(1)
 			var shin: Vector3 = (from_p - joints["knee_" + side]).normalized()
@@ -155,6 +155,33 @@ func solve(joints: Dictionary, roll_deg: float, yaw_deg: float = 0.0, free_feet 
 			var half: Quaternion = Quaternion.IDENTITY.slerp(sw.q, HELPER_SHARE) if sw.ok else Quaternion.IDENTITY
 			out[name] = Transform3D(Basis(half * a) * rest_basis[name], out[pair[1]].origin)
 	return out
+
+
+## 허벅지 비틀림: 무릎 앞면이 굽는 방향을 보게 돌린다. 굽힘이 작을수록(펴질수록) 직전 비틀림을 더 잇는다(굽힘 비중 w로
+## 직전 각 → 목표 각). 굽힘 크기만 보고 줄이면 무릎이 펴지는 2틱 사이에 다리가 길이축으로 50° 넘게 휙 돌았다(2026-11-21 사용자).
+## 한 번에 THIGH_TWIST_STEP_DEG까지만 돈다(목표가 ±180° 근처에서 반대 부호로 넘어가도 한 번에 돌지 않음).
+const THIGH_TWIST_STEP_DEG := 8.0
+var _thigh_twist_deg := {}   # 허벅지 → 직전 비틀림 각(도, 비틀지 않은 프레임 기준)
+
+
+func _thigh_twist(basis: Basis, name: String, dir: Vector3, bend: Vector3) -> Basis:
+	var now: Vector3 = basis * rest_basis[name].inverse() * Vector3.FORWARD
+	now -= dir * now.dot(dir)
+	var want := bend - dir * bend.dot(dir)
+	if now.length() < 0.01:
+		return basis
+	var w := smoothstep(TWIST_BEND_MIN, TWIST_BEND_FULL, want.length())
+	var target := now.normalized().signed_angle_to(want.normalized(), dir) if want.length() >= 0.001 else 0.0
+	var ang: float
+	if not _thigh_twist_deg.has(name):
+		ang = rad_to_deg(target) * w
+	else:
+		var prev: float = _thigh_twist_deg[name]
+		var step := rad_to_deg(angle_difference(deg_to_rad(prev), target)) * w
+		ang = prev + clampf(step, -THIGH_TWIST_STEP_DEG, THIGH_TWIST_STEP_DEG)
+	ang = wrapf(ang, -180.0, 180.0)
+	_thigh_twist_deg[name] = ang
+	return Basis(dir, deg_to_rad(ang)) * basis
 
 
 ## 뼈를 길이축(dir) 둘레로 돌려, 휴지 때 rest_ref(휴지 좌표)를 보던 면이 want 쪽을 보게 한다. amount 0~1.

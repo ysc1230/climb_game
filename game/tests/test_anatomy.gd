@@ -300,6 +300,30 @@ func test_leg_bone_twist() -> void:
 			_check_leg_twist(r.t, r.session, "12동작 뒤 RF %s" % [o])
 
 
+## 2026-11-21 사용자("무릎을 많이 굽힌 채 반대쪽으로 옮기면 비정상적으로 돌아간다"): 옆으로 굽은 무릎이 펴질 때
+## 허벅지 비틀림이 굽힘 크기만 보고 2틱 만에 꺼져 다리가 길이축으로 50° 넘게 휙 돌았다. 펴지는 동안 직전 비틀림을 잇는다.
+func test_thigh_twist_continuous_when_straightening() -> void:
+	var rig := _unit_rig()
+	var j := {"pelvis": Vector3(0, 1, 0.28), "spine": Vector3(0, 1.22, 0.28), "chest": Vector3(0, 1.44, 0.28)}
+	for s in ["L", "R"]:
+		var sx := -1.0 if s == "L" else 1.0
+		j["hip_" + s] = Vector3(sx * 0.10, 1.0, 0.28)
+	var prev := Quaternion.IDENTITY
+	var worst := 0.0
+	for i in 13:
+		var bend := 0.12 * (1.0 - i / 12.0)  # 무릎이 바깥(+X)으로 0.12 굽었다가 펴짐
+		for s in ["L", "R"]:
+			var sx := -1.0 if s == "L" else 1.0
+			j["ankle_" + s] = j["hip_" + s] + Vector3(0, -0.76, 0)
+			j["knee_" + s] = j["hip_" + s] + Vector3(sx * bend, -0.38, 0)
+			j["toe_" + s] = j["ankle_" + s] + Vector3(0, -0.05, -0.15)
+		var q := Quaternion(rig.solve(j, 0.0).thigh_R.basis.orthonormalized())
+		if i > 0:
+			worst = maxf(worst, rad_to_deg(prev.angle_to(q)))
+		prev = q
+	runner.check(worst <= 8.0, "펴지는 동안 허벅지 한 번 회전 %.1f° ≤ 8°" % worst)
+
+
 ## docs/37 2단계: 허벅지가 옆으로 45° 넘게 벌어지면 골반 뼈만 그 다리 쪽이 올라간다(최대 15°). 허리 뼈는 그대로.
 func test_pelvis_tilt() -> void:
 	var rig := _unit_rig()
