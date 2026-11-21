@@ -66,18 +66,47 @@ func test_unlock_all() -> void:
 	runner.check(not p.first_run_locked(idx), "첫 실행 잠금도 풀림")
 
 
-## 기운 벽은 위쪽 줄 [시점] 버튼으로 뒤 → 비스듬히 → 옆을 돌려 본다(2026-11-22 사용자: 기울기를 여러 각도에서).
-func test_view_button_cycles() -> void:
+func _touch(n: Node2D, index: int, pos: Vector2, pressed: bool) -> void:
+	var e := InputEventScreenTouch.new()
+	e.index = index
+	e.position = pos
+	e.pressed = pressed
+	n._input(e)
+
+
+func _drag(n: Node2D, index: int, pos: Vector2) -> void:
+	var e := InputEventScreenDrag.new()
+	e.index = index
+	e.position = pos
+	n._input(e)
+
+
+## [시점]을 누르면 게임이 멈추고 손가락으로 시점을 돌린다(2026-11-22 사용자: "원하는 각도로 마음대로 손가락으로 조정").
+## 한 손가락 끌기 = 좌우·위아래 돌리기, 두 손가락 벌리기 = 확대, [처음 시점] = 되돌리기, [완료] = 그 각도로 이어서.
+func test_camera_edit_by_finger() -> void:
 	var n: Node2D = preload("res://scenes/play_test.gd").new()
 	n.route = _route(30.0)
 	n.session = ClimbSession.new(n.route)
-	var labels: Array = n._help_buttons().map(func(b): return b.action)
-	runner.check(labels.has("view"), "기운 벽이면 시점 버튼")
-	runner.check(n.view_mode == 0, "처음은 뒤")
+	var acts: Array = n._help_buttons().map(func(b): return b.action)
+	runner.check(acts.has("view"), "기운 벽이면 시점 버튼")
 	n._overlay_action("view")
-	runner.check(n.view_mode == 1, "한 번 누르면 비스듬히")
+	runner.check(n.cam_edit, "누르면 시점 조정")
+	runner.check(n._help_buttons().map(func(b): return b.action).has("view_reset"), "처음 시점 버튼")
+	_touch(n, 0, Vector2(800, 400), true)
+	_drag(n, 0, Vector2(1000, 300))
+	runner.check(absf(n.cam_yaw) > 0.2, "옆으로 끌면 좌우로 돎(%.2f)" % n.cam_yaw)
+	runner.check(absf(n.cam_pitch) > 0.05, "위로 끌면 위아래로 돎(%.2f)" % n.cam_pitch)
+	runner.check(n.session.limbs[&"LH"].state == "Attached", "시점 조정 중 터치는 패드로 가지 않음")
+	_touch(n, 1, Vector2(1200, 300), true)
+	_drag(n, 1, Vector2(1400, 300))
+	runner.check(n.cam_zoom < 1.0, "두 손가락을 벌리면 가까이(%.2f)" % n.cam_zoom)
+	_touch(n, 0, Vector2(1000, 300), false)
+	_touch(n, 1, Vector2(1400, 300), false)
+	var yaw: float = n.cam_yaw
 	n._overlay_action("view")
+	runner.check(not n.cam_edit and is_equal_approx(n.cam_yaw, yaw), "완료: 그 각도 그대로")
 	n._overlay_action("view")
-	runner.check(n.view_mode == 0, "세 번이면 다시 뒤")
+	n._overlay_action("view_reset")
+	runner.check(n.cam_yaw == 0.0 and n.cam_pitch == 0.0 and n.cam_zoom == 1.0, "처음 시점으로")
 	n.route.wall_deg = 0.0
 	n.free()

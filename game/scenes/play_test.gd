@@ -251,16 +251,27 @@ func _fall_heights() -> Array:
 	return game.progress.stats.get(route.route_id, {}).get("fall_heights", [])
 
 
-## 기운 벽 시점(실험 앱, 2026-11-22 사용자: "기울기가 있다는 걸 다양한 각도에서 볼 수 있도록"). play_3d가 카메라를 돌린다.
-const VIEW_NAMES := ["뒤", "비스듬히", "옆"]
-var view_mode := 0
+## 기운 벽 시점(실험 앱, 2026-11-22 사용자: "기울기가 있다는 걸 다양한 각도에서 볼 수 있도록", "원하는 각도로 마음대로
+## 손가락으로 조정"). [시점]을 누르면 게임이 멈추고(네 손가락이 패드에 있어 오르면서는 못 돌린다) 한 손가락 끌기로 좌우·위아래를
+## 돌리고 두 손가락으로 확대·축소한다. [완료]면 그 각도로 이어서 오른다. play_3d가 cam_yaw·cam_pitch·cam_zoom으로 카메라를 둔다.
+const CAM_TURN := 0.006          # 끈 픽셀당 도는 각(라디안)
+const CAM_YAW_MAX := deg_to_rad(85.0)
+const CAM_PITCH_RANGE := Vector2(deg_to_rad(-35.0), deg_to_rad(40.0))  # − 위에서 내려다봄, + 아래에서 올려다봄
+const CAM_ZOOM_RANGE := Vector2(0.45, 1.6)
+var cam_edit := false
+var cam_yaw := 0.0
+var cam_pitch := 0.0
+var cam_zoom := 1.0
+var _cam_touches := {}  # 손가락 index → 위치(시점 조정 중)
 
 
 ## 위쪽 줄 도움 버튼: 3번 떨어지면 [힌트], 5번이면 [시범 보기]. 튜토리얼·정답 순서 없는 문제는 없음.
 func _help_buttons() -> Array:
 	var out := []
+	if cam_edit:
+		return [{"label": "완료", "action": "view", "on": true}, {"label": "처음 시점", "action": "view_reset"}]
 	if route != null and route.wall_deg > 0.0:  # 기운 벽(실험 앱): 시점 돌리기
-		out.append({"label": "시점: " + VIEW_NAMES[view_mode], "action": "view"})
+		out.append({"label": "시점", "action": "view"})
 	if tutorial != null or route.intended_moves.is_empty():
 		return out
 	if help_falls >= HelpPicker.HINT_FALLS:
@@ -673,6 +684,9 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and _overlay_event(-1, event.position, event.pressed):
 		return
+	if cam_edit:
+		_cam_input(event)
+		return
 	if event is InputEventScreenTouch:
 		if event.canceled:
 			_apply(router.cancel_all())
@@ -702,6 +716,34 @@ func _input(event: InputEvent) -> void:
 		_ui_drag(-1, event.position)
 
 
+## 시점 조정 중 입력: 한 손가락 끌기 = 돌리기, 두 손가락 = 확대·축소(벌리면 가까이). 데스크톱은 마우스 끌기·휠.
+func _cam_input(event: InputEvent) -> void:
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			_cam_touches[event.index] = event.position
+		else:
+			_cam_touches.erase(event.index)
+	elif event is InputEventScreenDrag and _cam_touches.has(event.index):
+		if _cam_touches.size() >= 2:
+			var other: Vector2 = _cam_touches[_cam_touches.keys().filter(func(i): return i != event.index)[0]]
+			var before := other.distance_to(_cam_touches[event.index])
+			var after := other.distance_to(event.position)
+			if before > 1.0 and after > 1.0:
+				cam_zoom = clampf(cam_zoom * before / after, CAM_ZOOM_RANGE.x, CAM_ZOOM_RANGE.y)
+		else:
+			_cam_turn(event.position - (_cam_touches[event.index] as Vector2))
+		_cam_touches[event.index] = event.position
+	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+		_cam_turn(event.relative)
+	elif event is InputEventMouseButton and event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		cam_zoom = clampf(cam_zoom * (0.9 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.1), CAM_ZOOM_RANGE.x, CAM_ZOOM_RANGE.y)
+
+
+func _cam_turn(d: Vector2) -> void:
+	cam_yaw = clampf(cam_yaw - d.x * CAM_TURN, -CAM_YAW_MAX, CAM_YAW_MAX)
+	cam_pitch = clampf(cam_pitch - d.y * CAM_TURN, CAM_PITCH_RANGE.x, CAM_PITCH_RANGE.y)
+
+
 ## 오버레이 버튼(일시정지·목록·다시·다음·도움말·건너뛰기). 결과·완료 화면이 떠 있으면 모든 입력을 받아 쓴다.
 func _overlay_event(index: int, pos: Vector2, pressed: bool) -> bool:
 	if not pressed:
@@ -720,7 +762,15 @@ func _overlay_event(index: int, pos: Vector2, pressed: bool) -> bool:
 func _overlay_action(act: String) -> void:
 	match act:
 		"view":
-			view_mode = (view_mode + 1) % VIEW_NAMES.size()
+			cam_edit = not cam_edit
+			_cam_touches.clear()
+			if cam_edit:
+				_apply(router.cancel_all())
+				_flash("한 손가락으로 끌어 돌리고, 두 손가락으로 확대·축소해요", 240)
+		"view_reset":
+			cam_yaw = 0.0
+			cam_pitch = 0.0
+			cam_zoom = 1.0
 		"hint":
 			_hint_toggle()
 		"demo":
@@ -891,6 +941,9 @@ func _physics_process(_delta: float) -> void:
 			prepare_left -= _delta
 			if prepare_left <= 0.0:
 				paused = false
+		queue_redraw()
+		return
+	if cam_edit:  # 시점 조정 중에는 게임이 멈춘다
 		queue_redraw()
 		return
 	_confetti_tick(_delta)
