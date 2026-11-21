@@ -16,6 +16,7 @@ const LOW_MAX := 1.0         # m, 발 높이가 이보다 낮으면 낮음
 const MID_MAX := 2.0         # m, 이보다 낮으면 중간, 아니면 높음
 const TILT_HIGH := 35.0      # 도, 몸이 이보다 기울어 떨어지면 높음
 const ANKLE_H := 0.07        # 서 있을 때 발목 높이(매트 위)
+const STAND_TOP := 1.75      # m, 선 자세 머리 꼭대기 높이(기운 벽에서 이 높이의 벽면보다 앞에 선다)
 const BLEND := 0.15          # 착지 순간 자세를 열쇠 자세로 넘기는 시간(초)
 const NAMES := ["pelvis", "spine", "chest", "neck", "head", "head_top",
 	"shoulder_L", "elbow_L", "wrist_L", "hand_L", "shoulder_R", "elbow_R", "wrist_R", "hand_R",
@@ -42,6 +43,7 @@ const SEQ := {
 var elapsed := 0.0
 var _mat := 0.0
 var _wall := 0.0
+var _tan := 0.0  # 기운 벽(experiment/overhang): 높이 y의 벽면 z = _wall + max(y, 0)·tanθ
 var _start := {}        # 시작 점
 var _pins := {}         # 점 이름 → 놓는 시각
 var _hold := 0.0        # 남은 손을 놓기까지(이 동안은 매달린 그대로)
@@ -62,13 +64,15 @@ var _done := false
 
 
 ## points: 이름 → Vector3(NAMES). vel: 시작 몸 속도. pins: 아직 붙은 손 점 → 놓는 시각.
-func start(points: Dictionary, vel: Vector3, pins: Dictionary, mat_top_y: float, wall_z: float) -> void:
+## wall_deg: 벽 기울기(오버행 +). 벽면이 위로 갈수록 앞(+z)으로 나온다.
+func start(points: Dictionary, vel: Vector3, pins: Dictionary, mat_top_y: float, wall_z: float, wall_deg := 0.0) -> void:
 	_mat = mat_top_y
 	_wall = wall_z
+	_tan = tan(deg_to_rad(clampf(wall_deg, 0.0, 80.0)))
 	_start = {}
 	for k in NAMES:
 		var p: Vector3 = points.get(k, points.get("pelvis", Vector3.ZERO))
-		_start[k] = Vector3(p.x, maxf(p.y, _mat), maxf(p.z, _wall))
+		_start[k] = Vector3(p.x, maxf(p.y, _mat), maxf(p.z, wall_at(p.y)))
 	_pins = pins.duplicate()
 	_hold = 0.0
 	for k in _pins:
@@ -151,10 +155,11 @@ func _tick(dt: float) -> void:
 		_vel.y -= GRAVITY * dt
 		_vel.x *= exp(-2.0 * dt)
 		_pel += _vel * dt
-		_pel.z = lerpf(_pel.z, maxf(_pel.z, _wall + 0.3), 1.0 - exp(-4.0 * dt))
+		_pel.z = lerpf(_pel.z, maxf(_pel.z, wall_at(_pel.y) + 0.3), 1.0 - exp(-4.0 * dt))
 		if _air_base(_pel).y <= _mat:
 			_pel.y = _mat + AIR.h * _stand_h
-			_base = Vector3(_pel.x, _mat, maxf(_pel.z - AIR.dz, _wall + 0.35))  # 무릎·손이 벽에 닿지 않게
+			# 무릎·손이 벽에 닿지 않게. 기운 벽은 선 머리 높이(STAND_TOP)의 벽면보다 앞에 선다
+			_base = Vector3(_pel.x, _mat, maxf(_pel.z - AIR.dz, maxf(_wall + 0.35, wall_at(_mat + STAND_TOP) + 0.15)))
 			_snap = _frame_air()
 			_land_t = 0.0
 			_landed_at = elapsed
@@ -210,8 +215,13 @@ func _frame_air() -> Dictionary:
 func _clamp(pts: Dictionary) -> Dictionary:
 	for k in pts:
 		var p: Vector3 = pts[k]
-		pts[k] = Vector3(p.x, maxf(p.y, _mat), maxf(p.z, _wall))
+		pts[k] = Vector3(p.x, maxf(p.y, _mat), maxf(p.z, wall_at(p.y)))
 	return pts
+
+
+## 높이 y의 벽면 z(수직 벽은 _wall 그대로).
+func wall_at(y: float) -> float:
+	return _wall + maxf(y, 0.0) * _tan
 
 
 static func _mix(a: Dictionary, b: Dictionary, w: float) -> Dictionary:
@@ -247,7 +257,7 @@ func _build(base: Vector3, c: Dictionary, t: float) -> Dictionary:
 			var flat := Vector2(a.x, a.z).normalized() * sqrt(1.0 - min_y * min_y)
 			a = Vector3(flat.x, min_y, flat.y)
 		# 손이 벽을 뚫으면 벽 앞에서 멈추게 아래·옆으로 돌린다
-		var min_z := clampf((_wall + 0.03 - sh.z) / (L.ua + L.fa + L.hand), -1.0, 1.0)
+		var min_z := clampf((wall_at(sh.y) + 0.03 - sh.z) / (L.ua + L.fa + L.hand), -1.0, 1.0)
 		if a.z < min_z:
 			var side := Vector2(a.x, a.y).normalized() * sqrt(1.0 - min_z * min_z)
 			a = Vector3(side.x, side.y, min_z)

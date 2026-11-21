@@ -173,3 +173,19 @@ func test_ignores_non_skeleton_keys() -> void:
 	sim.start(t, Vector3.ZERO, {}, MAT, WALL)
 	sim.step(1.0 / 60.0)
 	runner.check(not sim.points().has("up"), "up은 점이 아님")
+
+
+## 기운 벽(experiment/overhang): 45° 벽 아래로 떨어져 서면 몸 어느 점도 벽면 속에 있지 않다.
+func test_overhang_landing_outside_wall() -> void:
+	var sim := FallSim.new()
+	var pts := {}
+	for k in FallSim.NAMES:
+		pts[k] = Vector3(0, 1.0 + 0.5 * FallSim.NAMES.find(k) / FallSim.NAMES.size(), 1.2)
+	sim.start(pts, Vector3.ZERO, {}, -0.075, 0.02, 45.0)
+	sim.skip()
+	var inside := 0
+	for k in sim.points():
+		var p: Vector3 = sim.points()[k]
+		if p.z < sim.wall_at(p.y) - 0.001:
+			inside += 1
+	runner.check(inside == 0, "45° 벽 아래 착지: 벽면 속 점 없음(%d)" % inside)

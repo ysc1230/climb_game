@@ -20,6 +20,8 @@ func _process(_d: float) -> bool:
 		if g != null:
 			g.current_route_id = args[1]
 			g.progress.look["body"] = args[7] if args.size() > 7 else "female"
+			if OS.get_environment("WALL") != "":  # 벽 기울기 설정(실험 앱)
+				g.progress.set_control("wall_deg", int(OS.get_environment("WALL")))
 			if OS.get_environment("CLEAN") != "":  # 휴대폰 기본 화면처럼(힘 %·AI 고스트 끔)
 				g.progress.display = Progress.DISPLAY_DEFAULTS.duplicate()
 		play = load("res://scenes/play_3d.tscn").instantiate()

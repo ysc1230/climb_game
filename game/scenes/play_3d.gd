@@ -26,6 +26,9 @@ var skeleton: Skeleton3D
 var foot_marks := {}  # foot -> [채운, 빈]
 var flag_marks := {}  # foot -> 균형 발 마름모
 var rng := RandomNumberGenerator.new()
+## 기운 벽 묶음(experiment/overhang, docs/48 R2): 벽·홀드·표시·캐릭터를 벽 아래 가장자리(y=0, z=0)를 축으로
+## 문제의 벽 각도만큼 기울인다. 이 안의 좌표는 판정 벽 좌표 그대로다. 매트·조명·카메라·낙하 장면은 월드 좌표.
+var wall_root := Node3D.new()
 
 
 func _ready() -> void:
@@ -35,6 +38,8 @@ func _ready() -> void:
 	logic.w2s_fn = world_to_screen
 	logic.limb_chain_fn = limb_chain_screen
 	logic.s2w_fn = screen_to_wall
+	wall_root.rotation = Vector3(deg_to_rad(float(logic.route.wall_deg)), 0, 0)
+	add_child(wall_root)
 	_build_environment()
 	_build_wall()
 	_build_holds()
@@ -44,11 +49,11 @@ func _ready() -> void:
 	for foot in [&"LF", &"RF"]:
 		var filled := _mesh(_tri_mesh(false), _overlay(TARGET_CREAM), false)
 		var hollow := _mesh(_tri_mesh(true), _overlay(TARGET_CREAM), false)
-		add_child(filled)
-		add_child(hollow)
+		wall_root.add_child(filled)
+		wall_root.add_child(hollow)
 		foot_marks[foot] = [filled, hollow]
 		var diamond := _mesh(_diamond_mesh(), _overlay(Color("a8d8d0")), false)
-		add_child(diamond)
+		wall_root.add_child(diamond)
 		flag_marks[foot] = diamond
 
 
@@ -169,7 +174,7 @@ func _build_wall() -> void:
 	# 활성 등반 평면: 한 장의 큰 판. 합판 판넬·이음선·볼트 구멍은 셰이더가 월드 좌표로 그린다(작업 4 §4.3)
 	var wall := _mesh(_box(Vector3(half_w * 2.0, top + 0.6, 0.08)), _toon(WALL_PLY, WALL_OLIVE, true), true)
 	wall.position = Vector3(0, (top - 0.6) * 0.5, -0.06)
-	add_child(wall)
+	wall_root.add_child(wall)
 	# 바닥 매트(윗면 y = MAT_TOP_Y, 낙하 인형이 같은 값을 쓴다): 회색 천, 1m 이음선
 	var mat_m := _toon(MAT_GRAY, MAT_GRAY.darkened(0.45))
 	mat_m.set_shader_parameter("mat_pattern", true)
@@ -181,7 +186,7 @@ func _build_wall() -> void:
 		var wing := _mesh(_box(Vector3(2.4, top + 1.0, 0.2)), _toon(WALL_PLY.darkened(0.28), WALL_OLIVE.darkened(0.2), true), true)
 		wing.position = Vector3(side * (half_w + 1.2), (top - 1.0) * 0.5, 0.35)
 		wing.rotation_degrees = Vector3(0, -side * 38, 0)
-		add_child(wing)
+		wall_root.add_child(wing)
 	# 볼륨: 벽에 붙은 삼각기둥·상자(볼트). 벽 가장자리, 홀드와 겹치지 않는 자리에만(deco_spots)
 	var k := 0
 	for d in deco_spots(logic.route.slots, half_w, top, rng):
@@ -204,7 +209,7 @@ func _add_volume(p: Vector2, size: float, tri: bool) -> void:
 		v = _mesh(_box(Vector3(size, size * 0.8, out * 0.6)), m, true)
 		v.rotation_degrees = Vector3(rng.randf_range(-22, -12), rng.randf_range(-20, 20), rng.randf_range(-6, 6))
 		v.position = Vector3(p.x, p.y, -0.02 + out * 0.3)
-	add_child(v)
+	wall_root.add_child(v)
 	var bolt_m := _toon(INK, INK)
 	for i in 3:
 		var b := MeshInstance3D.new()
@@ -223,7 +228,7 @@ func _add_volume(p: Vector2, size: float, tri: bool) -> void:
 		else:
 			b.position = Vector3(p.x + t * size * 0.6, p.y + size * 0.2, -0.02 + out * 0.6 + 0.004)
 			b.rotation_degrees = Vector3(90, 0, 0)
-		add_child(b)
+		wall_root.add_child(b)
 
 
 func _box(size: Vector3) -> BoxMesh:
@@ -339,7 +344,7 @@ func _build_holds() -> void:
 		var tilt := 0.0 if str(slot.get("hold_type", "")) != "" else deg_to_rad(rng.randf_range(-8, 8))  # 종류 홀드는 rot_deg 그대로
 		hold.rotation = Vector3(0, 0, ang + tilt)
 		hold.scale = Vector3.ONE * hold_view_scale(slot, mesh, is_goal) * rng.randf_range(0.95, 1.05)
-		add_child(hold)
+		wall_root.add_child(hold)
 		climber_pose.surface_depth[key] = mesh.get_aabb().end.z * hold.scale.z  # 홀드 겉면(손발을 여기 얹는다)
 		climber_pose.surface_top[key] = mesh.get_aabb().end.y * hold.scale.y  # 홀드 윗면(발끝을 여기 얹는다)
 		var glow := MeshInstance3D.new()
@@ -351,7 +356,7 @@ func _build_holds() -> void:
 		glow.rotation = hold.rotation
 		glow.scale = hold.scale * 1.18
 		glow.visible = false
-		add_child(glow)
+		wall_root.add_child(glow)
 		hold_glows[key] = glow
 
 
@@ -366,7 +371,7 @@ func _update_reach_rings() -> void:
 		if not reach_rings.has(limb):
 			var ring := _mesh(_torus(0.02, 0.003), _overlay(Color(1, 1, 1, 0.8)), false)
 			ring.rotation_degrees = Vector3(90, 0, 0)
-			add_child(ring)
+			wall_root.add_child(ring)
 			reach_rings[limb] = ring
 		var l: Dictionary = logic.session.limbs[limb]
 		var r: MeshInstance3D = reach_rings[limb]
@@ -418,7 +423,7 @@ func _build_character() -> void:
 		parts[str(limb) + "_lower"] = _capsule_part(0.045 if hand else 0.06, skin if hand else pants)
 		parts[str(limb) + "_end"] = _mesh(_sphere(0.05 if hand else 0.065), skin if hand else shoe, false)
 	for p in parts.values():
-		add_child(p)
+		wall_root.add_child(p)
 
 
 func _sphere(r: float) -> SphereMesh:
@@ -494,7 +499,7 @@ func _fall_targets(delta: float) -> Dictionary:
 			pins["hand_" + s] = at
 			pins["wrist_" + s] = at
 		fall_sim = FallSim.new()
-		fall_sim.start(_last_t, req.vel, pins, MAT_TOP_Y, WALL_Z)
+		fall_sim.start(_to_world(_last_t), wall_root.transform.basis * (req.vel as Vector3), pins, MAT_TOP_Y, WALL_Z, float(logic.route.wall_deg))
 		logic.fall_request = {}
 	if fall_sim != null:
 		if logic.fall_skip:
@@ -504,11 +509,12 @@ func _fall_targets(delta: float) -> Dictionary:
 		var imp := fall_sim.take_impact()
 		if not imp.is_empty():
 			_on_landing(imp)
-		var t: Dictionary = fall_sim.points().duplicate()
+		var tw: Dictionary = fall_sim.points()
+		var t := _to_wall(tw)  # 캐릭터는 기운 벽 묶음 안(벽 좌표)
 		var up := ((t.chest as Vector3) - (t.pelvis as Vector3)).normalized()
 		t["up"] = up
 		_fall_angle = rad_to_deg(atan2(-up.x, up.y))
-		# 카메라가 떨어지는 몸을 따라 내려가 매트가 보이게
+		# 카메라가 떨어지는 몸을 따라 내려가 매트가 보이게(벽 좌표 높이)
 		var want := maxf((t.pelvis as Vector3).y + 0.12 * logic.PLAY_H, 1.4)
 		logic.cam_y = lerpf(logic.cam_y, want, 1.0 - exp(-6.0 * delta))
 		if fall_sim.done():
@@ -519,6 +525,29 @@ func _fall_targets(delta: float) -> Dictionary:
 	var t := _pose_targets(delta)
 	_last_t = t
 	return t
+
+
+## 벽 좌표 관절 → 월드(기운 벽 묶음 변환). Vector3 값만 바꾼다(방향 "up"은 회전만).
+func _to_world(t: Dictionary) -> Dictionary:
+	var out := {}
+	var g := wall_root.transform
+	for k in t:
+		if t[k] is Vector3:
+			out[k] = (g.basis * (t[k] as Vector3)) if k == "up" else (g * (t[k] as Vector3))
+		else:
+			out[k] = t[k]
+	return out
+
+
+func _to_wall(t: Dictionary) -> Dictionary:
+	var out := {}
+	var g := wall_root.transform.affine_inverse()
+	for k in t:
+		if t[k] is Vector3:
+			out[k] = (g.basis * (t[k] as Vector3)) if k == "up" else (g * (t[k] as Vector3))
+		else:
+			out[k] = t[k]
+	return out
 
 
 ## 착지 순간: 쿵 소리·진동·팁(logic), 매트 눌림 자국·먼지, 높으면 화면 흔들림.
@@ -552,7 +581,7 @@ func _on_landing(imp: Dictionary) -> void:
 	tw.tween_property(mat, "albedo_color", Color(1, 1, 1, 0), 0.9).set_delay(0.25)
 	tw.tween_callback(dent.queue_free)
 	for dx in [-0.15, 0.15]:
-		logic.puffs.append({"kind": &"dust", "pos": Vector2(pos.x + dx, MAT_TOP_Y + 0.05), "z": pos.z})
+		logic.puffs.append({"kind": &"dust", "pos": Vector2(pos.x + dx, MAT_TOP_Y + 0.05), "z": pos.z, "world": true})
 
 
 var _shake := 0.0
@@ -613,7 +642,7 @@ var rig := RigPose.new()
 
 ## RigPose(docs/04 §8)가 만든 연속 프레임을 그대로 적용한다. 180° 대체 회전 없음.
 func _pose_model(t: Dictionary, delta: float) -> void:
-	var inv := skeleton.global_transform.affine_inverse()
+	var inv := skeleton.global_transform.affine_inverse() * wall_root.global_transform  # t는 벽 좌표
 	var local := {}
 	for key in t:
 		if t[key] is Vector3 and key != "up":
@@ -766,7 +795,7 @@ func _build_model() -> bool:
 	if path == "" or not ResourceLoader.exists(path):
 		return false
 	var model: Node3D = load(path).instantiate()
-	add_child(model)
+	wall_root.add_child(model)
 	asm.apply(model, look)
 	var found := model.find_children("*", "Skeleton3D", true, false)
 	skeleton = found[0] if found.size() > 0 else null
@@ -808,6 +837,9 @@ func _build_model() -> bool:
 	return true
 
 
+const CAM_MIN_Y := 0.6  # 기운 벽에서 카메라 최저 높이(m, 매트 위)
+
+
 func _update_camera() -> void:
 	var size := get_viewport().get_visible_rect().size
 	if size.y <= 0:
@@ -815,19 +847,28 @@ func _update_camera() -> void:
 	# 높이 3.8m를 기본으로, 중앙 56% 폭에 3.4m가 들어가지 않으면 시야를 넓힌다(docs/05 고정 플레이 창).
 	var visible_h := maxf(PLAY_H, PLAY_W * size.y / maxf(size.x * 0.56, 1.0))
 	var dist := (visible_h * 0.5) / tan(deg_to_rad(camera.fov * 0.5))
-	camera.position = Vector3(0, logic.cam_y, CONTACT_DEPTH + dist)
-	camera.rotation = Vector3.ZERO
+	# 기운 벽: 벽 면의 지금 높이를 보되, 카메라는 기운 각의 1/4만 아래에서 올려다본다(벽 법선 쪽에 서면 매트 밑으로 들어감).
+	# 매트 위 CAM_MIN_Y 아래로는 내려가지 않는다. 수직 벽은 이전과 같다.
+	var th := wall_root.rotation.x
+	var look := wall_root.transform * Vector3(0, logic.cam_y, CONTACT_DEPTH)
+	camera.position = look + Basis(Vector3.RIGHT, th * 0.25) * Vector3(0, 0, dist)
+	camera.position.y = maxf(camera.position.y, CAM_MIN_Y) if th > 0.0 else camera.position.y
+	if th > 0.0:
+		camera.look_at(look, Vector3.UP)
+	else:
+		camera.rotation = Vector3.ZERO
 
 
 ## 벽 접촉 평면(z = CONTACT_DEPTH)의 월드 좌표 → 화면 픽셀. 기술 UI의 홀드 강조·탭 변환용.
 func world_to_screen(p: Vector2) -> Vector2:
-	return camera.unproject_position(Vector3(p.x, p.y, CONTACT_DEPTH))
+	return camera.unproject_position(wall_root.transform * Vector3(p.x, p.y, CONTACT_DEPTH))
 
 
 ## 화면 픽셀 → 카메라 광선과 z = CONTACT_DEPTH 평면의 교점(벽 좌표).
 func screen_to_wall(s: Vector2) -> Vector2:
-	var o := camera.project_ray_origin(s)
-	var n := camera.project_ray_normal(s)
+	var gi := wall_root.transform.affine_inverse()
+	var o := gi * camera.project_ray_origin(s)
+	var n := gi.basis * camera.project_ray_normal(s)
 	if absf(n.z) < 0.0001:
 		return Vector2(o.x, o.y)
 	var t := (CONTACT_DEPTH - o.z) / n.z
@@ -918,7 +959,7 @@ func _spawn_puffs() -> void:
 		pm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		e.material_override = pm
 		e.position = Vector3((p.pos as Vector2).x, (p.pos as Vector2).y, float(p.get("z", CONTACT_DEPTH + 0.06)))
-		add_child(e)
+		(self if p.get("world", false) else wall_root).add_child(e)  # 착지 먼지는 월드(매트), 나머지는 벽 좌표
 		e.emitting = true
 		get_tree().create_timer(1.0).timeout.connect(e.queue_free)
 	logic.puffs.clear()

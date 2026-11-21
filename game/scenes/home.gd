@@ -250,7 +250,7 @@ func _do(action: String, arg: String) -> void:
 			game.get_flow().set_display(arg, not game.progress.display_on(arg))
 		"control":
 			var kv := arg.split("=")
-			game.get_flow().set_control(kv[0], (kv[1] == "1") if kv[0] == "tilt_with_drag" else (kv[1] if kv[0] == "body" else float(kv[1])))
+			game.get_flow().set_control(kv[0], (kv[1] == "1") if kv[0] == "tilt_with_drag" else (kv[1] if kv[0] == "body" else (int(kv[1]) if kv[0] == "wall_deg" else float(kv[1]))))
 		"skip":
 			game.skip_basic()
 			_set_tab("general")
@@ -1015,6 +1015,17 @@ func _draw_control_settings(at: Vector2, w: float) -> void:
 	var p: Progress = game.progress
 	var x := at.x
 	var y := at.y
+	# 벽 기울기(실험 앱): 일반 문제 전체에 같은 각도
+	draw_string(font, Vector2(x, y), "벽 기울기", HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * k), CREAM)
+	y += 30 * k
+	var wd := int(p.control_get("wall_deg"))
+	var cw := (w - 4 * 12 * k) / 5.0
+	for i in Progress.WALL_ANGLES.size():
+		var a: int = Progress.WALL_ANGLES[i]
+		_button(Rect2(Vector2(x + i * (cw + 12 * k), y), Vector2(cw, 56 * k)), "%d°" % a, "control", "wall_deg=%d" % a, 22, wd == a)
+	y += 56 * k
+	draw_string(font, Vector2(x, y + 28 * k), "0°는 수직, 클수록 벽이 머리 위로 기울어요(일반 문제만)", HORIZONTAL_ALIGNMENT_LEFT, w, int(17 * k), DIM)
+	y += 60 * k
 	draw_string(font, Vector2(x, y), "몸 옮기기", HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * k), CREAM)
 	y += 30 * k
 	var tilt: bool = p.control_get("body") == "tilt"

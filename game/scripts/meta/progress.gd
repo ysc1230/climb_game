@@ -30,7 +30,9 @@ var display := {}
 ## 몸 옮기기(작업 2, docs/superpowers/specs/2026-11-19-2-tilt-design.md). body: "drag" 가운데 끌기 | "tilt" 휴대폰 기울이기.
 ## tilt_sens 1~10, tilt_dead 반응 시작 각도 0~20°, tilt_with_drag 기울이기 중에도 가운데 끌기. 키가 없으면 CONTROL_DEFAULTS.
 ## 기본 민감도 5·각도 10°(2026-11-20 사용자).
-const CONTROL_DEFAULTS := {"body": "drag", "tilt_sens": 5, "tilt_dead": 10.0, "tilt_with_drag": true}
+## wall_deg: 벽 기울기(실험 앱 experiment/overhang, docs/48 R2). WALL_ANGLES 중 하나, 일반 문제에만 적용.
+const CONTROL_DEFAULTS := {"body": "drag", "tilt_sens": 5, "tilt_dead": 10.0, "tilt_with_drag": true, "wall_deg": 25}
+const WALL_ANGLES := [0, 15, 25, 35, 45]
 const TILT_SENS_MAX := 10
 const TILT_DEAD_MAX := 20.0
 var control := {}
@@ -102,6 +104,15 @@ func set_control(key: String, value: Variant) -> void:
 			control[key] = clampf(float(value), 0.0, TILT_DEAD_MAX)
 		"tilt_with_drag":
 			control[key] = bool(value)
+		"wall_deg":
+			if int(value) in WALL_ANGLES:
+				control[key] = int(value)
+
+
+## 벽 기울기 설정을 문제에 적용한다(일반 문제만. 튜토리얼·수업은 수직 그대로). 문제 JSON에 각도가 있으면 그대로.
+static func apply_wall_angle(route: RouteDef, p: Progress) -> void:
+	if route.mode == "general" and not route.wall_from_data:
+		route.wall_deg = float(p.control_get("wall_deg"))
 
 
 ## 화면 표시가 켜져 있는가(설정 탭).

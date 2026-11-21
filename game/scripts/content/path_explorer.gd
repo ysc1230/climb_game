@@ -25,6 +25,7 @@ var expanded := 0
 static func explore(p_route: RouteDef, forbid := {}, pull_only := false, time_limit_ms := 0) -> Dictionary:
 	var ex := PathExplorer.new()
 	ex.route = p_route
+	ClimbRules.wall_deg = p_route.wall_deg
 	ex.forbid = forbid
 	ex.pull_only = pull_only
 	ex.deadline = Time.get_ticks_msec() + time_limit_ms if time_limit_ms > 0 else 0

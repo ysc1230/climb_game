@@ -83,3 +83,28 @@ func test_sidepull_axis_horizontal() -> void:
 	# 힘은 축 (-1,0) ±50° 안의 조합이라 하중이 있으면 X 성분이 음수(cos50°·load 만큼)
 	var fx: float = r.loads[&"LH"] * -1.0 * cos(deg_to_rad(50.0))
 	runner.check(fx < 0.0 and (hand.axis as Vector2).x < 0.0, "손 힘 X 성분 음수 %.3f" % fx)
+
+
+## 벽 기울기(docs/48 R2, 오버행 실험): 벽면 안 무게 cosθ, 벽 밖으로 빠지는 sinθ는 손이 당기고 발은 발 하중 × FOOT_OUT_SHARE(0.25)까지만.
+## 같은 네 점 자세가 45°에서는 손이 훨씬 무겁고, 벽 밖 힘 합은 sinθ다.
+func test_overhang_loads_hands() -> void:
+	var cs := [_c(&"LH", -0.45, 1.80), _c(&"RH", 0.45, 1.80), _c(&"LF", -0.30, 0.10), _c(&"RF", 0.30, 0.10)]
+	var v := SupportSolver.solve(cs, Vector2(0, 1.0))
+	var o := SupportSolver.solve(cs, Vector2(0, 1.0), cos(deg_to_rad(45.0)), sin(deg_to_rad(45.0)))
+	runner.check(o.status == SupportSolver.Status.FEASIBLE, "45°에서도 네 점이면 버팀")
+	var hv: float = v.loads[&"LH"] + v.loads[&"RH"]
+	var ho: float = o.loads[&"LH"] + o.loads[&"RH"]
+	runner.check(ho > hv * 1.8 and ho >= 0.5, "45°에서 손 하중이 두 배 가까이, 체중 절반 이상(%.2f → %.2f)" % [hv, ho])
+	var out := 0.0
+	for l in o.out:
+		out += o.out[l]
+	runner.check(absf(out - sin(deg_to_rad(45.0))) < 0.03, "벽 밖 힘 합 = sin45° (%.2f)" % out)
+	for f in [&"LF", &"RF"]:
+		runner.check(o.out.get(f, 0.0) <= SupportSolver.FOOT_OUT_SHARE * cos(deg_to_rad(45.0)) + 0.02, "%s 벽 밖 힘은 무게 cos45° × 몫 이하" % f)
+
+
+## 손이 작아 최대 하중이 낮으면 수직에서는 버티지만 45°에서는 못 버틴다.
+func test_overhang_small_hands_fail() -> void:
+	var cs := [SupportSolver.contact_with(&"LH", Vector2(-0.3, 1.8), Vector2(0, 1), 65.0, 0.25), SupportSolver.contact_with(&"RH", Vector2(0.3, 1.8), Vector2(0, 1), 65.0, 0.25), _c(&"LF", -0.30, 0.10), _c(&"RF", 0.30, 0.10)]
+	runner.check(SupportSolver.solve(cs, Vector2(0, 1.0)).status == SupportSolver.Status.FEASIBLE, "수직: 작은 손홀드로도 버팀")
+	runner.check(SupportSolver.solve(cs, Vector2(0, 1.0), cos(deg_to_rad(45.0)), sin(deg_to_rad(45.0))).status != SupportSolver.Status.FEASIBLE, "45°: 작은 손홀드로는 못 버팀")

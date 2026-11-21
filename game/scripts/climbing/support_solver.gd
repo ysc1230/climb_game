@@ -30,6 +30,9 @@ const BARN_HAND_CAPACITY := 0.05  # × 품질
 const BARN_FOOT_CAPACITY := 0.04  # inside/toe
 const BARN_FOOT_CAPACITY_OUTSIDE := 0.10  # outside/drop_knee
 const RECOVER_HAND_LOAD_RATIO := 0.35
+## 벽 기울기(docs/48 R2, 오버행 실험): 벽 밖으로 빠지는 힘(sinθ BW)은 손이 당겨 버티고, 발은 몸 버티기로
+## 자기가 받는 위쪽 힘(벽면 안) × FOOT_OUT_SHARE까지만 받는다. 손발 모두 벽면 안 하중 + 벽 밖 힘 ≤ 최대 하중.
+const FOOT_OUT_SHARE := 0.25
 
 # 무게중심 대리점 가중치(docs/04 §4, 게임용)
 const W_TORSO := 0.60
@@ -61,10 +64,10 @@ static func contact_with(limb: StringName, pos: Vector2, axis: Vector2, half_ang
 	return {"limb": limb, "pos": pos, "axis": axis, "half_angle": half_angle, "max_load": max_load}
 
 
-## contacts: contact() 배열. 반환:
-## {status, loads: {limb: BW}, u: {limb: 사용률}, force_residual, moment_residual, residual}
-static func solve(contacts: Array, com: Vector2) -> Dictionary:
-	var result := {"status": Status.INFEASIBLE, "loads": {}, "u": {}, "force_residual": 1.0, "moment_residual": 0.0, "residual": 1.0}
+## contacts: contact() 배열. in_load: 벽면 안 무게(cosθ), out_load: 벽 밖으로 빠지는 무게(sinθ). 수직 벽은 1, 0.
+## 반환: {status, loads: {limb: BW(벽 밖 힘 포함)}, out: {limb: 벽 밖 힘}, u: {limb: 사용률}, force_residual, moment_residual, residual}
+static func solve(contacts: Array, com: Vector2, in_load := 1.0, out_load := 0.0) -> Dictionary:
+	var result := {"status": Status.INFEASIBLE, "loads": {}, "out": {}, "u": {}, "force_residual": 1.0, "moment_residual": 0.0, "residual": 1.0}
 	if contacts.is_empty():
 		return result
 	var k := contacts.size()
@@ -73,7 +76,9 @@ static func solve(contacts: Array, com: Vector2) -> Dictionary:
 		var a: float = deg_to_rad(ct.half_angle)
 		var ax: Vector2 = ct.axis
 		dirs.append([ax, ax.rotated(a), ax.rotated(-a)])
-	var n := k * 3 + k  # 조합 계수 + 용량 여유 변수
+	var tilt := out_load > 0.0
+	var oi := k * 4         # 벽 밖 힘 변수 시작(기울었을 때만): 접점마다 o, 발 몫 여유 s
+	var n := k * 3 + k + (k * 2 if tilt else 0)  # 조합 계수 + 용량 여유 변수 (+ 벽 밖 힘·발 몫 여유)
 	var rows := []
 	var rhs := []
 	var sp := sqrt(PENALTY)
@@ -89,13 +94,33 @@ static func solve(contacts: Array, com: Vector2) -> Dictionary:
 			fy[i * 3 + j] = d.y * sp
 			mz[i * 3 + j] = (r.x * d.y - r.y * d.x) * sp
 	rows.append_array([fx, fy, mz])
-	rhs.append_array([0.0, sp, 0.0])
-	# 용량: Σcoef + slack = max_load
+	rhs.append_array([0.0, sp * in_load, 0.0])
+	if tilt:
+		# 벽 밖 힘 합 = out_load, 발: o ≤ FOOT_OUT_SHARE × (발이 받는 위쪽 힘). Σcoef로 재면 두 발이 옆으로 마주 밀어
+		# 하중을 부풀려 벽 밖 몫을 늘릴 수 있다(위쪽 힘 합은 무게 cosθ를 넘지 못함)
+		var osum := _zeros(n)
+		for i in k:
+			osum[oi + i] = sp
+		rows.append(osum)
+		rhs.append(sp * out_load)
+		for i in k:
+			if PoseSolver.is_hand(contacts[i].limb):
+				continue
+			var fr := _zeros(n)
+			fr[oi + i] = sp
+			fr[oi + k + i] = sp
+			for j in 3:
+				fr[i * 3 + j] = -FOOT_OUT_SHARE * (dirs[i][j] as Vector2).y * sp
+			rows.append(fr)
+			rhs.append(0.0)
+	# 용량: Σcoef (+ o) + slack = max_load
 	for i in k:
 		var cap := _zeros(n)
 		for j in 3:
 			cap[i * 3 + j] = sp
 		cap[k * 3 + i] = sp
+		if tilt:
+			cap[oi + i] = sp
 		rows.append(cap)
 		rhs.append(sp * float(contacts[i].max_load))
 	# 하중 비용: sqrt(w)/max_load · Σcoef
@@ -104,10 +129,15 @@ static func solve(contacts: Array, com: Vector2) -> Dictionary:
 		var lc := _zeros(n)
 		for j in 3:
 			lc[i * 3 + j] = sqrt(w) / float(contacts[i].max_load)
+		if tilt:
+			lc[oi + i] = sqrt(w) / float(contacts[i].max_load)
 		rows.append(lc)
 		rhs.append(0.0)
 	# 정규항
-	for v in k * 3:
+	var regs: Array = range(k * 3)
+	if tilt:
+		regs.append_array(range(oi, oi + k * 2))
+	for v in regs:
 		var reg := _zeros(n)
 		reg[v] = sqrt(REGULARIZER)
 		rows.append(reg)
@@ -119,8 +149,14 @@ static func solve(contacts: Array, com: Vector2) -> Dictionary:
 	var x: PackedFloat64Array = sol.x
 	var force := Vector2.ZERO
 	var moment := 0.0
+	var out_sum := 0.0
 	for i in k:
 		var load := 0.0
+		if tilt:
+			var o := x[oi + i]
+			result.out[contacts[i].limb] = o
+			out_sum += o
+			load += o
 		var r: Vector2 = contacts[i].pos - com
 		for j in 3:
 			var c := x[i * 3 + j]
@@ -133,7 +169,9 @@ static func solve(contacts: Array, com: Vector2) -> Dictionary:
 		if not is_finite(load):
 			result.status = Status.UNRESOLVED
 			return result
-	result.force_residual = (force - Vector2(0, 1)).length()
+	result.force_residual = (force - Vector2(0, in_load)).length()
+	if tilt:
+		result.force_residual = sqrt(pow(result.force_residual, 2) + pow(out_sum - out_load, 2))
 	result.moment_residual = absf(moment)
 	result.residual = sqrt(pow(result.force_residual, 2) + pow(result.moment_residual, 2))
 	var over := false
@@ -152,7 +190,8 @@ static func barn_door_none() -> Dictionary:
 
 ## barn door 근사: 하중 접점들이 한 수직선에 몰렸을 때 무게중심이 그 선에서 벗어난 거리 τ가
 ## 접점이 버티는 용량을 넘으면 exceeded. meta: limb → ContactInfo (없으면 손 q=1, 발 inside).
-static func barn_door(contacts: Array, loads: Dictionary, com: Vector2, meta: Dictionary) -> Dictionary:
+## cap_scale: 용량 배율(기운 벽 cosθ, docs/48 R2).
+static func barn_door(contacts: Array, loads: Dictionary, com: Vector2, meta: Dictionary, cap_scale := 1.0) -> Dictionary:
 	var out := barn_door_none()
 	var min_x := INF
 	var max_x := -INF
@@ -178,6 +217,7 @@ static func barn_door(contacts: Array, loads: Dictionary, com: Vector2, meta: Di
 		return out
 	out.applies = true
 	out.tau = absf(com.x - sum_x / count)
+	capacity *= cap_scale
 	out.capacity = capacity
 	out.exceeded = out.tau > capacity
 	out.ratio = out.tau / capacity if capacity > 0.0 else INF

@@ -32,6 +32,7 @@ var failure := ""
 static func run(p_route: RouteDef, moves: Array = []) -> RouteBot:
 	var bot := RouteBot.new()
 	bot.route = p_route
+	ClimbRules.wall_deg = p_route.wall_deg
 	bot._play(moves if not moves.is_empty() else p_route.intended_moves)
 	return bot
 
@@ -138,6 +139,7 @@ func _on_platform() -> bool:
 
 
 func _tick() -> bool:
+	ClimbRules.wall_deg = route.wall_deg
 	ticks += 1
 	var outcome := rules.tick(body, attached, endpoints, _on_platform(), moving, intents, hints)
 	phase_ticks[rules.phase_name()] += 1

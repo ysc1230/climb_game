@@ -18,6 +18,9 @@ const REBALANCE_LATERAL_WEIGHT := 5.0
 const ACCEPT_EPSILON := 0.0005
 
 var stamina := {PoseSolver.LH: 100.0, PoseSolver.RH: 100.0}
+## 벽 기울기(도). 실험(experiment/overhang, docs/48 R2): 판정은 벽면 그대로, 힘 계산만 벽면 안 무게 cosθ와 벽 밖 sinθ로 나눈다.
+## 정적: 한 번에 문제 하나만 오르므로 세션·봇·탐색기가 문제를 열 때 정한다(정적 판정 함수들도 같은 값을 쓴다).
+static var wall_deg := 0.0
 var foot_support := 0.0  # 실린 발 몫의 합 0~2(docs/48 R1). 손 피로 계산에 쓴다
 var drain_scale := 1.0  # 두 손 피로 감소 배율(다이노로 잡은 뒤 2초 0.5, docs/45). 세션이 틱마다 정한다
 var feet_eligible: Array[StringName] = []
@@ -161,9 +164,10 @@ func evaluate(pelvis: Vector2, angle_deg: float, attached: Dictionary, endpoints
 		eps[limb] = attached[limb]
 	var com := SupportSolver.com_proxy(pelvis, angle_deg, eps, yaw_deg)
 	var contacts := contacts_for(pelvis, angle_deg, attached, feet, yaw_deg)
-	var r := SupportSolver.solve(contacts, com)
+	var th := deg_to_rad(wall_deg)
+	var r := SupportSolver.solve(contacts, com, cos(th), sin(th))
 	r["com"] = com
-	r["barn"] = SupportSolver.barn_door(contacts, r.loads, com, contact_meta) if r.status == SupportSolver.Status.FEASIBLE else SupportSolver.barn_door_none()
+	r["barn"] = SupportSolver.barn_door(contacts, r.loads, com, contact_meta, cos(th)) if r.status == SupportSolver.Status.FEASIBLE else SupportSolver.barn_door_none()
 	return r
 
 
@@ -272,6 +276,7 @@ func _apply_fatigue(result: Dictionary, attached: Dictionary, platform: bool, mo
 			var w := foot_weight(body.pos, body.angle, body.yaw, foot, attached[foot]) if body != null else 1.0
 			var share := float(contact_meta[foot].foot_share) if contact_meta.has(foot) else 1.0  # 작은 발판 0.85(작업 4)
 			foot_support += ((1.0 - Tuning.FOOT_LOAD_BLEND) + Tuning.FOOT_LOAD_BLEND * w) * share
+	foot_support *= cos(deg_to_rad(wall_deg))  # 기운 벽: 발이 받는 몫이 줄어 손이 더 지친다(45°면 두 발 1.41 → 쉬지 못함)
 	var strain := barn_strain(result)
 	var still := phase == Phase.STABLE and speed <= Fatigue.STABLE_SPEED and not moving and strain <= 1.0
 	rest_confirm_ticks = rest_confirm_ticks + 1 if still else 0
