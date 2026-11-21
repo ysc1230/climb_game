@@ -63,6 +63,20 @@ func test_fall_skip_only_with_fall_scene() -> void:
 	n.free()
 
 
+## 떨어지기 시작한 직후(잡으려고 패드를 누르는 순간)의 터치는 건너뛰기가 아님. 낙하 판정이 끝난 뒤 누르면 건너뜀(2026-11-21 사용자).
+func test_fall_skip_ignores_taps_while_falling() -> void:
+	var n := _make()
+	n.session.hold_on_fall = true
+	n.session.falling = true
+	_press(n, 0)
+	runner.check(not n.fall_skip, "떨어지는 중 터치는 건너뛰지 않음")
+	n.session.falling = false
+	n.session.halted = &"fall"
+	_press(n, 1)
+	runner.check(n.fall_skip, "낙하 판정이 끝난 뒤 터치는 건너뜀")
+	n.free()
+
+
 func test_fall_retry_clears_state() -> void:
 	var n := _make()
 	n.fall_skip = true

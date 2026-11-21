@@ -642,6 +642,9 @@ func _log(text: String) -> void:
 func _input(event: InputEvent) -> void:
 	var press: bool = (event is InputEventScreenTouch or (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT)) and event.pressed
 	if press and session.hold_on_fall and (session.falling or session.halted == &"fall") and overlay.fall_card.is_empty():
+		# 떨어지는 1초(session.falling) 동안의 터치는 잡으려던 손이라 삼킨다. 판정이 끝난 뒤 누르면 건너뛰기(2026-11-21 사용자)
+		if session.falling:
+			return
 		fall_skip = true  # 낙하 장면 건너뛰기
 		if not draw_world:
 			return
