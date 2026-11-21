@@ -251,11 +251,18 @@ func _fall_heights() -> Array:
 	return game.progress.stats.get(route.route_id, {}).get("fall_heights", [])
 
 
+## 기운 벽 시점(실험 앱, 2026-11-22 사용자: "기울기가 있다는 걸 다양한 각도에서 볼 수 있도록"). play_3d가 카메라를 돌린다.
+const VIEW_NAMES := ["뒤", "비스듬히", "옆"]
+var view_mode := 0
+
+
 ## 위쪽 줄 도움 버튼: 3번 떨어지면 [힌트], 5번이면 [시범 보기]. 튜토리얼·정답 순서 없는 문제는 없음.
 func _help_buttons() -> Array:
-	if tutorial != null or route.intended_moves.is_empty():
-		return []
 	var out := []
+	if route != null and route.wall_deg > 0.0:  # 기운 벽(실험 앱): 시점 돌리기
+		out.append({"label": "시점: " + VIEW_NAMES[view_mode], "action": "view"})
+	if tutorial != null or route.intended_moves.is_empty():
+		return out
 	if help_falls >= HelpPicker.HINT_FALLS:
 		out.append({"label": "힌트", "action": "hint", "on": hint_slot != ""})
 	if help_falls >= HelpPicker.DEMO_FALLS and not _demo_failed:
@@ -712,6 +719,8 @@ func _overlay_event(index: int, pos: Vector2, pressed: bool) -> bool:
 
 func _overlay_action(act: String) -> void:
 	match act:
+		"view":
+			view_mode = (view_mode + 1) % VIEW_NAMES.size()
 		"hint":
 			_hint_toggle()
 		"demo":

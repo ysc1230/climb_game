@@ -187,6 +187,7 @@ func _build_wall() -> void:
 		wing.position = Vector3(side * (half_w + 1.2), (top - 1.0) * 0.5, 0.35)
 		wing.rotation_degrees = Vector3(0, -side * 38, 0)
 		wall_root.add_child(wing)
+		_wings.append(wing)
 	# 볼륨: 벽에 붙은 삼각기둥·상자(볼트). 벽 가장자리, 홀드와 겹치지 않는 자리에만(deco_spots)
 	var k := 0
 	for d in deco_spots(logic.route.slots, half_w, top, rng):
@@ -838,6 +839,9 @@ func _build_model() -> bool:
 
 
 const CAM_MIN_Y := 0.6  # 기운 벽에서 카메라 최저 높이(m, 매트 위)
+const VIEW_YAW := [0.0, deg_to_rad(40.0), deg_to_rad(75.0)]  # 시점별 카메라가 도는 각(오른쪽으로)
+var _view_yaw := 0.0
+var _wings: Array[MeshInstance3D] = []  # 옆벽: 비스듬히·옆 시점에서는 카메라를 가려 숨긴다
 
 
 func _update_camera() -> void:
@@ -849,9 +853,14 @@ func _update_camera() -> void:
 	var dist := (visible_h * 0.5) / tan(deg_to_rad(camera.fov * 0.5))
 	# 기운 벽: 벽 면의 지금 높이를 보되, 카메라는 기운 각의 1/4만 아래에서 올려다본다(벽 법선 쪽에 서면 매트 밑으로 들어감).
 	# 매트 위 CAM_MIN_Y 아래로는 내려가지 않는다. 수직 벽은 이전과 같다.
+	# [시점] 버튼(logic.view_mode): 뒤 0° → 비스듬히 40° → 옆 75°로 카메라가 벽 앞을 돌아 기울기를 옆에서 보여 준다(부드럽게 돈다).
 	var th := wall_root.rotation.x
-	var look := wall_root.transform * Vector3(0, logic.cam_y, CONTACT_DEPTH)
-	camera.position = look + Basis(Vector3.RIGHT, th * 0.25) * Vector3(0, 0, dist)
+	var want_yaw: float = VIEW_YAW[logic.view_mode] if th > 0.0 else 0.0
+	_view_yaw = lerp_angle(_view_yaw, want_yaw, 1.0 - exp(-5.0 * get_process_delta_time()))
+	for w in _wings:
+		w.visible = absf(_view_yaw) < deg_to_rad(10.0)
+	var look := wall_root.transform * Vector3(logic.session.body.pos.x * smoothstep(0.0, 0.3, absf(_view_yaw)), logic.cam_y, CONTACT_DEPTH)
+	camera.position = look + Basis(Vector3.UP, _view_yaw) * Basis(Vector3.RIGHT, th * 0.25) * Vector3(0, 0, dist * lerpf(1.0, 0.8, smoothstep(0.0, 1.3, absf(_view_yaw))))
 	camera.position.y = maxf(camera.position.y, CAM_MIN_Y) if th > 0.0 else camera.position.y
 	if th > 0.0:
 		camera.look_at(look, Vector3.UP)

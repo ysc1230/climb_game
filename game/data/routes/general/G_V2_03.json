@@ -1,0 +1,387 @@
+{
+ "bounds": {
+  "x_max": 1.5,
+  "x_min": -1.5,
+  "y_max": 4.4,
+  "y_min": 0.0
+ },
+ "check_swapped": false,
+ "content_version": 1.0,
+ "crux_steps": {},
+ "fail_line_y": -0.5,
+ "goal_slots": [
+  "G_V2_03/G01/goal_left",
+  "G_V2_03/G01/goal_right"
+ ],
+ "grade": "V2",
+ "holds": [
+  {
+   "hold_id": "H01",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      -0.32,
+      1.5
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H02",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      0.27,
+      1.48
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H03",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      -0.1,
+      1.9
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H04",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      0.38,
+      2.2
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H05",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      -0.15,
+      2.55
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H06",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      0.32,
+      2.7
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F01",
+   "slots": [
+    {
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_chip",
+     "pos": [
+      -0.12,
+      0.1
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F02",
+   "slots": [
+    {
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_chip",
+     "pos": [
+      0.25,
+      0.1
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F03",
+   "slots": [
+    {
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_big",
+     "pos": [
+      0.05,
+      0.45
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F04",
+   "slots": [
+    {
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_big",
+     "pos": [
+      0.42,
+      0.65
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F05",
+   "slots": [
+    {
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_big",
+     "pos": [
+      -0.05,
+      0.95
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F06",
+   "slots": [
+    {
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_big",
+     "pos": [
+      0.42,
+      1.12
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F07",
+   "slots": [
+    {
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_big",
+     "pos": [
+      -0.02,
+      1.22
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "G01",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "goal",
+     "pos": [
+      -0.02,
+      3.0
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "goal_left"
+    },
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "goal",
+     "pos": [
+      0.38,
+      3.0
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "goal_right"
+    }
+   ]
+  }
+ ],
+ "intended_moves": [
+  [
+   "LF",
+   "G_V2_03/F03/foot_1"
+  ],
+  [
+   "RF",
+   "G_V2_03/F04/foot_1"
+  ],
+  [
+   "LH",
+   "G_V2_03/H03/hand_1"
+  ],
+  [
+   "RH",
+   "G_V2_03/H04/hand_1"
+  ],
+  [
+   "LF",
+   "G_V2_03/F05/foot_1"
+  ],
+  [
+   "RF",
+   "G_V2_03/F06/foot_1"
+  ],
+  [
+   "LH",
+   "G_V2_03/H05/hand_1"
+  ],
+  [
+   "RH",
+   "G_V2_03/H06/hand_1"
+  ],
+  [
+   "LF",
+   "G_V2_03/F07/foot_1"
+  ],
+  [
+   "LH",
+   "G_V2_03/G01/goal_left"
+  ],
+  [
+   "RH",
+   "G_V2_03/G01/goal_right"
+  ]
+ ],
+ "mode": "general",
+ "name_ko": "처마",
+ "note": "2026-11-22 벽 기울기 실험(docs/52): 30° 처마. 큰 저그와 큰 발판, 기울기만으로 어려움.",
+ "order": 3,
+ "platforms": [
+  {
+   "foot_slot_keys": [
+    "G_V2_03/F01/foot_1",
+    "G_V2_03/F02/foot_1"
+   ],
+   "platform_id": "P00",
+   "top_y": 0.1,
+   "x_range": [
+    -0.5,
+    0.6
+   ]
+  }
+ ],
+ "required_techniques": [],
+ "route_id": "G_V2_03",
+ "start_pose": {
+  "angle": 0.0,
+  "pelvis": [
+   0.05,
+   0.75
+  ],
+  "slots": {
+   "LF": "G_V2_03/F01/foot_1",
+   "LH": "G_V2_03/H01/hand_1",
+   "RF": "G_V2_03/F02/foot_1",
+   "RH": "G_V2_03/H02/hand_1"
+  }
+ },
+ "time_medal_seconds": 150,
+ "validation_status": "Draft",
+ "wall_angle_deg": 30,
+ "score_ref": {
+  "grabs": 11,
+  "quality": 0.917,
+  "spent_per_m": 32.27
+ },
+ "score_gates": []
+}

@@ -122,7 +122,13 @@ func display_on(key: String) -> bool:
 
 ## 첫 실행 잠금: 기본 조작 튜토리얼이 있는데 아직 안 깼고 건너뛰지도 않았을 때만.
 ## 튜토리얼이 없으면(2026-11-11 사용자: 튜토리얼을 모두 지우고 하나씩 다시 만듦) 잠그지 않는다.
+## 실험 앱(experiment/overhang): 모든 등급·첫 실행 잠금을 푼다. 앱(Game)이 켜고, 테스트의 Progress.new()는 꺼진 채(잠금 규칙 그대로).
+var unlock_all := false
+
+
 func first_run_locked(index: ContentIndex) -> bool:
+	if unlock_all:
+		return false
 	return is_first_run() and index != null and index.route(BASIC_TUTORIAL) != null
 
 
@@ -166,7 +172,7 @@ func clears_needed(prev: String, index: ContentIndex) -> int:
 
 ## 그 등급 문제를 하나라도 완등했으면 계속 열림(작업 5 §5.4: 새 등급이 생겨 앞 등급이 바뀌어도 하던 등급이 다시 잠기지 않게).
 func grade_unlocked(grade: String, index: ContentIndex) -> bool:
-	if cleared_count(grade, index) > 0:
+	if unlock_all or cleared_count(grade, index) > 0:
 		return true
 	var n := grade.substr(1).to_int()
 	var prev := prerequisite_grade(grade, index) if n > 0 else ""

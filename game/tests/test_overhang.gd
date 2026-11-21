@@ -53,3 +53,31 @@ func test_wall_angle_setting() -> void:
 	Progress.apply_wall_angle(r, p)
 	runner.check(is_equal_approx(r.wall_deg, 35.0), "일반 문제에 적용")
 	r.wall_deg = 0.0
+
+
+## 실험 앱은 모든 등급을 연다(2026-11-22 사용자). 테스트의 Progress.new()는 잠금 규칙 그대로.
+func test_unlock_all() -> void:
+	var idx := ContentIndex.load_all()
+	var p := Progress.new()
+	runner.check(not p.grade_unlocked("V7", idx), "기본은 잠금 규칙 그대로")
+	p.unlock_all = true
+	for g in ["V0", "V3", "V7"]:
+		runner.check(p.grade_unlocked(g, idx), "%s 열림" % g)
+	runner.check(not p.first_run_locked(idx), "첫 실행 잠금도 풀림")
+
+
+## 기운 벽은 위쪽 줄 [시점] 버튼으로 뒤 → 비스듬히 → 옆을 돌려 본다(2026-11-22 사용자: 기울기를 여러 각도에서).
+func test_view_button_cycles() -> void:
+	var n: Node2D = preload("res://scenes/play_test.gd").new()
+	n.route = _route(30.0)
+	n.session = ClimbSession.new(n.route)
+	var labels: Array = n._help_buttons().map(func(b): return b.action)
+	runner.check(labels.has("view"), "기운 벽이면 시점 버튼")
+	runner.check(n.view_mode == 0, "처음은 뒤")
+	n._overlay_action("view")
+	runner.check(n.view_mode == 1, "한 번 누르면 비스듬히")
+	n._overlay_action("view")
+	n._overlay_action("view")
+	runner.check(n.view_mode == 0, "세 번이면 다시 뒤")
+	n.route.wall_deg = 0.0
+	n.free()

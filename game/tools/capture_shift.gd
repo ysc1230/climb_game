@@ -28,6 +28,8 @@ func _process(_d: float) -> bool:
 		root.add_child(play)
 		return false
 	var logic = play.get_node("UI/PlayTest")
+	if OS.get_environment("VIEW") != "":  # 기운 벽 시점(0 뒤, 1 비스듬히, 2 옆)
+		logic.view_mode = int(OS.get_environment("VIEW"))
 	logic.paused = false
 	logic.prepare_left = 0.0
 	var s: ClimbSession = logic.session

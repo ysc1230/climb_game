@@ -198,7 +198,8 @@ func test_index_real_data() -> void:
 	for g in idx.grades():
 		runner.check(idx.general(g).size() >= 2, "%s 문제 2개 이상 (%d)" % [g, idx.general(g).size()])
 	var ids_4 := idx.general("V4").map(func(r): return r.route_id)
-	runner.check(ids_4 == ["G_V8_01", "G_V4_01"], "V4: 실금이 먼저(order 1) %s" % [ids_4])
+	# experiment/overhang: 45° 지붕(G_V4_02, docs/52)이 V4 끝에 더해짐
+	runner.check(ids_4 == ["G_V8_01", "G_V4_01", "G_V4_02"], "V4: 실금이 먼저(order 1) %s" % [ids_4])
 	var ids_g := idx.general("V3").map(func(r): return r.route_id)
 	runner.check(ids_g == ["G_V3_02", "G_V3_03", "G_V3_04"], "V3 문제 %s" % [ids_g])
 	runner.check(idx.route("G_V3_02") != null and idx.route("NOPE") == null, "route 조회")

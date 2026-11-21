@@ -50,6 +50,7 @@ func play_shared(code: String) -> bool:
 func get_flow() -> PlayFlow:
 	if _flow == null:
 		_flow = PlayFlow.new(ContentIndex.load_all(), SaveStore.load(), SaveStore.DEFAULT_PATH)
+		_flow.progress.unlock_all = true  # 실험 앱(experiment/overhang): 모든 등급 열림(2026-11-22 사용자)
 	return _flow
 
 
