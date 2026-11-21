@@ -20,6 +20,11 @@ const BODY := &"BODY"
 ## 명령: dyno_start / dyno_move(delta 월드) / dyno_end.
 const DYNO := &"DYNO"
 var _last_body_up := -INF
+## 두 손가락 시점(오버행 실험, 2026-11-22 사용자: 오르면서 시점 돌리기): camera_enabled면 가운데에 둘째 손가락이 올 때
+## 몸 옮기기를 끝내고 두 손가락 모두 시점 터치가 된다. 명령: cam_start / cam_orbit(delta 화면 px, 두 손가락 중점 이동) /
+## cam_zoom(ratio = 이전 거리 / 지금 거리, 벌리면 1보다 작음 = 가까이). 한 손가락만 남아도 뗄 때까지 시점 터치.
+const CAM := &"CAM"
+var camera_enabled := false
 const SPEED_WINDOW := 0.1  # 속도를 재는 구간(초)
 
 
@@ -54,6 +59,18 @@ func touch_down(index: int, pos: Vector2, attached_now: bool, time_s: float = -1
 	if _bindings.has(index):
 		return []
 	var limb := _pad_at(pos)
+	if camera_enabled and limb == &"" and body_area.has_point(pos) and (_limb_bound(BODY) or _limb_bound(CAM)):
+		var out := []
+		for i in _bindings:
+			if _bindings[i].limb == BODY:
+				_bindings[i].limb = CAM
+				out.append({"type": "body_end", "limb": BODY})
+		if _bindings.values().filter(func(x): return x.limb == CAM).size() >= 2:
+			return out  # 시점은 두 손가락까지
+		_gesture_seq += 1
+		_bindings[index] = {"limb": CAM, "origin": pos, "last": pos, "dragging": true, "moves": [], "pad_px": _body_pad_px(), "gesture": _gesture_seq}
+		out.append({"type": "cam_start", "limb": CAM})
+		return out
 	if limb == &"" and body_area.has_point(pos) and not _limb_bound(BODY) and not _limb_bound(DYNO) and _now(time_s) - _last_body_up <= Tuning.DYNO_DOUBLE_TAP:
 		_gesture_seq += 1
 		_last_body_up = -INF
@@ -92,6 +109,8 @@ func touch_drag(index: int, pos: Vector2, time_s: float = -1.0) -> Array:
 	if not _bindings.has(index):
 		return []
 	var b: Dictionary = _bindings[index]
+	if b.limb == CAM:
+		return _cam_drag(index, pos)
 	var out := []
 	var screen_delta := Vector2.ZERO
 	if not b.dragging:
@@ -119,6 +138,8 @@ func touch_up(index: int, time_s: float = -1.0) -> Array:
 		return []
 	var b: Dictionary = _bindings[index]
 	_bindings.erase(index)
+	if b.limb == CAM:
+		return []
 	if b.limb == BODY:
 		_last_body_up = _now(time_s)
 		return [{"type": "body_end", "limb": BODY}]
@@ -138,6 +159,24 @@ func touch_up(index: int, time_s: float = -1.0) -> Array:
 	return [{"type": "release", "limb": b.limb, "speed": path / SPEED_WINDOW}]
 
 
+## 시점 손가락 하나가 움직임: 두 손가락이면 중점 이동(돌리기)과 거리 변화(확대), 하나면 그 이동만 돌리기.
+func _cam_drag(index: int, pos: Vector2) -> Array:
+	var b: Dictionary = _bindings[index]
+	var others := _bindings.keys().filter(func(i): return i != index and _bindings[i].limb == CAM)
+	var out := []
+	if others.is_empty():
+		out.append({"type": "cam_orbit", "limb": CAM, "delta": pos - b.last})
+	else:
+		var o: Vector2 = _bindings[others[0]].last
+		out.append({"type": "cam_orbit", "limb": CAM, "delta": (pos - b.last) * 0.5})
+		var before := o.distance_to(b.last)
+		var after := o.distance_to(pos)
+		if before > 1.0 and after > 1.0 and absf(after - before) > 0.5:
+			out.append({"type": "cam_zoom", "limb": CAM, "ratio": before / after})
+	b.last = pos
+	return out
+
+
 func _now(time_s: float) -> float:
 	return time_s if time_s >= 0.0 else Time.get_ticks_msec() * 0.001
 
@@ -146,6 +185,8 @@ func _now(time_s: float) -> float:
 func cancel_all() -> Array:
 	var out := []
 	for b in _bindings.values():
+		if b.limb == CAM:
+			continue
 		out.append({"type": "body_end" if b.limb == BODY else ("dyno_cancel" if b.limb == DYNO else "cancel"), "limb": b.limb})
 	_bindings.clear()
 	generation += 1

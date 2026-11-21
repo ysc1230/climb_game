@@ -77,3 +77,44 @@ func test_pad_knob_follows_finger() -> void:
 	runner.check((r.knob(&"LH") as Vector2).is_equal_approx(Vector2(100, 0)), "반지름 안으로")
 	r.touch_up(0, 0.1)
 	runner.check(r.knob(&"LH") == null, "떼면 없음")
+
+
+## 두 손가락 가운데 = 시점(오버행 실험, 2026-11-22 사용자: 오르면서 시점 돌리기). 한 손가락은 몸 옮기기 그대로,
+## 가운데에 둘째 손가락이 오면 몸 옮기기를 끝내고 두 손가락 모두 시점: 같이 움직이면 cam_orbit(화면 px), 벌리면 cam_zoom(<1 가까이).
+func _center_router() -> InputRouter:
+	var r := InputRouter.new()
+	r.body_area = Rect2(300, 100, 1000, 600)
+	r.camera_enabled = true
+	return r
+
+
+func test_two_fingers_in_center_turn_camera() -> void:
+	var r := _center_router()
+	var a := r.touch_down(0, Vector2(700, 400), false, 0.0)
+	runner.check(a.size() == 1 and a[0].type == "body_start", "한 손가락은 몸 옮기기")
+	var b := r.touch_down(1, Vector2(900, 400), false, 0.05)
+	var types: Array = b.map(func(c): return c.type)
+	runner.check(types == ["body_end", "cam_start"], "둘째 손가락: 몸 옮기기 끝 + 시점 시작 %s" % [types])
+	var m := r.touch_drag(0, Vector2(760, 380), 0.1).filter(func(c): return c.type == "cam_orbit")
+	runner.check(m.size() == 1 and m[0].delta.x > 0.0, "움직이면 돌리기 %s" % [m])
+	var z := r.touch_drag(1, Vector2(1100, 380), 0.15)
+	var zoom: Array = z.filter(func(c): return c.type == "cam_zoom")
+	runner.check(zoom.size() == 1 and zoom[0].ratio < 1.0, "벌리면 가까이 %s" % [z])
+	runner.check(r.touch_up(0, 0.2).is_empty() and r.touch_up(1, 0.2).is_empty(), "시점 손가락 떼기는 명령 없음")
+	var again := r.touch_down(2, Vector2(700, 400), false, 1.0)
+	runner.check(again.size() == 1 and again[0].type == "body_start", "다시 한 손가락이면 몸 옮기기")
+
+
+func test_camera_off_keeps_old_center_rules() -> void:
+	var r := _center_router()
+	r.camera_enabled = false
+	r.touch_down(0, Vector2(700, 400), false, 0.0)
+	runner.check(r.touch_down(1, Vector2(900, 400), false, 0.05).is_empty(), "시점 끔: 둘째 가운데 터치 무시(이전과 같음)")
+
+
+func test_double_tap_still_dyno_with_camera() -> void:
+	var r := _center_router()
+	r.touch_down(0, Vector2(700, 400), false, 0.0)
+	r.touch_up(0, 0.05)
+	var d := r.touch_down(1, Vector2(700, 400), false, 0.12)
+	runner.check(d.size() == 1 and d[0].type == "dyno_start", "두 번 톡은 다이노 그대로 %s" % [d])

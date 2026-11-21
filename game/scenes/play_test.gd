@@ -15,7 +15,7 @@ const PlayOverlay := preload("res://scenes/play_overlay.gd")
 
 var session: ClimbSession
 var route: RouteDef
-var router := InputRouter.new()
+var router := _make_router()
 var paused := false
 var prepare_left := 0.0
 var hud = preload("res://scenes/hud.gd").new()  # 위쪽 정보 패널·일시정지 화면(2026-11-08 사용자 참고 이미지)
@@ -140,6 +140,8 @@ func _ready() -> void:
 	beginner = level == "beginner"
 	ClimbRules.apply_level(session.rules, level)
 	_build_feedback()
+	if route.wall_deg > 0.0:
+		_flash(CAM_HINT, 300)  # 기운 벽: 두 손가락 시점 안내(실험 앱)
 	_start_tutorial()
 	get_viewport().size_changed.connect(_layout)
 	_layout()
@@ -251,27 +253,25 @@ func _fall_heights() -> Array:
 	return game.progress.stats.get(route.route_id, {}).get("fall_heights", [])
 
 
-## 기운 벽 시점(실험 앱, 2026-11-22 사용자: "기울기가 있다는 걸 다양한 각도에서 볼 수 있도록", "원하는 각도로 마음대로
-## 손가락으로 조정"). [시점]을 누르면 게임이 멈추고(네 손가락이 패드에 있어 오르면서는 못 돌린다) 한 손가락 끌기로 좌우·위아래를
-## 돌리고 두 손가락으로 확대·축소한다. [완료]면 그 각도로 이어서 오른다. play_3d가 cam_yaw·cam_pitch·cam_zoom으로 카메라를 둔다.
+## 시점(실험 앱, 2026-11-22 사용자: "기울기가 있다는 걸 다양한 각도에서", "원하는 각도로 마음대로 손가락으로", "몸통 움직이는
+## 거랑 겹치지 않아?" → 조작 검토). 가운데에 두 손가락 = 시점(InputRouter CAM): 같이 끌면 돌리기, 벌리고 오므리면 확대·축소.
+## 한 손가락 가운데 끌기(몸 옮기기)·두 번 톡(다이노)은 그대로라 오르면서 돌린다. [처음 시점]으로 되돌린다.
+## play_3d가 cam_yaw·cam_pitch·cam_zoom으로 카메라를 둔다.
 const CAM_TURN := 0.006          # 끈 픽셀당 도는 각(라디안)
 const CAM_YAW_MAX := deg_to_rad(85.0)
 const CAM_PITCH_RANGE := Vector2(deg_to_rad(-35.0), deg_to_rad(40.0))  # − 위에서 내려다봄, + 아래에서 올려다봄
 const CAM_ZOOM_RANGE := Vector2(0.45, 1.6)
-var cam_edit := false
 var cam_yaw := 0.0
 var cam_pitch := 0.0
 var cam_zoom := 1.0
-var _cam_touches := {}  # 손가락 index → 위치(시점 조정 중)
+const CAM_HINT := "가운데를 두 손가락으로 끌면 시점이 돌아가요(벌리면 확대)"
 
 
 ## 위쪽 줄 도움 버튼: 3번 떨어지면 [힌트], 5번이면 [시범 보기]. 튜토리얼·정답 순서 없는 문제는 없음.
 func _help_buttons() -> Array:
 	var out := []
-	if cam_edit:
-		return [{"label": "완료", "action": "view", "on": true}, {"label": "처음 시점", "action": "view_reset"}]
-	if route != null and route.wall_deg > 0.0:  # 기운 벽(실험 앱): 시점 돌리기
-		out.append({"label": "시점", "action": "view"})
+	if cam_yaw != 0.0 or cam_pitch != 0.0 or cam_zoom != 1.0:  # 돌린 시점 되돌리기
+		out.append({"label": "처음 시점", "action": "view_reset"})
 	if tutorial != null or route.intended_moves.is_empty():
 		return out
 	if help_falls >= HelpPicker.HINT_FALLS:
@@ -684,8 +684,11 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and _overlay_event(-1, event.position, event.pressed):
 		return
-	if cam_edit:
-		_cam_input(event)
+	if event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_RIGHT) != 0:
+		_cam_turn(event.relative)  # 데스크톱: 오른쪽 끌기 = 시점
+		return
+	if event is InputEventMouseButton and event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+		cam_zoom = clampf(cam_zoom * (0.9 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.1), CAM_ZOOM_RANGE.x, CAM_ZOOM_RANGE.y)
 		return
 	if event is InputEventScreenTouch:
 		if event.canceled:
@@ -716,27 +719,11 @@ func _input(event: InputEvent) -> void:
 		_ui_drag(-1, event.position)
 
 
-## 시점 조정 중 입력: 한 손가락 끌기 = 돌리기, 두 손가락 = 확대·축소(벌리면 가까이). 데스크톱은 마우스 끌기·휠.
-func _cam_input(event: InputEvent) -> void:
-	if event is InputEventScreenTouch:
-		if event.pressed:
-			_cam_touches[event.index] = event.position
-		else:
-			_cam_touches.erase(event.index)
-	elif event is InputEventScreenDrag and _cam_touches.has(event.index):
-		if _cam_touches.size() >= 2:
-			var other: Vector2 = _cam_touches[_cam_touches.keys().filter(func(i): return i != event.index)[0]]
-			var before := other.distance_to(_cam_touches[event.index])
-			var after := other.distance_to(event.position)
-			if before > 1.0 and after > 1.0:
-				cam_zoom = clampf(cam_zoom * before / after, CAM_ZOOM_RANGE.x, CAM_ZOOM_RANGE.y)
-		else:
-			_cam_turn(event.position - (_cam_touches[event.index] as Vector2))
-		_cam_touches[event.index] = event.position
-	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
-		_cam_turn(event.relative)
-	elif event is InputEventMouseButton and event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
-		cam_zoom = clampf(cam_zoom * (0.9 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.1), CAM_ZOOM_RANGE.x, CAM_ZOOM_RANGE.y)
+## 이 앱의 입력 라우터: 가운데 두 손가락 = 시점.
+static func _make_router() -> InputRouter:
+	var r := InputRouter.new()
+	r.camera_enabled = true
+	return r
 
 
 func _cam_turn(d: Vector2) -> void:
@@ -761,12 +748,6 @@ func _overlay_event(index: int, pos: Vector2, pressed: bool) -> bool:
 
 func _overlay_action(act: String) -> void:
 	match act:
-		"view":
-			cam_edit = not cam_edit
-			_cam_touches.clear()
-			if cam_edit:
-				_apply(router.cancel_all())
-				_flash("한 손가락으로 끌어 돌리고, 두 손가락으로 확대·축소해요", 240)
 		"view_reset":
 			cam_yaw = 0.0
 			cam_pitch = 0.0
@@ -833,6 +814,13 @@ func _retry() -> void:
 
 
 func _apply(cmds: Array) -> void:
+	for c in cmds:  # 두 손가락 시점(판정과 무관)
+		match str(c.type):
+			"cam_orbit":
+				_cam_turn(c.delta)
+			"cam_zoom":
+				cam_zoom = clampf(cam_zoom * float(c.ratio), CAM_ZOOM_RANGE.x, CAM_ZOOM_RANGE.y)
+	cmds = cmds.filter(func(c): return not str(c.type) in ["cam_start", "cam_orbit", "cam_zoom"])
 	if tilt != null and not tilt_drag:  # 기울이기만: 가운데 끌기 명령은 버린다(다이노 두 번 누르기는 그대로)
 		cmds = cmds.filter(func(c): return not str(c.type) in ["body_start", "body_move", "body_end"])
 	var was_dragging := {}
@@ -941,9 +929,6 @@ func _physics_process(_delta: float) -> void:
 			prepare_left -= _delta
 			if prepare_left <= 0.0:
 				paused = false
-		queue_redraw()
-		return
-	if cam_edit:  # 시점 조정 중에는 게임이 멈춘다
 		queue_redraw()
 		return
 	_confetti_tick(_delta)

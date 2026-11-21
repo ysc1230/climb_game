@@ -81,31 +81,24 @@ func _drag(n: Node2D, index: int, pos: Vector2) -> void:
 	n._input(e)
 
 
-## [시점]을 누르면 게임이 멈추고 손가락으로 시점을 돌린다(2026-11-22 사용자: "원하는 각도로 마음대로 손가락으로 조정").
-## 한 손가락 끌기 = 좌우·위아래 돌리기, 두 손가락 벌리기 = 확대, [처음 시점] = 되돌리기, [완료] = 그 각도로 이어서.
-func test_camera_edit_by_finger() -> void:
+## 오르면서 가운데 두 손가락으로 시점을 돌린다(2026-11-22 사용자: 몸 옮기기와 겹치지 않게 조작 검토). 게임은 멈추지 않는다.
+func test_two_finger_camera_while_climbing() -> void:
 	var n: Node2D = preload("res://scenes/play_test.gd").new()
 	n.route = _route(30.0)
 	n.session = ClimbSession.new(n.route)
-	var acts: Array = n._help_buttons().map(func(b): return b.action)
-	runner.check(acts.has("view"), "기운 벽이면 시점 버튼")
-	n._overlay_action("view")
-	runner.check(n.cam_edit, "누르면 시점 조정")
-	runner.check(n._help_buttons().map(func(b): return b.action).has("view_reset"), "처음 시점 버튼")
-	_touch(n, 0, Vector2(800, 400), true)
-	_drag(n, 0, Vector2(1000, 300))
-	runner.check(absf(n.cam_yaw) > 0.2, "옆으로 끌면 좌우로 돎(%.2f)" % n.cam_yaw)
-	runner.check(absf(n.cam_pitch) > 0.05, "위로 끌면 위아래로 돎(%.2f)" % n.cam_pitch)
-	runner.check(n.session.limbs[&"LH"].state == "Attached", "시점 조정 중 터치는 패드로 가지 않음")
-	_touch(n, 1, Vector2(1200, 300), true)
-	_drag(n, 1, Vector2(1400, 300))
-	runner.check(n.cam_zoom < 1.0, "두 손가락을 벌리면 가까이(%.2f)" % n.cam_zoom)
-	_touch(n, 0, Vector2(1000, 300), false)
-	_touch(n, 1, Vector2(1400, 300), false)
-	var yaw: float = n.cam_yaw
-	n._overlay_action("view")
-	runner.check(not n.cam_edit and is_equal_approx(n.cam_yaw, yaw), "완료: 그 각도 그대로")
-	n._overlay_action("view")
+	n.router.body_area = Rect2(300, 100, 1000, 600)
+	runner.check(not n._help_buttons().map(func(b): return b.action).has("view_reset"), "처음에는 [처음 시점] 없음")
+	_touch(n, 0, Vector2(700, 400), true)
+	_touch(n, 1, Vector2(900, 400), true)
+	_drag(n, 0, Vector2(800, 330))
+	_drag(n, 1, Vector2(1000, 330))
+	runner.check(absf(n.cam_yaw) > 0.2 and absf(n.cam_pitch) > 0.1, "두 손가락을 같이 끌면 돎(%.2f, %.2f)" % [n.cam_yaw, n.cam_pitch])
+	_drag(n, 1, Vector2(1200, 330))
+	runner.check(n.cam_zoom < 1.0, "벌리면 가까이(%.2f)" % n.cam_zoom)
+	_touch(n, 0, Vector2(800, 330), false)
+	_touch(n, 1, Vector2(1200, 330), false)
+	runner.check(n.router.active_limbs().is_empty(), "손가락을 떼면 시점 터치도 끝")
+	runner.check(n._help_buttons().map(func(b): return b.action).has("view_reset"), "돌렸으면 [처음 시점]")
 	n._overlay_action("view_reset")
 	runner.check(n.cam_yaw == 0.0 and n.cam_pitch == 0.0 and n.cam_zoom == 1.0, "처음 시점으로")
 	n.route.wall_deg = 0.0
