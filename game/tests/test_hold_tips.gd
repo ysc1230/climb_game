@@ -5,10 +5,11 @@ var runner
 
 
 func test_one_tag_per_unseen_type() -> void:
-	var r := RouteDef.load_json("res://data/routes/general/G_V3_03.json")
+	# 2026-11-22 오버행 앱에서 문제를 다시 배치: 손·발 홀드 종류가 여럿인 실금(크림프·저그·작은/큰 발판)으로
+	var r := RouteDef.load_json("res://data/routes/general/G_V8_01.json")
 	var tags := HoldTips.pick(r, [])
 	var types: Array = tags.map(func(t): return t.type)
-	runner.check(types.has("crimp") and types.has("pinch") and types.has("foot_chip") and not types.has("goal"), "종류마다 하나, 탑 제외 %s" % [types])
+	runner.check(types.has("crimp") and types.has("jug") and types.has("foot_chip") and types.has("foot_big") and not types.has("goal"), "종류마다 하나, 탑 제외 %s" % [types])
 	var uniq := {}
 	for t in types:
 		uniq[t] = true

@@ -222,9 +222,10 @@ func test_hold_spacing() -> void:
 
 ## 배치 수치(docs/41 §5 도구 A): 정상 제외, 손홀드도 발 디딜 곳으로 센다.
 func test_placement_metrics() -> void:
+	# 2026-11-22 오버행 앱에서 G_V3_03을 손 5·발 4로 다시 배치(docs/52 §9)
 	var m := PlacementMetrics.measure(RouteDef.load_json(ContentIndex.route_path("G_V3_03")))
-	runner.check(m.hand_holds == 9 and m.foot_only == 10 and m.foot_places == 19 and m.unused == 0, "홀드 수 %s" % [m])
-	runner.check(is_equal_approx(m.height, 3.62) and absf(m.hand_per_m - 9 / 3.62) < 0.001, "높이·밀도 %s" % [m])
+	runner.check(m.hand_holds == 5 and m.foot_only == 4 and m.foot_places == 9 and m.unused == 0, "홀드 수 %s" % [m])
+	runner.check(is_equal_approx(m.height, 3.1) and absf(m.hand_per_m - 5 / 3.1) < 0.001, "높이·밀도 %s" % [m])
 	runner.check(PlacementMetrics.low_feet_moves(["LF a 성공 하중발=[&\"RF\"] x", "RH b 성공 하중발=[&\"LF\", &\"RF\"] x", "완등"]) == ([1, 2] as Array[int]), "한 발 이동 세기")
 
 

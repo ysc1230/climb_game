@@ -2,13 +2,13 @@
  "bounds": {
   "x_max": 1.5,
   "x_min": -1.5,
-  "y_max": 4.0,
+  "y_max": 4.5,
   "y_min": 0.0
  },
  "check_swapped": false,
- "content_version": 3.0,
+ "content_version": 4,
  "crux_steps": {
-  "T_MATCH": 10.0
+  "T_MATCH": 6
  },
  "fail_line_y": -0.5,
  "goal_slots": [
@@ -27,8 +27,8 @@
      ],
      "hold_type": "jug",
      "pos": [
-      -0.28,
-      1.85
+      -0.29,
+      1.5
      ],
      "rot_deg": 0,
      "size": "M",
@@ -46,50 +46,12 @@
      ],
      "hold_type": "jug",
      "pos": [
-      0.3,
-      1.81
+      0.31,
+      1.5
      ],
      "rot_deg": 0,
      "size": "M",
      "slot_id": "hand_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F01",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      -0.05,
-      0.1
-     ],
-     "rot_deg": 0,
-     "size": "L",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F02",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      0.4,
-      0.1
-     ],
-     "rot_deg": 0,
-     "size": "L",
-     "slot_id": "foot_1"
     }
    ]
   },
@@ -103,8 +65,8 @@
      ],
      "hold_type": "jug",
      "pos": [
-      0.43,
-      2.09
+      -0.241,
+      1.915
      ],
      "rot_deg": 0,
      "size": "S",
@@ -122,12 +84,15 @@
      ],
      "hold_type": "jug",
      "pos": [
-      -0.1,
-      2.21
+      0.12,
+      2.348
      ],
      "rot_deg": 0,
-     "size": "S",
-     "slot_id": "hand_1"
+     "size": "M",
+     "slot_id": "hand_1",
+     "hand_area": {
+      "matchable": true
+     }
     }
    ]
   },
@@ -141,49 +106,8 @@
      ],
      "hold_type": "jug",
      "pos": [
-      0.4,
-      2.41
-     ],
-     "rot_deg": 0,
-     "size": "S",
-     "slot_id": "hand_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "H06",
-   "slots": [
-    {
-     "allowed": [
-      "LH",
-      "RH"
-     ],
-     "hold_type": "jug",
-     "pos": [
-      -0.07,
-      2.575
-     ],
-     "rot_deg": 0,
-     "size": "S",
-     "slot_id": "hand_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "H07",
-   "slots": [
-    {
-     "allowed": [
-      "LH",
-      "RH"
-     ],
-     "hand_area": {
-      "matchable": true
-     },
-     "hold_type": "jug",
-     "pos": [
-      0.275,
-      2.76
+      0.541,
+      2.662
      ],
      "rot_deg": 0,
      "size": "M",
@@ -192,21 +116,40 @@
    ]
   },
   {
-   "hold_id": "H08",
+   "hold_id": "F01",
    "slots": [
     {
      "allowed": [
-      "LH",
-      "RH"
+      "LF",
+      "RF"
      ],
-     "hold_type": "jug",
+     "hold_type": "foot_chip",
      "pos": [
-      0.91,
-      2.725
+      -0.12,
+      0.1
      ],
      "rot_deg": 0,
-     "size": "S",
-     "slot_id": "hand_1"
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F02",
+   "slots": [
+    {
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_chip",
+     "pos": [
+      0.25,
+      0.1
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -220,11 +163,11 @@
      ],
      "hold_type": "foot_chip",
      "pos": [
-      -0.05,
-      0.356
+      0.252,
+      0.422
      ],
      "rot_deg": 0,
-     "size": "L",
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -239,87 +182,11 @@
      ],
      "hold_type": "foot_chip",
      "pos": [
-      0.4,
-      0.58
+      -0.222,
+      0.981
      ],
      "rot_deg": 0,
-     "size": "L",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F05",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      -0.05,
-      0.804
-     ],
-     "rot_deg": 0,
-     "size": "L",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F06",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      0.4,
-      1.02
-     ],
-     "rot_deg": 0,
-     "size": "L",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F07",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      0.05,
-      1.236
-     ],
-     "rot_deg": 0,
-     "size": "L",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F08",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      0.45,
-      1.46
-     ],
-     "rot_deg": 0,
-     "size": "L",
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -334,8 +201,8 @@
      ],
      "hold_type": "goal",
      "pos": [
-      0.4,
-      3.09
+      0.304,
+      3.1
      ],
      "rot_deg": 0,
      "size": "M",
@@ -348,8 +215,8 @@
      ],
      "hold_type": "goal",
      "pos": [
-      0.8,
-      3.09
+      0.66,
+      3.1
      ],
      "rot_deg": 0,
      "size": "M",
@@ -364,52 +231,36 @@
    "G_V3_02/F03/foot_1"
   ],
   [
-   "RH",
+   "RF",
+   "G_V3_02/F03/foot_1"
+  ],
+  [
+   "LH",
    "G_V3_02/H03/hand_1"
   ],
   [
-   "RF",
+   "LF",
    "G_V3_02/F04/foot_1"
+  ],
+  [
+   "RH",
+   "G_V3_02/H04/hand_1"
+  ],
+  [
+   "RF",
+   "G_V3_02/H02/hand_1"
   ],
   [
    "LH",
    "G_V3_02/H04/hand_1"
   ],
   [
-   "LF",
-   "G_V3_02/F05/foot_1"
-  ],
-  [
    "RH",
    "G_V3_02/H05/hand_1"
   ],
   [
-   "RF",
-   "G_V3_02/F06/foot_1"
-  ],
-  [
-   "LH",
-   "G_V3_02/H06/hand_1"
-  ],
-  [
    "LF",
-   "G_V3_02/F07/foot_1"
-  ],
-  [
-   "RH",
-   "G_V3_02/H07/hand_1"
-  ],
-  [
-   "LH",
-   "G_V3_02/H07/hand_1"
-  ],
-  [
-   "RH",
-   "G_V3_02/H08/hand_1"
-  ],
-  [
-   "RF",
-   "G_V3_02/F08/foot_1"
+   "G_V3_02/H01/hand_1"
   ],
   [
    "LH",
@@ -422,7 +273,7 @@
  ],
  "mode": "general",
  "name_ko": "모아서 뻗기",
- "note": "v(2026-11-11): B안 몸(팔 0.285/0.27, 다리 0.41/0.375, 어깨 골반 위 0.67, docs/35 §6)에 맞춰 다시 배치했다. 사용자 결정으로 문제를 처음부터 다시 만들며 이 문제 하나만 남긴다. 주제(파란 H07에 두 손을 모은 뒤 오른쪽 H08로 뻗기)는 유지하고, 발·손을 번갈아 올리는 사다리(손 간격 약 0.2, 발 간격 약 0.22)로 바꿨다. 첫 동작의 크로스는 새 몸(좁은 어깨·짧은 팔)으로 성립하지 않아 뺐다. 봇 완등 35.1초, 매치 금지 시 #10에서 막힘.",
+ "note": "2026-11-22 오버행 앱(docs/52 §9): 등급 각도 20°, 홀드 손 5·발 4. 새로 배치(손 5·발판 2 + 바닥 발판 2, 손홀드를 발로도 딛음). 필요 기술 매치 #6. 이전: v(2026-11-11): B안 몸(팔 0.285/0.27, 다리 0.41/0.375, 어깨 골반 위 0.67, docs/35 §6)에 맞춰 다시 배치했다. 사용자 결정으로 문제를 처음부터 다시 만들며 이 문제 하나",
  "order": 1.0,
  "platforms": [
   {
@@ -433,8 +284,8 @@
    "platform_id": "P00",
    "top_y": 0.1,
    "x_range": [
-    -0.4,
-    0.8
+    -0.47,
+    0.6
    ]
   }
  ],
@@ -444,20 +295,15 @@
  "route_id": "G_V3_02",
  "score_gates": [
   {
-   "slot": "G_V3_02/H07/hand_1",
+   "slot": "G_V3_02/H04/hand_1",
    "technique": "T_MATCH"
   }
  ],
- "score_ref": {
-  "grabs": 15,
-  "quality": 0.756,
-  "spent_per_m": 44.66
- },
  "start_pose": {
   "angle": 0.0,
   "pelvis": [
-   0.1,
-   0.76
+   0.01,
+   0.75
   ],
   "slots": {
    "LF": "G_V3_02/F01/foot_1",
@@ -467,5 +313,10 @@
   }
  },
  "time_medal_seconds": 100.0,
- "validation_status": "Draft"
+ "validation_status": "Draft",
+ "score_ref": {
+  "grabs": 11,
+  "quality": 0.765,
+  "spent_per_m": 44.24
+ }
 }

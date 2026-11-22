@@ -6,7 +6,7 @@
   "y_min": 0.0
  },
  "check_swapped": false,
- "content_version": 1.0,
+ "content_version": 2,
  "crux_steps": {},
  "fail_line_y": -0.5,
  "goal_slots": [
@@ -187,25 +187,6 @@
    ]
   },
   {
-   "hold_id": "F04",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_big",
-     "pos": [
-      0.42,
-      0.65
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
    "hold_id": "F05",
    "slots": [
     {
@@ -217,25 +198,6 @@
      "pos": [
       -0.05,
       0.95
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F06",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_big",
-     "pos": [
-      0.42,
-      1.12
      ],
      "rot_deg": 0,
      "size": "M",
@@ -303,7 +265,7 @@
   ],
   [
    "RF",
-   "G_V2_03/F04/foot_1"
+   "G_V2_03/F03/foot_1"
   ],
   [
    "LH",
@@ -319,7 +281,7 @@
   ],
   [
    "RF",
-   "G_V2_03/F06/foot_1"
+   "G_V2_03/F07/foot_1"
   ],
   [
    "LH",
@@ -344,7 +306,7 @@
  ],
  "mode": "general",
  "name_ko": "처마",
- "note": "2026-11-22 벽 기울기 실험(docs/52): 30° 처마. 큰 저그와 큰 발판, 기울기만으로 어려움.",
+ "note": "2026-11-22 오버행 앱(docs/52 §9): 등급 각도 15°, 홀드 손 6·발 5. 원래 배치에서 발판만 줄임. 이전: 2026-11-22 벽 기울기 실험(docs/52): 30° 처마. 큰 저그와 큰 발판, 기울기만으로 어려움.",
  "order": 3,
  "platforms": [
   {
@@ -377,11 +339,10 @@
  },
  "time_medal_seconds": 150,
  "validation_status": "Draft",
- "wall_angle_deg": 30,
+ "score_gates": [],
  "score_ref": {
   "grabs": 11,
-  "quality": 0.917,
-  "spent_per_m": 32.27
- },
- "score_gates": []
+  "quality": 0.783,
+  "spent_per_m": 29.82
+ }
 }

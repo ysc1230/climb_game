@@ -6,9 +6,9 @@
   "y_min": 0.0
  },
  "check_swapped": false,
- "content_version": 1,
+ "content_version": 2,
  "crux_steps": {
-  "T_HIGH_STEP": 8.0
+  "T_HIGH_STEP": 3
  },
  "fail_line_y": -0.5,
  "goal_slots": [
@@ -25,10 +25,10 @@
       "LH",
       "RH"
      ],
-     "hold_type": "pinch",
+     "hold_type": "jug",
      "pos": [
-      0.36,
-      1.55
+      0.34,
+      1.5
      ],
      "rot_deg": 0,
      "size": "M",
@@ -44,10 +44,10 @@
       "LH",
       "RH"
      ],
-     "hold_type": "pinch",
+     "hold_type": "jug",
      "pos": [
-      -0.3,
-      1.55
+      -0.26,
+      1.5
      ],
      "rot_deg": 0,
      "size": "M",
@@ -65,8 +65,8 @@
      ],
      "hold_type": "crimp",
      "pos": [
-      0.35,
-      1.86
+      0.241,
+      1.905
      ],
      "rot_deg": 0,
      "size": "L",
@@ -82,13 +82,13 @@
       "LH",
       "RH"
      ],
-     "hold_type": "crimp",
+     "hold_type": "jug",
      "pos": [
-      0.55,
-      2.02
+      -0.206,
+      2.285
      ],
      "rot_deg": 0,
-     "size": "L",
+     "size": "M",
      "slot_id": "hand_1"
     }
    ]
@@ -103,87 +103,8 @@
      ],
      "hold_type": "jug",
      "pos": [
-      0.8,
-      2.25
-     ],
-     "rot_deg": 0,
-     "size": "S",
-     "slot_id": "hand_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "H06",
-   "slots": [
-    {
-     "allowed": [
-      "LH",
-      "RH"
-     ],
-     "hold_type": "crimp",
-     "pos": [
-      0.4,
-      2.5
-     ],
-     "rot_deg": 0,
-     "size": "L",
-     "slot_id": "hand_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "H07",
-   "slots": [
-    {
-     "allowed": [
-      "LH",
-      "RH"
-     ],
-     "hold_type": "jug",
-     "pos": [
-      0.35,
-      2.78
-     ],
-     "rot_deg": 0,
-     "size": "S",
-     "slot_id": "hand_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "H08",
-   "slots": [
-    {
-     "allowed": [
-      "LH",
-      "RH"
-     ],
-     "hand_area": {
-      "matchable": true
-     },
-     "hold_type": "jug",
-     "pos": [
-      0.4,
-      3.08
-     ],
-     "rot_deg": 0,
-     "size": "L",
-     "slot_id": "hand_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "H09",
-   "slots": [
-    {
-     "allowed": [
-      "LH",
-      "RH"
-     ],
-     "hold_type": "crimp",
-     "pos": [
-      -0.14,
-      3.3
+      0.161,
+      2.727
      ],
      "rot_deg": 0,
      "size": "M",
@@ -201,7 +122,7 @@
      ],
      "hold_type": "foot_chip",
      "pos": [
-      0.17,
+      0.03,
       0.1
      ],
      "rot_deg": 0,
@@ -220,7 +141,7 @@
      ],
      "hold_type": "foot_chip",
      "pos": [
-      -0.2,
+      -0.34,
       0.1
      ],
      "rot_deg": 0,
@@ -239,8 +160,8 @@
      ],
      "hold_type": "foot_chip",
      "pos": [
-      0.35,
-      0.4
+      -0.307,
+      0.433
      ],
      "rot_deg": 0,
      "size": "M",
@@ -258,122 +179,8 @@
      ],
      "hold_type": "foot_chip",
      "pos": [
-      0.17,
-      0.6
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F05",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      0.47,
-      0.78
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F06",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      0.2,
-      0.98
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F07",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      0.69,
-      1.55
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F08",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      0.03,
-      1.55
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F09",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      0.2,
-      1.7
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F10",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      -0.05,
-      2.05
+      0.164,
+      0.965
      ],
      "rot_deg": 0,
      "size": "M",
@@ -391,8 +198,8 @@
      ],
      "hold_type": "goal",
      "pos": [
-      -0.2,
-      3.62
+      -0.04,
+      3.1
      ],
      "rot_deg": 0,
      "size": "M",
@@ -405,8 +212,8 @@
      ],
      "hold_type": "goal",
      "pos": [
-      0.2,
-      3.62
+      0.381,
+      3.1
      ],
      "rot_deg": 0,
      "size": "M",
@@ -421,16 +228,16 @@
    "G_V5_02/F03/foot_1"
   ],
   [
+   "LF",
+   "G_V5_02/F03/foot_1"
+  ],
+  [
    "RH",
    "G_V5_02/H03/hand_1"
   ],
   [
-   "LF",
-   "G_V5_02/F04/foot_1"
-  ],
-  [
    "RF",
-   "G_V5_02/F05/foot_1"
+   "G_V5_02/F04/foot_1"
   ],
   [
    "LH",
@@ -438,72 +245,40 @@
   ],
   [
    "LF",
-   "G_V5_02/F06/foot_1"
+   "G_V5_02/H02/hand_1"
   ],
   [
    "RH",
    "G_V5_02/H05/hand_1"
   ],
   [
-   "LH",
-   "G_V5_02/H06/hand_1"
-  ],
-  [
    "RF",
-   "G_V5_02/F07/foot_1"
-  ],
-  [
-   "LH",
-   "G_V5_02/H07/hand_1"
-  ],
-  [
-   "LF",
-   "G_V5_02/F08/foot_1"
-  ],
-  [
-   "RH",
-   "G_V5_02/H08/hand_1"
-  ],
-  [
-   "LH",
-   "G_V5_02/H08/hand_1"
-  ],
-  [
-   "RF",
-   "G_V5_02/F09/foot_1"
-  ],
-  [
-   "LH",
-   "G_V5_02/H09/hand_1"
-  ],
-  [
-   "LF",
-   "G_V5_02/F10/foot_1"
-  ],
-  [
-   "RH",
-   "G_V5_02/G01/goal_right"
+   "G_V5_02/H01/hand_1"
   ],
   [
    "LH",
    "G_V5_02/G01/goal_left"
+  ],
+  [
+   "RH",
+   "G_V5_02/G01/goal_right"
   ]
  ],
  "mode": "general",
  "name_ko": "거꾸로 사선",
- "note": "작업 5 V5: 가는 사선을 뒤집었다. 하이스텝(#8)이 관문, 위쪽 파란 저그(H08)가 쉬는 자리.",
+ "note": "2026-11-22 오버행 앱(docs/52 §9): 등급 각도 30°, 홀드 손 5·발 4. 새로 배치(손 5·발판 2 + 바닥 발판 2, 손홀드를 발로도 딛음). 필요 기술 하이스텝 #3. 이전: 작업 5 V5: 가는 사선을 뒤집었다. 하이스텝(#8)이 관문, 위쪽 파란 저그(H08)가 쉬는 자리.",
  "order": 2,
  "platforms": [
   {
    "foot_slot_keys": [
-    "G_V5_02/F02/foot_1",
-    "G_V5_02/F01/foot_1"
+    "G_V5_02/F01/foot_1",
+    "G_V5_02/F02/foot_1"
    ],
    "platform_id": "P00",
    "top_y": 0.1,
    "x_range": [
-    -0.5,
-    0.6
+    -0.69,
+    0.38
    ]
   }
  ],
@@ -513,14 +288,14 @@
  "route_id": "G_V5_02",
  "score_gates": [
   {
-   "slot": "G_V5_02/F07/foot_1",
+   "slot": "G_V5_02/F04/foot_1",
    "technique": "T_HIGH_STEP"
   }
  ],
  "start_pose": {
   "angle": 0.0,
   "pelvis": [
-   0.0,
+   0.04,
    0.75
   ],
   "slots": {
@@ -533,8 +308,8 @@
  "time_medal_seconds": 120,
  "validation_status": "Draft",
  "score_ref": {
-  "grabs": 18,
-  "quality": 0.844,
-  "spent_per_m": 78.29
+  "grabs": 10,
+  "quality": 0.747,
+  "spent_per_m": 68.96
  }
 }

@@ -6,7 +6,7 @@
   "y_min": 0.0
  },
  "check_swapped": false,
- "content_version": 2.0,
+ "content_version": 3,
  "crux_steps": {
   "T_HIGH_STEP": 3
  },
@@ -151,25 +151,6 @@
    ]
   },
   {
-   "hold_id": "F03",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      -0.15,
-      0.35
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
    "hold_id": "F04",
    "slots": [
     {
@@ -244,7 +225,7 @@
  "intended_moves": [
   [
    "LF",
-   "G_V3_04/F03/foot_1"
+   "G_V3_04/F04/foot_1"
   ],
   [
    "RF",
@@ -285,7 +266,7 @@
  ],
  "mode": "general",
  "name_ko": "높은 디딤",
- "note": "2026-11-15 새로 짠 V3(docs/44). 반폭 0.06, 발판 적음, 왼발 하이스텝(#3, 0.95m) 필수.",
+ "note": "2026-11-22 오버행 앱(docs/52 §9): 등급 각도 20°, 홀드 손 5·발 4. 원래 배치에서 발판만 줄임. 필요 기술 하이스텝 #3. 이전: 2026-11-15 새로 짠 V3(docs/44). 반폭 0.06, 발판 적음, 왼발 하이스텝(#3, 0.95m) 필수.",
  "order": 3,
  "platforms": [
   {
@@ -311,11 +292,6 @@
    "technique": "T_HIGH_STEP"
   }
  ],
- "score_ref": {
-  "grabs": 10,
-  "quality": 0.745,
-  "spent_per_m": 43.72
- },
  "start_pose": {
   "angle": 0.0,
   "pelvis": [
@@ -330,5 +306,10 @@
   }
  },
  "time_medal_seconds": 120,
- "validation_status": "Draft"
+ "validation_status": "Draft",
+ "score_ref": {
+  "grabs": 10,
+  "quality": 0.679,
+  "spent_per_m": 57.93
+ }
 }

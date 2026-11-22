@@ -6,7 +6,7 @@
   "y_min": 0.0
  },
  "check_swapped": false,
- "content_version": 1,
+ "content_version": 2,
  "crux_steps": {},
  "fail_line_y": -0.5,
  "goal_slots": [
@@ -168,25 +168,6 @@
    ]
   },
   {
-   "hold_id": "F04",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      0.25,
-      0.6
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
    "hold_id": "F05",
    "slots": [
     {
@@ -198,25 +179,6 @@
      "pos": [
       -0.15,
       1.0
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F06",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      0.3,
-      1.15
      ],
      "rot_deg": 0,
      "size": "M",
@@ -284,7 +246,7 @@
   ],
   [
    "RF",
-   "G_V1_02/F04/foot_1"
+   "G_V1_02/F03/foot_1"
   ],
   [
    "LH",
@@ -300,7 +262,7 @@
   ],
   [
    "RF",
-   "G_V1_02/F06/foot_1"
+   "G_V1_02/F07/foot_1"
   ],
   [
    "LH",
@@ -321,7 +283,7 @@
  ],
  "mode": "general",
  "name_ko": "발 먼저",
- "note": "작업 5 V1: 손홀드 사이가 멀어 발을 먼저 올려야 다음 손이 닿는다. 저그 M·작은 발판. 관문 없음.",
+ "note": "2026-11-22 오버행 앱(docs/52 §9): 등급 각도 10°, 홀드 손 5·발 5. 원래 배치에서 발판만 줄임. 이전: 작업 5 V1: 손홀드 사이가 멀어 발을 먼저 올려야 다음 손이 닿는다. 저그 M·작은 발판. 관문 없음.",
  "order": 2,
  "platforms": [
   {
@@ -354,10 +316,10 @@
  },
  "time_medal_seconds": 120,
  "validation_status": "Draft",
+ "score_gates": [],
  "score_ref": {
   "grabs": 10,
-  "quality": 0.799,
-  "spent_per_m": 27.81
- },
- "score_gates": []
+  "quality": 0.718,
+  "spent_per_m": 43.27
+ }
 }

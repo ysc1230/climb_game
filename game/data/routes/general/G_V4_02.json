@@ -2,11 +2,11 @@
  "bounds": {
   "x_max": 1.5,
   "x_min": -1.5,
-  "y_max": 4.35,
+  "y_max": 4.4,
   "y_min": 0.0
  },
  "check_swapped": false,
- "content_version": 1.0,
+ "content_version": 2,
  "crux_steps": {},
  "fail_line_y": -0.5,
  "goal_slots": [
@@ -25,7 +25,7 @@
      ],
      "hold_type": "jug",
      "pos": [
-      -0.32,
+      -0.3,
       1.5
      ],
      "rot_deg": 0,
@@ -45,7 +45,7 @@
      "hold_type": "jug",
      "pos": [
       0.27,
-      1.48
+      1.5
      ],
      "rot_deg": 0,
      "size": "M",
@@ -61,13 +61,13 @@
       "LH",
       "RH"
      ],
-     "hold_type": "jug",
+     "hold_type": "crimp",
      "pos": [
-      0.02,
-      1.95
+      0.043,
+      1.912
      ],
      "rot_deg": 0,
-     "size": "M",
+     "size": "L",
      "slot_id": "hand_1"
     }
    ]
@@ -80,13 +80,13 @@
       "LH",
       "RH"
      ],
-     "hold_type": "jug",
+     "hold_type": "crimp",
      "pos": [
-      0.42,
-      2.3
+      0.366,
+      2.317
      ],
      "rot_deg": 0,
-     "size": "M",
+     "size": "L",
      "slot_id": "hand_1"
     }
    ]
@@ -99,13 +99,13 @@
       "LH",
       "RH"
      ],
-     "hold_type": "jug",
+     "hold_type": "crimp",
      "pos": [
-      -0.1,
-      2.65
+      -0.143,
+      2.692
      ],
      "rot_deg": 0,
-     "size": "M",
+     "size": "L",
      "slot_id": "hand_1"
     }
    ]
@@ -158,8 +158,8 @@
      ],
      "hold_type": "foot_big",
      "pos": [
-      0.1,
-      0.5
+      0.152,
+      0.494
      ],
      "rot_deg": 0,
      "size": "M",
@@ -177,46 +177,8 @@
      ],
      "hold_type": "foot_big",
      "pos": [
-      -0.15,
-      0.95
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F05",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_big",
-     "pos": [
-      0.4,
-      1.1
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F06",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_big",
-     "pos": [
-      0.02,
-      1.22
+      -0.135,
+      0.96
      ],
      "rot_deg": 0,
      "size": "M",
@@ -234,8 +196,8 @@
      ],
      "hold_type": "goal",
      "pos": [
-      0.08,
-      2.95
+      0.023,
+      3.0
      ],
      "rot_deg": 0,
      "size": "M",
@@ -248,8 +210,8 @@
      ],
      "hold_type": "goal",
      "pos": [
-      0.46,
-      2.95
+      0.45,
+      3.0
      ],
      "rot_deg": 0,
      "size": "M",
@@ -277,7 +239,7 @@
   ],
   [
    "RF",
-   "G_V4_02/F05/foot_1"
+   "G_V4_02/H02/hand_1"
   ],
   [
    "LH",
@@ -285,7 +247,7 @@
   ],
   [
    "LF",
-   "G_V4_02/F06/foot_1"
+   "G_V4_02/H01/hand_1"
   ],
   [
    "RH",
@@ -298,7 +260,7 @@
  ],
  "mode": "general",
  "name_ko": "지붕",
- "note": "2026-11-22 벽 기울기 실험(docs/52): 45° 지붕. 저그라도 발 몫이 줄어 손이 빨리 지친다. 발판이 적고 쉬는 자리 없음(바닥 제외).",
+ "note": "2026-11-22 오버행 앱(docs/52 §9): 등급 각도 25°, 홀드 손 5·발 4. 새로 배치(손 5·발판 2 + 바닥 발판 2, 손홀드를 발로도 딛음). 이전: 2026-11-22 벽 기울기 실험(docs/52): 45° 지붕. 저그라도 발 몫이 줄어 손이 빨리 지친다. 발판이 적고 쉬는 자리 없음(바닥 제외).",
  "order": 3,
  "platforms": [
   {
@@ -309,17 +271,18 @@
    "platform_id": "P00",
    "top_y": 0.1,
    "x_range": [
-    -0.5,
+    -0.47,
     0.6
    ]
   }
  ],
  "required_techniques": [],
  "route_id": "G_V4_02",
+ "score_gates": [],
  "start_pose": {
   "angle": 0.0,
   "pelvis": [
-   0.05,
+   -0.015,
    0.75
   ],
   "slots": {
@@ -331,11 +294,9 @@
  },
  "time_medal_seconds": 150,
  "validation_status": "Draft",
- "wall_angle_deg": 45,
  "score_ref": {
   "grabs": 9,
-  "quality": 0.835,
-  "spent_per_m": 31.84
- },
- "score_gates": []
+  "quality": 0.908,
+  "spent_per_m": 59.66
+ }
 }

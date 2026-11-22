@@ -4,7 +4,7 @@ config_version=5
 [application]
 
 config/name="Climb Overhang"
-config/version="0.6-overhang"
+config/version="0.7-overhang"
 config/icon="res://icon.svg"
 run/main_scene="res://scenes/home.tscn"
 config/features=PackedStringArray("4.7", "Mobile")

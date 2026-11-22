@@ -6,7 +6,7 @@
   "y_min": 0.0
  },
  "check_swapped": false,
- "content_version": 2.0,
+ "content_version": 3,
  "crux_steps": {},
  "fail_line_y": -0.5,
  "goal_slots": [
@@ -187,25 +187,6 @@
    ]
   },
   {
-   "hold_id": "F04",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      0.18,
-      0.6
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
    "hold_id": "F05",
    "slots": [
     {
@@ -284,7 +265,7 @@
   ],
   [
    "RF",
-   "G_V0_02/F04/foot_1"
+   "G_V0_02/F03/foot_1"
   ],
   [
    "LH",
@@ -321,7 +302,7 @@
  ],
  "mode": "general",
  "name_ko": "징검다리",
- "note": "2026-11-15 새로 짠 V0(docs/44). 큰 홀드(반폭 0.12) 두 줄 사다리, 홀드 간격 규칙(홀드 크기만큼 떨어짐).",
+ "note": "2026-11-22 오버행 앱(docs/52 §9): 등급 각도 0°, 홀드 손 6·발 5. 원래 배치에서 발판만 줄임. 이전: 2026-11-15 새로 짠 V0(docs/44). 큰 홀드(반폭 0.12) 두 줄 사다리, 홀드 간격 규칙(홀드 크기만큼 떨어짐).",
  "order": 1,
  "platforms": [
   {
@@ -340,11 +321,6 @@
  "required_techniques": [],
  "route_id": "G_V0_02",
  "score_gates": [],
- "score_ref": {
-  "grabs": 10,
-  "quality": 0.885,
-  "spent_per_m": 21.37
- },
  "start_pose": {
   "angle": 0.0,
   "pelvis": [
@@ -359,5 +335,10 @@
   }
  },
  "time_medal_seconds": 120,
- "validation_status": "Draft"
+ "validation_status": "Draft",
+ "score_ref": {
+  "grabs": 10,
+  "quality": 0.822,
+  "spent_per_m": 28.54
+ }
 }

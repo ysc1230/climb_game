@@ -6,7 +6,7 @@
   "y_min": 0.0
  },
  "check_swapped": false,
- "content_version": 2.0,
+ "content_version": 3,
  "crux_steps": {},
  "fail_line_y": -0.5,
  "goal_slots": [
@@ -206,25 +206,6 @@
    ]
   },
   {
-   "hold_id": "F06",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      0.45,
-      1.15
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
    "hold_id": "G01",
    "slots": [
     {
@@ -285,7 +266,7 @@
   ],
   [
    "RF",
-   "G_V1_01/F06/foot_1"
+   "G_V1_01/F05/foot_1"
   ],
   [
    "LH",
@@ -298,7 +279,7 @@
  ],
  "mode": "general",
  "name_ko": "비스듬히",
- "note": "2026-11-15 새로 짠 V1(docs/44). 반폭 0.10, 오른쪽 위로 비스듬히.",
+ "note": "2026-11-22 오버행 앱(docs/52 §9): 등급 각도 10°, 홀드 손 5·발 5. 원래 배치에서 발판만 줄임. 이전: 2026-11-15 새로 짠 V1(docs/44). 반폭 0.10, 오른쪽 위로 비스듬히.",
  "order": 1,
  "platforms": [
   {
@@ -317,11 +298,6 @@
  "required_techniques": [],
  "route_id": "G_V1_01",
  "score_gates": [],
- "score_ref": {
-  "grabs": 9,
-  "quality": 0.965,
-  "spent_per_m": 20.82
- },
  "start_pose": {
   "angle": 0.0,
   "pelvis": [
@@ -336,5 +312,10 @@
   }
  },
  "time_medal_seconds": 120,
- "validation_status": "Draft"
+ "validation_status": "Draft",
+ "score_ref": {
+  "grabs": 9,
+  "quality": 0.931,
+  "spent_per_m": 29.48
+ }
 }

@@ -6,7 +6,7 @@
   "y_min": 0.0
  },
  "check_swapped": false,
- "content_version": 1,
+ "content_version": 2,
  "crux_steps": {
   "T_HIGH_STEP": 3
  },
@@ -27,7 +27,7 @@
      ],
      "hold_type": "jug",
      "pos": [
-      0.25,
+      0.22,
       1.5
      ],
      "rot_deg": 0,
@@ -46,7 +46,7 @@
      ],
      "hold_type": "jug",
      "pos": [
-      -0.2,
+      -0.24,
       1.5
      ],
      "rot_deg": 0,
@@ -65,8 +65,8 @@
      ],
      "hold_type": "crimp",
      "pos": [
-      0.25,
-      1.95
+      0.18,
+      1.894
      ],
      "rot_deg": 0,
      "size": "L",
@@ -84,8 +84,8 @@
      ],
      "hold_type": "jug",
      "pos": [
-      -0.2,
-      2.3
+      -0.18,
+      2.33
      ],
      "rot_deg": 0,
      "size": "S",
@@ -101,13 +101,13 @@
       "LH",
       "RH"
      ],
-     "hold_type": "crimp",
+     "hold_type": "jug",
      "pos": [
-      0.1,
-      2.7
+      -0.038,
+      2.663
      ],
      "rot_deg": 0,
-     "size": "L",
+     "size": "M",
      "slot_id": "hand_1"
     }
    ]
@@ -122,7 +122,7 @@
      ],
      "hold_type": "foot_chip",
      "pos": [
-      0.17,
+      0.12,
       0.1
      ],
      "rot_deg": 0,
@@ -141,7 +141,7 @@
      ],
      "hold_type": "foot_chip",
      "pos": [
-      -0.2,
+      -0.25,
       0.1
      ],
      "rot_deg": 0,
@@ -160,8 +160,8 @@
      ],
      "hold_type": "foot_chip",
      "pos": [
-      0.2,
-      0.35
+      -0.207,
+      0.441
      ],
      "rot_deg": 0,
      "size": "M",
@@ -179,27 +179,8 @@
      ],
      "hold_type": "foot_chip",
      "pos": [
-      -0.2,
-      0.45
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F05",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      0.25,
-      0.95
+      0.144,
+      0.901
      ],
      "rot_deg": 0,
      "size": "M",
@@ -217,7 +198,7 @@
      ],
      "hold_type": "goal",
      "pos": [
-      -0.2,
+      -0.25,
       3.1
      ],
      "rot_deg": 0,
@@ -231,7 +212,7 @@
      ],
      "hold_type": "goal",
      "pos": [
-      0.2,
+      0.154,
       3.1
      ],
      "rot_deg": 0,
@@ -248,7 +229,7 @@
   ],
   [
    "LF",
-   "G_V4_01/F04/foot_1"
+   "G_V4_01/F03/foot_1"
   ],
   [
    "RH",
@@ -256,7 +237,7 @@
   ],
   [
    "RF",
-   "G_V4_01/F05/foot_1"
+   "G_V4_01/F04/foot_1"
   ],
   [
    "LH",
@@ -285,19 +266,19 @@
  ],
  "mode": "general",
  "name_ko": "외발 계단",
- "note": "작업 5 V4: 높은 디딤(V3)을 좌우로 뒤집고 손홀드를 크림프 L로 바꿨다. 오른발 하이스텝(#3)이 관문. 발판이 적어 한 발 구간이 길다. 쉬는 자리 없음.",
+ "note": "2026-11-22 오버행 앱(docs/52 §9): 등급 각도 25°, 홀드 손 5·발 4. 새로 배치(손 5·발판 2 + 바닥 발판 2, 손홀드를 발로도 딛음). 필요 기술 하이스텝 #3. 이전: 작업 5 V4: 높은 디딤(V3)을 좌우로 뒤집고 손홀드를 크림프 L로 바꿨다. 오른발 하이스텝(#3)이 관문. 발판이 적어 한 발 구간이 길다. 쉬는 자리 없음.",
  "order": 2,
  "platforms": [
   {
    "foot_slot_keys": [
-    "G_V4_01/F02/foot_1",
-    "G_V4_01/F01/foot_1"
+    "G_V4_01/F01/foot_1",
+    "G_V4_01/F02/foot_1"
    ],
    "platform_id": "P00",
    "top_y": 0.1,
    "x_range": [
-    -0.5,
-    0.6
+    -0.6,
+    0.47
    ]
   }
  ],
@@ -307,14 +288,14 @@
  "route_id": "G_V4_01",
  "score_gates": [
   {
-   "slot": "G_V4_01/F05/foot_1",
+   "slot": "G_V4_01/F04/foot_1",
    "technique": "T_HIGH_STEP"
   }
  ],
  "start_pose": {
   "angle": 0.0,
   "pelvis": [
-   0.0,
+   -0.01,
    0.75
   ],
   "slots": {
@@ -328,7 +309,7 @@
  "validation_status": "Draft",
  "score_ref": {
   "grabs": 10,
-  "quality": 0.745,
-  "spent_per_m": 60.98
+  "quality": 0.755,
+  "spent_per_m": 67.0
  }
 }

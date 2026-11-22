@@ -244,9 +244,10 @@ func test_free_foot_grid() -> void:
 			for ix in 6:
 				for iy in 8:
 					_check_foot_place(id, 0, foot, ix * 0.15, -0.75 + iy * 0.15)
-	# 팔이 펴져 골반이 벽에 붙은 자세(기기 화면): G_V3_02 12번째 동작 뒤 오른발
+	# 팔이 펴져 골반이 벽에 붙은 자세(기기 화면): G_V3_02 높은 곳 동작 뒤 오른발. 2026-11-22 오버행 앱에서 문제를 11동작으로
+	# 다시 배치해 12번째 동작이 없어져 9번째(모은 손 다음 오른손 뻗기 뒤)로 바꿈
 	for o in [[0.42, 0.0], [0.4, -0.15], [0.3, 0.15], [0.75, 0.02], [0.05, -0.75]]:
-		_check_foot_place(ROUTES[1], 12, &"RF", o[0], o[1])
+		_check_foot_place(ROUTES[1], 9, &"RF", o[0], o[1])
 
 
 ## 든 높이 한계(docs/37): 옆·위로 든 무릎(하이스텝)은 되고, 위·뒤나 곧장 위는 안 된다.
@@ -318,10 +319,10 @@ func test_leg_bone_twist() -> void:
 					var r := AnatomySweep.foot_place(RouteDef.load_json(id), 0, foot, ix * 0.15, -0.75 + iy * 0.15)
 					if not r.is_empty():
 						_check_leg_twist(r.t, r.session, "%s %s (%d,%d)" % [id.get_file(), foot, ix, iy])
-	for o in [[0.42, 0.0], [0.75, 0.02], [0.3, 0.15]]:
-		var r := AnatomySweep.foot_place(RouteDef.load_json(ROUTES[1]), 12, &"RF", o[0], o[1])
+	for o in [[0.42, 0.0], [0.75, 0.02], [0.3, 0.15]]:  # 2026-11-22 G_V3_02를 11동작으로 다시 배치해 12 → 9동작 뒤
+		var r := AnatomySweep.foot_place(RouteDef.load_json(ROUTES[1]), 9, &"RF", o[0], o[1])
 		if not r.is_empty():
-			_check_leg_twist(r.t, r.session, "12동작 뒤 RF %s" % [o])
+			_check_leg_twist(r.t, r.session, "9동작 뒤 RF %s" % [o])
 
 
 ## 2026-11-21 사용자("무릎을 많이 굽힌 채 반대쪽으로 옮기면 비정상적으로 돌아간다"): 옆으로 굽은 무릎이 펴질 때

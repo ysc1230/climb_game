@@ -15,10 +15,17 @@ func _hands(s: ClimbSession) -> float:
 	return float(loads.get(&"LH", 0.0)) + float(loads.get(&"RH", 0.0))
 
 
-func test_route_reads_wall_angle() -> void:
-	var d := {"route_id": "X", "wall_angle_deg": 30}
-	runner.check(is_equal_approx(RouteDef.from_dict(d).wall_deg, 30.0), "wall_angle_deg를 읽음")
-	runner.check(RouteDef.from_dict({"route_id": "Y"}).wall_deg == 0.0, "없으면 수직")
+## 벽 각도는 등급이 정한다(2026-11-22 사용자: "벽 기울기는 내가 정하는 게 아니라 기울기에 따라 난이도가 달라져야 해").
+func test_grade_sets_wall_angle() -> void:
+	var degs := []
+	for g in ["V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7"]:
+		degs.append(GradeInfo.wall_deg(g))
+	runner.check(degs == [0.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0], "등급별 각도 %s" % [degs])
+	var r := RouteDef.from_dict({"route_id": "X", "mode": "general", "grade": "V5", "wall_angle_deg": 45})
+	runner.check(is_equal_approx(r.wall_deg, 30.0), "일반 문제는 등급 각도(JSON 각도는 안 씀) %s" % r.wall_deg)
+	runner.check(is_equal_approx(RouteDef.from_dict({"route_id": "M", "mode": "custom", "grade": "V3"}).wall_deg, 20.0), "만든 문제는 예상 등급 각도")
+	runner.check(RouteDef.from_dict({"route_id": "C", "mode": "course", "grade": "V7"}).wall_deg == 0.0, "수업은 수직")
+	runner.check(ContentIndex.load_all().route("G_V7_01").wall_deg == 40.0, "실제 문제도 등급 각도")
 
 
 ## 같은 시작 자세에서 45° 벽은 손이 더 무겁다(시작은 바닥에 서 있어 쉬는 자세라 버틴다).
@@ -42,17 +49,19 @@ func test_tilt_tires_hands_on_route() -> void:
 
 
 ## 설정 "벽 기울기": 0·15·25·35·45° 중 하나(기본 25°, 실험 앱은 처음부터 기운 벽). 일반 문제에만 적용.
-func test_wall_angle_setting() -> void:
-	var p := Progress.new()
-	runner.check(int(p.control_get("wall_deg")) == 25, "기본 25°")
-	p.set_control("wall_deg", 35)
-	runner.check(int(p.control_get("wall_deg")) == 35, "35°로 바꿈")
-	p.set_control("wall_deg", 20)
-	runner.check(int(p.control_get("wall_deg")) == 35, "목록에 없는 각은 무시")
-	var r := ContentIndex.load_all().route("G_V0_02")
-	Progress.apply_wall_angle(r, p)
-	runner.check(is_equal_approx(r.wall_deg, 35.0), "일반 문제에 적용")
-	r.wall_deg = 0.0
+## 설정 "벽 기울기"는 없앴다(등급이 정함).
+func test_no_wall_angle_setting() -> void:
+	runner.check(not Progress.CONTROL_DEFAULTS.has("wall_deg"), "설정 기본값에 벽 기울기 없음")
+
+
+## 홀드가 너무 많으면 안 된다(2026-11-22 사용자). 손홀드(정상 제외)·발 전용 홀드 수 상한, 높은 등급일수록 적게.
+func test_general_routes_hold_caps() -> void:
+	for r in ContentIndex.load_all().all_routes():
+		if r.mode != "general":
+			continue
+		var m := PlacementMetrics.measure(r)
+		runner.check(m.hand_holds <= GradeInfo.max_hands(r.grade) and m.foot_only <= GradeInfo.max_feet(r.grade),
+			"%s %s 손 %d/%d 발 %d/%d" % [r.route_id, r.grade, m.hand_holds, GradeInfo.max_hands(r.grade), m.foot_only, GradeInfo.max_feet(r.grade)])
 
 
 ## 실험 앱은 모든 등급을 연다(2026-11-22 사용자). 테스트의 Progress.new()는 잠금 규칙 그대로.

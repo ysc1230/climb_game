@@ -6,9 +6,9 @@
   "y_min": 0.0
  },
  "check_swapped": false,
- "content_version": 1,
+ "content_version": 2,
  "crux_steps": {
-  "T_MATCH": 10.0
+  "T_MATCH": 6
  },
  "fail_line_y": -0.5,
  "goal_slots": [
@@ -27,8 +27,8 @@
      ],
      "hold_type": "jug",
      "pos": [
-      0.33,
-      1.85
+      0.29,
+      1.5
      ],
      "rot_deg": 0,
      "size": "M",
@@ -46,8 +46,68 @@
      ],
      "hold_type": "jug",
      "pos": [
-      -0.25,
-      1.81
+      -0.31,
+      1.5
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H03",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      0.239,
+      1.923
+     ],
+     "rot_deg": 0,
+     "size": "S",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H04",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      -0.045,
+      2.298
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1",
+     "hand_area": {
+      "matchable": true
+     }
+    }
+   ]
+  },
+  {
+   "hold_id": "H05",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      -0.483,
+      2.651
      ],
      "rot_deg": 0,
      "size": "M",
@@ -65,11 +125,11 @@
      ],
      "hold_type": "foot_chip",
      "pos": [
-      0.1,
+      0.12,
       0.1
      ],
      "rot_deg": 0,
-     "size": "L",
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -84,129 +144,12 @@
      ],
      "hold_type": "foot_chip",
      "pos": [
-      -0.35,
+      -0.25,
       0.1
      ],
      "rot_deg": 0,
-     "size": "L",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "H03",
-   "slots": [
-    {
-     "allowed": [
-      "LH",
-      "RH"
-     ],
-     "hold_type": "crimp",
-     "pos": [
-      -0.38,
-      2.09
-     ],
-     "rot_deg": 0,
-     "size": "L",
-     "slot_id": "hand_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "H04",
-   "slots": [
-    {
-     "allowed": [
-      "LH",
-      "RH"
-     ],
-     "hold_type": "pocket",
-     "pos": [
-      0.15,
-      2.21
-     ],
-     "rot_deg": 0,
-     "size": "L",
-     "slot_id": "hand_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "H05",
-   "slots": [
-    {
-     "allowed": [
-      "LH",
-      "RH"
-     ],
-     "hold_type": "crimp",
-     "pos": [
-      -0.35,
-      2.41
-     ],
-     "rot_deg": 0,
-     "size": "L",
-     "slot_id": "hand_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "H06",
-   "slots": [
-    {
-     "allowed": [
-      "LH",
-      "RH"
-     ],
-     "hold_type": "pocket",
-     "pos": [
-      0.12,
-      2.575
-     ],
-     "rot_deg": 0,
-     "size": "L",
-     "slot_id": "hand_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "H07",
-   "slots": [
-    {
-     "allowed": [
-      "LH",
-      "RH"
-     ],
-     "hand_area": {
-      "matchable": true
-     },
-     "hold_type": "jug",
-     "pos": [
-      -0.225,
-      2.76
-     ],
-     "rot_deg": 0,
      "size": "M",
-     "slot_id": "hand_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "H08",
-   "slots": [
-    {
-     "allowed": [
-      "LH",
-      "RH"
-     ],
-     "hold_type": "crimp",
-     "pos": [
-      -0.86,
-      2.725
-     ],
-     "rot_deg": 0,
-     "size": "L",
-     "slot_id": "hand_1"
+     "slot_id": "foot_1"
     }
    ]
   },
@@ -220,11 +163,11 @@
      ],
      "hold_type": "foot_chip",
      "pos": [
-      0.1,
-      0.356
+      -0.201,
+      0.373
      ],
      "rot_deg": 0,
-     "size": "L",
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -239,87 +182,11 @@
      ],
      "hold_type": "foot_chip",
      "pos": [
-      -0.35,
-      0.58
+      0.155,
+      0.929
      ],
      "rot_deg": 0,
-     "size": "L",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F05",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      0.1,
-      0.804
-     ],
-     "rot_deg": 0,
-     "size": "L",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F06",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      -0.35,
-      1.02
-     ],
-     "rot_deg": 0,
-     "size": "L",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F07",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      0.0,
-      1.236
-     ],
-     "rot_deg": 0,
-     "size": "L",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F08",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_chip",
-     "pos": [
-      -0.4,
-      1.46
-     ],
-     "rot_deg": 0,
-     "size": "L",
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -334,8 +201,8 @@
      ],
      "hold_type": "goal",
      "pos": [
-      -0.75,
-      3.09
+      -0.66,
+      3.1
      ],
      "rot_deg": 0,
      "size": "M",
@@ -348,8 +215,8 @@
      ],
      "hold_type": "goal",
      "pos": [
-      -0.35,
-      3.09
+      -0.257,
+      3.1
      ],
      "rot_deg": 0,
      "size": "M",
@@ -364,52 +231,36 @@
    "G_V5_01/F03/foot_1"
   ],
   [
-   "LH",
+   "LF",
+   "G_V5_01/F03/foot_1"
+  ],
+  [
+   "RH",
    "G_V5_01/H03/hand_1"
   ],
   [
-   "LF",
+   "RF",
    "G_V5_01/F04/foot_1"
+  ],
+  [
+   "LH",
+   "G_V5_01/H04/hand_1"
+  ],
+  [
+   "LF",
+   "G_V5_01/H02/hand_1"
   ],
   [
    "RH",
    "G_V5_01/H04/hand_1"
   ],
   [
-   "RF",
-   "G_V5_01/F05/foot_1"
-  ],
-  [
    "LH",
    "G_V5_01/H05/hand_1"
   ],
   [
-   "LF",
-   "G_V5_01/F06/foot_1"
-  ],
-  [
-   "RH",
-   "G_V5_01/H06/hand_1"
-  ],
-  [
    "RF",
-   "G_V5_01/F07/foot_1"
-  ],
-  [
-   "LH",
-   "G_V5_01/H07/hand_1"
-  ],
-  [
-   "RH",
-   "G_V5_01/H07/hand_1"
-  ],
-  [
-   "LH",
-   "G_V5_01/H08/hand_1"
-  ],
-  [
-   "LF",
-   "G_V5_01/F08/foot_1"
+   "G_V5_01/H01/hand_1"
   ],
   [
    "RH",
@@ -422,19 +273,19 @@
  ],
  "mode": "general",
  "name_ko": "작은 쉼표",
- "note": "작업 5 V5: 모아서 뻗기(V3)를 뒤집고 작은 홀드(크림프·포켓)로 바꿨다. 가운데 파란 저그(H07)가 유일한 쉬는 자리이자 매치 관문(#10). 작은 홀드 구간은 짧다.",
+ "note": "2026-11-22 오버행 앱(docs/52 §9): 등급 각도 30°, 홀드 손 5·발 4. 새로 배치(손 5·발판 2 + 바닥 발판 2, 손홀드를 발로도 딛음). 필요 기술 매치 #6. 이전: 작업 5 V5: 모아서 뻗기(V3)를 뒤집고 작은 홀드(크림프·포켓)로 바꿨다. 가운데 파란 저그(H07)가 유일한 쉬는 자리이자 매치 관문(#10). 작은 홀드 구간은 짧다.",
  "order": 1,
  "platforms": [
   {
    "foot_slot_keys": [
-    "G_V5_01/F02/foot_1",
-    "G_V5_01/F01/foot_1"
+    "G_V5_01/F01/foot_1",
+    "G_V5_01/F02/foot_1"
    ],
    "platform_id": "P00",
    "top_y": 0.1,
    "x_range": [
-    -0.5,
-    0.6
+    -0.6,
+    0.47
    ]
   }
  ],
@@ -444,15 +295,15 @@
  "route_id": "G_V5_01",
  "score_gates": [
   {
-   "slot": "G_V5_01/H07/hand_1",
+   "slot": "G_V5_01/H04/hand_1",
    "technique": "T_MATCH"
   }
  ],
  "start_pose": {
   "angle": 0.0,
   "pelvis": [
-   -0.05,
-   0.76
+   -0.01,
+   0.75
   ],
   "slots": {
    "LF": "G_V5_01/F02/foot_1",
@@ -464,8 +315,8 @@
  "time_medal_seconds": 120,
  "validation_status": "Draft",
  "score_ref": {
-  "grabs": 15,
-  "quality": 0.754,
-  "spent_per_m": 83.59
+  "grabs": 11,
+  "quality": 0.884,
+  "spent_per_m": 57.28
  }
 }

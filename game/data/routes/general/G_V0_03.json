@@ -6,7 +6,7 @@
   "y_min": 0.0
  },
  "check_swapped": false,
- "content_version": 1,
+ "content_version": 2,
  "crux_steps": {},
  "fail_line_y": -0.5,
  "goal_slots": [
@@ -187,25 +187,6 @@
    ]
   },
   {
-   "hold_id": "F04",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_big",
-     "pos": [
-      0.3,
-      0.6
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
    "hold_id": "F05",
    "slots": [
     {
@@ -284,7 +265,7 @@
   ],
   [
    "RF",
-   "G_V0_03/F04/foot_1"
+   "G_V0_03/F06/foot_1"
   ],
   [
    "LH",
@@ -321,7 +302,7 @@
  ],
  "mode": "general",
  "name_ko": "넓은 계단",
- "note": "작업 5 V0: 손발 하나씩. 저그 L·큰 발판이 가깝게 계단처럼 이어진다. 쉬는 자리는 어디서나. 관문 없음.",
+ "note": "2026-11-22 오버행 앱(docs/52 §9): 등급 각도 0°, 홀드 손 6·발 5. 원래 배치에서 발판만 줄임. 이전: 작업 5 V0: 손발 하나씩. 저그 L·큰 발판이 가깝게 계단처럼 이어진다. 쉬는 자리는 어디서나. 관문 없음.",
  "order": 2,
  "platforms": [
   {
@@ -354,10 +335,10 @@
  },
  "time_medal_seconds": 120,
  "validation_status": "Draft",
+ "score_gates": [],
  "score_ref": {
   "grabs": 10,
-  "quality": 0.978,
-  "spent_per_m": 16.87
- },
- "score_gates": []
+  "quality": 0.869,
+  "spent_per_m": 15.3
+ }
 }

@@ -133,8 +133,6 @@ func _ready() -> void:
 		route = RouteDef.load_json(DEFAULT_ROUTE)
 	else:
 		overlay.has_list = true
-	if game != null:
-		Progress.apply_wall_angle(route, game.progress)
 	session = ClimbSession.new(route)
 	level = game.get_flow().level() if game != null else "intermediate"
 	beginner = level == "beginner"

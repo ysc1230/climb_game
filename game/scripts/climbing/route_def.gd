@@ -13,8 +13,7 @@ var start_slots := {}    # limb -> slot key
 var goal_slots: Array = []
 var time_medal_seconds := 0.0
 var fail_line_y := -0.5  # 이 아래로 떨어지면 추락 연출 종료
-var wall_deg := 0.0      # 벽 기울기(도, 0 수직, + 오버행). 실험(experiment/overhang, docs/48 R2)
-var wall_from_data := false  # 문제 JSON에 wall_angle_deg가 있었나(있으면 설정이 덮지 않음)
+var wall_deg := 0.0      # 벽 기울기(도, 0 수직, + 오버행). 실험(experiment/overhang, docs/48 R2). 등급이 정한다(GradeInfo.wall_deg)
 var intended_moves: Array = []  # [[limb, slot key], ...] — 기술 단계는 [limb, ...나머지 원본 항목] 그대로(steps_raw와 같은 인덱스)
 var steps_raw: Array = []  # JSON intended_moves 원본(docs/28 §7.4 단계 형식, Task 5 검증기용)
 ## docs/28 §8.1 문제 필드. mode가 빈 문자열이면 시험 전용 루트(TX_*)다.
@@ -82,8 +81,6 @@ func _read(d: Dictionary) -> void:
 	goal_slots = d.get("goal_slots", [])
 	time_medal_seconds = float(d.get("time_medal_seconds", 0.0))
 	fail_line_y = float(d.get("fail_line_y", -0.5))
-	wall_deg = float(d.get("wall_angle_deg", 0.0))
-	wall_from_data = d.has("wall_angle_deg")
 	for m in d.get("intended_moves", []):
 		steps_raw.append(m)
 		if m is Array and not m.is_empty():
@@ -93,6 +90,8 @@ func _read(d: Dictionary) -> void:
 	mode = str(d.get("mode", ""))
 	grade = str(d.get("grade", ""))
 	order = int(d.get("order", 0))
+	# 벽 각도는 등급이 정한다(일반·만든 문제, 2026-11-22 사용자). 수업·튜토리얼은 수직.
+	wall_deg = GradeInfo.wall_deg(grade) if mode in ["general", "custom"] else 0.0
 	name_ko = str(d.get("name_ko", ""))
 	for t in d.get("required_techniques", []):
 		required_techniques.append(StringName(t))

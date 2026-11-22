@@ -2,11 +2,11 @@
  "bounds": {
   "x_max": 1.5,
   "x_min": -1.5,
-  "y_max": 4.5,
+  "y_max": 4.4,
   "y_min": 0.0
  },
  "check_swapped": false,
- "content_version": 3.0,
+ "content_version": 4,
  "crux_steps": {},
  "fail_line_y": -0.5,
  "goal_slots": [
@@ -23,13 +23,13 @@
       "LH",
       "RH"
      ],
-     "hold_type": "crimp",
+     "hold_type": "jug",
      "pos": [
-      -0.2,
+      0.3,
       1.5
      ],
      "rot_deg": 0,
-     "size": "M",
+     "size": "S",
      "slot_id": "hand_1"
     }
    ]
@@ -44,7 +44,7 @@
      ],
      "hold_type": "crimp",
      "pos": [
-      0.22,
+      -0.27,
       1.5
      ],
      "rot_deg": 0,
@@ -63,11 +63,11 @@
      ],
      "hold_type": "crimp",
      "pos": [
-      -0.38,
-      2.0
+      0.017,
+      2.005
      ],
      "rot_deg": 0,
-     "size": "M",
+     "size": "L",
      "slot_id": "hand_1"
     }
    ]
@@ -82,11 +82,11 @@
      ],
      "hold_type": "crimp",
      "pos": [
-      0.2,
-      2.2
+      -0.458,
+      2.328
      ],
      "rot_deg": 0,
-     "size": "L",
+     "size": "M",
      "slot_id": "hand_1"
     }
    ]
@@ -101,49 +101,11 @@
      ],
      "hold_type": "crimp",
      "pos": [
-      -0.2,
-      2.4
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "hand_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "H06",
-   "slots": [
-    {
-     "allowed": [
-      "LH",
-      "RH"
-     ],
-     "hold_type": "crimp",
-     "pos": [
-      0.3,
-      2.95
+      0.061,
+      2.616
      ],
      "rot_deg": 0,
      "size": "L",
-     "slot_id": "hand_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "H07",
-   "slots": [
-    {
-     "allowed": [
-      "LH",
-      "RH"
-     ],
-     "hold_type": "crimp",
-     "pos": [
-      -0.22,
-      3.05
-     ],
-     "rot_deg": 0,
-     "size": "M",
      "slot_id": "hand_1"
     }
    ]
@@ -158,11 +120,11 @@
      ],
      "hold_type": "foot_chip",
      "pos": [
-      -0.12,
+      0.12,
       0.1
      ],
      "rot_deg": 0,
-     "size": "S",
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -177,11 +139,11 @@
      ],
      "hold_type": "foot_chip",
      "pos": [
-      0.25,
+      -0.25,
       0.1
      ],
      "rot_deg": 0,
-     "size": "S",
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -196,11 +158,11 @@
      ],
      "hold_type": "foot_big",
      "pos": [
-      -0.22,
-      0.45
+      -0.13,
+      0.494
      ],
      "rot_deg": 0,
-     "size": "S",
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -215,30 +177,11 @@
      ],
      "hold_type": "foot_big",
      "pos": [
-      0.3,
-      0.5
+      0.186,
+      1.026
      ],
      "rot_deg": 0,
-     "size": "S",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F05",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_big",
-     "pos": [
-      -0.28,
-      1.1
-     ],
-     "rot_deg": 0,
-     "size": "S",
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -253,8 +196,8 @@
      ],
      "hold_type": "goal",
      "pos": [
-      -0.1,
-      3.42
+      -0.45,
+      3.0
      ],
      "rot_deg": 0,
      "size": "M",
@@ -267,8 +210,8 @@
      ],
      "hold_type": "goal",
      "pos": [
-      0.30000000000000004,
-      3.42
+      -0.059,
+      3.0
      ],
      "rot_deg": 0,
      "size": "M",
@@ -283,44 +226,28 @@
    "G_V8_01/F03/foot_1"
   ],
   [
+   "RH",
+   "G_V8_01/H03/hand_1"
+  ],
+  [
    "RF",
    "G_V8_01/F04/foot_1"
   ],
   [
    "LH",
-   "G_V8_01/H03/hand_1"
-  ],
-  [
-   "RH",
    "G_V8_01/H04/hand_1"
   ],
   [
    "LF",
-   "G_V8_01/F05/foot_1"
-  ],
-  [
-   "LH",
-   "G_V8_01/H05/hand_1"
-  ],
-  [
-   "RF",
    "G_V8_01/H02/hand_1"
   ],
   [
    "RH",
-   "G_V8_01/H06/hand_1"
-  ],
-  [
-   "LF",
-   "G_V8_01/H01/hand_1"
-  ],
-  [
-   "LH",
-   "G_V8_01/H07/hand_1"
+   "G_V8_01/H05/hand_1"
   ],
   [
    "RF",
-   "G_V8_01/H04/hand_1"
+   "G_V8_01/H01/hand_1"
   ],
   [
    "LH",
@@ -333,7 +260,7 @@
  ],
  "mode": "general",
  "name_ko": "실금",
- "note": "2026-11-15 새로 짠 V8 시범 문제(docs/44). 손홀드 반폭 0.03(피로 ×2.5), 발판 반폭 0.03, 발 전용 발판 3개뿐. 하이스텝 두 번(#4 왼발 1.1m, #10 오른발이 손홀드 H04 2.2m)과 한 발 구간. 쉬는 자리 없음. 봇 의도 경로 완등 31초, 최저 손 피로 22. 하이스텝 금지 검사는 #1(오른발 0.5m)부터 하이스텝으로 판정돼 필수 확인 못 함 → 필수 기술 없음으로 둠. v2(2026-11-19, docs/48 R1 발 하중 나누기): 한 발 구간이 진짜로 힘들어져(봇 속도로도 오른손 소진) 가운데 손홀드 H03~H07 반폭 0.03 → 0.05. 봇 최저 손 피로 11. v3(2026-11-19): 사용자 \"기존과 지금의 중간\" → 발 몫을 예전과 반반 섞음(FOOT_LOAD_BLEND 0.5). 가운데 손홀드 0.05 → 0.04, 봇 최저 손 피로 14. 2026-11-21 작업 5: 체감 V4(docs/44)라 등급을 V4로 옮김(route_id는 그대로, 기록이 이어지게). 기술 관문 없는 V4 — 작은 홀드에서 손 힘 관리가 어려움의 원천(V4 \"기술 하나 필수\" 주제의 예외).",
+ "note": "2026-11-22 오버행 앱(docs/52 §9): 등급 각도 25°, 홀드 손 5·발 4. 새로 배치(손 5·발판 2 + 바닥 발판 2, 손홀드를 발로도 딛음). 이전: 2026-11-15 새로 짠 V8 시범 문제(docs/44). 손홀드 반폭 0.03(피로 ×2.5), 발판 반폭 0.03, 발 전용 발판 3개뿐. 하이스텝 두 번(#4 왼발 1.1m, #10 오른발이 손홀드 H04 ",
  "order": 1,
  "platforms": [
   {
@@ -344,32 +271,32 @@
    "platform_id": "P00",
    "top_y": 0.1,
    "x_range": [
-    -0.5,
-    0.6
+    -0.6,
+    0.47
    ]
   }
  ],
  "required_techniques": [],
  "route_id": "G_V8_01",
  "score_gates": [],
- "score_ref": {
-  "grabs": 13,
-  "quality": 0.711,
-  "spent_per_m": 99.21
- },
  "start_pose": {
   "angle": 0.0,
   "pelvis": [
-   0.05,
+   0.015,
    0.75
   ],
   "slots": {
-   "LF": "G_V8_01/F01/foot_1",
-   "LH": "G_V8_01/H01/hand_1",
-   "RF": "G_V8_01/F02/foot_1",
-   "RH": "G_V8_01/H02/hand_1"
+   "LF": "G_V8_01/F02/foot_1",
+   "LH": "G_V8_01/H02/hand_1",
+   "RF": "G_V8_01/F01/foot_1",
+   "RH": "G_V8_01/H01/hand_1"
   }
  },
  "time_medal_seconds": 120,
- "validation_status": "Draft"
+ "validation_status": "Draft",
+ "score_ref": {
+  "grabs": 9,
+  "quality": 0.835,
+  "spent_per_m": 63.54
+ }
 }

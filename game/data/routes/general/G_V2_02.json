@@ -2,11 +2,11 @@
  "bounds": {
   "x_max": 1.5,
   "x_min": -1.5,
-  "y_max": 4.5,
+  "y_max": 4.35,
   "y_min": 0.0
  },
  "check_swapped": false,
- "content_version": 1,
+ "content_version": 2,
  "crux_steps": {},
  "fail_line_y": -0.5,
  "goal_slots": [
@@ -63,8 +63,8 @@
      ],
      "hold_type": "jug",
      "pos": [
-      -0.35,
-      1.95
+      -0.284,
+      1.954
      ],
      "rot_deg": 0,
      "size": "S",
@@ -82,8 +82,8 @@
      ],
      "hold_type": "jug",
      "pos": [
-      0.25,
-      2.15
+      0.295,
+      2.136
      ],
      "rot_deg": 0,
      "size": "L",
@@ -101,8 +101,8 @@
      ],
      "hold_type": "jug",
      "pos": [
-      -0.3,
-      2.45
+      -0.307,
+      2.499
      ],
      "rot_deg": 0,
      "size": "L",
@@ -120,11 +120,11 @@
      ],
      "hold_type": "jug",
      "pos": [
-      0.45,
-      2.6
+      0.418,
+      2.609
      ],
      "rot_deg": 0,
-     "size": "S",
+     "size": "M",
      "slot_id": "hand_1"
     }
    ]
@@ -177,11 +177,11 @@
      ],
      "hold_type": "foot_chip",
      "pos": [
-      -0.25,
-      0.55
+      -0.193,
+      0.488
      ],
      "rot_deg": 0,
-     "size": "S",
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -196,11 +196,11 @@
      ],
      "hold_type": "foot_chip",
      "pos": [
-      0.3,
-      0.6
+      0.324,
+      0.619
      ],
      "rot_deg": 0,
-     "size": "S",
+     "size": "M",
      "slot_id": "foot_1"
     }
    ]
@@ -213,29 +213,10 @@
       "LF",
       "RF"
      ],
-     "hold_type": "foot_big",
+     "hold_type": "foot_chip",
      "pos": [
-      -0.1,
-      1.0
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "foot_1"
-    }
-   ]
-  },
-  {
-   "hold_id": "F06",
-   "slots": [
-    {
-     "allowed": [
-      "LF",
-      "RF"
-     ],
-     "hold_type": "foot_big",
-     "pos": [
-      0.4,
-      1.05
+      0.023,
+      1.09
      ],
      "rot_deg": 0,
      "size": "M",
@@ -253,7 +234,7 @@
      ],
      "hold_type": "goal",
      "pos": [
-      -0.1,
+      -0.02,
       2.95
      ],
      "rot_deg": 0,
@@ -267,7 +248,7 @@
      ],
      "hold_type": "goal",
      "pos": [
-      0.3,
+      0.38,
       2.95
      ],
      "rot_deg": 0,
@@ -299,10 +280,6 @@
    "G_V2_02/F05/foot_1"
   ],
   [
-   "RF",
-   "G_V2_02/F06/foot_1"
-  ],
-  [
    "LH",
    "G_V2_02/H05/hand_1"
   ],
@@ -316,12 +293,12 @@
    "G_V2_02/H06/hand_1"
   ],
   [
-   "LF",
-   "G_V2_02/H01/hand_1"
-  ],
-  [
    "RF",
    "G_V2_02/H02/hand_1"
+  ],
+  [
+   "LF",
+   "G_V2_02/H01/hand_1"
   ],
   [
    "LH",
@@ -334,7 +311,7 @@
  ],
  "mode": "general",
  "name_ko": "쉼터",
- "note": "작업 5 V2: 작은 저그가 이어지다 가운데 큰 저그 둘(H04·H05)을 두 손으로 잡고 두 발을 디뎌 쉬어야 끝까지 간다. 관문 없음.",
+ "note": "2026-11-22 오버행 앱(docs/52 §9): 등급 각도 15°, 홀드 손 6·발 5. 새로 배치(손 5·발판 2 + 바닥 발판 2, 손홀드를 발로도 딛음). 이전: 작업 5 V2: 작은 저그가 이어지다 가운데 큰 저그 둘(H04·H05)을 두 손으로 잡고 두 발을 디뎌 쉬어야 끝까지 간다. 관문 없음.",
  "order": 2,
  "platforms": [
   {
@@ -346,16 +323,17 @@
    "top_y": 0.1,
    "x_range": [
     -0.5,
-    0.6
+    0.53
    ]
   }
  ],
  "required_techniques": [],
  "route_id": "G_V2_02",
+ "score_gates": [],
  "start_pose": {
   "angle": 0.0,
   "pelvis": [
-   0.05,
+   0.0,
    0.75
   ],
   "slots": {
@@ -368,9 +346,8 @@
  "time_medal_seconds": 120,
  "validation_status": "Draft",
  "score_ref": {
-  "grabs": 12,
-  "quality": 0.928,
-  "spent_per_m": 29.72
- },
- "score_gates": []
+  "grabs": 11,
+  "quality": 0.901,
+  "spent_per_m": 41.42
+ }
 }
