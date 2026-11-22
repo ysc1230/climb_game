@@ -76,16 +76,20 @@ CFG = {
                    "tris": 24000, "tex_size": 2048,
                    "skin_clean": (0.45, 0.80),
                    "chalk": lambda x, y, z: 0.47 < z < 0.585 and (x > 0.095 or (x > 0.055 and y < -0.06))},
-    # 대머리(2026-11-22, 사용자 그림 정면·왼쪽·뒤·오른쪽 4장 → Tripo v3.1 multiview, pbr 끔, 30크레딧, task baf01405,
+    # 대머리(2026-11-23 v2, 사용자 그림 정면·왼쪽·뒤·오른쪽 4장 → Tripo v3.1 multiview, pbr 끔, 30크레딧, task a93037be,
     # art_source/character/bald, docs/55). 속옷만 입은 맨몸(옷은 나중에 이 몸 위에 맞춰 만든다), 초크백 없음.
     # 가랑이는 속옷 아랫단 가운데(허벅지 안쪽은 0.45까지 붙어 있음). 손목은 팔이 가장 가는 곳, 손가락 뿌리는 손이 얇아지기 시작하는 곳.
-    "bald": {"src": "art_source/character/bald/tripo_v1/model.glb", "out": "game/art/characters/climber_bald.glb",
+    # elbow: 위팔과 아래팔 사이 잘록한 곳. 그림의 위팔이 게임 위팔(0.35m)보다 짧아 팔꿈치를 게임 팔꿈치에 맞춘다(fit_arms).
+    # armpit: 팔 아랫면이 몸통 옆선과 만나는 높이. 그 아래 몸통 옆(등·옆구리)은 팔을 따르지 않는다(어깨 가시 방지, weights_for).
+    "bald": {"src": "art_source/character/bald/tripo_v2/model.glb", "out": "game/art/characters/climber_bald.glb",
              "mesh": "P_body_bald", "tex": "climber_bald_color",
-             "landmarks": {"shoulder": 0.807, "ankle": 0.06, "knee": 0.31, "tip": 0.50, "crotch": 0.50,
-                           "wrist": 0.375, "knuckle": 0.462},
+             "landmarks": {"shoulder": 0.807, "ankle": 0.06, "knee": 0.31, "tip": 0.502, "crotch": 0.50,
+                           "wrist": 0.365, "knuckle": 0.462, "elbow": 0.235, "armpit": 0.765},
              "finger_len": 0.058,
              "crotch_lift": 0.0,
-             "tris": 24000, "tex_size": 2048},
+             "tris": 24000, "tex_size": 2048,
+             # 피부 채도: Tripo 텍스처 (0.984, 0.667, 0.404)가 그림 (0.975, 0.71, 0.53)보다 진해 ×0.78(색상은 같음)
+             "saturation": 0.78},
 }[CHAR]
 LM = CFG["landmarks"]
 SRC = os.path.join(REPO, CFG["src"])
@@ -116,6 +120,8 @@ def m_z(zn):
 
 
 KNEE_SRC = m_z(LM["knee"])
+# 겨드랑이 높이(놓은 뒤, m). 있으면 그 아래 몸통 옆은 팔 늘리기·팔 가중치에서 뺀다(2026-11-23 대머리 어깨 가시).
+ARMPIT = m_z(LM["armpit"]) if "armpit" in LM else None
 
 
 def leg_map(z):
@@ -281,6 +287,9 @@ def fit_arms(ob):
         wr, kn = LM["wrist"] * SCALE, LM["knuckle"] * SCALE
         w_new = contact - (kn - wr)
         src, dst = [ARM_X0, wr, kn, tip], [ARM_X0, w_new, contact, TIP]
+        if "elbow" in LM:   # 그림 팔꿈치를 게임 팔꿈치(SH_X+ARM_U)에: 위팔·아래팔을 따로 늘리거나 줄여 굽는 곳이 맞게
+            src.insert(1, LM["elbow"] * SCALE)
+            dst.insert(1, SH_X + ARM_U)
     else:
         src, dst = [ARM_X0, tip], [ARM_X0, TIP]
     n = len(ob.data.vertices)
@@ -288,7 +297,8 @@ def fit_arms(ob):
     ob.data.vertices.foreach_get("co", co)
     co = co.reshape(n, 3)
     ax, z = np.abs(co[:, 0]), co[:, 2]
-    band = np.clip((z - (SH_Z - 0.19)) / 0.04, 0, 1) * np.clip(((SH_Z + 0.12) - z) / 0.04, 0, 1)
+    low = SH_Z - 0.19 if ARMPIT is None else ARMPIT - 0.01   # 겨드랑이를 쟀으면 그 아래 몸통 옆은 그대로
+    band = np.clip((z - low) / 0.04, 0, 1) * np.clip(((SH_Z + 0.12) - z) / 0.04, 0, 1)
     k_end = (dst[-1] - dst[-2]) / (src[-1] - src[-2])
     nx = np.where(ax > ARM_X0, np.where(ax > tip, dst[-1] + (ax - tip) * k_end, np.interp(ax, src, dst)), ax)
     co[:, 0] = np.sign(co[:, 0]) * (ax + (nx - ax) * band)
@@ -482,7 +492,14 @@ def weights_for(p):
         return w
     # 팔(어깨부터): 어깨 0.13~0.22 가슴↔위팔, 팔꿈치 ±0.04, 손바닥은 아래팔, 손가락 뿌리·끝
     if ax > 0.13 and z > SH_Z - 0.15:
-        if ax < 0.22:
+        if ax < 0.22 and ARMPIT is not None:
+            # 겨드랑이 아래 몸통 옆(등·옆구리)은 몸통 가중치, 위(어깨세모근)만 위팔로 섞는다. 예전 규칙은 |x|만 봐서
+            # 몸통 옆이 SH_Z − 0.15 위에서 갑자기 위팔을 따라가 팔을 들면 어깨 뒤가 가시처럼 찢어졌다.
+            t = ramp(ax, 0.13, 0.22) * ramp(z, ARMPIT - 0.01, ARMPIT + 0.05)
+            for k, val in torso_weights(z).items():
+                w[k] = w.get(k, 0.0) + val * (1.0 - t)
+            w["upperarm_" + s] = w.get("upperarm_" + s, 0.0) + t
+        elif ax < 0.22:
             blend(w, "chest", "upperarm_" + s, ramp(ax, 0.13, 0.22))
         elif ax < SH_X + ARM_U + 0.04:
             blend(w, "upperarm_" + s, "forearm_" + s, ramp(ax, SH_X + ARM_U - 0.04, SH_X + ARM_U + 0.04))
@@ -520,7 +537,12 @@ def weights_for(p):
         else:
             blend(w, "shin_" + s, "foot_" + s, ramp(-z, -ankle - 0.03, -ankle + 0.01))
         return w
-    # 몸통: 골반 → 척추 → 가슴(높이)
+    return torso_weights(z)
+
+
+def torso_weights(z):
+    """몸통: 골반 → 척추 → 가슴(높이)."""
+    w = {}
     if z < (SPINE + CHEST) / 2:
         blend(w, "pelvis", "spine", ramp(z, SPINE - 0.08, SPINE + 0.04))
     else:
@@ -611,6 +633,19 @@ def clean_skin(ob, img, x0, x1):
     print("SKIN_CLEAN: 팔 화소 %d개 중 어두운 %d개를 피부색 %s로" % (int(mask.sum()), int(dark.sum()), np.round(skin, 3)))
 
 
+def desaturate(img, k):
+    """채도만 k배(밝기·색상 그대로: 각 채널 = 최댓값 − (최댓값 − 채널) × k). Tripo 텍스처가 그림보다 진할 때 그림에 맞춘다."""
+    n = img.size[0] * img.size[1]
+    px = np.empty(n * 4, dtype=np.float32)
+    img.pixels.foreach_get(px)
+    px = px.reshape(n, 4)
+    mx = px[:, :3].max(1, keepdims=True)
+    px[:, :3] = mx - (mx - px[:, :3]) * k
+    img.pixels.foreach_set(px.ravel())
+    img.update()
+    print("SATURATION: ×%.2f" % k)
+
+
 def material(ob):
     img = None
     for m in ob.data.materials:
@@ -629,6 +664,8 @@ def material(ob):
         delight_pants(ob, img)
     if "skin_clean" in CFG:
         clean_skin(ob, img, *CFG["skin_clean"])
+    if "saturation" in CFG:
+        desaturate(img, CFG["saturation"])
     img.name = CFG["tex"]
     mat = bpy.data.materials.new("M_body_main")
     mat.use_nodes = True

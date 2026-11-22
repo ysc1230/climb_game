@@ -199,3 +199,37 @@ func test_hand_on_hold_surface() -> void:
 	var toe: Vector3 = t.ankle_L + Anatomy.FOOT_WANT.normalized() * Anatomy.FOOT_LENGTH
 	runner.check(toe.distance_to(Vector3(hold.x, hold.y + 0.03, 0.025)) < 0.001, "발끝이 홀드 윗면에 %s" % toe)
 	runner.check(t.ankle_L.y > hold.y + 0.03, "발목은 홀드 윗면보다 위 %.3f" % t.ankle_L.y)
+
+
+## 겨드랑이 아래 몸통 옆(골반 위 0.345~0.40m, |x| 0.13~0.17m)이 위팔을 따르는 가중치의 최댓값.
+## 예전 규칙(|x|만 봄)은 이 몸통 옆이 위팔을 30~50% 따라가 팔을 들면 어깨 뒤가 가시처럼 찢어졌다(2026-11-23 사용자 "어깨가 이상").
+static func arm_weight_below_armpit(m: Node, mesh_name: String) -> float:
+	var mi: MeshInstance3D = m.find_children(mesh_name, "MeshInstance3D", true, false)[0]
+	var sk: Skeleton3D = mi.get_node(mi.skeleton)
+	var arr := mi.mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var bones: PackedInt32Array = arr[Mesh.ARRAY_BONES]
+	var wts: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS]
+	var worst := 0.0
+	for i in verts.size():
+		var v := verts[i]
+		if absf(v.x) < 0.13 or absf(v.x) > 0.17 or v.y < 0.345 or v.y > 0.40:
+			continue
+		var w := 0.0
+		for j in 4:
+			var b := bones[i * 4 + j]
+			var bone_name := String(mi.skin.get_bind_name(b)) if mi.skin != null else ""
+			if bone_name == "":
+				bone_name = sk.get_bone_name(mi.skin.get_bind_bone(b) if mi.skin != null else b)
+			if bone_name.begins_with("upperarm"):
+				w += wts[i * 4 + j]
+		worst = maxf(worst, w)
+	return worst
+
+
+func test_bald_torso_below_armpit_ignores_arm() -> void:
+	var asm := CharacterAssembler.load_catalog()
+	var m := _model(asm, "bald")
+	var w := arm_weight_below_armpit(m, "P_body_bald")
+	runner.check(w < 0.01, "대머리: 겨드랑이 아래 몸통 옆은 위팔을 따르지 않는다(최대 %.3f)" % w)
+	m.free()

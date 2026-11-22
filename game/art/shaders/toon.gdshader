@@ -13,6 +13,8 @@ uniform bool speckle = false;
 uniform bool use_texture = false;
 uniform sampler2D albedo_tex : source_color, filter_linear_mipmap;
 uniform float shade_mult = 0.6;
+// 텍스처 캐릭터 밝기(빛 세기 1에서 밝은 면 = 텍스처 × 이 값).
+uniform float texture_light = 1.0;
 uniform float bolt_spacing = 0.2;
 uniform float panel_size = 1.2;
 uniform bool mat_pattern = false;
@@ -77,5 +79,8 @@ void light() {
 	float q = floor(ndl * bands) / (bands - 1.0);
 	q = clamp(q, 0.0, 1.0);
 	vec3 tint = use_texture ? mix(vec3(shade_mult), vec3(1.0), q) : mix(shade.rgb / max(albedo.rgb, vec3(0.05)), vec3(1.0), q);
-	DIFFUSE_LIGHT += tint * LIGHT_COLOR * ATTENUATION * 0.9;
+	// Godot 4의 LIGHT_COLOR는 빛 세기 × π다. 단색(벽·홀드·더미)은 이 밝기에 맞춰 색을 골라 그대로 두고, 텍스처 캐릭터는
+	// π로 나눠 텍스처 색이 그대로 보이게 한다(2026-11-23: 피부 (0.78, 0.60, 0.46)이 (1.0, 0.97, 0.61)로 잘려 노랗게 보였음).
+	float k = use_texture ? texture_light / PI : 0.9;
+	DIFFUSE_LIGHT += tint * LIGHT_COLOR * ATTENUATION * k;
 }
