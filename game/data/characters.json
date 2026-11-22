@@ -1,13 +1,19 @@
 {
- "model": "res://art/characters/climber_anime_male.glb",
- "note": "2026-11-13: 남성(매끈한 모델, Tripo P1 1f0174d2, art_source/character/smooth, build_tripo_rig.py TRIPO_CHAR=smooth)을 기본으로, 더미(docs/39)는 시험용으로 남김. 몸 판정은 더미 몸. 2026-11-15: 여성(단발, main temp/characters/female_bob_v1, build_tripo_rig.py TRIPO_CHAR=female) 추가. 2026-11-16: 여성 갈아입는 옷(상의·하의·암벽화 각 2종, main temp/characters/wardrobe_v1, docs/46). 파츠의 bodies가 있으면 그 몸에서만 나온다. 파츠는 meshes(보일 메시 목록). 여성 기본 옷은 몸에서 떼어 낸 P_female_* 메시라 다른 옷을 입으면 숨는다(비침 방지). 올리브 7부는 기본 바지 아랫단(P_female_pants_low)을 레깅스처럼 같이 보인다. 2026-11-22: 남성을 애니 남성(사용자 기본 그림 3장 → Tripo v3.1 multiview, art_source/character/anime_male, build_tripo_rig.py TRIPO_CHAR=anime_male)으로 바꿈. 매끈한 남성(climber_smooth.glb)은 파일만 남김. 2026-11-22: 대머리(사용자 그림 4장 → Tripo v3.1 multiview, art_source/character/bald, build_tripo_rig.py TRIPO_CHAR=bald, docs/55) 추가. 속옷만 입은 맨몸이고 옷은 기본(없음)뿐. 2026-11-23: 대머리 v2(새 그림, 어깨 가중치·팔꿈치 맞추기·피부 채도, docs/55 §6).",
+ "model": "res://art/characters/climber_male_base.glb",
+ "note": "2026-11-13: 남성(매끈한 모델, Tripo P1 1f0174d2, art_source/character/smooth, build_tripo_rig.py TRIPO_CHAR=smooth)을 기본으로, 더미(docs/39)는 시험용으로 남김. 몸 판정은 더미 몸. 2026-11-15: 여성(단발, main temp/characters/female_bob_v1, build_tripo_rig.py TRIPO_CHAR=female) 추가. 2026-11-16: 여성 갈아입는 옷(상의·하의·암벽화 각 2종, main temp/characters/wardrobe_v1, docs/46). 파츠의 bodies가 있으면 그 몸에서만 나온다. 파츠는 meshes(보일 메시 목록). 여성 기본 옷은 몸에서 떼어 낸 P_female_* 메시라 다른 옷을 입으면 숨는다(비침 방지). 올리브 7부는 기본 바지 아랫단(P_female_pants_low)을 레깅스처럼 같이 보인다. 2026-11-22: 남성을 애니 남성(사용자 기본 그림 3장 → Tripo v3.1 multiview, art_source/character/anime_male, build_tripo_rig.py TRIPO_CHAR=anime_male)으로 바꿈. 매끈한 남성(climber_smooth.glb)은 파일만 남김. 2026-11-22: 대머리(사용자 그림 4장 → Tripo v3.1 multiview, art_source/character/bald, build_tripo_rig.py TRIPO_CHAR=bald, docs/55) 추가. 속옷만 입은 맨몸이고 옷은 기본(없음)뿐. 2026-11-23: 대머리 v2(새 그림, 어깨 가중치·팔꿈치 맞추기·피부 채도, docs/55 §6). 2026-11-23: 남성 기본 착장(docs/56): 대머리 v2 몸 위에 Blender로 만든 바가지 머리·흰 티·청바지·회색 초크백·회색 벨크로 암벽화(build_tripo_rig.py TRIPO_CHAR=male_base → climber_male_base.glb). 남성 몸 P_body_male은 옷이 덮는 피부를 지운 것이라 옷 없는 선택지는 아직 없다. 애니 남성(climber_anime_male.glb)은 파일만 남김.",
  "bodies": [
   {
    "id": "male",
    "name_ko": "남성",
-   "mesh": "P_body_anime_male",
-   "model": "res://art/characters/climber_anime_male.glb",
-   "defaults": {}
+   "mesh": "P_body_male",
+   "model": "res://art/characters/climber_male_base.glb",
+   "defaults": {
+    "hair": "hair_bowl",
+    "top": "top_white_tee",
+    "bottom": "pants_jeans",
+    "chalk": "chalk_gray",
+    "shoes": "shoes_velcro"
+   }
   },
   {
    "id": "female",
@@ -33,6 +39,22 @@
  ],
  "slots": [
   {
+   "id": "hair",
+   "name_ko": "헤어",
+   "parts": [
+    {
+     "id": "hair_bowl",
+     "name_ko": "바가지 머리",
+     "meshes": [
+      "P_hair_bowl"
+     ],
+     "bodies": [
+      "male"
+     ]
+    }
+   ]
+  },
+  {
    "id": "top",
    "name_ko": "상의",
    "parts": [
@@ -51,7 +73,6 @@
      "name_ko": "기본",
      "meshes": [],
      "bodies": [
-      "male",
       "bald",
       "dummy"
      ]
@@ -74,6 +95,16 @@
      ],
      "bodies": [
       "female"
+     ]
+    },
+    {
+     "id": "top_white_tee",
+     "name_ko": "흰 티",
+     "meshes": [
+      "P_top_white_tee"
+     ],
+     "bodies": [
+      "male"
      ]
     }
    ]
@@ -98,7 +129,6 @@
      "name_ko": "기본",
      "meshes": [],
      "bodies": [
-      "male",
       "bald",
       "dummy"
      ]
@@ -123,6 +153,32 @@
      "bodies": [
       "female"
      ]
+    },
+    {
+     "id": "pants_jeans",
+     "name_ko": "청바지",
+     "meshes": [
+      "P_pants_jeans"
+     ],
+     "bodies": [
+      "male"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "chalk",
+   "name_ko": "초크백",
+   "parts": [
+    {
+     "id": "chalk_gray",
+     "name_ko": "회색 초크백",
+     "meshes": [
+      "P_chalk_gray"
+     ],
+     "bodies": [
+      "male"
+     ]
     }
    ]
   },
@@ -145,7 +201,6 @@
      "name_ko": "기본",
      "meshes": [],
      "bodies": [
-      "male",
       "bald",
       "dummy"
      ]
@@ -168,6 +223,16 @@
      ],
      "bodies": [
       "female"
+     ]
+    },
+    {
+     "id": "shoes_velcro",
+     "name_ko": "회색 벨크로",
+     "meshes": [
+      "P_shoes_velcro"
+     ],
+     "bodies": [
+      "male"
      ]
     }
    ]

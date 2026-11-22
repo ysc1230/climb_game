@@ -1276,4 +1276,4 @@ func _draw_look(size: Vector2) -> void:
 		y += 76 * k
 	_button(Rect2(Vector2(x + 150 * k, y + 20 * k), Vector2(200, 60) * k), "저장", "look_save", "", 24, true)
 	_button(Rect2(Vector2(x + 370 * k, y + 20 * k), Vector2(200, 60) * k), "취소", "look_cancel", "", 24)
-	draw_string(font, Vector2(x, y + 130 * k), "옷·암벽화 바꾸기는 지금 여성 캐릭터만 돼요.", HORIZONTAL_ALIGNMENT_LEFT, -1, int(18 * k), DIM)
+	draw_string(font, Vector2(x, y + 130 * k), "남성은 기본 착장 한 벌이에요. 옷 갈아입기는 지금 여성 캐릭터만 돼요.", HORIZONTAL_ALIGNMENT_LEFT, -1, int(18 * k), DIM)

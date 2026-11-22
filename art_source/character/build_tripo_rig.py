@@ -16,6 +16,7 @@
 6. 가중치: 부위·위치로 직접 준다(관절 경계는 선형으로 섞음). 팔은 어깨에서 거리로(손바닥은 아래팔), 다리·몸통은 높이로,
    머리카락·머리는 head, 초크백은 pelvis. 골반 → 엉덩이 보조 → 허벅지로 잇고, 가랑이 가운데는 두 다리가 반씩 따른다.
 7. 재질: 색 텍스처만(1024), 금속 0. 윤곽선 굵기(정점 색 R): 엉덩이골·가랑이 가운데는 0(docs/37 §7).
+8. 착장(CFG outfit, 남성 기본 = TRIPO_CHAR=male_base): 몸 위에 Blender로 옷을 만들고 덮인 몸 면은 지운다(docs/56).
 참고 그림은 그림자·주름 없이 단색 + 외곽선으로(구운 음영이 엉덩이 얼룩이 된다, docs/37 §7).
 """
 import bpy, math, os
@@ -26,7 +27,7 @@ REPO = os.path.expanduser("~/Projects/climb_game")
 CHAR = os.environ.get("TRIPO_CHAR", "male")
 # landmarks: 정규화 높이(발바닥 0, 키 1)에서 잰 값. shoulder = 팔 중심선 높이, ankle = 발목 관절 높이, knee = 무릎 높이,
 # tip = 손끝 |x|, crotch = 가랑이 높이. chalk: 정규화 좌표(x 오른쪽, y 앞, z 위)로 초크백 정점 판별.
-CFG = {
+CFGS = {
     # 남성 v2(2026-11-13, task a621f6bb, art_source/character/male)
     "male": {"src": "art_source/character/male/climber_male_v2_base.glb", "out": "game/art/characters/climber_male.glb",
              "mesh": "P_body_male", "tex": "climber_male_color",
@@ -90,7 +91,11 @@ CFG = {
              "tris": 24000, "tex_size": 2048,
              # 피부 채도: Tripo 텍스처 (0.984, 0.667, 0.404)가 그림 (0.975, 0.71, 0.53)보다 진해 ×0.78(색상은 같음)
              "saturation": 0.78},
-}[CHAR]
+}
+# 남성 기본 착장(2026-11-23, docs/56): 대머리 v2 몸 + 머리카락·흰 티·청바지·암벽화·초크백(build_outfit). 몸 메시는 덮인 곳을 지운 P_body_male.
+CFGS["male_base"] = dict(CFGS["bald"], out="game/art/characters/climber_male_base.glb", mesh="P_body_male", tex="climber_male_color",
+                         outfit=True)
+CFG = CFGS[CHAR]
 LM = CFG["landmarks"]
 SRC = os.path.join(REPO, CFG["src"])
 OUT = os.environ.get("TRIPO_OUT", os.path.join(REPO, CFG["out"]))
@@ -836,6 +841,616 @@ def skin_garment(g, rig):
                 groups[name].add([v.index], val / tot, "REPLACE")
 
 
+# ---------- 남성 기본 착장(2026-11-23, docs/56) ----------
+# CFG outfit: 대머리 v2 몸 위에 Blender로 머리카락·흰 티·청바지·암벽화·초크백을 만든다(Tripo·OpenAI 생성 없음).
+# 티·청바지는 몸 면을 복사해(가중치 그대로) 천처럼 매끈하게 한 뒤 띄우고, 암벽화는 발의 볼록 껍질, 머리카락·초크백은 새 모양.
+# 옷이 덮는 몸 면은 지운다(큰 자세에서 피부가 옷을 뚫고 나오지 않게). 아래 높이·위치는 대머리 v2 몸에서 잰 값(게임 좌표, m).
+import bmesh
+from mathutils.bvhtree import BVHTree
+from mathutils.kdtree import KDTree
+
+# 색(sRGB). 텍스처 한 장(32px, 8px 칸)에 모아 UV로 고른다. 텍스처 캐릭터와 같은 조명(toon texture_light/π)을 받게.
+OUTFIT_COLORS = {
+    "tee": (0.94, 0.94, 0.92), "jeans": (0.30, 0.43, 0.62), "shoe_upper": (0.66, 0.66, 0.65), "shoe_rubber": (0.17, 0.17, 0.18),
+    "hair": (0.29, 0.20, 0.14), "chalk": (0.56, 0.56, 0.57), "belt": (0.30, 0.30, 0.31), "inside": (0.10, 0.10, 0.10),
+}
+TEE_HEM, TEE_SLEEVE = 0.06, 0.34              # 티 아랫단 높이, 소매 끝 |x|
+JEANS_TOP_FRONT, JEANS_TOP_BACK, JEANS_HEM = 0.10, 0.115, -0.845
+SHOE_TOP = -0.835                             # 암벽화 발목 둘레 높이(발바닥 −0.915에서 8cm)
+NECK_AXIS = Vector((0.0, -0.05))              # 목 중심(x, y)
+HEAD_C = Vector((0.0, -0.04, 0.70))           # 머리카락 광선 중심(머리 안)
+CHALK_C, CHALK_R, CHALK_Z = Vector((0.0, -0.192)), 0.046, (0.012, 0.135)
+BELT_Z, BELT_OFF = (0.114, 0.130), 0.004
+
+
+def pal_uv(key):
+    i = list(OUTFIT_COLORS).index(key)
+    return ((i % 4) + 0.5) / 4, ((i // 4) + 0.5) / 4
+
+
+def outfit_material():
+    img = bpy.data.images.new("tex_outfit", 32, 32)
+    px = np.ones((32, 32, 4), dtype=np.float32)
+    for i, c in enumerate(OUTFIT_COLORS.values()):
+        cx, cy = i % 4, i // 4
+        px[cy * 8:(cy + 1) * 8, cx * 8:(cx + 1) * 8, :3] = c
+    img.pixels.foreach_set(px.ravel())
+    img.update()
+    img.pack()
+    mat = bpy.data.materials.new("M_outfit")
+    mat.use_nodes = True
+    nt = mat.node_tree
+    bsdf = nt.nodes.get("Principled BSDF")
+    bsdf.inputs["Metallic"].default_value = 0.0
+    bsdf.inputs["Roughness"].default_value = 1.0
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image = img
+    tex.interpolation = "Closest"
+    nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+    return mat
+
+
+def cut(bm, f):
+    """bm을 f(co) = 0인 면으로 자른다(모서리를 나누고 면 안을 잇는다). 나눈 정점은 UV·가중치가 섞여 들어간다."""
+    val = {v: f(v.co) for v in bm.verts}
+    new = set()
+    for e in list(bm.edges):
+        a, b = e.verts
+        fa, fb = val[a], val[b]
+        if (fa < 0.0) != (fb < 0.0) and fa != fb:
+            t = fa / (fa - fb)
+            pa, pb = a.co.copy(), b.co.copy()
+            _, nv = bmesh.utils.edge_split(e, a, t)
+            nv.co = pa.lerp(pb, t)
+            val[nv] = 0.0
+            new.add(nv)
+    for fc in list(bm.faces):
+        vs = [v for v in fc.verts if v in new]
+        if len(vs) == 2 and bm.edges.get(vs) is None:
+            bmesh.ops.connect_verts(bm, verts=vs)
+    bmesh.ops.triangulate(bm, faces=[fc for fc in bm.faces if len(fc.verts) > 3])
+
+
+def region_object(body, rig, name, fields, inside):
+    """몸 면 중 inside(면 중심)인 것을 복사해 새 메시로(가중치·윤곽선 굵기 그대로). fields로 먼저 잘라 경계가 깔끔하다."""
+    bm = bmesh.new()
+    bm.from_mesh(body.data)
+    for f in fields:
+        cut(bm, f)
+    bmesh.ops.delete(bm, geom=[fc for fc in bm.faces if not inside(fc.calc_center_median())], context="FACES")
+    bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=0.003)
+    return bm_object(bm, name, body, rig)
+
+
+def bm_object(bm, name, body, rig):
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    ob = bpy.data.objects.new(name, me)
+    bpy.context.collection.objects.link(ob)
+    for g in body.vertex_groups:
+        ob.vertex_groups.new(name=g.name)
+    ob.parent = rig
+    ob.modifiers.new("Armature", "ARMATURE").object = rig
+    for p in me.polygons:
+        p.use_smooth = True
+    return ob
+
+
+def coords(me):
+    co = np.empty(len(me.vertices) * 3)
+    me.vertices.foreach_get("co", co)
+    return co.reshape(-1, 3)
+
+
+def normals(me, smooth=4):
+    """정점 법선을 이웃과 smooth번 평균(가는 삼각형 법선이 튀어 띄울 때 가시가 생기지 않게)."""
+    me.update()
+    n = np.empty(len(me.vertices) * 3)
+    me.vertices.foreach_get("normal", n)
+    n = n.reshape(-1, 3)
+    ev = np.empty(len(me.edges) * 2, dtype=np.int64)
+    me.edges.foreach_get("vertices", ev)
+    ev = ev.reshape(-1, 2)
+    for _ in range(smooth):
+        acc = n.copy()
+        np.add.at(acc, ev[:, 0], n[ev[:, 1]])
+        np.add.at(acc, ev[:, 1], n[ev[:, 0]])
+        n = acc / np.maximum(np.linalg.norm(acc, axis=1, keepdims=True), 1e-9)
+    return n
+
+
+def boundary_mask(me):
+    le = np.empty(len(me.loops), dtype=np.int64)
+    me.loops.foreach_get("edge_index", le)
+    once = np.bincount(le, minlength=len(me.edges)) == 1
+    ev = np.empty(len(me.edges) * 2, dtype=np.int64)
+    me.edges.foreach_get("vertices", ev)
+    m = np.zeros(len(me.vertices), dtype=bool)
+    m[ev.reshape(-1, 2)[once].ravel()] = True
+    return m
+
+
+def taubin(me, iters, pin):
+    """줄지 않는 매끈하게(Taubin λ|μ). 몸의 근육·뼈 굴곡을 지워 천처럼. pin 정점은 그대로."""
+    co = coords(me)
+    ev = np.empty(len(me.edges) * 2, dtype=np.int64)
+    me.edges.foreach_get("vertices", ev)
+    ev = ev.reshape(-1, 2)
+    deg = np.maximum(np.bincount(ev.ravel(), minlength=len(co)), 1)[:, None]
+    for _ in range(iters):
+        for lam in (0.5, -0.53):
+            acc = np.zeros_like(co)
+            np.add.at(acc, ev[:, 0], co[ev[:, 1]])
+            np.add.at(acc, ev[:, 1], co[ev[:, 0]])
+            d = acc / deg - co
+            d[pin] = 0.0
+            co += lam * d
+    me.vertices.foreach_set("co", co.ravel())
+    me.update()
+
+
+def envelope(me, bvh, iters, pin, mask=None):
+    """천처럼: 라플라스로 매끈하게 하되 몸 안으로는 못 들어가게(가장 가까운 몸 면 바깥에 둔다). 볼록한 곳은 몸에 붙고
+    오목한 곳(복근·등 골·무릎 뒤)은 메워진다. mask(0~1)로 겨드랑이·가랑이는 덜(물갈퀴처럼 메워지지 않게)."""
+    co = coords(me)
+    ev = np.empty(len(me.edges) * 2, dtype=np.int64)
+    me.edges.foreach_get("vertices", ev)
+    ev = ev.reshape(-1, 2)
+    deg = np.maximum(np.bincount(ev.ravel(), minlength=len(co)), 1)[:, None]
+    k = np.full(len(co), 0.5) if mask is None else 0.5 * mask
+    k[pin] = 0.0
+    for _ in range(iters):
+        acc = np.zeros_like(co)
+        np.add.at(acc, ev[:, 0], co[ev[:, 1]])
+        np.add.at(acc, ev[:, 1], co[ev[:, 0]])
+        co += k[:, None] * (acc / deg - co)
+        for i in np.nonzero(k > 0)[0]:
+            q, nq, _, _ = bvh.find_nearest(Vector(co[i]))
+            if q is not None:
+                sd = (Vector(co[i]) - q).dot(nq)
+                if sd < 0.0:
+                    co[i] -= sd * np.array(nq)
+    me.vertices.foreach_set("co", co.ravel())
+    me.update()
+
+
+def inflate(ob, off):
+    """법선 방향으로 off(정점 위치 배열 → 거리 배열)만큼 띄운다. 띄운 거리를 돌려준다(가장자리 테두리용)."""
+    me = ob.data
+    co, n = coords(me), normals(me)
+    d = off(co)
+    me.vertices.foreach_set("co", (co + n * d[:, None]).ravel())
+    me.update()
+    return d
+
+
+def rim(ob, depth):
+    """열린 가장자리를 몸 쪽(법선 반대)으로 depth[정점]만큼 접어 넣어 천 두께처럼 보이게(가장자리 틈 가리기)."""
+    me = ob.data
+    n = normals(me)
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bm.verts.ensure_lookup_table()
+    key = lambda c: (round(c.x, 6), round(c.y, 6), round(c.z, 6))
+    src = {key(v.co): v.index for v in bm.verts if v.is_boundary}
+    old = set(bm.verts)
+    bmesh.ops.extrude_edge_only(bm, edges=[e for e in bm.edges if e.is_boundary])
+    for v in bm.verts:
+        if v not in old:
+            i = src.get(key(v.co))
+            if i is not None:
+                v.co = v.co - Vector(n[i]) * depth[i]
+    bm.to_mesh(me)
+    bm.free()
+    me.update()
+
+
+def paint(ob, key_of_face):
+    """면마다 색 칸(UV)을 준다. key_of_face(면) → OUTFIT_COLORS 키."""
+    me = ob.data
+    uv = me.uv_layers.active or me.uv_layers.new(name="UVMap")
+    for p in me.polygons:
+        u, v = pal_uv(key_of_face(p))
+        for li in p.loop_indices:
+            uv.data[li].uv = (u, v)
+
+
+def ensure_col(ob, w=1.0):
+    me = ob.data
+    if "Col" not in me.color_attributes:
+        a = me.color_attributes.new("Col", "FLOAT_COLOR", "POINT")
+        cols = np.ones((len(me.vertices), 4), dtype=np.float32)
+        cols[:, :3] = w
+        a.data.foreach_set("color", cols.ravel())
+    me.color_attributes.active_color = me.color_attributes["Col"]
+
+
+def set_weights(ob, fn):
+    """새로 만든 물체(머리카락·초크백): fn(co) → {뼈: 가중치}."""
+    for v in ob.data.vertices:
+        w = fn(v.co)
+        tot = sum(w.values())
+        for k, val in w.items():
+            ob.vertex_groups[k].add([v.index], val / tot, "REPLACE")
+
+
+def smoothstep(a, b, x):
+    t = np.clip((x - a) / (b - a), 0.0, 1.0)
+    return t * t * (3 - 2 * t)
+
+
+# --- 흰 티 ---
+def collar_z(p):
+    th = math.atan2(p.x - NECK_AXIS.x, p.y - NECK_AXIS.y)   # 0 = 앞
+    return 0.574 - 0.02 * math.cos(th) - 0.009 * math.cos(2 * th)
+
+
+def neck_skin(p):
+    """목·머리(티 밖): 목 축에서 0.12 안이고 목둘레선 위."""
+    r = math.hypot(p.x - NECK_AXIS.x, p.y - NECK_AXIS.y)
+    return p.z > collar_z(p) and (r < 0.12 or p.z > 0.6)
+
+
+def in_tee(p):
+    return p.z > TEE_HEM and abs(p.x) < TEE_SLEEVE and not neck_skin(p)
+
+
+def tee(body, rig, bvh):
+    fields = [lambda c: c.z - TEE_HEM, lambda c: abs(c.x) - TEE_SLEEVE,
+              lambda c: (c.z - collar_z(c)) if math.hypot(c.x - NECK_AXIS.x, c.y - NECK_AXIS.y) < 0.12 and c.z < 0.62 else -1.0]
+    ob = region_object(body, rig, "P_top_white_tee", fields, in_tee)
+    co = coords(ob.data)
+    armpit = np.hypot(np.abs(co[:, 0]) - 0.165, co[:, 2] - ARMPIT)
+    envelope(ob.data, bvh, 40, boundary_mask(ob.data), np.clip(armpit / 0.07, 0.15, 1.0))
+
+    def off(co):
+        hem = 0.012 * smoothstep(TEE_HEM + 0.10, TEE_HEM, co[:, 2])          # 아랫단 퍼짐
+        sleeve = 0.010 * smoothstep(TEE_SLEEVE - 0.10, TEE_SLEEVE, np.abs(co[:, 0]))   # 소매 퍼짐
+        return 0.009 + hem + sleeve
+    d = inflate(ob, off)
+    rim(ob, d * 0.9)
+    paint(ob, lambda p: "tee")
+    return ob
+
+
+# --- 청바지 ---
+def jeans_top(p):
+    return JEANS_TOP_BACK + (JEANS_TOP_FRONT - JEANS_TOP_BACK) * min(1.0, max(0.0, (p.y + 0.12) / 0.18))
+
+
+def in_jeans(p):
+    return JEANS_HEM < p.z < jeans_top(p) and abs(p.x) < 0.30
+
+
+def jeans(body, rig, bvh):
+    ob = region_object(body, rig, "P_pants_jeans", [lambda c: c.z - JEANS_HEM, lambda c: c.z - jeans_top(c)], in_jeans)
+    co = coords(ob.data)
+    crotch = np.hypot(co[:, 0], co[:, 2] - CROTCH_APEX)
+    envelope(ob.data, bvh, 30, boundary_mask(ob.data), np.clip(crotch / 0.07, 0.15, 1.0))
+
+    def off(co):
+        flare = 0.012 * smoothstep(-0.45, JEANS_HEM, co[:, 2])               # 무릎 아래로 곧게 퍼짐
+        waist = 0.003 * smoothstep(0.02, 0.09, co[:, 2])                     # 허리(티 안)는 티보다 안쪽
+        return 0.007 + flare - waist
+    d = inflate(ob, off)
+    rim(ob, d * 0.9)
+    paint(ob, lambda p: "jeans")
+    return ob
+
+
+# --- 암벽화(벨크로 두 줄, 글자·로고 없음) ---
+def in_shoe(p):
+    return p.z < SHOE_TOP
+
+
+def copy_weights(ob, body, near):
+    """ob 정점마다 가장 가까운 몸 정점(near(co)가 참인 것 중)의 가중치를 그대로 쓴다."""
+    bv = [v for v in body.data.vertices if near(v.co)]
+    kd = KDTree(len(bv))
+    for i, v in enumerate(bv):
+        kd.insert(v.co, i)
+    kd.balance()
+    names = [g.name for g in body.vertex_groups]
+    for v in ob.data.vertices:
+        _, i, _ = kd.find(v.co)
+        for g in bv[i].groups:
+            ob.vertex_groups[names[g.group]].add([v.index], g.weight, "REPLACE")
+
+
+def shoes(body, rig):
+    bm = bmesh.new()
+    for s in (-1, 1):   # 발마다 볼록 껍질(발가락·발바닥 아치를 덮는 신발 모양)
+        hb = bmesh.new()
+        for v in body.data.vertices:
+            if v.co.z < SHOE_TOP + 0.012 and v.co.x * s > 0.02:
+                hb.verts.new(v.co)
+        res = bmesh.ops.convex_hull(hb, input=hb.verts[:])
+        drop = {g for g in res["geom_interior"] + res["geom_unused"] if isinstance(g, bmesh.types.BMVert)}
+        bmesh.ops.delete(hb, geom=list(drop), context="VERTS")
+        tmp = bpy.data.meshes.new("hull")
+        hb.to_mesh(tmp)
+        hb.free()
+        bm.from_mesh(tmp)
+        bpy.data.meshes.remove(tmp)
+    ob = bm_object(bm, "P_shoes_velcro", body, rig)
+    ob.modifiers.clear()
+    rm = ob.modifiers.new("remesh", "REMESH")
+    rm.mode = "VOXEL"
+    rm.voxel_size = 0.011
+    bpy.context.view_layer.objects.active = ob
+    bpy.ops.object.modifier_apply(modifier=rm.name)
+    taubin(ob.data, 4, np.zeros(len(ob.data.vertices), dtype=bool))
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    cut(bm, lambda c: c.z - SHOE_TOP)
+    bmesh.ops.delete(bm, geom=[fc for fc in bm.faces if fc.calc_center_median().z > SHOE_TOP], context="FACES")
+    bm.to_mesh(ob.data)
+    bm.free()
+    for p in ob.data.polygons:
+        p.use_smooth = True
+    copy_weights(ob, body, lambda c: c.z < SHOE_TOP + 0.04)
+    ob.modifiers.new("Armature", "ARMATURE").object = rig
+    d = inflate(ob, lambda co: np.full(len(co), 0.003))
+    rim(ob, d + 0.004)
+    me = ob.data
+    co = coords(me)
+    feet = {}
+    for s in (-1, 1):
+        f = co[co[:, 0] * s > 0]
+        feet[s] = (f[:, 2].min(), f[:, 1].min(), f[:, 1].max())
+
+    def hu(c):
+        sole, heel, toe = feet[1 if c.x > 0 else -1]
+        return c.z - sole, (c.y - heel) / (toe - heel)
+
+    def rand(u):
+        return 0.018 + 0.030 * float(smoothstep(0.70, 1.0, u)) + 0.030 * float(smoothstep(0.40, 0.0, u))
+    STRAPS = ((0.40, 0.51), (0.56, 0.67))   # 벨크로 띠(발 길이 비율)
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    cut(bm, lambda c: hu(c)[0] - rand(hu(c)[1]))
+    for a, b in STRAPS:
+        for t in (a, b):
+            cut(bm, lambda c, t=t: hu(c)[1] - t)
+    bm.to_mesh(me)
+    bm.free()
+
+    def key(p):
+        h, u = hu(p.center)
+        if h < rand(u) or p.normal.z < -0.6:
+            return "shoe_rubber"
+        if any(a < u < b for a, b in STRAPS) and h > 0.03:
+            return "shoe_rubber"
+        return "shoe_upper"
+    paint(ob, key)
+    return ob
+
+
+# --- 머리카락(첨부 그림: 둥근 바가지 머리, 앞머리 눈썹까지, 귀 보임) ---
+def hem_z(th_deg):
+    a = abs(th_deg)
+    return float(np.interp(a, [0, 45, 70, 95, 120, 150, 180], [0.731, 0.731, 0.716, 0.710, 0.692, 0.664, 0.652]))
+
+
+def hem_off(th_deg):
+    a = abs(th_deg)
+    return float(np.interp(a, [0, 40, 70, 100, 180], [0.013, 0.015, 0.022, 0.027, 0.023]))
+
+
+def zig(th_deg):
+    """앞머리·뒷머리 끝 뾰족한 다발(삼각파, 아래로)."""
+    a = abs(th_deg)
+    amp = float(np.interp(a, [0, 55, 75, 120, 150, 180], [0.016, 0.016, 0.004, 0.0, 0.008, 0.008]))
+    per = 14.0 if a < 90 else 16.0
+    t = (th_deg / per) % 1.0
+    return amp * (1.0 - abs(2.0 * t - 1.0))
+
+
+def hair(body, rig):
+    me0 = body.data
+    bvh = BVHTree.FromPolygons([v.co.copy() for v in me0.vertices], [p.vertices[:] for p in me0.polygons])
+    NT, NR = 144, 14
+
+    def direc(th, al):
+        return Vector((math.sin(al) * math.sin(th), math.sin(al) * math.cos(th), math.cos(al)))
+
+    def hit(th, al):
+        d = direc(th, al)
+        loc, _, _, _ = bvh.ray_cast(HEAD_C, d, 0.4)
+        return loc, d
+
+    def alpha_for(th, z):
+        lo, hi = 0.3, 2.6
+        for _ in range(30):
+            mid = (lo + hi) / 2
+            if hit(th, mid)[0].z > z:
+                lo = mid
+            else:
+                hi = mid
+        return (lo + hi) / 2
+    bm = bmesh.new()
+    rows = []
+    inner = []
+    for j in range(NT):
+        th = 2 * math.pi * j / NT
+        td = math.degrees(th) if th <= math.pi else math.degrees(th) - 360
+        a_base = alpha_for(th, hem_z(td))
+        a_zig = alpha_for(th, hem_z(td) - zig(td))
+        col = []
+        for i in range(1, NR + 1):
+            s = i / NR
+            al = a_base * s if i < NR else a_zig
+            p, d = hit(th, al)
+            off = 0.030 + (hem_off(td) - 0.030) * float(smoothstep(0.55, 1.0, s))
+            col.append(bm.verts.new(p + d * off))
+        rows.append(col)
+        p, d = hit(th, a_zig)
+        inner.append(bm.verts.new(p + d * 0.002))
+    top_p, _ = hit(0.0, 0.0)
+    top = bm.verts.new(top_p + Vector((0, 0, 0.030)))
+    faces = []
+    for j in range(NT):
+        k = (j + 1) % NT
+        faces.append(("dome", bm.faces.new((top, rows[j][0], rows[k][0]))))
+        for i in range(NR - 1):
+            faces.append(("dome", bm.faces.new((rows[j][i], rows[j][i + 1], rows[k][i + 1], rows[k][i]))))
+        faces.append(("rim", bm.faces.new((rows[j][-1], inner[j], inner[k], rows[k][-1]))))
+    bm.normal_update()
+    for kind, fc in faces:
+        c = fc.calc_center_median()
+        r = c - HEAD_C
+        if kind == "dome":
+            want = r
+        else:   # 끝 테두리: 자오선 아래쪽
+            th = math.atan2(r.x, r.y)
+            al = math.acos(max(-1.0, min(1.0, r.normalized().z)))
+            want = Vector((math.cos(al) * math.sin(th), math.cos(al) * math.cos(th), -math.sin(al)))
+        if fc.normal.dot(want) < 0:
+            fc.normal_flip()
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    ob = bm_object(bm, "P_hair_bowl", body, rig)
+    set_weights(ob, lambda c: {"head": 1.0})
+    paint(ob, lambda p: "hair")
+    ensure_col(ob)
+    return ob
+
+
+# --- 초크백(회색, 허리띠) ---
+def chalk(body, rig, top):
+    """top: 티(띠는 티 위에 BELT_OFF 띄운다)."""
+    me0 = top.data
+    bvh = BVHTree.FromPolygons([v.co.copy() for v in me0.vertices], [p.vertices[:] for p in me0.polygons])
+    bm = bmesh.new()
+    N = 24
+    # 몸통 + 바닥: 반지름(높이 비율) — 아래는 둥글게
+    prof = [(0.0, 0.0), (0.012, 0.6), (0.025, 0.88), (0.045, 1.0), (CHALK_Z[1] - CHALK_Z[0] - 0.014, 1.0), (CHALK_Z[1] - CHALK_Z[0], 1.06)]
+    ringv = []
+    for h, k in prof:
+        ring = []
+        for j in range(N):
+            a = 2 * math.pi * j / N
+            ring.append(bm.verts.new((CHALK_C.x + CHALK_R * k * math.sin(a), CHALK_C.y + CHALK_R * k * math.cos(a) * 0.80, CHALK_Z[0] + h)))
+        ringv.append(ring)
+    # 입구 안쪽 벽 + 바닥(어둡게)
+    in_top = [bm.verts.new((v.co.x - (v.co.x - CHALK_C.x) * 0.12, v.co.y - (v.co.y - CHALK_C.y) * 0.12, v.co.z)) for v in ringv[-1]]
+    in_bot = [bm.verts.new((v.co.x, v.co.y, v.co.z - 0.016)) for v in in_top]
+    faces = []
+    bottom = bm.verts.new((CHALK_C.x, CHALK_C.y, CHALK_Z[0]))
+    for j in range(N):
+        k = (j + 1) % N
+        faces.append(("chalk", bm.faces.new((bottom, ringv[1][k], ringv[1][j]))))
+        for i in range(1, len(prof) - 1):
+            faces.append(("chalk", bm.faces.new((ringv[i][j], ringv[i][k], ringv[i + 1][k], ringv[i + 1][j]))))
+        faces.append(("chalk", bm.faces.new((ringv[-1][j], ringv[-1][k], in_top[k], in_top[j]))))
+        faces.append(("inside", bm.faces.new((in_top[j], in_top[k], in_bot[k], in_bot[j]))))
+    faces.append(("inside", bm.faces.new(in_bot)))
+    # 허리띠: 몸에서 수평 광선으로 둘레를 재 BELT_OFF 띄운 띠
+    NB = 48
+    belt = []
+    for z in BELT_Z:
+        ring = []
+        for j in range(NB):
+            a = 2 * math.pi * j / NB
+            d = Vector((math.sin(a), math.cos(a), 0.0))
+            o = Vector((0.0, -0.03, z))
+            loc, _, _, _ = bvh.ray_cast(o, d, 0.4)
+            ring.append(bm.verts.new(loc + d * BELT_OFF))
+        belt.append(ring)
+    for j in range(NB):
+        k = (j + 1) % NB
+        faces.append(("belt", bm.faces.new((belt[0][j], belt[0][k], belt[1][k], belt[1][j]))))
+    # 가방 고리(허리띠가 가방 뒤 고리를 지난다): 띠 뒤에서 가방 앞까지 작은 상자
+    yb = belt[0][NB // 2].co.y
+    y0, y1 = yb + 0.003, CHALK_C.y + CHALK_R * 0.80 - 0.004
+    z0, z1 = BELT_Z[0] - 0.003, BELT_Z[1] + 0.003
+    box = [bm.verts.new((x, y, z)) for x in (-0.016, 0.016) for y in (y0, y1) for z in (z0, z1)]
+    for q in ((0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (1, 5, 7, 3), (0, 2, 6, 4)):
+        faces.append(("loop", bm.faces.new([box[i] for i in q])))
+    bm.normal_update()
+    for key, fc in faces:
+        c = fc.calc_center_median()
+        if key == "belt":
+            want = Vector((c.x, c.y + 0.03, 0.0))
+        elif key == "loop":
+            want = c - Vector((0.0, (y0 + y1) / 2, (z0 + z1) / 2))
+        elif fc.verts[0] in in_top or fc.verts[0] in in_bot:
+            want = Vector((CHALK_C.x - c.x, CHALK_C.y - c.y, 0.0)) if len(fc.verts) == 4 else Vector((0, 0, 1))
+        else:
+            want = c - Vector((CHALK_C.x, CHALK_C.y, CHALK_Z[0] + 0.06))
+        if fc.normal.dot(want) < 0:
+            fc.normal_flip()
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    ob = bm_object(bm, "P_chalk_gray", body, rig)
+    set_weights(ob, lambda c: torso_weights(c.z) if abs(c.y + 0.03) < 0.2 and abs(c.z - sum(BELT_Z) / 2) < 0.012 and math.hypot(c.x - CHALK_C.x, (c.y - CHALK_C.y) / 0.80) > CHALK_R * 1.2 else {"pelvis": 1.0})
+
+    def key(p):
+        c = p.center
+        if abs(c.x) < 0.017 and y1 - 0.001 < c.y < y0 + 0.001 and z0 - 0.001 < c.z < z1 + 0.001:
+            return "belt"
+        if abs(c.z - sum(BELT_Z) / 2) < 0.0085 and math.hypot(c.x - CHALK_C.x, (c.y - CHALK_C.y) / 0.80) > CHALK_R * 1.15:
+            return "belt"
+        rr = math.hypot(c.x - CHALK_C.x, (c.y - CHALK_C.y) / 0.80)
+        if c.z > CHALK_Z[1] - 0.02 and rr < CHALK_R * 0.99 and (p.normal.z > 0.5 or rr < CHALK_R * 0.97):
+            return "inside"
+        return "chalk"
+    paint(ob, key)
+    ensure_col(ob)
+    return ob
+
+
+def trim_body(body, regions):
+    """옷이 덮는 몸 면을 지운다. regions = [(안인가(점), margin)]: 옷마다 그 옷 경계에서 margin보다 안쪽인 면만
+    (가장자리 아래 몸은 남겨 틈으로 뒤가 비치지 않게)."""
+    me = body.data
+    le = np.empty(len(me.loops), dtype=np.int64)
+    me.loops.foreach_get("edge_index", le)
+    ln = np.empty(len(me.polygons), dtype=np.int64)
+    me.polygons.foreach_get("loop_total", ln)
+    face_of_loop = np.repeat(np.arange(len(me.polygons)), ln)
+    ev = np.empty(len(me.edges) * 2, dtype=np.int64)
+    me.edges.foreach_get("vertices", ev)
+    ev = ev.reshape(-1, 2)
+    centers = [p.center.copy() for p in me.polygons]
+    kill = np.zeros(len(me.polygons), dtype=bool)
+    for inside_fn, margin in regions:
+        inside = np.array([inside_fn(c) for c in centers])
+        ins_e = np.zeros(len(me.edges), dtype=np.int64)
+        out_e = np.zeros(len(me.edges), dtype=np.int64)
+        np.add.at(ins_e, le, inside[face_of_loop])
+        np.add.at(out_e, le, ~inside[face_of_loop])
+        bverts = np.unique(ev[(ins_e > 0) & (out_e > 0)].ravel())
+        kd = KDTree(len(bverts))
+        for i, vi in enumerate(bverts):
+            kd.insert(me.vertices[vi].co, i)
+        kd.balance()
+        for fi in np.nonzero(inside)[0]:
+            if kd.find(centers[fi])[2] > margin:
+                kill[fi] = True
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bm.faces.ensure_lookup_table()
+    bmesh.ops.delete(bm, geom=[bm.faces[i] for i in np.nonzero(kill)[0]], context="FACES")
+    bm.to_mesh(me)
+    bm.free()
+    print("TRIM: 몸 면 %d개 지움(덮인 곳), 남은 삼각형 %d" % (int(kill.sum()), len(me.polygons)))
+
+
+def build_outfit(body, rig):
+    mat = outfit_material()
+    me0 = body.data
+    bvh = BVHTree.FromPolygons([v.co.copy() for v in me0.vertices], [p.vertices[:] for p in me0.polygons])
+    t = tee(body, rig, bvh)
+    parts = [hair(body, rig), t, jeans(body, rig, bvh), shoes(body, rig), chalk(body, rig, t)]
+    for ob in parts:
+        ob.data.materials.clear()
+        ob.data.materials.append(mat)
+        ensure_col(ob)
+        print("OUTFIT %s: 삼각형 %d" % (ob.name, sum(len(p.vertices) - 2 for p in ob.data.polygons)))
+    trim_body(body, [(in_tee, 0.03), (in_jeans, 0.03), (in_shoe, 0.02)])
+    return parts
+
+
 def main():
     ob = place()
     weld(ob)
@@ -861,6 +1476,8 @@ def main():
         skin_garment(g, rig)
         clothes.append(g)
     clothes += split_regions(ob, clothes)
+    if CFG.get("outfit"):
+        clothes += build_outfit(ob, rig)
     bpy.ops.object.select_all(action="DESELECT")
     ob.select_set(True)
     for g in clothes:

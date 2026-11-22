@@ -2,6 +2,7 @@ extends RefCounted
 ## 캐릭터(docs/34 §7, docs/36): 목록과 glb가 맞는지, 뼈대 규격(B안 관절 위치), 예산, 고른 것만 보이는지, 저장.
 ## 2026-11-13: 게임 모델은 남성(2026-11-22부터 climber_anime_male.glb, 기본)과 시험용 더미(climber_dummy.glb, docs/39). 몸마다 model. 파츠 교체 논리는 가짜 목록으로 시험한다.
 ## 2026-11-22: 대머리(사용자 그림 4장 → Tripo, docs/55) 추가. 속옷만 입은 맨몸(옷은 나중에 몸 위에 맞춰 만든다).
+## 2026-11-23: 남성 = 대머리 몸 + 기본 착장(climber_male_base.glb, docs/56): 바가지 머리·흰 티·청바지·회색 초크백·벨크로 암벽화.
 
 var runner
 
@@ -13,7 +14,14 @@ const TRI_BUDGET := 25000
 const SPEC := {"pelvis": Vector2(0, 0), "spine": Vector2(0, 0.16), "chest": Vector2(0, 0.37), "neck": Vector2(0, 0.49), "head": Vector2(0, 0.56),
 	"upperarm_R": Vector2(0.175, 0.49), "forearm_R": Vector2(0.525, 0.49), "hand_R": Vector2(0.905, 0.49),
 	"upperarm_L": Vector2(-0.175, 0.49), "hand_L": Vector2(-0.905, 0.49), "thigh_R": Vector2(0.095, 0), "shin_R": Vector2(0.095, -0.41), "foot_R": Vector2(0.095, -0.81)}
-const MODELS := {"male": ["res://art/characters/climber_anime_male.glb", "P_body_anime_male"], "dummy": ["res://art/characters/climber_dummy.glb", "P_body_dummy"], "female": ["res://art/characters/climber_female.glb", "P_body_female"], "bald": ["res://art/characters/climber_bald.glb", "P_body_bald"]}
+const MODELS := {"male": ["res://art/characters/climber_male_base.glb", "P_body_male"], "dummy": ["res://art/characters/climber_dummy.glb", "P_body_dummy"], "female": ["res://art/characters/climber_female.glb", "P_body_female"], "bald": ["res://art/characters/climber_bald.glb", "P_body_bald"]}
+
+## 남성 기본 착장(2026-11-23, docs/56).
+const MALE_LOOK := {"body": "male", "hair": "hair_bowl", "top": "top_white_tee", "bottom": "pants_jeans", "chalk": "chalk_gray", "shoes": "shoes_velcro"}
+const MALE_MESHES := ["P_body_male", "P_chalk_gray", "P_hair_bowl", "P_pants_jeans", "P_shoes_velcro", "P_top_white_tee"]
+## 착장 메시 하나·남성 전체(몸 + 옷) 삼각형 예산.
+const OUTFIT_PART_BUDGET := 10000
+const MALE_TOTAL_BUDGET := 40000
 
 ## 파츠 교체 논리용 가짜 목록(옛 모듈 시제품과 같은 모양).
 const FAKE := {"model": "", "bodies": [
@@ -37,7 +45,7 @@ func _fake() -> CharacterAssembler:
 func test_catalog_matches_model() -> void:
 	var asm := CharacterAssembler.load_catalog()
 	runner.check(asm.bodies().map(func(b): return b.id) == ["male", "female", "bald", "dummy"], "남성·여성·대머리·더미")
-	runner.check(asm.data.get("slots", []).map(func(x): return x.id) == ["top", "bottom", "shoes"], "슬롯: 상의·하의·암벽화(2026-11-16 여성 옷)")
+	runner.check(asm.data.get("slots", []).map(func(x): return x.id) == ["hair", "top", "bottom", "chalk", "shoes"], "슬롯: 헤어·상의·하의·초크백·암벽화(2026-11-23 남성 착장)")
 	runner.check(asm.model_path() == MODELS.male[0], "기본 모델은 남성")
 	for body in MODELS:
 		var path: String = MODELS[body][0]
@@ -45,7 +53,7 @@ func test_catalog_matches_model() -> void:
 		var m := _model(asm, body)
 		var names := m.find_children("P_*", "MeshInstance3D", true, false).map(func(n): return String(n.name))
 		var want := [MODELS[body][1]]
-		for sid in ["top", "bottom", "shoes"]:
+		for sid in CharacterAssembler.SLOTS:
 			for p in asm.parts_for(sid, body):
 				for mn in CharacterAssembler.part_meshes(p):
 					if not want.has(mn):
@@ -101,7 +109,7 @@ func test_style_dummy_color() -> void:
 	# 남성은 텍스처 + 윤곽선 굵기(엉덩이골 선 방지)
 	m = _model(asm, "male")
 	CharacterAssembler.style(m, load("res://art/shaders/toon.gdshader"), load("res://art/shaders/outline.gdshader"), Color.BLACK)
-	t = (m.find_children("P_body_anime_male", "MeshInstance3D", true, false)[0] as MeshInstance3D).get_surface_override_material(0)
+	t = (m.find_children("P_body_male", "MeshInstance3D", true, false)[0] as MeshInstance3D).get_surface_override_material(0)
 	runner.check(t.get_shader_parameter("use_texture") == true and (t.next_pass as ShaderMaterial).get_shader_parameter("use_vertex_width") == true, "남성: 텍스처·윤곽선 굵기")
 	m.free()
 
@@ -133,7 +141,8 @@ func test_apply_shows_body() -> void:
 		for look in [{"body": body}, {"body": body, "hair": "crop"}]:
 			runner.check(asm.apply(m, look) == asm.visible_meshes(look).size() and asm.visible_meshes(look)[0] == MODELS[body][1], "%s %s: 몸과 기본 옷만" % [body, look])
 		m.free()
-	runner.check(asm.normalize({"hair": "crop"}) == {"body": "male", "hair": "", "top": "base", "bottom": "base", "chalk": "", "shoes": "base"}, "기본 몸은 남성, 옷은 기본, 파츠 없는 슬롯은 빈 값")
+	runner.check(asm.normalize({"hair": "crop"}) == MALE_LOOK, "기본 몸은 남성, 모르는 값은 남성 기본 착장")
+	runner.check(asm.normalize({"body": "bald"}) == {"body": "bald", "hair": "", "top": "base", "bottom": "base", "chalk": "", "shoes": "base"}, "대머리: 옷은 기본, 파츠 없는 슬롯은 빈 값")
 	runner.check(asm.cycle({"body": "male"}, "body", 1) == "female" and asm.cycle({"body": "female"}, "body", 1) == "bald" and asm.cycle({"body": "bald"}, "body", 1) == "dummy" and asm.cycle({"body": "dummy"}, "body", 1) == "male", "몸 바꾸기")
 	runner.check(asm.model_path("dummy") == MODELS.dummy[0] and asm.model_path("nope") == MODELS.male[0], "몸마다 모델, 모르는 몸은 기본")
 
@@ -143,10 +152,10 @@ func test_apply_shows_body() -> void:
 func test_female_wardrobe() -> void:
 	var asm := CharacterAssembler.load_catalog()
 	for sid in ["top", "bottom", "shoes"]:
-		runner.check(asm.parts_for(sid, "female").size() == 3 and asm.parts_for(sid, "male").size() == 1, "%s: 여성 3, 남성 1" % sid)
+		runner.check(asm.parts_for(sid, "female").size() == 3 and asm.parts_for(sid, "male").size() == 1, "%s: 여성 3, 남성 1(기본 착장)" % sid)
 	runner.check(asm.cycle({"body": "female", "top": "base"}, "top", 1) == "top_mint_tee" and asm.cycle({"body": "female", "top": "top_coral_long"}, "top", 1) == "base", "여성 상의 차례로")
-	runner.check(asm.cycle({"body": "male", "top": "base"}, "top", 1) == "base", "남성은 기본뿐")
-	runner.check(asm.normalize({"body": "male", "top": "top_mint_tee"}).top == "base", "다른 몸의 옷은 기본으로")
+	runner.check(asm.cycle({"body": "male", "top": "top_white_tee"}, "top", 1) == "top_white_tee", "남성은 흰 티뿐")
+	runner.check(asm.normalize({"body": "male", "top": "top_mint_tee"}).top == "top_white_tee" and asm.normalize({"body": "male", "top": "base"}).top == "top_white_tee", "다른 몸의 옷·예전 기본값은 남성 기본(흰 티)으로")
 	var m := _model(asm, "female")
 	var look := {"body": "female", "top": "top_mint_tee", "bottom": "pants_olive_crop", "shoes": "shoes_teal_pair"}
 	runner.check(asm.apply(m, look) == 5, "몸 + 옷 세 벌 + 7부 아래 기본 바지 아랫단")
@@ -232,4 +241,47 @@ func test_bald_torso_below_armpit_ignores_arm() -> void:
 	var m := _model(asm, "bald")
 	var w := arm_weight_below_armpit(m, "P_body_bald")
 	runner.check(w < 0.01, "대머리: 겨드랑이 아래 몸통 옆은 위팔을 따르지 않는다(최대 %.3f)" % w)
+	m.free()
+
+
+## 몸 메시에서 상자(x 반폭, y 범위) 안 정점 수. Godot 좌표: y 위(골반 관절 0), x 좌우.
+static func body_verts_in(m: Node, mesh_name: String, half_x: float, y0: float, y1: float) -> int:
+	var mi: MeshInstance3D = m.find_children(mesh_name, "MeshInstance3D", true, false)[0]
+	var n := 0
+	for v in (mi.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] as PackedVector3Array):
+		if absf(v.x) < half_x and v.y > y0 and v.y < y1:
+			n += 1
+	return n
+
+
+## 남성 기본 착장(2026-11-23, docs/56): 다섯 가지를 입고 나오고, 옷이 덮는 피부는 지워 큰 자세에서도 뚫고 나오지 않는다.
+func test_male_default_outfit() -> void:
+	var asm := CharacterAssembler.load_catalog()
+	runner.check(asm.normalize({"body": "male"}) == MALE_LOOK, "남성 기본 = 바가지 머리·흰 티·청바지·회색 초크백·벨크로 암벽화")
+	for sid in ["hair", "chalk"]:
+		runner.check(asm.parts_for(sid, "male").size() == 1 and asm.parts_for(sid, "female").is_empty() and asm.parts_for(sid, "bald").is_empty(), "%s: 남성만" % sid)
+	var m := _model(asm, "male")
+	runner.check(asm.apply(m, {"body": "male"}) == MALE_MESHES.size(), "몸 + 옷 다섯")
+	var vis := m.find_children("P_*", "MeshInstance3D", true, false).filter(func(n): return n.visible).map(func(n): return String(n.name))
+	vis.sort()
+	runner.check(vis == MALE_MESHES, "보이는 메시 %s" % [vis])
+	var total := 0
+	for name in MALE_MESHES:
+		var mi: MeshInstance3D = m.find_children(name, "MeshInstance3D", true, false)[0]
+		runner.check(mi.skin != null and mi.get_node_or_null(mi.skeleton) is Skeleton3D, "%s: 같은 뼈대에 스키닝" % name)
+		var tris: int = (mi.mesh.surface_get_arrays(0)[Mesh.ARRAY_INDEX] as PackedInt32Array).size() / 3
+		total += tris
+		if name != "P_body_male":
+			runner.check(tris <= OUTFIT_PART_BUDGET, "%s 삼각형 %d ≤ %d" % [name, tris, OUTFIT_PART_BUDGET])
+	runner.check(total <= MALE_TOTAL_BUDGET, "남성 전체 삼각형 %d ≤ %d" % [total, MALE_TOTAL_BUDGET])
+	# 덮인 피부는 지웠다: 가슴·배(티 안), 허벅지·정강이(청바지 안)에 몸 정점이 없다. 맨몸(대머리)에는 있다.
+	var bald := _model(asm, "bald")
+	for box in [[0.10, 0.20, 0.40, "가슴·배"], [0.25, -0.70, -0.10, "다리"]]:
+		var n_male := body_verts_in(m, "P_body_male", box[0], box[1], box[2])
+		var n_bald := body_verts_in(bald, "P_body_bald", box[0], box[1], box[2])
+		runner.check(n_male == 0 and n_bald > 100, "%s: 남성 몸 정점 %d(지움), 맨몸 %d" % [box[3], n_male, n_bald])
+	bald.free()
+	# 티는 몸 가중치를 그대로 쓴다: 겨드랑이 아래 옆구리 천도 위팔을 따르지 않는다(docs/55 §6 어깨 가시).
+	var w := arm_weight_below_armpit(m, "P_top_white_tee")
+	runner.check(w < 0.01, "흰 티: 겨드랑이 아래 옆구리는 위팔을 따르지 않는다(최대 %.3f)" % w)
 	m.free()
