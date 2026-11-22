@@ -4,17 +4,26 @@ extends Node2D
 ## (터치→마우스 흉내를 끈 프로젝트라 Control 버튼 대신). 잠금·완료는 색만이 아니라 글자·자물쇠로 함께 보인다(docs/05).
 ## 문제 파일이 아직 없는 과정 슬롯은 "준비 중"으로 보이고 시작할 수 없다.
 
-const CREAM := Color("f1d59a")
-const INK := Color("302820")
-const BG := Color("2b2622")
-const CARD := Color(0.16, 0.15, 0.13)
-const DIM := Color(1, 1, 1, 0.55)
+## 색(2026-11-22 사용자: "밤티스러워 → 깔끔하지만 세련되고 가독성 좋게"). 배경 그림에서 뽑았다:
+## 판은 그늘진 먼 산의 남색 반투명, 글자는 초크 흰색, 강조는 암벽화 노랑 하나(누를 다음 것·고른 것·얻은 메달에만).
+const NIGHT := Color("0d1620")
+const CHALK := Color("f6f2ea")
+const SHOE := Color("ffc93c")
+const HAIR := Color(0.965, 0.95, 0.92, 0.14)
+const CREAM := Color("f1d59a")   # 보조 정보(사암 밝은 면)
+const INK := Color("302820")     # 캐릭터 미리보기 외곽선
+const BG := NIGHT
+const DIM := Color(0.965, 0.95, 0.92, 0.66)
+const MARGIN := 64.0
+const APP_NAME := "Climb Overhang"
 const SLOT_NAMES := {"tutorial": "튜토리얼", "easy": "쉬움", "normal": "보통", "hard": "어려움"}
 ## 홈 배경 그림(2026-11-22 사용자: "메인화면은 이걸로 바꿔줘", 사용자가 준 그림). 클라이머가 오른쪽이라 왼쪽·위를 더 어둡게 덮는다.
 const KEY_ART := preload("res://art/ui/home_key_art.jpg")
 
 var game: Node
-var font: Font
+var font: Font      # 본문(400)
+var font_m: Font    # 탭·알약(600)
+var font_b: Font    # 제목·이름·주 버튼(750)
 var k := 1.0
 var tab := "general"
 var grade := ""
@@ -40,9 +49,9 @@ const LEVEL_INFO := {
 
 
 func _ready() -> void:
-	var sf := SystemFont.new()
-	sf.font_names = PackedStringArray(["Noto Sans CJK KR", "Noto Sans KR", "Apple SD Gothic Neo", "sans-serif"])
-	font = sf
+	font = UiFont.get_font(400)
+	font_m = UiFont.get_font(600)
+	font_b = UiFont.get_font(750)
 	game = get_node_or_null("/root/Game")
 	if game == null:
 		push_error("홈: 자동 로드 Game이 없어요")
@@ -113,21 +122,20 @@ func _draw_modals(size: Vector2) -> void:
 	if grade_card == "" and wipe_ask == "":
 		return
 	_buttons = []
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.6))
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.04, 0.06, 0.66))
 	var w := 820.0 * k
 	var h := 330.0 * k
 	var p := Rect2(Vector2(size.x * 0.5 - w * 0.5, size.y * 0.5 - h * 0.5), Vector2(w, h))
-	draw_rect(p, Color(0.12, 0.11, 0.1, 0.97))
-	draw_rect(p, CREAM, false, 3.0)
+	_panel(p)
 	var x := p.position.x + 40 * k
 	var tw := w - 80 * k
 	if grade_card != "":
-		draw_string(font, Vector2(x, p.position.y + 70 * k), GradeInfo.label(grade_card), HORIZONTAL_ALIGNMENT_LEFT, tw, int(38 * k), CREAM)
+		draw_string(font_b, Vector2(x, p.position.y + 70 * k), "%s %s" % [grade_card, GradeInfo.name_of(grade_card)], HORIZONTAL_ALIGNMENT_LEFT, tw, int(38 * k), CHALK)
 		draw_multiline_string(font, Vector2(x, p.position.y + 130 * k), GradeInfo.text(grade_card), HORIZONTAL_ALIGNMENT_LEFT, tw, int(26 * k), 3, Color.WHITE)
 		_button(Rect2(Vector2(p.get_center().x - 120 * k, p.end.y - 90 * k), Vector2(240, 64) * k), "시작해요", "grade_card_ok", "", 24, true)
 		return
 	var r: RouteDef = game.index.route(wipe_ask)
-	draw_string(font, Vector2(x, p.position.y + 64 * k), "%s 기록을 지울까요?" % (_route_name(r) if r != null else wipe_ask), HORIZONTAL_ALIGNMENT_LEFT, tw, int(30 * k), CREAM)
+	draw_string(font_b, Vector2(x, p.position.y + 64 * k), "%s 기록을 지울까요?" % (_route_name(r) if r != null else wipe_ask), HORIZONTAL_ALIGNMENT_LEFT, tw, int(30 * k), CHALK)
 	draw_multiline_string(font, Vector2(x, p.position.y + 114 * k), "완등·최고 점수·최고 시간·고스트·떨어진 횟수가 지워져요. 플래시에 다시 도전할 수 있어요.\n이 문제 완등이 지워져서 다음 등급이 다시 잠길 수 있어요.", HORIZONTAL_ALIGNMENT_LEFT, tw, int(21 * k), 4, Color.WHITE)
 	_button(Rect2(Vector2(p.get_center().x - 260 * k, p.end.y - 90 * k), Vector2(240, 64) * k), "지우기", "wipe_yes", wipe_ask, 24, true)
 	_button(Rect2(Vector2(p.get_center().x + 20 * k, p.end.y - 90 * k), Vector2(240, 64) * k), "취소", "wipe_no", "", 24)
@@ -269,8 +277,10 @@ func _draw() -> void:
 	k = maxf(minf(size.x / 1600.0, size.y / 900.0), 0.25)
 	draw_rect(Rect2(Vector2.ZERO, size), BG)
 	_draw_key_art(size)
-	# 게임 버전(오른쪽 아래, 작고 흐리게 — 2026-11-19 사용자: 시작 화면 모서리에 버전)
-	draw_string(font, Vector2(0, size.y - 16 * k), AppVersion.text(), HORIZONTAL_ALIGNMENT_RIGHT, size.x - 16 * k, int(16 * k), Color(1, 1, 1, 0.45))
+	# 게임 버전(오른쪽 아래, 작고 흐리게 — 2026-11-19 사용자: 시작 화면 모서리에 버전). 밝은 바위 위라 테두리를 두른다
+	var vp := Vector2(0, size.y - 16 * k)
+	draw_string_outline(font_m, vp, AppVersion.text(), HORIZONTAL_ALIGNMENT_RIGHT, size.x - 20 * k, int(16 * k), int(4 * k), Color(NIGHT, 0.6))
+	draw_string(font_m, vp, AppVersion.text(), HORIZONTAL_ALIGNMENT_RIGHT, size.x - 20 * k, int(16 * k), Color(CHALK, 0.7))
 	if game == null:
 		return
 	_draw_tabs(size)
@@ -293,11 +303,11 @@ func _draw() -> void:
 		else:
 			_draw_dict(size)
 	if not choosing_level and _look_ok:
-		_button(Rect2(Vector2(size.x - 490 * k, 24 * k), Vector2(220, 56) * k), "캐릭터", "look_open", "", 22)
+		_button(Rect2(Vector2(size.x - MARGIN * k - 400 * k, 32 * k), Vector2(170, 52) * k), "캐릭터", "look_open", "", 21)
 	var lv: String = game.progress.level
 	if lv != "":
-		var r := Rect2(Vector2(size.x - 250 * k, 24 * k), Vector2(220, 56) * k)
-		_button(r, "난이도: " + str(LEVEL_INFO[lv].name), "level_open", "", 22)
+		var r := Rect2(Vector2(size.x - MARGIN * k - 214 * k, 32 * k), Vector2(214, 52) * k)
+		_button(r, "난이도 " + str(LEVEL_INFO[lv].name), "level_open", "", 21)
 	if choosing_level:
 		_draw_level_choice(size)
 	elif choosing_look:
@@ -312,24 +322,29 @@ static func cover_rect(tex: Vector2, size: Vector2) -> Rect2:
 	return Rect2(Vector2((size.x - d.x) * 0.5, (size.y - d.y) * 0.1), d)
 
 
-## 배경 그림 + 글자·카드가 읽히게 덮는 어둠: 왼쪽(카드 쪽) 진하게 → 오른쪽(클라이머) 옅게, 위쪽 탭 띠는 조금 더.
+## 배경 그림 + 글자가 읽히게 덮는 남색. 일반 탭은 왼쪽 글 열(화면 절반)까지 진하고 오른쪽 클라이머 쪽은 옅게,
+## 다른 탭은 글자가 화면 전체에 있어 고르게 진하게. 위쪽 탭 띠는 한 번 더.
 func _draw_key_art(size: Vector2) -> void:
 	draw_texture_rect(KEY_ART, cover_rect(Vector2(KEY_ART.get_size()), size), false)
-	var l := Color(0.08, 0.06, 0.05, 0.78)
-	var r := Color(0.08, 0.06, 0.05, 0.30)
-	draw_polygon(PackedVector2Array([Vector2.ZERO, Vector2(size.x, 0), size, Vector2(0, size.y)]), PackedColorArray([l, r, r, l]))
-	var top := Color(0.08, 0.06, 0.05, 0.55)
-	var clear := Color(0.08, 0.06, 0.05, 0.0)
-	draw_polygon(PackedVector2Array([Vector2.ZERO, Vector2(size.x, 0), Vector2(size.x, 110 * k), Vector2(0, 110 * k)]), PackedColorArray([top, top, clear, clear]))
+	var stops := [[0.0, 0.86], [0.46, 0.80], [0.64, 0.22], [1.0, 0.12]] if tab == "general" else [[0.0, 0.88], [1.0, 0.76]]
+	for i in stops.size() - 1:
+		var x0: float = size.x * float(stops[i][0])
+		var x1: float = size.x * float(stops[i + 1][0])
+		var a := Color(NIGHT, float(stops[i][1]))
+		var b := Color(NIGHT, float(stops[i + 1][1]))
+		draw_polygon(PackedVector2Array([Vector2(x0, 0), Vector2(x1, 0), Vector2(x1, size.y), Vector2(x0, size.y)]), PackedColorArray([a, b, b, a]))
+	var top := Color(NIGHT, 0.5)
+	var clear := Color(NIGHT, 0.0)
+	draw_polygon(PackedVector2Array([Vector2.ZERO, Vector2(size.x, 0), Vector2(size.x, 120 * k), Vector2(0, 120 * k)]), PackedColorArray([top, top, clear, clear]))
 
 
 ## 난이도 고르기 창. 다른 버튼을 덮고(앞서 등록된 버튼은 지움) 카드 두 장만 누를 수 있다.
 func _draw_level_choice(size: Vector2) -> void:
 	_buttons = []
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.72))
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.04, 0.06, 0.74))
 	var cur: String = game.progress.level
 	var title := "난이도를 골라 주세요" if cur == "" else "난이도 바꾸기"
-	draw_string(font, Vector2(0, size.y * 0.5 - 250 * k), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(44 * k), CREAM)
+	draw_string(font_b, Vector2(0, size.y * 0.5 - 250 * k), title, HORIZONTAL_ALIGNMENT_CENTER, size.x, int(44 * k), CHALK)
 	draw_string(font, Vector2(0, size.y * 0.5 - 200 * k), "언제든 오른쪽 위 [난이도]에서 바꿀 수 있어요", HORIZONTAL_ALIGNMENT_CENTER, size.x, int(22 * k), DIM)
 	var cw := 420.0 * k
 	var ch := 300.0 * k
@@ -341,15 +356,15 @@ func _draw_level_choice(size: Vector2) -> void:
 		var r := Rect2(Vector2(x, size.y * 0.5 - 150 * k), Vector2(cw, ch))
 		var on: bool = lv == cur
 		var sb := StyleBoxFlat.new()
-		sb.bg_color = {"beginner": Color("3b3128"), "intermediate": Color("2f3036"), "advanced": Color("2a2226")}[lv]
-		sb.border_color = CREAM if on else Color(1, 1, 1, 0.25)
-		sb.set_border_width_all(maxi(2, int((4 if on else 2) * k)))
+		sb.bg_color = Color(NIGHT, 0.94)
+		sb.border_color = SHOE if on else HAIR
+		sb.set_border_width_all(maxi(1, int((3 if on else 1.5) * k)))
 		sb.set_corner_radius_all(int(24 * k))
 		sb.anti_aliasing = true
 		draw_style_box(sb, r)
 		var info: Dictionary = LEVEL_INFO[lv]
 		var accent: Color = {"beginner": Color("8cc8ff"), "intermediate": Color("f1d59a"), "advanced": Color("ff9a7a")}[lv]
-		draw_string(font, Vector2(r.position.x, r.position.y + 78 * k), ("✓ " if on else "") + str(info.name), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(52 * k), accent)
+		draw_string(font_b, Vector2(r.position.x, r.position.y + 78 * k), ("✓ " if on else "") + str(info.name), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(52 * k), accent)
 		var y := r.position.y + 140 * k
 		for line in info.desc:
 			draw_string(font, Vector2(r.position.x, y), line, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(24 * k), Color.WHITE if line != info.desc[-1] else DIM)
@@ -361,115 +376,181 @@ func _draw_level_choice(size: Vector2) -> void:
 		_button(br, "닫기", "level_close", "", 22)
 
 
-## 위 탭 두 개. 고른 탭은 채운 바탕 + 아래 막대 + "●" 표시(색만으로 구분하지 않음).
-func _draw_tabs(size: Vector2) -> void:
-	var w := 160.0 * k
-	var h := 64.0 * k
-	var x := size.x * 0.5 - (w * 4.0 + 48 * k) * 0.5 - 140 * k  # 오른쪽 위 [캐릭터]·[난이도]와 겹치지 않게
-	for t in [["general", "일반"], ["technique", "기술"], ["make", "만들기"], ["settings", "설정"]]:
+## 위 줄: 왼쪽 앱 이름, 그 옆 탭 글자. 고른 탭은 굵은 흰 글자 + 노란 밑줄(색만으로 구분하지 않음). 누르는 자리는 글자보다 넉넉하게.
+const TABS := [["general", "일반"], ["technique", "기술"], ["make", "만들기"], ["settings", "설정"]]
+
+
+func _draw_tabs(_size: Vector2) -> void:
+	var row := Rect2(Vector2(MARGIN * k, 26 * k), Vector2(0, 64 * k))
+	var x := row.position.x
+	draw_string(font_b, Vector2(x, _baseline(row, 30, font_b)), APP_NAME, HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * k), CHALK)
+	x += font_b.get_string_size(APP_NAME, HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * k)).x + 60 * k
+	for t in TABS:
 		var on: bool = tab == t[0]
-		var r := Rect2(Vector2(x, 20 * k), Vector2(w, h))
-		_button(r, ("● " if on else "") + t[1], "tab", t[0], 28, on)
+		var f: Font = font_b if on else font_m
+		var tw := f.get_string_size(t[1], HORIZONTAL_ALIGNMENT_LEFT, -1, int(26 * k)).x
+		var r := Rect2(Vector2(x - 18 * k, row.position.y), Vector2(tw + 36 * k, row.size.y))
+		var by := _baseline(r, 26, f)
+		draw_string(f, Vector2(x, by), t[1], HORIZONTAL_ALIGNMENT_LEFT, -1, int(26 * k), CHALK if on else DIM)
 		if on:
-			draw_rect(Rect2(Vector2(r.position.x, r.end.y + 4 * k), Vector2(w, 5 * k)), CREAM)
-		x += w + 16 * k
+			draw_style_box(_box(SHOE, 2 * k), Rect2(Vector2(x, by + 12 * k), Vector2(tw, 4 * k)))
+		_buttons.append({"rect": r, "action": "tab", "arg": t[0]})
+		x += tw + 44 * k
 
 
 # ---------- 일반 탭 ----------
+
+## 일반 탭(2026-11-22 다시 그림, 사용자 "밤티스러워 → 깔끔·세련·가독성"): 왼쪽 열(화면 절반)에 등급 줄 → 고른 등급 제목·설명 →
+## 문제 줄(가이드북처럼 한 줄에 한 문제). 오른쪽은 배경 그림의 클라이머가 보이게 비운다.
+func _content_w(size: Vector2) -> float:
+	return minf(maxf(size.x * 0.5, 900 * k), size.x - 2 * MARGIN * k)
+
 
 func _draw_general(size: Vector2) -> void:
 	var idx: ContentIndex = game.index
 	var progress: Progress = game.progress
 	var gs: Array[String] = idx.grades()
-	var x := 60.0 * k
+	var x0 := MARGIN * k
+	var cw := _content_w(size)
 	var y := 120.0 * k
+	if gs.is_empty():
+		_text(Vector2(x0, y + 60 * k), "아직 문제가 없어요", 26, DIM)
+		return
+	# 등급 줄: 고른 등급은 노란 알약, 잠긴 등급은 흐리게 + 자물쇠, 다 깬 등급은 오른쪽 위 점
+	var pw := minf(96.0 * k, (cw - (gs.size() - 1) * 10 * k) / gs.size())
+	var x := x0
 	for g in gs:
 		var open := progress.grade_unlocked(g, idx)
-		var r := Rect2(Vector2(x, y), Vector2(150, 76) * k)
-		var sub := "%s · %d/%d" % [GradeInfo.name_of(g), progress.cleared_count(g, idx), idx.general(g).size()] if open else "잠김"
-		_button(r, "", "grade", g, 26, g == grade)
-		var tc := INK if g == grade else (Color.WHITE if open else DIM)
-		draw_string(font, Vector2(r.position.x, r.position.y + 34 * k), g, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(28 * k), tc)
-		draw_string(font, Vector2(r.position.x, r.position.y + 62 * k), sub, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(18 * k), tc)
+		var on := g == grade
+		var r := Rect2(Vector2(x, y), Vector2(pw, 56 * k))
+		draw_style_box(_box(SHOE if on else Color(NIGHT, 0.66 if open else 0.42), r.size.y * 0.5, Color(0, 0, 0, 0) if on else HAIR, 1.5), r)
+		var tc := NIGHT if on else (CHALK if open else DIM)
+		draw_string(font_b, Vector2(r.position.x, _baseline(r, 24, font_b)), g, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(24 * k), tc)
 		if not open:
-			_lock(r.position + Vector2(18, 18) * k, tc)
-		if g == grade:
-			draw_rect(Rect2(Vector2(r.position.x, r.end.y + 4 * k), Vector2(r.size.x, 5 * k)), CREAM)
-		x += r.size.x + 14 * k
-	if gs.is_empty():
-		_text(Vector2(60 * k, 160 * k), "아직 문제가 없어요", 24, DIM)
-		return
-	y += 100 * k
+			_lock(Vector2(r.end.x - 17 * k, r.position.y + 21 * k), tc)
+		elif idx.general(g).size() > 0 and progress.cleared_count(g, idx) >= idx.general(g).size():
+			draw_circle(Vector2(r.end.x - 15 * k, r.position.y + 15 * k), 5 * k, NIGHT if on else SHOE)
+		_buttons.append({"rect": r, "action": "grade", "arg": g})
+		x += pw + 10 * k
+	# 고른 등급 제목 + 몇 개 깼는지 + 한 줄 설명(잠겼으면 여는 방법)
+	var routes: Array[RouteDef] = idx.general(grade)
+	y += 56 * k + 64 * k
+	var title := "%s %s" % [grade, GradeInfo.name_of(grade)]
+	draw_string(font_b, Vector2(x0, y), title, HORIZONTAL_ALIGNMENT_LEFT, -1, int(40 * k), CHALK)
+	var tx := x0 + font_b.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, int(40 * k)).x + 20 * k
+	draw_string(font_m, Vector2(tx, y), "%d문제 중 %d개 완등" % [routes.size(), progress.cleared_count(grade, idx)], HORIZONTAL_ALIGNMENT_LEFT, -1, int(21 * k), DIM)
+	y += 42 * k
 	var lock := progress.grade_lock_text(grade, idx)
 	if lock != "":
-		_lock(Vector2(72 * k, y - 8 * k), CREAM)
-		_text(Vector2(92 * k, y), lock, 24, CREAM)
+		_lock(Vector2(x0 + 9 * k, y - 8 * k), CREAM)
+		draw_string(font_m, Vector2(x0 + 28 * k, y), lock, HORIZONTAL_ALIGNMENT_LEFT, cw - 28 * k, int(22 * k), CREAM)
 		if progress.first_run_locked(idx):  # 기본 조작 파일이 없어 바로 못 갔을 때도 길을 남긴다
-			_button(Rect2(Vector2(92 * k + font.get_string_size(lock, HORIZONTAL_ALIGNMENT_LEFT, -1, int(24 * k)).x + 24 * k, y - 34 * k), Vector2(200, 48) * k),
-				"배우러 가기", "learn", Progress.BASIC_COURSE, 22, true)
-		y += 30 * k
-	var routes: Array[RouteDef] = idx.general(grade)
-	var cw := (size.x - 120 * k - 3 * 20 * k) / 4.0
-	for i in routes.size():
-		var r := Rect2(Vector2(60 * k + (i % 4) * (cw + 20 * k), y + 20 * k + (i / 4) * 330 * k), Vector2(cw, 310 * k))
-		_draw_problem_card(r, routes[i])
+			var lw := font_m.get_string_size(lock, HORIZONTAL_ALIGNMENT_LEFT, -1, int(22 * k)).x
+			_button(Rect2(Vector2(x0 + 48 * k + lw, y - 34 * k), Vector2(200, 48) * k), "배우러 가기", "learn", Progress.BASIC_COURSE, 21, true)
+		y += 26 * k
+	else:
+		var desc := GradeInfo.text(grade)
+		if desc.begins_with(GradeInfo.name_of(grade) + ". "):
+			desc = desc.substr(GradeInfo.name_of(grade).length() + 2)  # 제목에 이미 있는 "쉬움." 빼기
+		draw_multiline_string(font, Vector2(x0, y), desc, HORIZONTAL_ALIGNMENT_LEFT, cw, int(22 * k), 2, DIM)
+		y += font.get_multiline_string_size(desc, HORIZONTAL_ALIGNMENT_LEFT, cw, int(22 * k), 2).y - 6 * k
+	# 문제 줄: 남은 높이에 맞춰(최대 150)
+	y += 18 * k
+	var gap := 14.0 * k
+	var rh := 150.0 * k
+	if routes.size() > 0:
+		rh = clampf((size.y - y - 36 * k - gap * (routes.size() - 1)) / routes.size(), 96 * k, 150 * k)
+	for route in routes:
+		_draw_problem_row(Rect2(Vector2(x0, y), Vector2(cw, rh)), route)
+		y += rh + gap
 
 
-func _draw_problem_card(r: Rect2, route: RouteDef) -> void:
+## 문제 한 줄: 이름 + 벽 각도 칩 / 필요 기술 / 메달·최고 기록. 오른쪽에 [시작](잠겼으면 여는 방법·[배우러 가기]).
+func _draw_problem_row(r: Rect2, route: RouteDef) -> void:
 	var idx: ContentIndex = game.index
 	var progress: Progress = game.progress
 	var lock := progress.route_lock_text(route, idx)
-	draw_rect(r, CARD)
-	draw_rect(r, Color(1, 1, 1, 0.35 if lock != "" else 0.7), false, 2.0)
-	var x := r.position.x + 18 * k
-	var w := r.size.x - 36 * k
-	var y := r.position.y + 44 * k
-	draw_string(font, Vector2(x, y), _route_name(route), HORIZONTAL_ALIGNMENT_LEFT, w, int(26 * k), Color.WHITE)
-	y += 30 * k
-	draw_string(font, Vector2(x, y), GradeInfo.label(route.grade), HORIZONTAL_ALIGNMENT_LEFT, w, int(18 * k), CREAM)
-	y += 30 * k
-	draw_multiline_string(font, Vector2(x, y), "필요 기술: " + _tech_names(route.required_techniques), HORIZONTAL_ALIGNMENT_LEFT, w, int(17 * k), 2, DIM)
-	y += 48 * k
-	_draw_medals(Vector2(x, y), route)
-	y += 30 * k
-	_draw_best(Vector2(x, y), w, route)
-	y += 20 * k
+	_card(r, lock != "")
+	var pad := 28.0 * k
+	var x := r.position.x + pad
+	var b := Rect2(Vector2(r.end.x - pad - 164 * k, r.position.y + r.size.y * 0.5 - 30 * k), Vector2(164, 60) * k)
+	var w := b.position.x - x - 24 * k
+	var s := r.size.y / (150.0 * k)  # 줄이 낮으면 세로 간격만 줄인다
+	var ty := r.position.y + 48 * k * s
+	var name := _route_name(route)
+	draw_string(font_b, Vector2(x, ty), name, HORIZONTAL_ALIGNMENT_LEFT, w, int(30 * k), CHALK if lock == "" else DIM)
+	var deg := _wall_deg(route)
+	if deg > 0:
+		_chip(Vector2(x + minf(font_b.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * k)).x, w) + 14 * k, ty), "벽 %d°" % deg, CREAM)
+	draw_string(font, Vector2(x, ty + 36 * k * s), "필요 기술 " + _tech_names(route.required_techniques), HORIZONTAL_ALIGNMENT_LEFT, w, int(21 * k), DIM)
+	var my := ty + 78 * k * s
 	if lock != "":
-		_lock(Vector2(x + 8 * k, y + 2 * k), CREAM)
-		draw_multiline_string(font, Vector2(x + 26 * k, y + 10 * k), lock, HORIZONTAL_ALIGNMENT_LEFT, w - 26 * k, int(20 * k), 2, CREAM)
+		_lock(Vector2(x + 9 * k, my - 8 * k), CREAM)
+		draw_string(font_m, Vector2(x + 28 * k, my), lock, HORIZONTAL_ALIGNMENT_LEFT, w - 28 * k, int(20 * k), CREAM)
 		var learn := _locked_button_course(route)
 		if learn != "" and progress.grade_unlocked(route.grade, idx):
-			_button(Rect2(Vector2(x, r.end.y - 70 * k), Vector2(w, 54 * k)), "배우러 가기", "learn", learn, 22, true)
+			_button(b, "배우러 가기", "learn", learn, 21, true)
 		return
-	_button(Rect2(Vector2(x, r.end.y - 70 * k), Vector2(w, 54 * k)), "▶ 시작", "play", route.route_id, 24, true)
+	var mx := _draw_medals(Vector2(x, my), route)
+	var best := _best_text(route)
+	if best != "":
+		draw_string(font_m, Vector2(mx + 6 * k, my), best, HORIZONTAL_ALIGNMENT_LEFT, maxf(x + w - mx - 6 * k, 1.0), int(20 * k), CHALK if not best.begins_with("이전") else DIM)
+	_button(b, "시작", "play", route.route_id, 24, true)
+	if not progress.cleared.get(route.route_id, {}).is_empty() or progress.stats.has(route.route_id):
+		var wr := Rect2(Vector2(b.position.x, b.end.y), Vector2(b.size.x, r.end.y - b.end.y))
+		draw_string(font, Vector2(wr.position.x, wr.end.y - 13 * k), "기록 지우기", HORIZONTAL_ALIGNMENT_CENTER, wr.size.x, int(17 * k), DIM)
+		_buttons.append({"rect": wr, "action": "wipe_ask", "arg": route.route_id})
 
 
-## 최고 점수·최고 시간 한 줄(+ 이전 판 기록은 흐리게)과 [기록 지우기](기록이 있을 때만).
-func _draw_best(pos: Vector2, w: float, route: RouteDef) -> void:
+## 이 문제를 오를 때 벽 각도: 문제에 정해진 각도, 아니면 설정 "벽 기울기"(Progress.apply_wall_angle과 같은 규칙).
+func _wall_deg(route: RouteDef) -> int:
+	if route.mode == "general" and not route.wall_from_data:
+		return int(game.progress.control_get("wall_deg"))
+	return int(route.wall_deg)
+
+
+## 작은 테두리 알약 글자(벽 각도 등). pos.y는 옆 글자의 기준선.
+func _chip(pos: Vector2, text: String, col: Color) -> float:
+	var fs := int(17 * k)
+	var r := Rect2(Vector2(pos.x, pos.y - 24 * k), Vector2(font_m.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 22 * k, 30 * k))
+	draw_style_box(_box(Color(0, 0, 0, 0), r.size.y * 0.5, Color(col, 0.6), 1.5), r)
+	draw_string(font_m, Vector2(r.position.x, _baseline(r, 17, font_m)), text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, fs, col)
+	return r.end.x
+
+
+## 최고 점수·최고 시간 한 줄(없으면 이전 판 최고 점수, 그것도 없으면 "").
+func _best_text(route: RouteDef) -> String:
 	var rec: Dictionary = game.progress.cleared.get(route.route_id, {})
 	var parts := []
 	if rec.has("best_score"):
 		parts.append("최고 %s점" % ScoreCalc.format(float(rec.best_score)))
 	if rec.has("best_seconds"):
 		parts.append(preload("res://scenes/play_overlay.gd").format_seconds(float(rec.best_seconds)))
-	var line := " · ".join(parts)
-	if line == "" and rec.get("prev", {}).has("best_score"):
-		line = "이전 판 최고 %s점" % ScoreCalc.format(float(rec.prev.best_score))
-	draw_string(font, Vector2(pos.x, pos.y), line, HORIZONTAL_ALIGNMENT_LEFT, w - 120 * k, int(18 * k), Color.WHITE if parts.size() > 0 else DIM)
-	if not rec.is_empty() or game.progress.stats.has(route.route_id):
-		_button(Rect2(Vector2(pos.x + w - 112 * k, pos.y - 26 * k), Vector2(112, 36) * k), "기록 지우기", "wipe_ask", route.route_id, 16)
+	if parts.is_empty() and rec.get("prev", {}).has("best_score"):
+		return "이전 판 최고 %s점" % ScoreCalc.format(float(rec.prev.best_score))
+	return "  ".join(parts)
 
 
-## 메달을 글자로: "✓ 완등  – 플래시  – 무추락  – 시간".
-func _draw_medals(pos: Vector2, route: RouteDef) -> void:
+## 메달 네 개를 작은 알약으로: 얻은 것은 노란 테두리 + 체크, 못 얻은 것은 흐린 글자(색만이 아니라 체크 모양으로도 구분).
+## pos.y는 기준선. 반환: 마지막 알약의 오른쪽 끝 x.
+func _draw_medals(pos: Vector2, route: RouteDef) -> float:
 	var rec: Dictionary = game.progress.cleared.get(route.route_id, {})
 	var medals := [["완등", not rec.is_empty()], ["플래시", rec.get("flash", false)], ["무추락", rec.get("no_fall", false)], ["시간", rec.get("time", false)]]
 	var x := pos.x
+	var fs := int(18 * k)
 	for m in medals:
 		var got: bool = m[1]
-		var t: String = ("✓ " if got else "– ") + str(m[0])
-		draw_string(font, Vector2(x, pos.y), t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(19 * k), CREAM if got else DIM)
-		x += font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, int(19 * k)).x + 12 * k
+		var tw := font_m.get_string_size(str(m[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		var r := Rect2(Vector2(x, pos.y - 23 * k), Vector2(tw + (40 if got else 22) * k, 30 * k))
+		draw_style_box(_box(Color(SHOE, 0.14) if got else Color(0, 0, 0, 0), r.size.y * 0.5, Color(SHOE, 0.7) if got else HAIR, 1.5), r)
+		var tx := r.position.x + 11 * k
+		if got:
+			var c := Vector2(r.position.x + 18 * k, r.get_center().y)
+			draw_polyline(PackedVector2Array([c + Vector2(-6, 0) * k, c + Vector2(-2, 4) * k, c + Vector2(6, -5) * k]), SHOE, 2.2 * k, true)
+			tx += 18 * k
+		draw_string(font_m, Vector2(tx, _baseline(r, 18, font_m)), str(m[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, SHOE if got else DIM)
+		x = r.end.x + 8 * k
+	return x
 
 
 ## 문제가 요구하는 버튼 기술 중 아직 잠긴 것을 가르치는 과정 ID(없으면 "").
@@ -507,7 +588,7 @@ func _draw_views(size: Vector2) -> void:
 	var x := 60.0 * k
 	for v in [["learn", "처음 배우기"], ["dict", "기술 사전"], ["holds", "홀드 사전"]]:
 		var on: bool = tech_view == v[0]
-		_button(Rect2(Vector2(x, 112 * k), Vector2(w, 50 * k)), ("● " if on else "") + v[1], "view", v[0], 22, on)
+		_button(Rect2(Vector2(x, 116 * k), Vector2(w, 52 * k)), v[1], "view", v[0], 22, on)
 		x += w + 12 * k
 	var hint: String = {"dict": "실제 기술을 이 게임에서 어떻게 하는지 찾아봐요", "holds": "홀드 모양마다 손 힘과 버티는 방향이 달라요"}.get(tech_view, "순서대로 따라 하며 배워요")
 	draw_string(font, Vector2(x + 12 * k, 145 * k), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), DIM)
@@ -569,10 +650,9 @@ func _draw_hold_dict(size: Vector2) -> void:
 		var r := Rect2(Vector2(60 * k + (i % cols) * (cw + gap), 184 * k + (i / cols) * (ch + gap)), Vector2(cw, ch))
 		var foot: bool = t.limb == "foot"
 		var accent := Color("8fd0bc") if not foot else Color("c4b0d6")
-		draw_rect(r, CARD)
-		draw_rect(Rect2(r.position, Vector2(8 * k, r.size.y)), accent)
-		draw_rect(r, Color(1, 1, 1, 0.7), false, 2.0)
-		var x := r.position.x + 22 * k
+		_card(r)
+		draw_style_box(_box(accent, 3 * k), Rect2(r.position + Vector2(16, 17) * k, Vector2(5, 30) * k))
+		var x := r.position.x + 34 * k
 		var w := r.size.x - 36 * k
 		draw_string(font, Vector2(x, r.position.y + 40 * k), str(t.name_ko), HORIZONTAL_ALIGNMENT_LEFT, w, int(26 * k), Color.WHITE)
 		var stat := "발 몫 ×%.2f" % float(t.get("foot_share", 1.0)) if foot else "손 힘 빠짐 ×%.2f %s" % [float(t.fatigue), _drain_word(float(t.fatigue))]
@@ -621,8 +701,7 @@ func _draw_tech(size: Vector2) -> void:
 
 func _draw_course_card(r: Rect2, c: Dictionary, n := 0) -> void:
 	var progress: Progress = game.progress
-	draw_rect(r, CARD)
-	draw_rect(r, Color(1, 1, 1, 0.7), false, 2.0)
+	_card(r)
 	_buttons.append({"rect": r, "action": "course", "arg": c.course_id})
 	var x := r.position.x + 18 * k
 	var w := r.size.x - 36 * k
@@ -703,8 +782,7 @@ func _course_texts(c: Dictionary) -> Dictionary:
 func _draw_slot_row(r: Rect2, slot: String, route_id: String) -> void:
 	var progress: Progress = game.progress
 	var route: RouteDef = game.index.route(route_id)
-	draw_rect(r, CARD)
-	draw_rect(r, Color(1, 1, 1, 0.5), false, 2.0)
+	_card(r)
 	var x := r.position.x + 20 * k
 	var cy := r.position.y + r.size.y * 0.5 + 8 * k
 	var label: String = SLOT_NAMES.get(slot, slot)
@@ -766,7 +844,7 @@ func _draw_make(size: Vector2) -> void:
 		return
 	_button(Rect2(Vector2(x, y), Vector2(240, 64) * k), "+ 새 문제", "edit", "", 26, true)
 	_text(Vector2(x + 270 * k, y + 40 * k), "벽에 홀드를 놓아 문제를 만들고 직접 올라 봐요. 인터넷 없이 이 기기에 저장돼요.", 19, DIM)
-	y += 96 * k
+	y += 124 * k
 	_text(Vector2(x, y), "내 문제", 26, CREAM)
 	y += 20 * k
 	var mine := MyRoutes.list()
@@ -777,8 +855,7 @@ func _draw_make(size: Vector2) -> void:
 	for i in mini(mine.size(), 6):
 		var m: Dictionary = mine[i]
 		var r := Rect2(Vector2(x + (i % 3) * (cw + 20 * k), y + int(i / 3) * (ch + 20 * k)), Vector2(cw, ch))
-		draw_rect(r, CARD)
-		draw_rect(r, Color(1, 1, 1, 0.35), false, 2.0)
+		_card(r)
 		var nm: String = m.name if m.name != "" else "(이름 없음)"
 		_text(r.position + Vector2(16, 40) * k, nm, 24, Color.WHITE)
 		var c: Dictionary = game.progress.cleared.get(m.route_id, {})
@@ -794,8 +871,7 @@ func _draw_make(size: Vector2) -> void:
 	if mine_delete != "":
 		var box := Rect2(Vector2(size.x * 0.5 - 300 * k, size.y * 0.5 - 110 * k), Vector2(600, 220) * k)
 		_buttons = []
-		draw_rect(box, Color(0.1, 0.09, 0.08, 0.97))
-		draw_rect(box, CREAM, false, 3.0)
+		_panel(box)
 		_text(box.position + Vector2(30, 60) * k, "이 문제를 지울까요? 되돌릴 수 없어요.", 24, Color.WHITE)
 		_button(Rect2(box.position + Vector2(30, 130) * k, Vector2(250, 60) * k), "지우기", "mine_delete_yes", mine_delete, 24, true)
 		_button(Rect2(box.position + Vector2(320, 130) * k, Vector2(250, 60) * k), "그만두기", "mine_delete_no", "", 24)
@@ -828,8 +904,7 @@ func _draw_browse(size: Vector2, at: Vector2) -> void:
 	for i in shown:
 		var row: Dictionary = browse_rows[i]
 		var r := Rect2(Vector2(at.x + (i % cols) * (cw + 16 * k), y + int(i / cols) * (ch + 16 * k)), Vector2(cw, ch))
-		draw_rect(r, CARD)
-		draw_rect(r, Color(1, 1, 1, 0.35), false, 2.0)
+		_card(r)
 		_text(r.position + Vector2(16, 36) * k, str(row.get("name", "")), 23, Color.WHITE)
 		_text(r.position + Vector2(16, 66) * k, "%s · %s · ★%d · 완등 %d" % [row.get("grade", ""), row.get("author_name", ""), int(row.get("stars", 0)), int(row.get("clears", 0))], 17, CREAM)
 		var by := r.end.y - 58 * k
@@ -845,8 +920,7 @@ func _draw_browse(size: Vector2, at: Vector2) -> void:
 
 func _draw_input(size: Vector2) -> void:
 	var box := Rect2(Vector2(size.x * 0.5 - 340 * k, 240 * k), Vector2(680, 250) * k)
-	draw_rect(box, Color(0.1, 0.09, 0.08, 0.97))
-	draw_rect(box, CREAM, false, 3.0)
+	_panel(box)
 	_text(box.position + Vector2(30, 50) * k, "공유 코드 6글자를 넣어 주세요" if input_mode == "code" else "별명(최대 12자)", 22, Color.WHITE)
 	_input_edit.position = box.position + Vector2(30, 80) * k
 	_input_edit.size = Vector2(620, 60) * k
@@ -982,16 +1056,46 @@ func _report(i: int) -> void:
 
 # ---------- 도우미 ----------
 
+## 글자. 26 이상은 제목으로 보고 굵게.
 func _text(pos: Vector2, s: String, fs: int, col: Color) -> void:
-	draw_string(font, pos, s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs * k), col)
+	draw_string(font_b if fs >= 26 else font, pos, s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs * k), col)
 
 
+## 둥근 판 모양(채움·모서리·테두리). bw는 배율 전 두께.
+func _box(fill: Color, radius: float, border := Color(0, 0, 0, 0), bw := 0.0) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = fill
+	sb.set_corner_radius_all(int(radius))
+	if bw > 0.0 and border.a > 0.0:
+		sb.border_color = border
+		sb.set_border_width_all(maxi(1, roundi(bw * k)))
+	sb.anti_aliasing = true
+	return sb
+
+
+## 카드(문제·수업·홀드 등): 남색 반투명 둥근 판 + 가는 선. dim이면 더 옅게(잠김).
+func _card(r: Rect2, dim := false) -> void:
+	draw_style_box(_box(Color(NIGHT, 0.56 if dim else 0.80), 20 * k, HAIR, 1.5), r)
+
+
+## 창(확인·입력·설명): 거의 불투명한 남색 둥근 판.
+func _panel(r: Rect2) -> void:
+	draw_style_box(_box(Color(NIGHT, 0.97), 26 * k, Color(CHALK, 0.2), 1.5), r)
+
+
+## r 안에서 글자를 세로 가운데에 두는 기준선.
+func _baseline(r: Rect2, fs: int, f: Font) -> float:
+	var px := int(fs * k)
+	return r.position.y + (r.size.y + f.get_ascent(px) - f.get_descent(px)) * 0.5
+
+
+## 버튼: 주(strong) = 노란 알약 + 남색 굵은 글자, 보조 = 반투명 남색 알약 + 가는 테두리 + 흰 글자.
 func _button(r: Rect2, text: String, action: String, arg: String, fs := 24, strong := false) -> void:
-	draw_rect(r, CREAM if strong else Color(0.1, 0.1, 0.1, 0.75))
-	draw_rect(r, Color(1, 1, 1, 0.7), false, 2.0)
+	var radius := r.size.y * 0.5 if r.size.y <= 72 * k else 22 * k
+	draw_style_box(_box(SHOE if strong else Color(NIGHT, 0.66), radius, Color(0, 0, 0, 0) if strong else Color(CHALK, 0.26), 1.5), r)
 	if text != "":
-		var size := int(fs * k)
-		draw_string(font, Vector2(r.position.x, r.position.y + r.size.y * 0.5 + size * 0.35), text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, size, INK if strong else Color.WHITE)
+		var f: Font = font_b if strong else font_m
+		draw_string(f, Vector2(r.position.x, _baseline(r, fs, f)), text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(fs * k), NIGHT if strong else CHALK)
 	_buttons.append({"rect": r, "action": action, "arg": arg})
 
 
@@ -1017,14 +1121,14 @@ const DISPLAY_ROWS := [
 func _draw_settings(size: Vector2) -> void:
 	var x := 100.0 * k
 	var y := 140.0 * k
-	draw_string(font, Vector2(x, y), "화면 표시", HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * k), CREAM)
+	draw_string(font_b, Vector2(x, y), "화면 표시", HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * k), CHALK)
 	y += 20 * k
 	var w := size.x * 0.5 - 130 * k  # 왼쪽 칸(오른쪽 칸은 몸 옮기기)
 	for row in DISPLAY_ROWS:
 		var on: bool = game.progress.display_on(row[0])
 		var dim: bool = row[0] == "balance_hint" and not game.progress.display_on("balance")
 		draw_string(font, Vector2(x, y + 36 * k), row[1], HORIZONTAL_ALIGNMENT_LEFT, -1, int(25 * k), DIM if dim else Color.WHITE)
-		draw_multiline_string(font, Vector2(x, y + 62 * k), row[2], HORIZONTAL_ALIGNMENT_LEFT, w - 170 * k, int(15 * k), 3, DIM)
+		draw_multiline_string(font, Vector2(x, y + 62 * k), row[2], HORIZONTAL_ALIGNMENT_LEFT, w - 170 * k, int(17 * k), 3, DIM)
 		_button(Rect2(Vector2(x + w - 140 * k, y + 14 * k), Vector2(140, 52) * k), "켜짐" if on else "꺼짐", "display", row[0], 22, on)
 		y += 108 * k
 	_draw_control_settings(Vector2(size.x * 0.5 + 40 * k, 150 * k), size.x * 0.5 - 140 * k)
@@ -1036,7 +1140,7 @@ func _draw_control_settings(at: Vector2, w: float) -> void:
 	var x := at.x
 	var y := at.y
 	# 벽 기울기(실험 앱): 일반 문제 전체에 같은 각도
-	draw_string(font, Vector2(x, y), "벽 기울기", HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * k), CREAM)
+	draw_string(font_b, Vector2(x, y), "벽 기울기", HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * k), CHALK)
 	y += 30 * k
 	var wd := int(p.control_get("wall_deg"))
 	var cw := (w - 4 * 12 * k) / 5.0
@@ -1044,9 +1148,9 @@ func _draw_control_settings(at: Vector2, w: float) -> void:
 		var a: int = Progress.WALL_ANGLES[i]
 		_button(Rect2(Vector2(x + i * (cw + 12 * k), y), Vector2(cw, 56 * k)), "%d°" % a, "control", "wall_deg=%d" % a, 22, wd == a)
 	y += 56 * k
-	draw_string(font, Vector2(x, y + 28 * k), "0°는 수직, 클수록 벽이 머리 위로 기울어요(일반 문제만)", HORIZONTAL_ALIGNMENT_LEFT, w, int(17 * k), DIM)
-	y += 60 * k
-	draw_string(font, Vector2(x, y), "몸 옮기기", HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * k), CREAM)
+	draw_string(font, Vector2(x, y + 30 * k), "0°는 수직, 클수록 벽이 머리 위로 기울어요(일반 문제만)", HORIZONTAL_ALIGNMENT_LEFT, w, int(17 * k), DIM)
+	y += 92 * k
+	draw_string(font_b, Vector2(x, y), "몸 옮기기", HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * k), CHALK)
 	y += 30 * k
 	var tilt: bool = p.control_get("body") == "tilt"
 	var sensor := TiltMapper.available(Input.get_gravity())
@@ -1056,9 +1160,8 @@ func _draw_control_settings(at: Vector2, w: float) -> void:
 		_button(Rect2(Vector2(x + bw + 20 * k, y), Vector2(bw, 64 * k)), "휴대폰 기울이기", "control", "body=tilt", 22, tilt)
 	else:
 		var r := Rect2(Vector2(x + bw + 20 * k, y), Vector2(bw, 64 * k))
-		draw_rect(r, Color(0.1, 0.1, 0.1, 0.4))
-		draw_rect(r, Color(1, 1, 1, 0.3), false, 2.0)
-		draw_string(font, Vector2(r.position.x, r.position.y + 40 * k), "휴대폰 기울이기", HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(22 * k), DIM)
+		draw_style_box(_box(Color(NIGHT, 0.4), r.size.y * 0.5, HAIR, 1.5), r)
+		draw_string(font_m, Vector2(r.position.x, _baseline(r, 22, font_m)), "휴대폰 기울이기", HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(22 * k), DIM)
 	y += 64 * k
 	if not sensor:
 		draw_string(font, Vector2(x, y + 30 * k), "이 기기는 기울기 센서가 없어요", HORIZONTAL_ALIGNMENT_LEFT, w, int(18 * k), Color("ff9a7a"))

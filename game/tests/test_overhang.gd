@@ -115,3 +115,14 @@ func test_home_key_art_covers_screen() -> void:
 		var covers: bool = r.position.x <= 0.01 and r.position.y <= 0.01 and r.end.x >= size.x - 0.01 and r.end.y >= size.y - 0.01
 		runner.check(covers, "%s 화면을 덮음" % size)
 		runner.check(is_equal_approx(r.size.x / r.size.y, float(art.get_width()) / art.get_height()), "%s 그림 비율 그대로" % size)
+
+
+## 홈 글꼴(2026-11-22 사용자 "밤티스러워 → 깔끔·세련·가독성"): 기기 글꼴 대신 넣은 SUIT(OFL). 굵기별로 다르고, 없는 글자는 기기 글꼴로.
+func test_ui_font_weights() -> void:
+	var r := UiFont.get_font(400)
+	var b := UiFont.get_font(700)
+	runner.check(r != null and b != null and r != b, "굵기마다 다른 글꼴")
+	runner.check(UiFont.get_font(700) == b, "같은 굵기는 다시 만들지 않음")
+	runner.check(r.get_string_size("완등", HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x > 0, "한글을 그림")
+	var base: Font = (r as FontVariation).base_font
+	runner.check(base.fallbacks.size() > 0 and base.fallbacks[0] is SystemFont, "없는 글자는 기기 글꼴")

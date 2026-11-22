@@ -22,12 +22,15 @@ func _process(_d: float) -> bool:
 	frame += 1
 	var g = root.get_node_or_null("Game")
 	if frame == 1:
+		if g != null:
+			g.first_run_sent = true  # 첫 실행 튜토리얼로 넘어가지 않게(설정 탭만 찍음)
 		if g != null and g.progress.level == "":
 			g.progress.level = "intermediate"
 		home = load("res://scenes/home.tscn").instantiate()
 		root.add_child(home)
 		return false
 	if frame == 10:
+		home.grade_card = ""  # 등급 설명 창은 일반 탭 것이라 닫는다
 		home._set_tab("settings")
 		home.queue_redraw()
 	if frame == 20:

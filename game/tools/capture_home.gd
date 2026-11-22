@@ -59,5 +59,15 @@ func _process(_d: float) -> bool:
 		home.queue_redraw()
 	if frame == 65:
 		_shot("browse")  # 둘러보기(공유 서버 없이 가짜 목록)
+		home.tab = "general"
+		home.grade = "V3"
+		home.queue_redraw()
+	if frame == 75:
+		_shot("v3")  # 기록이 있는 등급(메달·최고 기록·기록 지우기)
+		home.tab = "technique"
+		home.tech_view = "learn"
+		home.queue_redraw()
+	if frame == 85:
+		_shot("learn")  # 기술 탭 처음 배우기(수업 카드)
 		return true
 	return false
