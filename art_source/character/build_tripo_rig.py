@@ -76,6 +76,16 @@ CFG = {
                    "tris": 24000, "tex_size": 2048,
                    "skin_clean": (0.45, 0.80),
                    "chalk": lambda x, y, z: 0.47 < z < 0.585 and (x > 0.095 or (x > 0.055 and y < -0.06))},
+    # 대머리(2026-11-22, 사용자 그림 정면·왼쪽·뒤·오른쪽 4장 → Tripo v3.1 multiview, pbr 끔, 30크레딧, task baf01405,
+    # art_source/character/bald, docs/55). 속옷만 입은 맨몸(옷은 나중에 이 몸 위에 맞춰 만든다), 초크백 없음.
+    # 가랑이는 속옷 아랫단 가운데(허벅지 안쪽은 0.45까지 붙어 있음). 손목은 팔이 가장 가는 곳, 손가락 뿌리는 손이 얇아지기 시작하는 곳.
+    "bald": {"src": "art_source/character/bald/tripo_v1/model.glb", "out": "game/art/characters/climber_bald.glb",
+             "mesh": "P_body_bald", "tex": "climber_bald_color",
+             "landmarks": {"shoulder": 0.807, "ankle": 0.06, "knee": 0.31, "tip": 0.50, "crotch": 0.50,
+                           "wrist": 0.375, "knuckle": 0.462},
+             "finger_len": 0.058,
+             "crotch_lift": 0.0,
+             "tris": 24000, "tex_size": 2048},
 }[CHAR]
 LM = CFG["landmarks"]
 SRC = os.path.join(REPO, CFG["src"])

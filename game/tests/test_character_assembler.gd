@@ -1,6 +1,7 @@
 extends RefCounted
 ## 캐릭터(docs/34 §7, docs/36): 목록과 glb가 맞는지, 뼈대 규격(B안 관절 위치), 예산, 고른 것만 보이는지, 저장.
 ## 2026-11-13: 게임 모델은 남성(2026-11-22부터 climber_anime_male.glb, 기본)과 시험용 더미(climber_dummy.glb, docs/39). 몸마다 model. 파츠 교체 논리는 가짜 목록으로 시험한다.
+## 2026-11-22: 대머리(사용자 그림 4장 → Tripo, docs/55) 추가. 속옷만 입은 맨몸(옷은 나중에 몸 위에 맞춰 만든다).
 
 var runner
 
@@ -12,7 +13,7 @@ const TRI_BUDGET := 25000
 const SPEC := {"pelvis": Vector2(0, 0), "spine": Vector2(0, 0.16), "chest": Vector2(0, 0.37), "neck": Vector2(0, 0.49), "head": Vector2(0, 0.56),
 	"upperarm_R": Vector2(0.175, 0.49), "forearm_R": Vector2(0.525, 0.49), "hand_R": Vector2(0.905, 0.49),
 	"upperarm_L": Vector2(-0.175, 0.49), "hand_L": Vector2(-0.905, 0.49), "thigh_R": Vector2(0.095, 0), "shin_R": Vector2(0.095, -0.41), "foot_R": Vector2(0.095, -0.81)}
-const MODELS := {"male": ["res://art/characters/climber_anime_male.glb", "P_body_anime_male"], "dummy": ["res://art/characters/climber_dummy.glb", "P_body_dummy"], "female": ["res://art/characters/climber_female.glb", "P_body_female"]}
+const MODELS := {"male": ["res://art/characters/climber_anime_male.glb", "P_body_anime_male"], "dummy": ["res://art/characters/climber_dummy.glb", "P_body_dummy"], "female": ["res://art/characters/climber_female.glb", "P_body_female"], "bald": ["res://art/characters/climber_bald.glb", "P_body_bald"]}
 
 ## 파츠 교체 논리용 가짜 목록(옛 모듈 시제품과 같은 모양).
 const FAKE := {"model": "", "bodies": [
@@ -35,7 +36,7 @@ func _fake() -> CharacterAssembler:
 
 func test_catalog_matches_model() -> void:
 	var asm := CharacterAssembler.load_catalog()
-	runner.check(asm.bodies().map(func(b): return b.id) == ["male", "female", "dummy"], "남성·여성·더미")
+	runner.check(asm.bodies().map(func(b): return b.id) == ["male", "female", "bald", "dummy"], "남성·여성·대머리·더미")
 	runner.check(asm.data.get("slots", []).map(func(x): return x.id) == ["top", "bottom", "shoes"], "슬롯: 상의·하의·암벽화(2026-11-16 여성 옷)")
 	runner.check(asm.model_path() == MODELS.male[0], "기본 모델은 남성")
 	for body in MODELS:
@@ -133,7 +134,7 @@ func test_apply_shows_body() -> void:
 			runner.check(asm.apply(m, look) == asm.visible_meshes(look).size() and asm.visible_meshes(look)[0] == MODELS[body][1], "%s %s: 몸과 기본 옷만" % [body, look])
 		m.free()
 	runner.check(asm.normalize({"hair": "crop"}) == {"body": "male", "hair": "", "top": "base", "bottom": "base", "chalk": "", "shoes": "base"}, "기본 몸은 남성, 옷은 기본, 파츠 없는 슬롯은 빈 값")
-	runner.check(asm.cycle({"body": "male"}, "body", 1) == "female" and asm.cycle({"body": "female"}, "body", 1) == "dummy" and asm.cycle({"body": "dummy"}, "body", 1) == "male", "몸 바꾸기")
+	runner.check(asm.cycle({"body": "male"}, "body", 1) == "female" and asm.cycle({"body": "female"}, "body", 1) == "bald" and asm.cycle({"body": "bald"}, "body", 1) == "dummy" and asm.cycle({"body": "dummy"}, "body", 1) == "male", "몸 바꾸기")
 	runner.check(asm.model_path("dummy") == MODELS.dummy[0] and asm.model_path("nope") == MODELS.male[0], "몸마다 모델, 모르는 몸은 기본")
 
 

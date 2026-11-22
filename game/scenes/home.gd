@@ -39,7 +39,7 @@ var look := {}               # 고르는 중인 외형(저장 전)
 var _asm: CharacterAssembler
 var _pv: SubViewport         # 3D 미리보기(창이 열린 동안만)
 var _pv_model: Node3D
-const LOOK_ROWS := [["body", "성별"], ["hair", "헤어"], ["top", "상의"], ["bottom", "하의"], ["chalk", "초크백"], ["shoes", "클라이밍화"]]
+const LOOK_ROWS := [["body", "캐릭터"], ["hair", "헤어"], ["top", "상의"], ["bottom", "하의"], ["chalk", "초크백"], ["shoes", "클라이밍화"]]
 var choosing_level := false  # 난이도(초급·중급) 고르기 창. 처음 시작할 때와 오른쪽 위 [난이도] 버튼
 const LEVEL_INFO := {
 	"beginner": {"name": "초급", "desc": ["떨어지기 전 버틸 시간 10배", "어떻게 버틸지 화면에 안내", "위험 게이지 눌러 자동 도움 3번"]},
@@ -172,7 +172,7 @@ func _do(action: String, arg: String) -> void:
 			_open_look()
 		"look_prev", "look_next":
 			look[arg] = _asm.cycle(look, arg, -1 if action == "look_prev" else 1)
-			if arg == "body":  # 성별을 바꾸면 그 몸의 기본 헤어로(나머지는 유지)
+			if arg == "body":  # 캐릭터(몸)를 바꾸면 그 몸의 기본 헤어로(나머지는 유지)
 				look.hair = str(_asm.body(look.body).get("defaults", {}).get("hair", look.get("hair", "")))
 			look = _asm.normalize(look)
 			if arg == "body":  # 몸마다 모델이 다르다(여성 2026-11-12)
