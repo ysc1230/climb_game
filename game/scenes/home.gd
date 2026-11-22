@@ -39,6 +39,15 @@ var look := {}               # 고르는 중인 외형(저장 전)
 var _asm: CharacterAssembler
 var _pv: SubViewport         # 3D 미리보기(창이 열린 동안만)
 var _pv_model: Node3D
+var _pv_cam: Camera3D
+var _pv_rect := Rect2()      # 화면에 그린 미리보기 자리(손짓을 받는 곳)
+var _pv_touch := {}          # 미리보기 안에서 시작한 손가락: index → 위치
+var _pv_mouse := false       # 미리보기 안에서 누른 마우스(PC)
+var _pv_dist := LOOK_DIST_MAX
+var _pv_y := 0.0
+## 미리보기 카메라 거리(m): 가까이(얼굴·옷 확대) ~ 멀리(전신). 2026-11-23 사용자 "줌인 줌아웃도 내가 하게".
+const LOOK_DIST_MIN := 1.1
+const LOOK_DIST_MAX := 3.6
 const LOOK_ROWS := [["body", "캐릭터"], ["hair", "헤어"], ["top", "상의"], ["bottom", "하의"], ["chalk", "초크백"], ["shoes", "클라이밍화"]]
 var choosing_level := false  # 난이도(초급·중급) 고르기 창. 처음 시작할 때와 오른쪽 위 [난이도] 버튼
 const LEVEL_INFO := {
@@ -145,6 +154,8 @@ func _draw_modals(size: Vector2) -> void:
 
 func _input(event: InputEvent) -> void:
 	if game == null:
+		return
+	if choosing_look and _look_gesture(event):
 		return
 	if event is InputEventScreenTouch and not event.pressed and not event.canceled:
 		_tap(event.position)
@@ -1198,16 +1209,20 @@ func _open_look() -> void:
 	sun.light_energy = 0.8
 	_pv.add_child(sun)
 	_load_preview_model()
-	var cam := Camera3D.new()
-	cam.position = Vector3(0, 0.0, 3.6)
-	cam.fov = 38
-	_pv.add_child(cam)
-	cam.current = true
+	_pv_cam = Camera3D.new()
+	_pv_cam.fov = 38
+	_pv.add_child(_pv_cam)
+	_pv_cam.current = true
+	_pv_dist = LOOK_DIST_MAX
+	_pv_y = 0.0
+	_pv_touch.clear()
+	_pv_mouse = false
+	_look_cam()
 	choosing_look = true
 	queue_redraw()
 
 
-## 고른 몸의 모델로 미리보기를 (다시) 만든다. 돌던 각도는 이어 간다.
+## 고른 몸의 모델로 미리보기를 (다시) 만든다. 돌려 둔 각도는 이어 간다. 팔은 내린 자세(T자 아님).
 func _load_preview_model() -> void:
 	var path := _asm.model_path(str(look.body))
 	if path == "" or not ResourceLoader.exists(path):
@@ -1221,6 +1236,73 @@ func _load_preview_model() -> void:
 	_pv_model.rotation.y = rot
 	_asm.apply(_pv_model, look)
 	CharacterAssembler.style(_pv_model, preload("res://art/shaders/toon.gdshader"), preload("res://art/shaders/outline.gdshader"), INK)
+	CharacterAssembler.relax_arms(_pv_model)
+
+
+## 미리보기 카메라 거리·높이를 범위 안으로. 멀수록(전신) 높이는 가운데로 모인다: 다 보일 때는 옮길 필요가 없고,
+## 가까이 갔을 때만 머리~발까지 위아래로 옮겨 볼 수 있다.
+static func look_view(dist: float, cam_y: float) -> Vector2:
+	var d := clampf(dist, LOOK_DIST_MIN, LOOK_DIST_MAX)
+	var room := 1.0 - (d - LOOK_DIST_MIN) / (LOOK_DIST_MAX - LOOK_DIST_MIN)
+	return Vector2(d, clampf(cam_y, -0.75 * room, 0.68 * room))
+
+
+func _look_cam() -> void:
+	var v := look_view(_pv_dist, _pv_y)
+	_pv_dist = v.x
+	_pv_y = v.y
+	if _pv_cam != null:
+		_pv_cam.position = Vector3(0, _pv_y, _pv_dist)
+	queue_redraw()
+
+
+## 미리보기 손짓(2026-11-23 사용자 "회전은 멈춰 있어, 내가 할 수 있도록"): 한 손가락(마우스) 끌기 = 좌우로 돌리기·위아래로
+## 옮기기, 두 손가락 벌리기·오므리기(휠·트랙패드) = 확대·축소. 미리보기 안에서 시작한 손짓은 버튼 누르기로 넘기지 않는다.
+func _look_gesture(event: InputEvent) -> bool:
+	if event is InputEventScreenTouch:
+		if event.pressed and _pv_rect.has_point(event.position):
+			_pv_touch[event.index] = event.position
+			return true
+		if not event.pressed and _pv_touch.has(event.index):
+			_pv_touch.erase(event.index)
+			return true
+	elif event is InputEventScreenDrag and _pv_touch.has(event.index):
+		if _pv_touch.size() >= 2:
+			var other: Vector2 = _pv_touch[_pv_touch.keys().filter(func(i): return i != event.index)[0]]
+			var before := other.distance_to(_pv_touch[event.index])
+			var after := other.distance_to(event.position)
+			if before > 1.0 and after > 1.0:
+				_look_zoom(before / after)  # 벌리면 가까이
+		else:
+			_look_drag(event.relative)
+		_pv_touch[event.index] = event.position
+		return true
+	elif event is InputEventMouseButton and (_pv_mouse or _pv_rect.has_point(event.position)):
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			_pv_mouse = event.pressed
+			return true
+		if event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
+			_look_zoom(0.9 if event.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / 0.9)
+			return true
+	elif event is InputEventMouseMotion and _pv_mouse:
+		_look_drag(event.relative)
+		return true
+	elif event is InputEventMagnifyGesture and _pv_rect.has_point(event.position):
+		_look_zoom(1.0 / maxf(event.factor, 0.01))
+		return true
+	return false
+
+
+func _look_drag(rel: Vector2) -> void:
+	if _pv_model != null:
+		_pv_model.rotation.y += rel.x / maxf(_pv_rect.size.x, 1.0) * TAU * 0.75  # 미리보기 폭만큼 끌면 3/4 바퀴
+	_pv_y += rel.y / maxf(_pv_rect.size.y, 1.0) * 0.69 * _pv_dist  # 손가락을 따라 몸이 움직이게(화면 높이 = 거리 × 0.69)
+	_look_cam()
+
+
+func _look_zoom(f: float) -> void:
+	_pv_dist *= f
+	_look_cam()
 
 
 func _close_look() -> void:
@@ -1229,23 +1311,25 @@ func _close_look() -> void:
 		_pv.queue_free()
 	_pv = null
 	_pv_model = null
+	_pv_cam = null
+	_pv_touch.clear()
+	_pv_mouse = false
 	queue_redraw()
 
 
 var _sensor_seen := false
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	# 기울기 센서 값은 시작 뒤 조금 늦게 들어온다: 바뀌면 설정 탭을 다시 그린다
 	if tab == "settings" and TiltMapper.available(Input.get_gravity()) != _sensor_seen:
 		_sensor_seen = not _sensor_seen
 		queue_redraw()
 	if choosing_look and _pv_model != null:
-		_pv_model.rotation.y += delta * 0.6
-		queue_redraw()
+		queue_redraw()  # 미리보기 화면 갱신(돌리기는 사용자가 한다)
 
 
-## 왼쪽 3D 미리보기(천천히 돎), 오른쪽 슬롯마다 [◀ 이름 ▶]. 대안이 하나뿐인 슬롯은 화살표를 흐리게 하고 "1종"을 붙인다.
+## 왼쪽 3D 미리보기(손가락으로 돌리기·확대), 오른쪽 슬롯마다 [◀ 이름 ▶]. 대안이 하나뿐인 슬롯은 화살표를 흐리게 하고 "1종"을 붙인다.
 func _draw_look(size: Vector2) -> void:
 	_buttons = []
 	draw_rect(Rect2(Vector2.ZERO, size), BG)
@@ -1254,8 +1338,10 @@ func _draw_look(size: Vector2) -> void:
 	var pvw := pvh * 560.0 / 760.0
 	var pr := Rect2(Vector2(size.x * 0.30 - pvw * 0.5, 100 * k), Vector2(pvw, pvh))
 	draw_rect(pr, Color(1, 1, 1, 0.05))
+	_pv_rect = pr
 	if _pv != null:
 		draw_texture_rect(_pv.get_texture(), pr, false)
+	draw_string(font, Vector2(pr.position.x, pr.end.y + 34 * k), "끌어서 돌리기 · 두 손가락으로 확대", HORIZONTAL_ALIGNMENT_CENTER, pr.size.x, int(18 * k), DIM)
 	var x := size.x * 0.52
 	var y := 130 * k
 	var rw := 560.0 * k

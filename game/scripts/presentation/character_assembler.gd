@@ -153,6 +153,39 @@ static func style(model: Node, toon_shader: Shader, outline_shader: Shader, ink:
 			mi.set_surface_override_material(i, t)
 
 
+## 팔을 내린 서 있는 자세(캐릭터 고르기 미리보기, 2026-11-23 사용자 "팔을 들고 있지 말고 내려"). 모델은 T자라
+## 위팔을 down_deg만큼 내리고 팔꿈치를 앞(−z)으로 bend_deg 굽힌다. 쉬는 자세(rest)에서 계산해 몇 번 불러도 같다.
+static func relax_arms(model: Node, down_deg := 78.0, bend_deg := 12.0) -> void:
+	var found := model.find_children("*", "Skeleton3D", true, false)
+	if found.is_empty():
+		return
+	var sk: Skeleton3D = found[0]
+	for s in ["L", "R"]:
+		var u := sk.find_bone("upperarm_" + s)
+		var f := sk.find_bone("forearm_" + s)
+		if u < 0 or f < 0:
+			continue
+		var p_rest := _global_rest(sk, sk.get_bone_parent(u))
+		var u_rest := _global_rest(sk, u)
+		var f_rest := _global_rest(sk, f)
+		# 왼팔(−x)은 +z축으로, 오른팔(+x)은 −z축으로 돌리면 아래로 내려간다
+		var u_new := Transform3D(Basis(Vector3.BACK, deg_to_rad(down_deg) * (1.0 if s == "L" else -1.0)) * u_rest.basis, u_rest.origin)
+		var f_mid := u_new * (u_rest.affine_inverse() * f_rest)
+		var f_new := Transform3D(Basis(Vector3.RIGHT, deg_to_rad(bend_deg)) * f_mid.basis, f_mid.origin)
+		sk.set_bone_pose_rotation(u, (p_rest.affine_inverse() * u_new).basis.get_rotation_quaternion())
+		sk.set_bone_pose_rotation(f, (u_new.affine_inverse() * f_new).basis.get_rotation_quaternion())
+
+
+## 뼈의 전역 쉬는 자세(부모 쪽 get_bone_rest를 곱한다). Godot 4.7에서 get_bone_global_rest를 먼저 부르면 그 뒤에 바꾼
+## 뼈 자세가 전역 자세에 반영되지 않아(2026-11-23 확인: 손이 T자 그대로) 쓰지 않는다.
+static func _global_rest(sk: Skeleton3D, b: int) -> Transform3D:
+	var t := Transform3D()
+	while b >= 0:
+		t = sk.get_bone_rest(b) * t
+		b = sk.get_bone_parent(b)
+	return t
+
+
 ## 모델 뼈 길이가 지금 판정 몸(Tuning)과 맞는가(±1cm). 다르면 관절에서 메시가 벌어지므로 쓰지 않는다
 ## (2026-11-11 B안으로 몸 비율을 바꾼 뒤, 옛 비율 모델 CH02·시제품은 캡슐 인형으로 대신한다).
 static func compatible(sk: Skeleton3D) -> bool:

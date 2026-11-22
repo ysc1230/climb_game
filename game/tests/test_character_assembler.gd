@@ -285,3 +285,22 @@ func test_male_default_outfit() -> void:
 	var w := arm_weight_below_armpit(m, "P_top_white_tee")
 	runner.check(w < 0.01, "흰 티: 겨드랑이 아래 옆구리는 위팔을 따르지 않는다(최대 %.3f)" % w)
 	m.free()
+
+
+## 캐릭터 고르기 미리보기는 팔을 내린 자세(2026-11-23 사용자 "팔을 들고 있지 말고 내려"): 손이 어깨보다 한참 아래, 몸 옆.
+## 쉬는 자세에서 계산하므로 두 번 불러도 같다.
+func test_relax_arms_lowers_hands() -> void:
+	var asm := CharacterAssembler.load_catalog()
+	for body in ["male", "female", "bald"]:
+		var m := _model(asm, body)
+		var sk: Skeleton3D = m.find_children("*", "Skeleton3D", true, false)[0]
+		CharacterAssembler.relax_arms(m)
+		CharacterAssembler.relax_arms(m)
+		sk.force_update_all_bone_transforms()  # 트리 밖이라 전역 자세를 직접 갱신
+		for s in ["L", "R"]:
+			var sh := sk.get_bone_global_pose(sk.find_bone("upperarm_" + s)).origin
+			var hand := sk.get_bone_global_pose(sk.find_bone("hand_" + s)).origin
+			var elbow := sk.get_bone_global_pose(sk.find_bone("forearm_" + s)).origin
+			runner.check(hand.y < sh.y - 0.6 and absf(hand.x) < 0.40 and signf(hand.x) == signf(sh.x), "%s %s 손이 어깨 아래 몸 옆 %s" % [body, s, hand])
+			runner.check(hand.z < elbow.z - 0.02, "%s %s 팔꿈치를 앞(−z)으로 살짝 굽힘 %.3f" % [body, s, hand.z - elbow.z])
+		m.free()
