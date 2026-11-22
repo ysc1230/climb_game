@@ -22,6 +22,7 @@ func _process(_d: float) -> bool:
 	frame += 1
 	var g = root.get_node_or_null("Game")
 	if frame == 1:
+		g.first_run_sent = true  # 첫 실행 튜토리얼로 넘어가지 않게(홈만 찍음)
 		if g.progress.level == "":
 			g.progress.level = "intermediate"
 		g.progress.seen_tips.erase("grade_V0")

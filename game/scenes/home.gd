@@ -10,6 +10,8 @@ const BG := Color("2b2622")
 const CARD := Color(0.16, 0.15, 0.13)
 const DIM := Color(1, 1, 1, 0.55)
 const SLOT_NAMES := {"tutorial": "튜토리얼", "easy": "쉬움", "normal": "보통", "hard": "어려움"}
+## 홈 배경 그림(2026-11-22 사용자: "메인화면은 이걸로 바꿔줘", 사용자가 준 그림). 클라이머가 오른쪽이라 왼쪽·위를 더 어둡게 덮는다.
+const KEY_ART := preload("res://art/ui/home_key_art.jpg")
 
 var game: Node
 var font: Font
@@ -266,6 +268,7 @@ func _draw() -> void:
 	var size := get_viewport_rect().size
 	k = maxf(minf(size.x / 1600.0, size.y / 900.0), 0.25)
 	draw_rect(Rect2(Vector2.ZERO, size), BG)
+	_draw_key_art(size)
 	# 게임 버전(오른쪽 아래, 작고 흐리게 — 2026-11-19 사용자: 시작 화면 모서리에 버전)
 	draw_string(font, Vector2(0, size.y - 16 * k), AppVersion.text(), HORIZONTAL_ALIGNMENT_RIGHT, size.x - 16 * k, int(16 * k), Color(1, 1, 1, 0.45))
 	if game == null:
@@ -301,6 +304,23 @@ func _draw() -> void:
 		_draw_look(size)
 	else:
 		_draw_modals(size)
+
+
+## 그림을 화면을 빈틈 없이 덮는 크기로(비율 유지). 넘치는 위아래는 위 10% : 아래 90%로 잘라 위로 뻗은 손이 덜 잘린다.
+static func cover_rect(tex: Vector2, size: Vector2) -> Rect2:
+	var d := tex * maxf(size.x / tex.x, size.y / tex.y)
+	return Rect2(Vector2((size.x - d.x) * 0.5, (size.y - d.y) * 0.1), d)
+
+
+## 배경 그림 + 글자·카드가 읽히게 덮는 어둠: 왼쪽(카드 쪽) 진하게 → 오른쪽(클라이머) 옅게, 위쪽 탭 띠는 조금 더.
+func _draw_key_art(size: Vector2) -> void:
+	draw_texture_rect(KEY_ART, cover_rect(Vector2(KEY_ART.get_size()), size), false)
+	var l := Color(0.08, 0.06, 0.05, 0.78)
+	var r := Color(0.08, 0.06, 0.05, 0.30)
+	draw_polygon(PackedVector2Array([Vector2.ZERO, Vector2(size.x, 0), size, Vector2(0, size.y)]), PackedColorArray([l, r, r, l]))
+	var top := Color(0.08, 0.06, 0.05, 0.55)
+	var clear := Color(0.08, 0.06, 0.05, 0.0)
+	draw_polygon(PackedVector2Array([Vector2.ZERO, Vector2(size.x, 0), Vector2(size.x, 110 * k), Vector2(0, 110 * k)]), PackedColorArray([top, top, clear, clear]))
 
 
 ## 난이도 고르기 창. 다른 버튼을 덮고(앞서 등록된 버튼은 지움) 카드 두 장만 누를 수 있다.

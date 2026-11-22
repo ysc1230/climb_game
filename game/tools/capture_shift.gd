@@ -28,6 +28,8 @@ func _process(_d: float) -> bool:
 		root.add_child(play)
 		return false
 	var logic = play.get_node("UI/PlayTest")
+	if OS.get_environment("NOUI") != "":  # 2D 화면(패드·위쪽 줄·경고)을 숨기고 3D만(시안 바탕용)
+		play.get_node("UI").visible = false
 	if OS.get_environment("VIEW") != "":  # 시점: 좌우 도는 각(도). 예 VIEW=75
 		logic.cam_yaw = deg_to_rad(float(OS.get_environment("VIEW")))
 	logic.paused = false

@@ -103,3 +103,15 @@ func test_two_finger_camera_while_climbing() -> void:
 	runner.check(n.cam_yaw == 0.0 and n.cam_pitch == 0.0 and n.cam_zoom == 1.0, "처음 시점으로")
 	n.route.wall_deg = 0.0
 	n.free()
+
+
+## 홈 배경 그림(2026-11-22 사용자: "메인화면은 이걸로 바꿔줘"): 어떤 화면 비율이든 빈틈 없이 덮고 그림 비율은 그대로.
+func test_home_key_art_covers_screen() -> void:
+	var Home := load("res://scenes/home.gd")
+	var art: Texture2D = Home.KEY_ART
+	runner.check(art != null and art.get_width() > 0, "홈 배경 그림을 읽음")
+	for size in [Vector2(1600, 720), Vector2(2400, 1080), Vector2(1600, 900), Vector2(1024, 768)]:
+		var r: Rect2 = Home.cover_rect(Vector2(art.get_size()), size)
+		var covers: bool = r.position.x <= 0.01 and r.position.y <= 0.01 and r.end.x >= size.x - 0.01 and r.end.y >= size.y - 0.01
+		runner.check(covers, "%s 화면을 덮음" % size)
+		runner.check(is_equal_approx(r.size.x / r.size.y, float(art.get_width()) / art.get_height()), "%s 그림 비율 그대로" % size)
