@@ -1191,10 +1191,11 @@ func _open_look() -> void:
 	env.environment.background_mode = Environment.BG_CLEAR_COLOR
 	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.environment.ambient_light_color = Color.WHITE
-	env.environment.ambient_light_energy = 0.55
+	env.environment.ambient_light_energy = 0.3   # 2026-11-22: 흰 옷·피부가 하얗게 날아가 게임 화면(play_3d)만큼 낮춤
 	_pv.add_child(env)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-35, 25, 0)
+	sun.light_energy = 0.8
 	_pv.add_child(sun)
 	_load_preview_model()
 	var cam := Camera3D.new()

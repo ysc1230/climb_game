@@ -69,5 +69,9 @@ func _process(_d: float) -> bool:
 		home.queue_redraw()
 	if frame == 85:
 		_shot("learn")  # 기술 탭 처음 배우기(수업 카드)
+		g.progress.look["body"] = OS.get_environment("BODY") if OS.get_environment("BODY") != "" else "male"
+		home._do("look_open", "")
+	if frame == 110:
+		_shot("look")  # 캐릭터 고르기(3D 미리보기, 2026-11-22 애니 남성 확인)
 		return true
 	return false

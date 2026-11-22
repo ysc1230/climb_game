@@ -64,12 +64,24 @@ CFG = {
                "crotch_lift": 0.0,
                "chalk_box": ((0.04, 0.11), (-0.11, 0.06), (0.48, 0.60)),
                "chalk_keep": lambda x, y, z: y < -0.02},
+    # 애니 남성(2026-11-22, 사용자 기본 그림 정면·왼쪽·뒤 3장 → Tripo v3.1 multiview, pbr 끔, 30크레딧,
+    # art_source/character/anime_male, tools/tripo_multiview.py). 가랑이는 다리 사이 틈이 시작하는 높이(무릎이 붙어 있어 가운데 최저점은 무릎).
+    # 얼굴이 뭉개지지 않게 삼각형·텍스처를 더 쓴다. 옆모습 그림의 앞으로 뻗은 주먹이 오른 아래팔에 회색 얼룩으로 찍혀 피부색으로 덮는다(skin_clean).
+    "anime_male": {"src": "art_source/character/anime_male/tripo_v1/model.glb", "out": "game/art/characters/climber_anime_male.glb",
+                   "mesh": "P_body_anime_male", "tex": "climber_anime_male_color",
+                   "landmarks": {"shoulder": 0.75, "ankle": 0.075, "knee": 0.25, "tip": 0.50, "crotch": 0.40,
+                                 "wrist": 0.394, "knuckle": 0.453},
+                   "finger_len": 0.058,
+                   "crotch_lift": 0.0,
+                   "tris": 24000, "tex_size": 2048,
+                   "skin_clean": (0.45, 0.80),
+                   "chalk": lambda x, y, z: 0.47 < z < 0.585 and (x > 0.095 or (x > 0.055 and y < -0.06))},
 }[CHAR]
 LM = CFG["landmarks"]
 SRC = os.path.join(REPO, CFG["src"])
 OUT = os.environ.get("TRIPO_OUT", os.path.join(REPO, CFG["out"]))
-TRIS = 12000
-TEX = 1024
+TRIS = CFG.get("tris", 12000)
+TEX = CFG.get("tex_size", 1024)
 
 # 게임 몸(더미, docs/39)
 ARM_U, ARM_L = 0.35, 0.38
@@ -545,6 +557,50 @@ def outline_mask(ob):
     print("OUTLINE: 윤곽선 줄인 정점 %d개" % int((wv < 0.99).sum()))
 
 
+def clean_skin(ob, img, x0, x1):
+    """팔(|x| x0~x1, 맞춘 뒤 좌표) 면들의 UV 삼각형 안에서 피부보다 많이 어두운 화소를 그 부위 피부색(중앙값)으로 덮는다.
+    참고 그림의 그림자·앞으로 뻗은 주먹 같은 것이 팔 텍스처에 얼룩으로 찍힌 것을 지운다."""
+    me = ob.data
+    uv = me.uv_layers.active.data
+    w, h = img.size
+    px = np.empty(w * h * 4, dtype=np.float32)
+    img.pixels.foreach_get(px)
+    px = px.reshape(h, w, 4)
+    mask = np.zeros((h, w), dtype=bool)
+    co = np.empty(len(me.vertices) * 3)
+    me.vertices.foreach_get("co", co)
+    co = co.reshape(-1, 3)
+    for p in me.polygons:
+        ax = np.abs(co[list(p.vertices), 0])
+        if ax.min() < x0 or ax.max() > x1:
+            continue
+        t = np.array([uv[li].uv[:] for li in p.loop_indices]) * (w, h)
+        for k in range(1, len(t) - 1):
+            a, b, c = t[0], t[k], t[k + 1]
+            lo = np.floor(np.minimum(np.minimum(a, b), c)).astype(int)
+            hi = np.ceil(np.maximum(np.maximum(a, b), c)).astype(int)
+            lo, hi = np.clip(lo, 0, (w - 1, h - 1)), np.clip(hi, 0, (w - 1, h - 1))
+            gx, gy = np.meshgrid(np.arange(lo[0], hi[0] + 1) + 0.5, np.arange(lo[1], hi[1] + 1) + 0.5)
+            d = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+            if abs(d) < 1e-9:
+                continue
+            l1 = ((b[1] - c[1]) * (gx - c[0]) + (c[0] - b[0]) * (gy - c[1])) / d
+            l2 = ((c[1] - a[1]) * (gx - c[0]) + (a[0] - c[0]) * (gy - c[1])) / d
+            inside = (l1 >= -0.02) & (l2 >= -0.02) & (1 - l1 - l2 >= -0.02)
+            mask[lo[1]:hi[1] + 1, lo[0]:hi[0] + 1] |= inside
+    if not mask.any():
+        print("SKIN_CLEAN: 팔 면 없음")
+        return
+    rgb = px[..., :3]
+    lum = rgb @ np.array([0.299, 0.587, 0.114], dtype=np.float32)
+    skin = np.median(rgb[mask], axis=0)
+    dark = mask & (lum < 0.75 * float(skin @ np.array([0.299, 0.587, 0.114])))
+    rgb[dark] = skin
+    px[..., :3] = rgb
+    img.pixels.foreach_set(px.ravel())
+    print("SKIN_CLEAN: 팔 화소 %d개 중 어두운 %d개를 피부색 %s로" % (int(mask.sum()), int(dark.sum()), np.round(skin, 3)))
+
+
 def material(ob):
     img = None
     for m in ob.data.materials:
@@ -561,6 +617,8 @@ def material(ob):
     img.scale(TEX, TEX)
     if CFG.get("delight", False):
         delight_pants(ob, img)
+    if "skin_clean" in CFG:
+        clean_skin(ob, img, *CFG["skin_clean"])
     img.name = CFG["tex"]
     mat = bpy.data.materials.new("M_body_main")
     mat.use_nodes = True

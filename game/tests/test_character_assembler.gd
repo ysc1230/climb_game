@@ -1,16 +1,18 @@
 extends RefCounted
 ## 캐릭터(docs/34 §7, docs/36): 목록과 glb가 맞는지, 뼈대 규격(B안 관절 위치), 예산, 고른 것만 보이는지, 저장.
-## 2026-11-13: 게임 모델은 남성(climber_smooth.glb, 기본)과 시험용 더미(climber_dummy.glb, docs/39). 몸마다 model. 파츠 교체 논리는 가짜 목록으로 시험한다.
+## 2026-11-13: 게임 모델은 남성(2026-11-22부터 climber_anime_male.glb, 기본)과 시험용 더미(climber_dummy.glb, docs/39). 몸마다 model. 파츠 교체 논리는 가짜 목록으로 시험한다.
 
 var runner
 
-const TRI_BUDGET := 12500
+## 2026-11-22 애니 남성: 예전 12,500에서 얼굴·머리카락이 뭉개져(사용자 "20년 전 캐릭터 같아") 25,000으로.
+## 화면에 캐릭터 하나, 아트 의뢰 기준(docs/14 CH01 15k~25k) 안.
+const TRI_BUDGET := 25000
 ## 뼈 → B안 관절(벽면 x, y). 깊이(z)는 모델 팔·다리 중심선을 따르므로 보지 않는다.
 ## 2026-11-13 더미 몸(docs/39): 어깨 (0.175, 0.49), 팔 0.35/0.38(손 접점 = 손가락 뿌리), 손가락 뼈 +0.035.
 const SPEC := {"pelvis": Vector2(0, 0), "spine": Vector2(0, 0.16), "chest": Vector2(0, 0.37), "neck": Vector2(0, 0.49), "head": Vector2(0, 0.56),
 	"upperarm_R": Vector2(0.175, 0.49), "forearm_R": Vector2(0.525, 0.49), "hand_R": Vector2(0.905, 0.49),
 	"upperarm_L": Vector2(-0.175, 0.49), "hand_L": Vector2(-0.905, 0.49), "thigh_R": Vector2(0.095, 0), "shin_R": Vector2(0.095, -0.41), "foot_R": Vector2(0.095, -0.81)}
-const MODELS := {"male": ["res://art/characters/climber_smooth.glb", "P_body_smooth"], "dummy": ["res://art/characters/climber_dummy.glb", "P_body_dummy"], "female": ["res://art/characters/climber_female.glb", "P_body_female"]}
+const MODELS := {"male": ["res://art/characters/climber_anime_male.glb", "P_body_anime_male"], "dummy": ["res://art/characters/climber_dummy.glb", "P_body_dummy"], "female": ["res://art/characters/climber_female.glb", "P_body_female"]}
 
 ## 파츠 교체 논리용 가짜 목록(옛 모듈 시제품과 같은 모양).
 const FAKE := {"model": "", "bodies": [
@@ -98,7 +100,7 @@ func test_style_dummy_color() -> void:
 	# 남성은 텍스처 + 윤곽선 굵기(엉덩이골 선 방지)
 	m = _model(asm, "male")
 	CharacterAssembler.style(m, load("res://art/shaders/toon.gdshader"), load("res://art/shaders/outline.gdshader"), Color.BLACK)
-	t = (m.find_children("P_body_smooth", "MeshInstance3D", true, false)[0] as MeshInstance3D).get_surface_override_material(0)
+	t = (m.find_children("P_body_anime_male", "MeshInstance3D", true, false)[0] as MeshInstance3D).get_surface_override_material(0)
 	runner.check(t.get_shader_parameter("use_texture") == true and (t.next_pass as ShaderMaterial).get_shader_parameter("use_vertex_width") == true, "남성: 텍스처·윤곽선 굵기")
 	m.free()
 

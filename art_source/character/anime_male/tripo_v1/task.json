@@ -1,0 +1,21 @@
+{
+ "task_id": "8774ac29-d923-428d-9162-015473bc31c0",
+ "type": "multiview_to_model",
+ "model": "v3.1-20260211",
+ "texture": true,
+ "pbr": false,
+ "texture_quality": "standard",
+ "credits_consumed": 30,
+ "reference_order": [
+  "front",
+  "left",
+  "back",
+  "right"
+ ],
+ "views": [
+  "front",
+  "left",
+  "back"
+ ],
+ "seconds": 93
+}
