@@ -109,6 +109,9 @@ func _torus(r: float, t: float) -> TorusMesh:
 
 # ---------- 환경 ----------
 
+## 해 그림자 진하기(0 = 없음, 1 = Godot 기본). 홀드가 다른 홀드 그림자에 묻히지 않을 만큼 연하게.
+const SHADOW_OPACITY := 0.22
+
 func _build_environment() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
@@ -126,6 +129,9 @@ func _build_environment() -> void:
 	sun.light_color = Color("f0d6c2")
 	sun.light_energy = 1.05
 	sun.shadow_enabled = true
+	# 2026-11-23 사용자 "홀드가 안 보여, 그림자를 엄청 연하게": 홀드·볼륨·몸 그림자가 벽의 다른 홀드를 덮었다.
+	# 빛 세기는 그대로(세게 하면 캐릭터 색이 바뀜) 두고 그림자 진하기만 낮춘다.
+	sun.shadow_opacity = SHADOW_OPACITY
 	sun.rotation_degrees = Vector3(-38, -32, 0)  # 화면 왼쪽 위에서 들어오는 따뜻한 주광
 	add_child(sun)
 	camera = Camera3D.new()
