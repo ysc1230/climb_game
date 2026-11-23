@@ -15,7 +15,7 @@ const INK := Color("302820")     # 캐릭터 미리보기 외곽선
 const BG := NIGHT
 const DIM := Color(0.965, 0.95, 0.92, 0.66)
 const MARGIN := 64.0
-const APP_NAME := "Climb Overhang"
+const APP_NAME := "OVERHANG"
 const SLOT_NAMES := {"tutorial": "튜토리얼", "easy": "쉬움", "normal": "보통", "hard": "어려움"}
 ## 홈 배경 그림(2026-11-22 사용자: "메인화면은 이걸로 바꿔줘", 사용자가 준 그림). 클라이머가 오른쪽이라 왼쪽·위를 더 어둡게 덮는다.
 const KEY_ART := preload("res://art/ui/home_key_art.jpg")
