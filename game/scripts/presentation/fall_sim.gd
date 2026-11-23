@@ -44,6 +44,7 @@ var elapsed := 0.0
 var _mat := 0.0
 var _wall := 0.0
 var _tan := 0.0  # 기운 벽(experiment/overhang): 높이 y의 벽면 z = _wall + max(y, 0)·tanθ
+var _profile := PackedVector2Array()  # 꺾이는 벽(docs/57): 벽면 단면 [(월드 y, z)] y 오름차순. 있으면 _tan 대신
 var _start := {}        # 시작 점
 var _pins := {}         # 점 이름 → 놓는 시각
 var _hold := 0.0        # 남은 손을 놓기까지(이 동안은 매달린 그대로)
@@ -65,10 +66,12 @@ var _done := false
 
 ## points: 이름 → Vector3(NAMES). vel: 시작 몸 속도. pins: 아직 붙은 손 점 → 놓는 시각.
 ## wall_deg: 벽 기울기(오버행 +). 벽면이 위로 갈수록 앞(+z)으로 나온다.
-func start(points: Dictionary, vel: Vector3, pins: Dictionary, mat_top_y: float, wall_z: float, wall_deg := 0.0) -> void:
+## profile: 꺾이는 벽(docs/57)의 벽면 단면 [(월드 y, z)]. 주면 wall_deg 대신 이 면에 부딪힌다.
+func start(points: Dictionary, vel: Vector3, pins: Dictionary, mat_top_y: float, wall_z: float, wall_deg := 0.0, profile := PackedVector2Array()) -> void:
 	_mat = mat_top_y
 	_wall = wall_z
 	_tan = tan(deg_to_rad(clampf(wall_deg, 0.0, 80.0)))
+	_profile = profile
 	_start = {}
 	for k in NAMES:
 		var p: Vector3 = points.get(k, points.get("pelvis", Vector3.ZERO))
@@ -221,6 +224,18 @@ func _clamp(pts: Dictionary) -> Dictionary:
 
 ## 높이 y의 벽면 z(수직 벽은 _wall 그대로).
 func wall_at(y: float) -> float:
+	if _profile.size() >= 2:
+		if y <= _profile[0].x:
+			return _profile[0].y  # 벽 아래 끝 밑(매트 쪽)은 아래 끝 깊이
+		var n := _profile.size()
+		for i in range(1, n):
+			if y <= _profile[i].x:
+				var a := _profile[i - 1]
+				var b := _profile[i]
+				return lerpf(a.y, b.y, (y - a.x) / maxf(b.x - a.x, 1e-6))
+		var c := _profile[n - 2]
+		var d := _profile[n - 1]
+		return d.y + (y - d.x) * (d.y - c.y) / maxf(d.x - c.x, 1e-6)
 	return _wall + maxf(y, 0.0) * _tan
 
 

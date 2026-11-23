@@ -50,12 +50,11 @@ var _last_hint := &""
 
 func _init(p_route: RouteDef) -> void:
 	route = p_route
-	ClimbRules.wall_deg = route.wall_deg
 	reset()
 
 
 func reset() -> void:
-	ClimbRules.wall_deg = route.wall_deg
+	ClimbRules.wall_deg = route.angle_at(route.start_pelvis.y)  # 꺾이는 벽(docs/57): 시작 골반 높이의 각도
 	halted = &""
 	_reset_pose(route.start_pelvis, route.start_angle, route.start_slots)
 
@@ -500,7 +499,8 @@ func grab(limb: StringName, key: String, point: Vector2, contact: ContactInfo) -
 
 ## 고정 틱 1회. 반환: "" / "fall:<이유>" / "clear" / "unresolved" / "respawn"(추락 연출이 끝나 다시 시작).
 func step() -> String:
-	ClimbRules.wall_deg = route.wall_deg  # 세션 여럿을 번갈아 돌려도(테스트·고스트) 이 문제의 벽 각도
+	# 세션 여럿을 번갈아 돌려도(테스트·고스트) 이 문제의 벽 각도. 꺾이는 벽(docs/57)은 골반 높이의 각도
+	ClimbRules.wall_deg = route.angle_at(body.pos.y)
 	if halted != &"":
 		return ""
 	if selecting:

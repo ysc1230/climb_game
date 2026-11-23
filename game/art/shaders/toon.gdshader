@@ -18,10 +18,13 @@ uniform float texture_light = 1.0;
 uniform float bolt_spacing = 0.2;
 uniform float panel_size = 1.2;
 uniform bool mat_pattern = false;
+// 꺾이는 벽(docs/57): 합판 무늬를 월드 xy 대신 메시 UV(벽면 좌표 x, s)로 그린다. 접힌 벽에서도 판넬이 면을 따라간다.
+uniform bool wall_uv = false;
 uniform vec4 bolt_color : source_color = vec4(0.19, 0.16, 0.13, 1.0);
 
 varying vec3 wpos;
 varying vec3 lpos;
+varying vec2 wuv;
 
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 
@@ -35,6 +38,7 @@ float vnoise(vec2 p) {
 void vertex() {
 	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	lpos = VERTEX;
+	wuv = UV;
 }
 
 void fragment() {
@@ -43,22 +47,23 @@ void fragment() {
 		c = texture(albedo_tex, UV).rgb * albedo.rgb;
 	}
 	if (wall_pattern) {
-		vec2 pc = wpos.xy / panel_size;
+		vec2 wxy = wall_uv ? wuv : wpos.xy;
+		vec2 pc = wxy / panel_size;
 		vec2 f = fract(pc);
 		c *= 1.0 + (hash(floor(pc)) - 0.5) * 0.09;  // 판마다 조금 다른 톤
-		float n = vnoise(wpos.xy * 2.5) * 0.6 + vnoise(wpos.xy * 11.0) * 0.4;
+		float n = vnoise(wxy * 2.5) * 0.6 + vnoise(wxy * 11.0) * 0.4;
 		c *= 0.93 + 0.12 * n;  // 얼룩
 		vec2 e = min(f, 1.0 - f) * panel_size;
 		float edge = min(e.x, e.y);
 		c *= mix(0.84, 1.0, smoothstep(0.0, 0.14, edge));  // 판 가장자리 어둡게
 		c = mix(c, c * 0.42, 1.0 - smoothstep(0.004, 0.009, edge));  // 이음선
-		vec2 bc = fract(wpos.xy / bolt_spacing) - 0.5;
+		vec2 bc = fract(wxy / bolt_spacing) - 0.5;
 		float d = length(bc);
 		float hole = 1.0 - smoothstep(0.045, 0.06, d);
 		float rim = (1.0 - smoothstep(0.06, 0.085, d)) * (1.0 - hole);
 		c = mix(c, bolt_color.rgb, hole * 0.9);
 		c *= 1.0 + rim * clamp(-bc.y * 6.0, -0.12, 0.12);  // 파인 구멍: 아래 테는 밝고 위 테는 어둡다(빛이 위에서)
-		c += (hash(floor(wpos.xy * 60.0)) - 0.5) * 0.03;
+		c += (hash(floor(wxy * 60.0)) - 0.5) * 0.03;
 	}
 	if (mat_pattern) {
 		vec2 m = wpos.xz;

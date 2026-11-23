@@ -14,6 +14,11 @@ var goal_slots: Array = []
 var time_medal_seconds := 0.0
 var fail_line_y := -0.5  # 이 아래로 떨어지면 추락 연출 종료
 var wall_deg := 0.0      # 벽 기울기(도, 0 수직, + 오버행). 실험(experiment/overhang, docs/48 R2). 등급이 정한다(GradeInfo.wall_deg)
+## 꺾이는 벽(docs/57, 2026-11-24 사용자 "하나의 문제에 여러 각도"): [{from_y, deg}] 오름차순. 비면 wall_deg 하나.
+## from_y는 벽면을 따라 잰 높이(판정 y). 첫 구간은 그 아래(매트 쪽)까지. 있으면 wall_deg = 가장 큰 구간 각도.
+var wall_sections: Array = []
+## 구간 경계 ±이 거리(m) 안에서 각도를 부드럽게 바꾼다(힘 계산·벽 모양이 갑자기 꺾이지 않게).
+const WALL_BLEND := 0.15
 var intended_moves: Array = []  # [[limb, slot key], ...] — 기술 단계는 [limb, ...나머지 원본 항목] 그대로(steps_raw와 같은 인덱스)
 var steps_raw: Array = []  # JSON intended_moves 원본(docs/28 §7.4 단계 형식, Task 5 검증기용)
 ## docs/28 §8.1 문제 필드. mode가 빈 문자열이면 시험 전용 루트(TX_*)다.
@@ -92,6 +97,13 @@ func _read(d: Dictionary) -> void:
 	order = int(d.get("order", 0))
 	# 벽 각도는 등급이 정한다(일반·만든 문제, 2026-11-22 사용자). 수업·튜토리얼은 수직.
 	wall_deg = GradeInfo.wall_deg(grade) if mode in ["general", "custom"] else 0.0
+	wall_sections = []
+	if mode in ["general", "custom"]:
+		for w in d.get("wall_sections", []):
+			wall_sections.append({"from_y": float(w.get("from_y", 0.0)), "deg": clampf(float(w.get("deg", 0.0)), 0.0, 60.0)})
+		wall_sections.sort_custom(func(a, b): return a.from_y < b.from_y)
+		if not wall_sections.is_empty():
+			wall_deg = wall_sections.reduce(func(m, w): return maxf(m, w.deg), 0.0)
 	name_ko = str(d.get("name_ko", ""))
 	for t in d.get("required_techniques", []):
 		required_techniques.append(StringName(t))
@@ -304,6 +316,24 @@ func _check_slot_for(limb: StringName, key: String, where: String) -> void:
 		errors.append("%s: 없는 슬롯 %s" % [where, key])
 	elif not slots[key].allowed.has(limb):
 		errors.append("%s: %s는 %s 비허용" % [where, key, limb])
+
+
+## 벽면 높이 y(판정 좌표)의 벽 각도(도). 구간 경계 ±WALL_BLEND 안은 smoothstep으로 섞는다. 구간이 없으면 wall_deg.
+func angle_at(y: float) -> float:
+	if wall_sections.is_empty():
+		return wall_deg
+	var a: float = wall_sections[0].deg
+	for i in range(1, wall_sections.size()):
+		var b: float = wall_sections[i].from_y
+		a = lerpf(a, float(wall_sections[i].deg), smoothstep(b - WALL_BLEND, b + WALL_BLEND, y))
+	return a
+
+
+## 벽 각도 설명: "35°" 또는 꺾이는 벽 "30° → 60°"(작은 글자에서 화살표가 ">"로 읽히지 않게 띄움).
+func wall_desc() -> String:
+	if wall_sections.is_empty():
+		return "%d°" % roundi(wall_deg)
+	return " → ".join(wall_sections.map(func(w): return "%d°" % roundi(w.deg)))
 
 
 func slot_pos(key: String) -> Vector2:

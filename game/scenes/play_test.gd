@@ -2333,7 +2333,7 @@ func _draw_preview_title(a: float) -> void:
 	var size := get_viewport_rect().size
 	var name := route.name_ko if route.name_ko != "" else route.route_id
 	var head := ("%s-%d  %s" % [route.grade, route.order, name]) if route.grade != "" else name
-	var sub := "수직 벽" if route.wall_deg <= 0.0 else "%d° 기운 벽" % roundi(route.wall_deg)
+	var sub := "수직 벽" if route.wall_deg <= 0.0 else ("%s 꺾이는 벽" % route.wall_desc() if not route.wall_sections.is_empty() else "%d° 기운 벽" % roundi(route.wall_deg))
 	sub += "  ·  탑까지 %.1fm" % _goal_height()
 	var w := minf(700.0 * ui_k, size.x * 0.5)
 	var box := Rect2(Vector2(size.x * 0.5 - w * 0.5, size.y - 170 * ui_k), Vector2(w, 150 * ui_k))

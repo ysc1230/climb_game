@@ -491,8 +491,8 @@ func _draw_problem_row(r: Rect2, route: RouteDef) -> void:
 	var name := _route_name(route)
 	draw_string(font_b, Vector2(x, ty), name, HORIZONTAL_ALIGNMENT_LEFT, w, int(30 * k), CHALK if lock == "" else DIM)
 	var deg := _wall_deg(route)
-	if deg > 0:
-		_chip(Vector2(x + minf(font_b.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * k)).x, w) + 14 * k, ty), "벽 %d°" % deg, CREAM)
+	if deg > 0:  # 꺾이는 벽(docs/57)은 "벽 30°→60°"
+		_chip(Vector2(x + minf(font_b.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * k)).x, w) + 14 * k, ty), "벽 " + route.wall_desc(), CREAM)
 	draw_string(font, Vector2(x, ty + 36 * k * s), "필요 기술 " + _tech_names(route.required_techniques), HORIZONTAL_ALIGNMENT_LEFT, w, int(21 * k), DIM)
 	var my := ty + 78 * k * s
 	if lock != "":

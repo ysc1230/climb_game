@@ -189,3 +189,22 @@ func test_overhang_landing_outside_wall() -> void:
 		if p.z < sim.wall_at(p.y) - 0.001:
 			inside += 1
 	runner.check(inside == 0, "45° 벽 아래 착지: 벽면 속 점 없음(%d)" % inside)
+
+
+## 꺾이는 벽(docs/57): 벽면 단면(월드 y → z)을 주면 그 면으로 부딪힌다. 단면 사이는 선형, 바깥은 끝 기울기.
+func test_wall_profile_section() -> void:
+	var sim := FallSim.new()
+	var pts := {}
+	for k in FallSim.NAMES:
+		pts[k] = Vector3(0, 1.0, 1.4)
+	var prof := PackedVector2Array([Vector2(0.0, 0.02), Vector2(1.0, 0.6), Vector2(2.0, 2.3)])
+	sim.start(pts, Vector3.ZERO, {}, -0.075, 0.02, 0.0, prof)
+	runner.check(is_equal_approx(sim.wall_at(0.5), 0.31) and is_equal_approx(sim.wall_at(1.5), 1.45), "단면 사이 선형 %.3f %.3f" % [sim.wall_at(0.5), sim.wall_at(1.5)])
+	runner.check(is_equal_approx(sim.wall_at(-0.3), 0.02) and sim.wall_at(2.5) > 2.3, "아래는 벽 밑면, 위는 끝 기울기로")
+	sim.skip()
+	var inside := 0
+	for k in sim.points():
+		var p: Vector3 = sim.points()[k]
+		if p.z < sim.wall_at(p.y) - 0.001:
+			inside += 1
+	runner.check(inside == 0, "꺾인 벽 아래 착지: 벽면 속 점 없음(%d)" % inside)
