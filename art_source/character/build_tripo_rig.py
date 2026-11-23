@@ -1123,16 +1123,66 @@ def in_jeans(p):
     return JEANS_HEM < p.z < jeans_top(p) and abs(p.x) < 0.30
 
 
+# 바지 다리 품(2026-11-23 사용자 "바지가 너무 딱 달라붙어"): 허벅지 아래(JEANS_HANG_FROM)부터 밑단까지 반지름이 1m당
+# JEANS_TAPER보다 빨리 좁아지지 않고(무릎·종아리 굴곡을 메워 곧게 떨어짐), 여유 JEANS_EASE(허벅지 → 밑단)를 더한다.
+JEANS_HANG_FROM = -0.14
+# 세 가지를 비교해 일반 일자핏으로 정함: 붙는 일자 0.08·(0.005, 0.010) / 일반 0.05·(0.008, 0.014) / 넉넉 0.025·(0.012, 0.020).
+JEANS_TAPER = 0.05
+JEANS_EASE = (0.008, 0.014)
+
+
+def loosen_legs(me):
+    """다리마다 높이(2cm)·방향(15°)별로 다리 축에서 잰 반지름을 위에서 아래로 내려가며 JEANS_TAPER보다 빨리 줄지 않게 하고
+    여유를 더한 통으로 민다. 바깥으로만 민다(몸을 뚫지 않게). 가랑이 위(골반·엉덩이)는 그대로, 그 아래로 서서히."""
+    co = coords(me)
+    out = co.copy()
+    NB, DZ, z0 = 24, 0.02, JEANS_HEM - 0.01
+    for s in (-1.0, 1.0):
+        idx = np.nonzero((co[:, 0] * s > 0) & (co[:, 2] < 0.0))[0]
+        p = co[idx]
+        zb = ((p[:, 2] - z0) / DZ).astype(int)
+        nz = int(zb.max()) + 1
+        c = np.full((nz, 2), np.nan)
+        for b in range(nz):   # 다리 축: 높이마다 단면 상자 가운데
+            q = p[zb == b]
+            if len(q):
+                c[b] = (q[:, :2].min(0) + q[:, :2].max(0)) / 2
+        ok = ~np.isnan(c[:, 0])
+        for k in range(2):
+            c[:, k] = np.interp(np.arange(nz), np.nonzero(ok)[0], c[ok, k])
+            c[:, k] = np.convolve(np.pad(c[:, k], 2, mode="edge"), np.ones(5) / 5, mode="valid")   # 축을 곧게
+        d = p[:, :2] - c[zb]
+        r = np.hypot(d[:, 0], d[:, 1])
+        tb = ((np.arctan2(d[:, 1], d[:, 0]) + math.pi) / (2 * math.pi) * NB).astype(int) % NB
+        R = np.zeros((nz, NB))
+        np.maximum.at(R, (zb, tb), r)
+        zc = z0 + (np.arange(nz) + 0.5) * DZ
+        for b in range(nz - 2, -1, -1):   # 위에서 아래로 늘어뜨림
+            if zc[b] < JEANS_HANG_FROM:
+                R[b] = np.maximum(R[b], R[b + 1] - JEANS_TAPER * DZ)
+        for _ in range(2):   # 둘레 방향으로 고르게(둥근 통)
+            R = np.maximum(R, 0.25 * np.roll(R, 1, 1) + 0.5 * R + 0.25 * np.roll(R, -1, 1))
+        ease = JEANS_EASE[0] + (JEANS_EASE[1] - JEANS_EASE[0]) * smoothstep(JEANS_HANG_FROM, JEANS_HEM, p[:, 2])
+        w = smoothstep(-0.02, JEANS_HANG_FROM, p[:, 2])
+        nr = r + w * np.maximum(0.0, R[zb, tb] + ease - r)
+        q = c[zb] + d * (nr / np.maximum(r, 1e-6))[:, None]
+        q[:, 0] = s * np.maximum(q[:, 0] * s, 0.004)   # 두 다리가 가운데 면을 넘지 않게
+        out[idx, :2] = q
+    me.vertices.foreach_set("co", out.ravel())
+    me.update()
+
+
 def jeans(body, rig, bvh):
     ob = region_object(body, rig, "P_pants_jeans", [lambda c: c.z - JEANS_HEM, lambda c: c.z - jeans_top(c)], in_jeans)
     co = coords(ob.data)
     crotch = np.hypot(co[:, 0], co[:, 2] - CROTCH_APEX)
     envelope(ob.data, bvh, 30, boundary_mask(ob.data), np.clip(crotch / 0.07, 0.15, 1.0))
+    loosen_legs(ob.data)
+    taubin(ob.data, 3, boundary_mask(ob.data))
 
     def off(co):
-        flare = 0.012 * smoothstep(-0.45, JEANS_HEM, co[:, 2])               # 무릎 아래로 곧게 퍼짐
         waist = 0.003 * smoothstep(0.02, 0.09, co[:, 2])                     # 허리(티 안)는 티보다 안쪽
-        return 0.007 + flare - waist
+        return 0.006 - waist
     d = inflate(ob, off)
     rim(ob, d * 0.9)
     paint(ob, lambda p: "jeans")

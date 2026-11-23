@@ -304,3 +304,27 @@ func test_relax_arms_lowers_hands() -> void:
 			runner.check(hand.y < sh.y - 0.6 and absf(hand.x) < 0.40 and signf(hand.x) == signf(sh.x), "%s %s 손이 어깨 아래 몸 옆 %s" % [body, s, hand])
 			runner.check(hand.z < elbow.z - 0.02, "%s %s 팔꿈치를 앞(−z)으로 살짝 굽힘 %.3f" % [body, s, hand.z - elbow.z])
 		m.free()
+
+
+## 청바지 품(2026-11-23 사용자 "바지가 너무 딱 달라붙어"): 무릎·종아리 높이에서 바지 바깥 면이 맨다리(대머리)보다 1.8cm 넘게 바깥.
+## 예전(몸 표면 + 0.7cm)은 무릎에서 약 0.7cm였다.
+func test_jeans_hang_loose_below_thigh() -> void:
+	var asm := CharacterAssembler.load_catalog()
+	var m := _model(asm, "male")
+	var bald := _model(asm, "bald")
+	for band in [[-0.43, -0.39, "무릎"], [-0.60, -0.56, "종아리"]]:
+		var jx := _max_x(m, "P_pants_jeans", band[0], band[1])
+		var bx := _max_x(bald, "P_body_bald", band[0], band[1])
+		runner.check(jx - bx > 0.018, "%s: 바지 바깥 %.3f, 맨다리 %.3f (차이 %.3f)" % [band[2], jx, bx, jx - bx])
+	m.free()
+	bald.free()
+
+
+## 메시 정점 중 높이 y0~y1, 오른쪽(x > 0)의 가장 바깥 x.
+static func _max_x(m: Node, mesh_name: String, y0: float, y1: float) -> float:
+	var mi: MeshInstance3D = m.find_children(mesh_name, "MeshInstance3D", true, false)[0]
+	var best := 0.0
+	for v in (mi.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX] as PackedVector3Array):
+		if v.y > y0 and v.y < y1 and v.x > best:
+			best = v.x
+	return best
