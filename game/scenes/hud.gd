@@ -3,18 +3,22 @@ extends RefCounted
 ## 현재 높이, 양손 팔 힘 게이지, 지지·손 하중·무브 상태 줄. 그리고 일시정지·이어하기 카운트다운 화면.
 ## play_test가 _draw에서 부른다(그리기만 하고 상태는 바꾸지 않는다). 색만으로 구분하지 않고 글자·숫자를 함께 쓴다(docs/05).
 
-const PANEL := Color(0.17, 0.13, 0.10, 0.84)
-const BORDER := Color(0.83, 0.70, 0.52, 0.55)
-const CREAM := Color("fbeedd")
-const GOLD := Color("f2c14e")
-const MUTED := Color(0.98, 0.93, 0.86, 0.72)
-const TRACK := Color(0.10, 0.08, 0.07, 0.92)
+# 2026-11-24 사용자 "게임 메인 화면의 UI처럼 게임할 때 안내 문구와 같은 UI들도 바꾸자. 너무 작고 가독성이 없어":
+# 홈(home.gd)과 같은 색(남색 판·분필색 글자·노란 강조)과 글꼴(SUIT, 굵게), 글자 크게.
+const NIGHT := Color("0d1620")
+const PANEL := Color(0.051, 0.086, 0.125, 0.82)
+const BORDER := Color(0.965, 0.95, 0.92, 0.24)
+const CREAM := Color("f6f2ea")
+const GOLD := Color("ffc93c")
+const MUTED := Color(0.965, 0.95, 0.92, 0.72)
+const TRACK := Color(0.02, 0.04, 0.06, 0.9)
 const GOOD := Color("7cc443")
 const WARN := Color("f2c14e")
 const BAD := Color("ff5a4a")
 const DOT_OFF := Color(0.78, 0.76, 0.74)
 
 var font: Font
+var font_b: Font   # 굵게(제목·높이·버튼)
 var _boxes := {}
 
 
@@ -38,7 +42,7 @@ func panel(ci: CanvasItem, r: Rect2, k: float, fill := PANEL, border := BORDER, 
 ## 위쪽 한 줄(2026-11-10 사용자 HUD 개선 기획 §4): [일시정지][i 상세] 문제 이름 | 등반 진행 바(가운데 약 45%) | 현재/목표 높이.
 ## 진행 바에는 체크포인트가 없으므로 중간 점을 그리지 않는다(시작·끝 표시만). 반환 {pause, detail} 버튼 자리.
 ## info.detail이면 그 아래 상태 줄(지지·손 하중·무브)을 상시 그린다(상세 정보 모드, §6).
-const TOP_H := 56.0
+const TOP_H := 66.0
 
 
 func draw_top(ci: CanvasItem, size: Vector2, k: float, info: Dictionary) -> Dictionary:
@@ -47,8 +51,8 @@ func draw_top(ci: CanvasItem, size: Vector2, k: float, info: Dictionary) -> Dict
 	var detail: bool = info.get("detail", false)
 	var pause_r := Rect2(Vector2(m, m), Vector2(h, h))
 	panel(ci, pause_r, k, PANEL, BORDER, 14)
-	var bw := 8.0 * k
-	var bh := 24.0 * k
+	var bw := 9.0 * k
+	var bh := 28.0 * k
 	var c := pause_r.get_center()
 	for dx in [-8.0 * k, 8.0 * k]:
 		panel(ci, Rect2(c + Vector2(dx - bw * 0.5, -bh * 0.5), Vector2(bw, bh)), k, CREAM, Color(0, 0, 0, 0), 3)
@@ -57,17 +61,17 @@ func draw_top(ci: CanvasItem, size: Vector2, k: float, info: Dictionary) -> Dict
 		det_r = Rect2(Vector2(pause_r.end.x, m), Vector2(0, h))
 	else:
 		panel(ci, det_r, k, Color(GOLD, 0.9) if detail else PANEL, BORDER, 14)
-		ci.draw_string(font, Vector2(det_r.position.x, det_r.position.y + h * 0.5 + 9 * k), "i", HORIZONTAL_ALIGNMENT_CENTER, h, int(26 * k), Color("3a2a1c") if detail else CREAM)
+		ci.draw_string(font_b, Vector2(det_r.position.x, det_r.position.y + h * 0.5 + 11 * k), "i", HORIZONTAL_ALIGNMENT_CENTER, h, int(32 * k), NIGHT if detail else CREAM)
 	# 막혔을 때 도움 버튼(작업 3 §3.4): [힌트]·[시범 보기]. info.help = [{label, action, on}]
 	var help_out := []
 	var hx0 := det_r.end.x
 	for b in info.get("help", []):
-		var fs := int(21 * k)
-		var hbw := font.get_string_size(str(b.label), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 34 * k
+		var fs := int(25 * k)
+		var hbw := font_b.get_string_size(str(b.label), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 38 * k
 		var r := Rect2(Vector2(hx0 + 8 * k, m), Vector2(hbw, h))
 		var on: bool = b.get("on", false)
 		panel(ci, r, k, Color(GOLD, 0.9) if on else PANEL, BORDER, 14)
-		ci.draw_string(font, Vector2(r.position.x, r.position.y + h * 0.5 + 8 * k), str(b.label), HORIZONTAL_ALIGNMENT_CENTER, hbw, fs, Color("3a2a1c") if on else CREAM)
+		ci.draw_string(font_b, Vector2(r.position.x, r.position.y + h * 0.5 + 9 * k), str(b.label), HORIZONTAL_ALIGNMENT_CENTER, hbw, fs, NIGHT if on else CREAM)
 		help_out.append({"rect": r, "action": str(b.action)})
 		hx0 = r.end.x
 	# 한 줄 반투명 띠(이름 ~ 높이)
@@ -76,20 +80,19 @@ func draw_top(ci: CanvasItem, size: Vector2, k: float, info: Dictionary) -> Dict
 	var cy := strip.get_center().y
 	# 오른쪽: 현재 / 목표 높이
 	var ht := "%.1f / %.1f m" % [info.height, info.goal_height]
-	var hfs := int(24 * k)
-	var hw := font.get_string_size(ht, HORIZONTAL_ALIGNMENT_LEFT, -1, hfs).x
-	var hx := strip.end.x - 18 * k - hw
-	ci.draw_string_outline(font, Vector2(hx, cy + 8 * k), ht, HORIZONTAL_ALIGNMENT_LEFT, -1, hfs, int(5 * k), Color(0.08, 0.06, 0.05, 0.8))
-	ci.draw_string(font, Vector2(hx, cy + 8 * k), ht, HORIZONTAL_ALIGNMENT_LEFT, -1, hfs, CREAM)
-	_icon_mountains(ci, Vector2(hx - 24 * k, cy), 26 * k, GOLD)
+	var hfs := int(30 * k)
+	var hw := font_b.get_string_size(ht, HORIZONTAL_ALIGNMENT_LEFT, -1, hfs).x
+	var hx := strip.end.x - 20 * k - hw
+	ci.draw_string(font_b, Vector2(hx, cy + 10 * k), ht, HORIZONTAL_ALIGNMENT_LEFT, -1, hfs, CREAM)
+	_icon_mountains(ci, Vector2(hx - 30 * k, cy), 30 * k, GOLD)
 	# 가운데: 진행 바(화면 너비의 약 45%)
 	var pw := size.x * 0.45
-	var pr := Rect2(Vector2(size.x * 0.5 - pw * 0.5, cy - 6 * k), Vector2(pw, 12 * k))
-	pr.position.x = minf(pr.position.x, hx - 60 * k - pw)
+	var pr := Rect2(Vector2(size.x * 0.5 - pw * 0.5, cy - 7 * k), Vector2(pw, 14 * k))
+	pr.position.x = minf(pr.position.x, hx - 70 * k - pw)
 	_progress(ci, pr, k, info.best_height / maxf(info.goal_height, 0.01), info.height / maxf(info.goal_height, 0.01))
 	# 왼쪽: 문제 이름(남는 폭에 맞춰 자름)
-	var tx := strip.position.x + 16 * k
-	ci.draw_string(font, Vector2(tx, cy + 8 * k), str(info.title), HORIZONTAL_ALIGNMENT_LEFT, maxf(40 * k, pr.position.x - tx - 20 * k), int(21 * k), CREAM)
+	var tx := strip.position.x + 20 * k
+	ci.draw_string(font_b, Vector2(tx, cy + 10 * k), str(info.title), HORIZONTAL_ALIGNMENT_LEFT, maxf(40 * k, pr.position.x - tx - 24 * k), int(28 * k), CREAM)
 	if detail:
 		_status_row(ci, size, k, info, strip.end.y + 8 * k)
 	return {"pause": pause_r, "detail": det_r, "help": help_out}
@@ -98,10 +101,10 @@ func draw_top(ci: CanvasItem, size: Vector2, k: float, info: Dictionary) -> Dict
 ## 상세 정보 모드의 상태 줄(지지·손 하중·무브).
 func _status_row(ci: CanvasItem, size: Vector2, k: float, info: Dictionary, y: float) -> void:
 	var stw := minf(size.x * 0.56, 820 * k)
-	var str_r := Rect2(Vector2((size.x - stw) * 0.5, y), Vector2(stw, 44 * k))
+	var str_r := Rect2(Vector2((size.x - stw) * 0.5, y), Vector2(stw, 54 * k))
 	panel(ci, str_r, k)
 	var seg := stw / 3.0
-	var cy := str_r.position.y + 22 * k
+	var cy := str_r.position.y + 27 * k
 	var items := [
 		["shield", "지지:", info.phase_name, info.phase_color],
 		["load", "손 하중:", "L %d%%   R %d%%" % [info.load_l, info.load_r], CREAM],
@@ -117,10 +120,10 @@ func _status_row(ci: CanvasItem, size: Vector2, k: float, info: Dictionary, y: f
 			"shield": _icon_shield(ci, ic, 18 * k, CREAM)
 			"load": _icon_load(ci, ic, 18 * k, CREAM)
 			"shoe": _icon_shoe(ci, ic, 20 * k, CREAM)
-		var fs := int(18 * k)
+		var fs := int(22 * k)
 		var lw := font.get_string_size(it[1], HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-		ci.draw_string(font, Vector2(x0 + 46 * k, cy + 6 * k), it[1], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, CREAM)
-		ci.draw_string(font, Vector2(x0 + 54 * k + lw, cy + 6 * k), str(it[2]), HORIZONTAL_ALIGNMENT_LEFT, seg - 64 * k - lw, fs, it[3])
+		ci.draw_string(font, Vector2(x0 + 46 * k, cy + 8 * k), it[1], HORIZONTAL_ALIGNMENT_LEFT, -1, fs, MUTED)
+		ci.draw_string(font_b, Vector2(x0 + 54 * k + lw, cy + 8 * k), str(it[2]), HORIZONTAL_ALIGNMENT_LEFT, seg - 64 * k - lw, fs, it[3])
 
 
 ## 진행 바: 출발 → 깃발. 가장 높이 오른 곳까지 금색, 지금 높이에 흰 점. 체크포인트가 없으므로 중간 점은 그리지 않는다.
@@ -131,8 +134,8 @@ func _progress(ci: CanvasItem, r: Rect2, k: float, best: float, now: float) -> v
 		panel(ci, Rect2(r.position, Vector2(maxf(r.size.y, r.size.x * b), r.size.y)), k, GOLD, Color(0, 0, 0, 0), 6)
 	var y := r.get_center().y
 	var p := Vector2(r.position.x + r.size.x * clampf(now, 0.0, 1.0), y)
-	ci.draw_circle(p, 9 * k, Color("3a2a1c"))
-	ci.draw_circle(p, 7 * k, Color.WHITE)
+	ci.draw_circle(p, 10 * k, NIGHT)
+	ci.draw_circle(p, 8 * k, Color.WHITE)
 	var f := Vector2(r.end.x, y)
 	ci.draw_line(f + Vector2(0, -2 * k), f + Vector2(0, -22 * k), CREAM, 2.5 * k)
 	ci.draw_colored_polygon(PackedVector2Array([f + Vector2(0, -22 * k), f + Vector2(16 * k, -17 * k), f + Vector2(0, -12 * k)]), GOLD)
@@ -164,8 +167,8 @@ func draw_pad_stamina(ci: CanvasItem, pad_center: Vector2, pad_r: float, k: floa
 	var ty := r.position.y - 8 * k
 	if low:
 		var t := "! %d" % roundi(value)
-		ci.draw_string_outline(font, Vector2(r.position.x, ty), t, HORIZONTAL_ALIGNMENT_CENTER, w, int(20 * k), int(5 * k), Color(0.08, 0.06, 0.05, 0.9))
-		ci.draw_string(font, Vector2(r.position.x, ty), t, HORIZONTAL_ALIGNMENT_CENTER, w, int(20 * k), col)
+		ci.draw_string_outline(font_b, Vector2(r.position.x, ty), t, HORIZONTAL_ALIGNMENT_CENTER, w, int(25 * k), int(6 * k), Color(NIGHT, 0.9))
+		ci.draw_string(font_b, Vector2(r.position.x, ty), t, HORIZONTAL_ALIGNMENT_CENTER, w, int(25 * k), col)
 	if recovering and value < 99.5 and not plain:
 		var a := Vector2(r.end.x + 14 * k, r.get_center().y)
 		ci.draw_colored_polygon(PackedVector2Array([a + Vector2(0, -9 * k), a + Vector2(7 * k, 2 * k), a + Vector2(-7 * k, 2 * k)]), GOOD)
@@ -181,45 +184,45 @@ func draw_pause(ci: CanvasItem, size: Vector2, k: float, prepare_left: float, ha
 	var c := size * 0.5
 	if prepare_left > 0.0:
 		var r := 96.0 * k
-		ci.draw_circle(c, r + 14 * k, Color(0.17, 0.13, 0.10, 0.88))
+		ci.draw_circle(c, r + 14 * k, Color(NIGHT, 0.9))
 		ci.draw_arc(c, r, 0, TAU, 64, Color(1, 1, 1, 0.18), 10 * k, true)
 		var frac := clampf(prepare_left / 3.0, 0.0, 1.0)
 		ci.draw_arc(c, r, -PI / 2, -PI / 2 + TAU * frac, 64, GOLD, 10 * k, true)
 		var num := str(ceili(prepare_left))
 		var fs := int(84 * k)
-		ci.draw_string(font, Vector2(c.x - r, c.y + fs * 0.35), num, HORIZONTAL_ALIGNMENT_CENTER, r * 2, fs, CREAM)
+		ci.draw_string(font_b, Vector2(c.x - r, c.y + fs * 0.35), num, HORIZONTAL_ALIGNMENT_CENTER, r * 2, fs, CREAM)
 		var msg := "손가락을 패드에 편하게 올려 두세요"
-		var mr := Rect2(Vector2(c.x - 300 * k, c.y + r + 34 * k), Vector2(600 * k, 56 * k))
-		panel(ci, mr, k)
-		ci.draw_string(font, Vector2(mr.position.x, mr.get_center().y + 8 * k), msg, HORIZONTAL_ALIGNMENT_CENTER, mr.size.x, int(22 * k), CREAM)
+		var mr := Rect2(Vector2(c.x - 340 * k, c.y + r + 34 * k), Vector2(680 * k, 64 * k))
+		panel(ci, mr, k, PANEL, BORDER, 32)
+		ci.draw_string(font_b, Vector2(mr.position.x, mr.get_center().y + 10 * k), msg, HORIZONTAL_ALIGNMENT_CENTER, mr.size.x, int(27 * k), CREAM)
 		return buttons
-	var card := Rect2(c - Vector2(320, 170) * k, Vector2(640, 340) * k)
-	panel(ci, card, k, Color(0.17, 0.13, 0.10, 0.94), BORDER, 24)
+	var card := Rect2(c - Vector2(360, 190) * k, Vector2(720, 380) * k)
+	panel(ci, card, k, Color(NIGHT, 0.96), BORDER, 28)
 	# 일시정지 기호
 	var ic := Vector2(c.x, card.position.y + 64 * k)
 	ci.draw_circle(ic, 34 * k, Color(GOLD, 0.18))
 	for dx in [-9.0 * k, 9.0 * k]:
 		panel(ci, Rect2(ic + Vector2(dx - 5 * k, -15 * k), Vector2(10, 30) * k), k, GOLD, Color(0, 0, 0, 0), 3)
-	ci.draw_string(font, Vector2(card.position.x, card.position.y + 142 * k), "잠깐 쉬는 중", HORIZONTAL_ALIGNMENT_CENTER, card.size.x, int(38 * k), CREAM)
-	ci.draw_string(font, Vector2(card.position.x, card.position.y + 184 * k), "화면을 탭하면 3초 뒤 이어서 시작해요", HORIZONTAL_ALIGNMENT_CENTER, card.size.x, int(22 * k), MUTED)
-	var bh := 64.0 * k
-	var by := card.end.y - bh - 30 * k
+	ci.draw_string(font_b, Vector2(card.position.x, card.position.y + 150 * k), "잠깐 쉬는 중", HORIZONTAL_ALIGNMENT_CENTER, card.size.x, int(44 * k), CREAM)
+	ci.draw_string(font, Vector2(card.position.x, card.position.y + 198 * k), "화면을 탭하면 3초 뒤 이어서 시작해요", HORIZONTAL_ALIGNMENT_CENTER, card.size.x, int(26 * k), MUTED)
+	var bh := 72.0 * k
+	var by := card.end.y - bh - 32 * k
 	var acts := [["이어하기", "resume", true]]
 	if has_list:
 		acts.append(["목록으로", "list", false])
-	var bw := 240.0 * k
+	var bw := 260.0 * k
 	var gap := 20.0 * k
 	var total := bw * acts.size() + gap * (acts.size() - 1)
 	var x := c.x - total * 0.5
 	for a in acts:
 		var r := Rect2(Vector2(x, by), Vector2(bw, bh))
 		var strong: bool = a[2]
-		panel(ci, r, k, GOLD if strong else Color(1, 1, 1, 0.08), Color(1, 1, 1, 0.0) if strong else BORDER, 32)
-		var tc := Color("3a2a1c") if strong else CREAM
+		panel(ci, r, k, GOLD if strong else Color(NIGHT, 0.66), Color(1, 1, 1, 0.0) if strong else BORDER, 36)
+		var tc := NIGHT if strong else CREAM
 		if strong:
 			var tri := r.position + Vector2(r.size.x * 0.5 - 62 * k, r.size.y * 0.5)
 			ci.draw_colored_polygon(PackedVector2Array([tri + Vector2(-7, -11) * k, tri + Vector2(-7, 11) * k, tri + Vector2(11, 0) * k]), tc)
-		ci.draw_string(font, Vector2(r.position.x + (14 * k if strong else 0.0), r.get_center().y + 9 * k), a[0], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(26 * k), tc)
+		ci.draw_string(font_b, Vector2(r.position.x + (14 * k if strong else 0.0), r.get_center().y + 11 * k), a[0], HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(30 * k), tc)
 		buttons.append({"rect": r, "action": a[1]})
 		x += bw + gap
 	return buttons
@@ -260,7 +263,7 @@ func _icon_shield(ci: CanvasItem, c: Vector2, s: float, col: Color) -> void:
 func _icon_load(ci: CanvasItem, c: Vector2, s: float, col: Color) -> void:
 	ci.draw_arc(c + Vector2(0, -0.45) * s, s * 0.2, PI, TAU, 12, col, maxf(1.5, s * 0.1))
 	ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-0.45, -0.3) * s, c + Vector2(0.45, -0.3) * s, c + Vector2(0.6, 0.65) * s, c + Vector2(-0.6, 0.65) * s]), col)
-	ci.draw_string(font, c + Vector2(-0.4 * s, 0.45 * s), "kg", HORIZONTAL_ALIGNMENT_CENTER, 0.8 * s, int(s * 0.55), Color("3a2a1c"))
+	ci.draw_string(font, c + Vector2(-0.4 * s, 0.45 * s), "kg", HORIZONTAL_ALIGNMENT_CENTER, 0.8 * s, int(s * 0.55), NIGHT)
 
 
 func _icon_shoe(ci: CanvasItem, c: Vector2, s: float, col: Color) -> void:

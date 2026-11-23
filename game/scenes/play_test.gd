@@ -34,8 +34,8 @@ var _sfx := {}                    # 이름 → AudioStreamPlayer
 var _glow: GradientTexture2D      # 화면 가장자리 빛(흰색, modulate로 색을 입힌다)
 var best_height := 0.0  # 이번 시도에서 오른 가장 높은 높이(진행 점)
 ## 위쪽 한 줄(hud.gd TOP_H)의 아래 끝(ui_k 배율 전). 상세 정보 모드면 상태 줄만큼 더 내려간다(2026-11-10 HUD 개선 기획).
-const HUD_BOTTOM := 80.0
-const HUD_BOTTOM_DETAIL := 132.0
+const HUD_BOTTOM := 92.0
+const HUD_BOTTOM_DETAIL := 156.0
 var detail_mode := false          # 상세 정보 모드(지지·손 하중·무브 상시 표시). 위쪽 [i] 버튼
 var _stam_prev := {}              # 손 → 직전 틱 팔 힘(회복 중 표시)
 var _stam_up := {}                # 손 → 회복 중인가
@@ -46,6 +46,11 @@ var message := ""
 var message_ticks := 0
 var cam_y := 1.9
 var font: Font
+var font_b: Font   # 굵게(안내 문구·버튼)
+## 홈과 같은 색(2026-11-24): 남색 판, 분필색 글자, 노란 강조.
+const UI_NIGHT := Color("0d1620")
+const UI_CHALK := Color("f6f2ea")
+const UI_SHOE := Color("ffc93c")
 var ui_k := 1.0
 var px_per_m := 100.0
 var wall_origin := Vector2.ZERO  # 월드 (0, cam_y)가 놓일 화면 위치
@@ -121,11 +126,14 @@ var _techs := TechniqueJudge.defs()
 
 
 func _ready() -> void:
-	var sf := SystemFont.new()
-	sf.font_names = PackedStringArray(["Noto Sans CJK KR", "Noto Sans KR", "Apple SD Gothic Neo", "sans-serif"])
-	font = sf
-	overlay.font = sf
-	hud.font = sf
+	# 2026-11-24 사용자 "게임할 때 안내 문구 같은 UI가 너무 작고 가독성이 없어": 홈과 같은 넣은 글꼴(SUIT)·굵기.
+	# 예전 기기 글꼴(SystemFont)은 기종마다 달라 삼성에서는 손글씨체가 될 수 있었다.
+	font = UiFont.get_font(600)
+	font_b = UiFont.get_font(750)
+	overlay.font = font
+	overlay.font_b = font_b
+	hud.font = font
+	hud.font_b = font_b
 	game = get_node_or_null("/root/Game")
 	if game != null and game.current_route_id != "":
 		route = game.index.route(game.current_route_id)
@@ -294,18 +302,17 @@ func _draw_hold_tags() -> void:
 	if hold_tag_left <= 0.0:
 		return
 	var a := clampf(hold_tag_left / 0.5, 0.0, 1.0)
-	var fs := int(26 * ui_k)
+	var fs := int(28 * ui_k)
 	for t in hold_tags:
 		if not route.slots.has(t.key):
 			continue
 		var c := w2s(route.slots[t.key].pos)
 		var tip := c + Vector2(30, -30) * ui_k
-		var w := font.get_string_size(t.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 20 * ui_k
-		var box := Rect2(tip + Vector2(0, -fs * 0.9), Vector2(w, fs * 1.4))
-		draw_line(c + Vector2(10, -10) * ui_k, tip, Color(1, 1, 1, 0.9 * a), 2.0 * ui_k)
-		draw_rect(box, Color(0.12, 0.1, 0.08, 0.82 * a))
-		draw_rect(box, Color(1, 1, 1, 0.6 * a), false, 2.0 * ui_k)
-		draw_string(font, box.position + Vector2(10 * ui_k, fs * 1.05), t.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 1, 1, a))
+		var w := font_b.get_string_size(t.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 32 * ui_k
+		var box := Rect2(tip + Vector2(0, -fs * 0.95), Vector2(w, fs * 1.5))
+		draw_line(c + Vector2(10, -10) * ui_k, tip, Color(1, 1, 1, 0.9 * a), 2.5 * ui_k)
+		hud.panel(self, box, ui_k, Color(UI_NIGHT, 0.85 * a), Color(UI_CHALK, 0.3 * a), box.size.y * 0.5 / ui_k)
+		draw_string(font_b, box.position + Vector2(16 * ui_k, fs * 1.08), t.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(UI_CHALK, a))
 
 
 ## 힌트 홀드: 1초 주기로 천천히 반짝이는 고리.
@@ -842,7 +849,7 @@ func _hud_bottom() -> float:
 ## 균형 회복 중·지지 없음은 캐릭터 주변 위험 경고가 맡는다.
 func _draw_notice(size: Vector2, ph: int) -> void:
 	var text := ""
-	var col := Color("fbeedd")
+	var col := UI_CHALK
 	if ph == ClimbRules.Phase.STRAINED:
 		text = "부담 큼 · 손 하중이 커요"
 		col = Color("f2c14e")
@@ -850,11 +857,11 @@ func _draw_notice(size: Vector2, ph: int) -> void:
 		text = _notice
 	if text == "":
 		return
-	var fs := int(20 * ui_k)
-	var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 40 * ui_k
-	var r := Rect2(Vector2(size.x * 0.5 - w * 0.5, (HUD_BOTTOM + 6.0) * ui_k), Vector2(w, 36 * ui_k))
-	hud.panel(self, r, ui_k, Color(0.17, 0.13, 0.10, 0.78), Color(0.83, 0.70, 0.52, 0.45), 18.0)
-	draw_string(font, Vector2(r.position.x, r.position.y + 25 * ui_k), text, HORIZONTAL_ALIGNMENT_CENTER, w, fs, col)
+	var fs := int(27 * ui_k)
+	var w := font_b.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 48 * ui_k
+	var r := Rect2(Vector2(size.x * 0.5 - w * 0.5, (HUD_BOTTOM + 6.0) * ui_k), Vector2(w, 50 * ui_k))
+	hud.panel(self, r, ui_k, Color(UI_NIGHT, 0.82), Color(UI_CHALK, 0.24), 25.0)
+	draw_string(font_b, Vector2(r.position.x, r.position.y + 35 * ui_k), text, HORIZONTAL_ALIGNMENT_CENTER, w, fs, col)
 
 
 ## 팔 힘 추세(회복 중 표시)와 무브 변경 문구를 한 틱 진행한다.
@@ -1199,9 +1206,9 @@ func _draw_pads(size: Vector2) -> void:
 		draw_arc(p.center, p.radius, 0, TAU, 48, Color(col, 0.95), 3.5 * ui_k)
 		_draw_dpad(p, col, router.knob(limb))
 		var label := "%s%s" % ["왼" if limb in [&"LH", &"LF"] else "오른", "손" if PoseSolver.is_hand(limb) else "발"]
-		var fs := int(26 * ui_k)
-		draw_string(font, p.center + Vector2(-p.radius, 8 * ui_k + 2 * ui_k), label, HORIZONTAL_ALIGNMENT_CENTER, p.radius * 2, fs, Color(0, 0, 0, 0.7))
-		draw_string(font, p.center + Vector2(-p.radius, 8 * ui_k), label, HORIZONTAL_ALIGNMENT_CENTER, p.radius * 2, fs, Color.WHITE)
+		var fs := int(30 * ui_k)
+		draw_string_outline(font_b, p.center + Vector2(-p.radius, 10 * ui_k), label, HORIZONTAL_ALIGNMENT_CENTER, p.radius * 2, fs, int(6 * ui_k), Color(UI_NIGHT, 0.75))
+		draw_string(font_b, p.center + Vector2(-p.radius, 10 * ui_k), label, HORIZONTAL_ALIGNMENT_CENTER, p.radius * 2, fs, Color.WHITE)
 		# 튜토리얼: 지금 움직일 팔다리의 패드를 금색으로 깜빡여 강조(기획 §7)
 		var target: bool = _tutorial_limb() == limb
 		if target:
@@ -1297,7 +1304,7 @@ func _draw_hud(size: Vector2) -> void:
 		draw_string(font, Vector2(size.x * 0.25, y), log_lines[i], HORIZONTAL_ALIGNMENT_LEFT, -1, int(15 * ui_k), Color(1, 1, 1, 0.6))
 		y -= 18 * ui_k
 	if message_ticks > 0:
-		_outlined(Vector2(0, maxf(size.y * (0.36 if session.selecting or tutorial != null else 0.30), (_hud_bottom() + 70.0) * ui_k)), message, 34, size.x, Color("fff2c8"))
+		_outlined(Vector2(0, maxf(size.y * (0.36 if session.selecting or tutorial != null else 0.30), (_hud_bottom() + 70.0) * ui_k)), message, 34, size.x, Color("fff2c8"), Color(0, 0, 0, 0.75), true)
 	if not paused and not session.falling:
 		if _shows("balance"):
 			_draw_balance()
@@ -1316,7 +1323,7 @@ func _draw_hud(size: Vector2) -> void:
 	if not _grip_label.is_empty() and not paused:
 		var gp := w2s(_grip_label.pos) + Vector2(0, -46 * ui_k)
 		var ga := clampf(float(_grip_label.left) * 2.0, 0.0, 1.0)
-		_outlined(Vector2(gp.x - 100 * ui_k, gp.y), str(_grip_label.text), 22, 200 * ui_k, Color(_grip_label.color, ga))
+		_outlined(Vector2(gp.x - 120 * ui_k, gp.y), str(_grip_label.text), 26, 240 * ui_k, Color(_grip_label.color, ga), Color(0, 0, 0, 0.75), true)
 	overlay.draw(self, size, ui_k, paused, session.selecting)
 	_draw_confetti()  # 결과 카드 위로도 떨어진다
 	if paused and not overlay.blocking():
@@ -1401,8 +1408,8 @@ func _draw_balance() -> void:
 	draw_circle(c, 14 * ui_k, Color(BAL_INK, 0.9))
 	draw_circle(c, 10 * ui_k, col)
 	draw_circle(c, 4 * ui_k, BAL_INK)
-	if not _shows("balance_hint") or danger.danger:
-		return  # 위험 경고가 뜨면 안내 문구는 숨긴다(경고 문구와 겹치지 않게)
+	if not _shows("balance_hint") or danger.danger or route_preview != null:
+		return  # 위험 경고가 뜨면 안내 문구는 숨긴다(경고 문구와 겹치지 않게). 시작 루트 읽기 중에도(안내 카드와 겹침)
 	var txt := ""
 	if feet.is_empty():
 		txt = "발이 없어 팔로만 버텨요"
@@ -1421,7 +1428,7 @@ func _draw_balance() -> void:
 		else:
 			txt = "발이 멀어 팔 힘이 빠져요"
 	if txt != "":
-		_outlined(b + Vector2(-220 * ui_k, 46 * ui_k), txt, 22, 440 * ui_k, Color(1, 1, 1, 0.95))
+		_outlined(b + Vector2(-260 * ui_k, 56 * ui_k), txt, 28, 520 * ui_k, Color(UI_CHALK, 0.97), Color(0, 0, 0, 0.75), true)
 
 
 ## 월드 점 p에서 r(m) 안에 홀드가 있는가(균형 표시가 홀드를 가리지 않게).
@@ -1499,7 +1506,7 @@ func _draw_danger(size: Vector2) -> void:
 		var drop: bool = danger.caution[limb] == &"DROP"
 		_draw_bang(p.center + Vector2(p.radius * 0.72, -p.radius * 0.72), (32.0 if drop else 22.0) * ui_k, cc)
 		var txt := "떼면 바로 떨어져요" if fast else DangerFeedback.caution_text(danger.caution[limb])
-		_outlined(_pad_label_pos(p), txt, 26, 320 * ui_k, cc.lightened(0.25))
+		_outlined(_pad_label_pos(p), txt, 28, 360 * ui_k, cc.lightened(0.25), Color(0, 0, 0, 0.75), true)
 	if not danger.caution.is_empty() and not danger.danger:
 		var red := danger.caution.values().has(&"DROP")
 		_draw_bang(Vector2(head.x, maxf(head.y - 20 * ui_k, top)), (34.0 if red else 26.0) * ui_k, Color(1.0, 0.25, 0.18) if red else Color(1.0, 0.8, 0.2))
@@ -1524,7 +1531,7 @@ func _draw_danger(size: Vector2) -> void:
 	var sub := DangerFeedback.reason_short(danger.kind)
 	if beginner and danger.ticks_left >= 0:
 		sub += " · %.1f초" % (danger.ticks_left * Tuning.DT)
-	_outlined(Vector2(head.x - 300 * ui_k, y + 40 * ui_k), sub, 26, 600 * ui_k, Color(1, 0.9, 0.8))
+	_outlined(Vector2(head.x - 300 * ui_k, y + 48 * ui_k), sub, 30, 600 * ui_k, Color(1, 0.9, 0.8), Color(0, 0, 0, 0.75), true)
 	if beginner:
 		_draw_rescue_hint(t)
 
@@ -1566,11 +1573,11 @@ func _draw_rescue_hint(t: float) -> void:
 		var hr := maxf(_screen_r(session.body.pos, 0.16), 26 * ui_k)
 		draw_circle(hp, hr, Color(col, 0.20 + 0.25 * blink))
 		draw_arc(hp, hr * (1.0 + 0.25 * blink), 0, TAU, 40, Color(col, 0.95), 6 * ui_k, true)
-		_outlined(Vector2(hp.x - 120 * ui_k, hp.y - hr - 14 * ui_k), "다시 잡기", 26, 240 * ui_k, Color.WHITE)
+		_outlined(Vector2(hp.x - 120 * ui_k, hp.y - hr - 16 * ui_k), "다시 잡기", 28, 240 * ui_k, Color.WHITE, Color(0, 0, 0, 0.75), true)
 		if router.pads.has(limb):
 			var p: Dictionary = router.pads[limb]
 			draw_arc(p.center, p.radius + 8 * ui_k, 0, TAU, 48, Color(col, 0.5 + 0.5 * blink), 9 * ui_k)
-			_outlined(_pad_label_pos(p), "이 패드로 다시 잡아요", 24, 320 * ui_k, Color.WHITE)
+			_outlined(_pad_label_pos(p), "이 패드로 다시 잡아요", 28, 360 * ui_k, Color.WHITE, Color(0, 0, 0, 0.75), true)
 	if danger.kind != &"GRACE":
 		var body: Vector2 = session.body.pos
 		var cx := session.rules.support_center_x(body, session.body.angle, session.attached(), session.body.yaw)
@@ -1586,7 +1593,7 @@ func _draw_rescue_hint(t: float) -> void:
 			draw_line(a, b, col, 9 * ui_k)
 			var n := Vector2(-dir.y, dir.x)
 			draw_colored_polygon(PackedVector2Array([b + dir * 26 * ui_k, b + n * 20 * ui_k, b - n * 20 * ui_k]), col)
-			_outlined(Vector2((a.x + b.x) * 0.5 - 150 * ui_k, a.y + 44 * ui_k), "몸을 이쪽으로", 24, 300 * ui_k, Color.WHITE)
+			_outlined(Vector2((a.x + b.x) * 0.5 - 150 * ui_k, a.y + 50 * ui_k), "몸을 이쪽으로", 28, 300 * ui_k, Color.WHITE, Color(0, 0, 0, 0.75), true)
 
 
 ## 위험 게이지(캐릭터 둘레 고리) 중심·반지름(화면 px).
@@ -1604,22 +1611,29 @@ func _draw_rescue_button(_size: Vector2) -> void:
 	var r: float = ring[1]
 	var y := c.y + r - 18 * ui_k
 	if rescue_left <= 0:
-		_outlined(Vector2(c.x - 200 * ui_k, y), "자동 도움 끝", 22, 400 * ui_k, Color(1, 1, 1, 0.6))
+		_outlined(Vector2(c.x - 200 * ui_k, y), "자동 도움 끝", 26, 400 * ui_k, Color(1, 1, 1, 0.75), Color(0, 0, 0, 0.75), true)
 		return
 	var blink := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * 2.0)
-	var w := 300.0 * ui_k
-	var pill := Rect2(Vector2(c.x - w * 0.5, y - 32 * ui_k), Vector2(w, 46 * ui_k))
-	hud.panel(self, pill, ui_k, Color(0.96, 0.84, 0.55, 0.95), Color(1, 1, 1, 0.9), 23.0)
-	draw_string(font, Vector2(pill.position.x, pill.position.y + 32 * ui_k), "눌러서 자동 도움 %d/%d" % [rescue_left, RESCUE_PER_ATTEMPT], HORIZONTAL_ALIGNMENT_CENTER, w, int(22 * ui_k), Color(0.19, 0.15, 0.11))
+	var w := 340.0 * ui_k
+	var pill := Rect2(Vector2(c.x - w * 0.5, y - 36 * ui_k), Vector2(w, 54 * ui_k))
+	hud.panel(self, pill, ui_k, Color(UI_SHOE, 0.97), Color(1, 1, 1, 0.0), 27.0)
+	draw_string(font_b, Vector2(pill.position.x, pill.position.y + 37 * ui_k), "눌러서 자동 도움 %d/%d" % [rescue_left, RESCUE_PER_ATTEMPT], HORIZONTAL_ALIGNMENT_CENTER, w, int(26 * ui_k), UI_NIGHT)
 	draw_arc(c, r + 10 * ui_k, 0, TAU, 64, Color(1, 0.9, 0.6, 0.35 + 0.4 * blink), 4 * ui_k, true)
 	overlay.add_buttons([{"rect": Rect2(c - Vector2(r, r), Vector2(r, r) * 2), "circle": [c, r + 16 * ui_k], "action": "rescue"}])
 
 
 ## 테두리 있는 가운데 정렬 글자. pos: 왼쪽 기준선, w: 폭.
-func _outlined(pos: Vector2, text: String, fs: int, w: float, col: Color, outline := Color(0, 0, 0, 0.75)) -> void:
+## 테두리 글자(굵게). pill이면 글자 뒤에 홈과 같은 남색 알약을 깔아 어떤 바탕에서도 읽히게(안내 문장용, 2026-11-24).
+func _outlined(pos: Vector2, text: String, fs: int, w: float, col: Color, outline := Color(0, 0, 0, 0.75), pill := false) -> void:
 	var px := int(fs * ui_k)
-	draw_string_outline(font, pos, text, HORIZONTAL_ALIGNMENT_CENTER, w, px, maxi(4, int(px * 0.16)), Color(outline, outline.a * col.a))
-	draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_CENTER, w, px, col)
+	if pill:
+		var tw := font_b.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x + px * 1.4
+		var r := Rect2(Vector2(pos.x + w * 0.5 - tw * 0.5, pos.y - px * 1.05), Vector2(tw, px * 1.5))
+		hud.panel(self, r, ui_k, Color(UI_NIGHT, 0.78 * col.a), Color(UI_CHALK, 0.2 * col.a), r.size.y * 0.5 / ui_k)
+		draw_string(font_b, pos, text, HORIZONTAL_ALIGNMENT_CENTER, w, px, col)
+		return
+	draw_string_outline(font_b, pos, text, HORIZONTAL_ALIGNMENT_CENTER, w, px, maxi(4, int(px * 0.16)), Color(outline, outline.a * col.a))
+	draw_string(font_b, pos, text, HORIZONTAL_ALIGNMENT_CENTER, w, px, col)
 
 
 ## 노란 원 안 "!".
@@ -1666,7 +1680,7 @@ func _draw_dyno() -> void:
 		var left := session.dyno_slow_left()
 		if any:
 			var a := w2s(session.body.pos)
-			_outlined(Vector2(a.x - 250 * ui_k, a.y - 160 * ui_k), "잡을 손의 패드를 눌러요", 30, 500 * ui_k, Color("ffd166"))
+			_outlined(Vector2(a.x - 250 * ui_k, a.y - 160 * ui_k), "잡을 손의 패드를 눌러요", 32, 500 * ui_k, Color("ffd166"), Color(0, 0, 0, 0.75), true)
 			if left > 0.0:
 				var w := 300.0 * ui_k
 				draw_rect(Rect2(Vector2(a.x - w * 0.5, a.y - 150 * ui_k), Vector2(w * left, 6 * ui_k)), Color("ffd166"))
@@ -1682,9 +1696,9 @@ func _draw_dyno() -> void:
 		var cr: float = maxf(float(dt.cancel_r), 40.0 * ui_k)
 		draw_circle(cc, cr, Color(0.75, 0.2, 0.15, 0.55) if inside else Color(0, 0, 0, 0.35))
 		draw_arc(cc, cr, 0, TAU, 48, Color(1, 1, 1, 0.9) if inside else Color(1, 1, 1, 0.5), 3 * ui_k, true)
-		_outlined(Vector2(cc.x - cr, cc.y + 9 * ui_k), "취소", 24, cr * 2, Color.WHITE)
+		_outlined(Vector2(cc.x - cr, cc.y + 10 * ui_k), "취소", 28, cr * 2, Color.WHITE)
 		if inside:
-			_outlined(Vector2(cc.x - 200 * ui_k, cc.y + cr + 34 * ui_k), "여기서 떼면 취소", 20, 400 * ui_k, Color.WHITE)
+			_outlined(Vector2(cc.x - 200 * ui_k, cc.y + cr + 40 * ui_k), "여기서 떼면 취소", 26, 400 * ui_k, Color.WHITE, Color(0, 0, 0, 0.75), true)
 	var col := Color("ffd166") if pv.ready else Color(1, 1, 1, 0.45)
 	var reach: Array = pv.reach
 	for i in reach.size():
@@ -1698,9 +1712,8 @@ func _draw_dyno() -> void:
 	if pv.ready:
 		text = "다이노 · 힘 -%d · %s" % [roundi(float(pv.cost)), grade] if not reach.is_empty() else "닿는 홀드가 없어요 · %s" % grade
 	var a := w2s(session.body.pos)
-	var fs := int(26 * ui_k)
-	draw_string_outline(font, Vector2(a.x + 40 * ui_k, a.y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, int(6 * ui_k), Color(0, 0, 0, 0.8))
-	draw_string(font, Vector2(a.x + 40 * ui_k, a.y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+	var tw := font_b.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * ui_k)).x
+	_outlined(Vector2(a.x + 40 * ui_k, a.y), text, 30, tw, col, Color(0, 0, 0, 0.8), true)
 
 
 func _draw_grab_ready() -> void:
@@ -1719,10 +1732,7 @@ func _draw_grab_ready() -> void:
 		draw_circle(c, rr * 1.15, Color(col, 0.35))
 		draw_arc(c, rr * 1.3, 0, TAU, 36, Color(0.05, 0.05, 0.08, 0.75), 10.0 * ui_k)
 		draw_arc(c, rr * 1.3, 0, TAU, 36, Color(col, 1.0), 6.0 * ui_k)
-		var fs := int(24 * ui_k)
-		var tp := c + Vector2(-160 * ui_k, -rr * 1.5 - 10 * ui_k)
-		draw_string(font, tp + Vector2(0, 2 * ui_k), "놓으면 잡혀요", HORIZONTAL_ALIGNMENT_CENTER, 320 * ui_k, fs, Color(0, 0, 0, 0.8))
-		draw_string(font, tp, "놓으면 잡혀요", HORIZONTAL_ALIGNMENT_CENTER, 320 * ui_k, fs, Color.WHITE)
+		_outlined(c + Vector2(-160 * ui_k, -rr * 1.5 - 12 * ui_k), "놓으면 잡혀요", 28, 320 * ui_k, Color.WHITE, Color(0, 0, 0, 0.8), true)
 
 
 ## 지금 튜토리얼 단계 목표가 가리키는 홀드 키. 튜토리얼이 아니거나 목표에 홀드가 없으면 "".
@@ -1997,9 +2007,8 @@ func _draw_lock(c: Vector2, k: float, col: Color) -> void:
 
 
 func _draw_button(r: Rect2, text: String, fs: int, fill: Color, text_col: Color, outline: Color = Color(1, 1, 1, 0.5)) -> void:
-	draw_rect(r, fill)
-	draw_rect(r, outline, false, 2.0)
-	draw_string(font, Vector2(r.position.x, r.position.y + r.size.y * 0.5 + fs * 0.35), text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, fs, text_col)
+	hud.panel(self, r, ui_k, fill, outline, minf(r.size.y * 0.5, 22 * ui_k) / ui_k)
+	draw_string(font_b, Vector2(r.position.x, r.position.y + r.size.y * 0.5 + fs * 0.36), text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, fs, text_col)
 
 
 func _screen_r(p: Vector2, meters: float) -> float:
@@ -2020,13 +2029,14 @@ func _draw_tech_ui(size: Vector2) -> void:
 		if not stage.is_empty():
 			label += " · " + stage
 	var open := session.selecting
-	_draw_button(btn, label, int(20 * k), Color("f1d59a", 0.9) if open else Color(0.1, 0.1, 0.1, 0.6 if not disabled else 0.35),
-		Color("302820") if open else Color(1, 1, 1, 0.45 if disabled else 1.0))
+	_draw_button(btn, label, int(24 * k), Color(UI_SHOE, 0.95) if open else Color(UI_NIGHT, 0.72 if not disabled else 0.4),
+		UI_NIGHT if open else Color(1, 1, 1, 0.45 if disabled else 1.0), Color(1, 1, 1, 0.0) if open else Color(UI_CHALK, 0.3))
 	if session.is_dragging() and running.is_empty():
 		_draw_lock(btn.position + Vector2(btn.size.x - 20 * k, btn.size.y * 0.5), k, Color(1, 1, 1, 0.5))
 	if not open:
 		return
-	draw_string(font, Vector2(btn.end.x + 14 * k, btn.position.y + btn.size.y * 0.5 + 8 * k), "고르는 중 · 시간 멈춤", HORIZONTAL_ALIGNMENT_LEFT, -1, int(24 * k), Color("fff2c8"))
+	var gw := font_b.get_string_size("고르는 중 · 시간 멈춤", HORIZONTAL_ALIGNMENT_LEFT, -1, int(26 * k)).x
+	_outlined(Vector2(btn.end.x + 16 * k, btn.position.y + btn.size.y * 0.5 + 9 * k), "고르는 중 · 시간 멈춤", 26, gw, Color("fff2c8"), Color(0, 0, 0, 0.75), true)
 	match ui_mode:
 		UI.PANEL:
 			_draw_panel(size)
@@ -2041,17 +2051,17 @@ func _draw_tech_ui(size: Vector2) -> void:
 
 
 func _draw_prompt(btn: Rect2, text: String) -> void:
-	draw_string(font, Vector2(btn.position.x - 160 * ui_k, btn.end.y + 30 * ui_k), text, HORIZONTAL_ALIGNMENT_CENTER, btn.size.x + 320 * ui_k, int(24 * ui_k), Color.WHITE)
+	_outlined(Vector2(btn.position.x - 200 * ui_k, btn.end.y + 40 * ui_k), text, 27, btn.size.x + 400 * ui_k, Color.WHITE, Color(0, 0, 0, 0.75), true)
 
 
 func _draw_panel(size: Vector2) -> void:
 	var k := ui_k
-	draw_rect(_panel_rect(size), Color(0.08, 0.07, 0.06, 0.7))
+	hud.panel(self, _panel_rect(size), ui_k, Color(UI_NIGHT, 0.8), Color(UI_CHALK, 0.2), 20.0)
 	var ids := _panel_techs()
 	for i in ids.size():
 		var r := _entry_rect(size, i)
 		var is_dim: bool = dim.get(ids[i], false)
-		_draw_button(r, _techs[ids[i]].name_ko, int(19 * k), Color(0.18, 0.2, 0.2, 0.35 if is_dim else 0.9), Color(1, 1, 1, 0.5 if is_dim else 1.0), Color(1, 1, 1, 0.25 if is_dim else 0.6))
+		_draw_button(r, _techs[ids[i]].name_ko, int(23 * k), Color(UI_NIGHT, 0.4 if is_dim else 0.92), Color(1, 1, 1, 0.5 if is_dim else 1.0), Color(UI_CHALK, 0.2 if is_dim else 0.45))
 		if is_dim:
 			_draw_lock(r.position + Vector2(r.size.x - 14 * k, 14 * k), k * 0.8, Color(1, 1, 1, 0.6))  # 색 말고 아이콘으로도 표시
 
@@ -2061,7 +2071,7 @@ func _draw_side_button(side: StringName) -> void:
 	var r := _side_rect(side)
 	var j: Dictionary = side_judge[side]
 	var ok: bool = j.available
-	_draw_button(r, "왼쪽" if side == &"left" else "오른쪽", int(26 * k), Color("4fa3d9" if side == &"left" else "e08a3c", 0.9 if ok else 0.25),
+	_draw_button(r, "왼쪽" if side == &"left" else "오른쪽", int(29 * k), Color("4fa3d9" if side == &"left" else "e08a3c", 0.9 if ok else 0.25),
 		Color(1, 1, 1, 1.0 if ok else 0.5), Color(1, 1, 1, 0.9 if ok else 0.3))
 	if not ok:
 		_draw_lock(r.position + Vector2(r.size.x * 0.5, r.size.y - 16 * k), k, Color(1, 1, 1, 0.75))
@@ -2107,19 +2117,18 @@ func _draw_hold_select(size: Vector2) -> void:
 	var hand := PoseSolver.is_hand(TechniqueJudge.limb_for(sel_tech, sel_side))
 	for t in hold_targets:
 		_draw_hold_mark(t.key, hand, t.needs_shift)
-	draw_string(font, Vector2(0, size.y - 52 * k), "실선 = 바로 가능 · 점선 = 몸을 옮겨야 닿아요", HORIZONTAL_ALIGNMENT_CENTER, size.x, int(18 * k), Color(1, 1, 1, 0.8))
+	_outlined(Vector2(0, size.y - 56 * k), "실선 = 바로 가능 · 점선 = 몸을 옮겨야 닿아요", 23, size.x, Color(1, 1, 1, 0.9), Color(0, 0, 0, 0.75), true)
 	if preview.is_empty():
 		return
 	var pc := w2s(preview.point)
 	if preview.ok:
 		_draw_quality_glyph(pc, preview.quality, 11.0 * k)
 		var qp := pc + Vector2(-70 * k, -20 * k)
-		draw_string_outline(font, qp, _quality_label(preview.quality), HORIZONTAL_ALIGNMENT_CENTER, 140 * k, int(20 * k), 6, Color("302820"))
-		draw_string(font, qp, _quality_label(preview.quality), HORIZONTAL_ALIGNMENT_CENTER, 140 * k, int(20 * k), _quality_color(preview.quality))
+		_outlined(qp + Vector2(-20 * k, -4 * k), _quality_label(preview.quality), 24, 180 * k, _quality_color(preview.quality), Color(0, 0, 0, 0.8), true)
 	else:
 		draw_line(pc + Vector2(-8, -8) * k, pc + Vector2(8, 8) * k, Color("ff8a6a"), 3.0 * k)
 		draw_line(pc + Vector2(-8, 8) * k, pc + Vector2(8, -8) * k, Color("ff8a6a"), 3.0 * k)
-		draw_string(font, pc + Vector2(-140 * k, -20 * k), preview.text, HORIZONTAL_ALIGNMENT_CENTER, 280 * k, int(18 * k), Color("ff8a6a"))
+		_outlined(pc + Vector2(-180 * k, -24 * k), preview.text, 23, 360 * k, Color("ff8a6a"), Color(0, 0, 0, 0.8), true)
 
 
 ## 손 힘 경고: 붙은 손 둘레에 깜빡이는 빛, 위험이면 "왼손 20%"(docs/superpowers/specs/2026-11-19-1-feel-design.md §1.3).
@@ -2139,8 +2148,7 @@ func _draw_grip_warnings() -> void:
 		draw_arc(c, r, 0, TAU, 32, Color(col, 0.55 + 0.4 * on), 3.0 * ui_k)
 		if lv == GripWarning.DANGER:
 			var t := "%s %d%%" % ["왼손" if hand == PoseSolver.LH else "오른손", roundi(float(session.rules.stamina[hand]))]
-			draw_string_outline(font, c + Vector2(-80 * ui_k, -r - 8 * ui_k), t, HORIZONTAL_ALIGNMENT_CENTER, 160 * ui_k, int(20 * ui_k), int(5 * ui_k), Color(0.08, 0.06, 0.05, 0.9))
-			draw_string(font, c + Vector2(-80 * ui_k, -r - 8 * ui_k), t, HORIZONTAL_ALIGNMENT_CENTER, 160 * ui_k, int(20 * ui_k), col)
+			_outlined(c + Vector2(-100 * ui_k, -r - 10 * ui_k), t, 26, 200 * ui_k, col, Color(0, 0, 0, 0.8), true)
 
 
 ## 이번 틱에 새로 생긴 잡기·헛놓기 사건으로 소리·진동·가루(GrabFeel, docs/superpowers/specs/2026-11-19-1-feel-design.md §1.4).
@@ -2236,8 +2244,7 @@ func _draw_preview_labels() -> void:
 		return
 	for key in route.goal_slots:
 		var p := w2s(route.slots[key].pos) + Vector2(0, -46 * ui_k)
-		draw_string_outline(font, p - Vector2(60 * ui_k, 0), "탑", HORIZONTAL_ALIGNMENT_CENTER, 120 * ui_k, int(26 * ui_k), int(6 * ui_k), Color(0.08, 0.06, 0.05, 0.9))
-		draw_string(font, p - Vector2(60 * ui_k, 0), "탑", HORIZONTAL_ALIGNMENT_CENTER, 120 * ui_k, int(26 * ui_k), Color("f1d59a"))
+		_outlined(p - Vector2(60 * ui_k, 0), "탑", 30, 120 * ui_k, UI_SHOE, Color(0, 0, 0, 0.8), true)
 		break
 
 
@@ -2331,10 +2338,12 @@ func _draw_preview_title(a: float) -> void:
 	var w := minf(700.0 * ui_k, size.x * 0.5)
 	var box := Rect2(Vector2(size.x * 0.5 - w * 0.5, size.y - 170 * ui_k), Vector2(w, 150 * ui_k))
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.08, 0.06, 0.05, 0.88 * a)
+	sb.bg_color = Color(UI_NIGHT, 0.9 * a)
+	sb.border_color = Color(UI_CHALK, 0.24 * a)
+	sb.set_border_width_all(maxi(1, int(1.5 * ui_k)))
 	sb.set_corner_radius_all(int(22 * ui_k))
 	draw_style_box(sb, box)
 	var y := box.position.y + 52 * ui_k
-	draw_string(font, Vector2(box.position.x, y), head, HORIZONTAL_ALIGNMENT_CENTER, w, int(38 * ui_k), Color(Color("f1d59a"), a))
-	draw_string(font, Vector2(box.position.x, y + 40 * ui_k), sub, HORIZONTAL_ALIGNMENT_CENTER, w, int(23 * ui_k), Color(1, 1, 1, 0.9 * a))
-	draw_string(font, Vector2(box.position.x, y + 78 * ui_k), "화면을 누르면 바로 시작", HORIZONTAL_ALIGNMENT_CENTER, w, int(19 * ui_k), Color(1, 1, 1, 0.6 * a))
+	draw_string(font_b, Vector2(box.position.x, y), head, HORIZONTAL_ALIGNMENT_CENTER, w, int(40 * ui_k), Color(UI_SHOE, a))
+	draw_string(font_b, Vector2(box.position.x, y + 42 * ui_k), sub, HORIZONTAL_ALIGNMENT_CENTER, w, int(26 * ui_k), Color(UI_CHALK, 0.92 * a))
+	draw_string(font, Vector2(box.position.x, y + 80 * ui_k), "화면을 누르면 바로 시작", HORIZONTAL_ALIGNMENT_CENTER, w, int(22 * ui_k), Color(UI_CHALK, 0.66 * a))
