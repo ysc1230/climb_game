@@ -149,7 +149,7 @@ func _ready() -> void:
 	if game != null:
 		_setup_tilt(game.progress)
 	_new_attempt()
-	_start_preview()
+	_start_preview(true)
 
 
 ## ---------- 점수·고스트(작업 3, docs/superpowers/specs/2026-11-19-3-score-design.md) ----------
@@ -808,7 +808,7 @@ func _retry() -> void:
 	session.hold_on_clear = tutorial == null
 	session.hold_on_fall = tutorial == null
 	_new_attempt()
-	_start_preview()
+	_start_preview(false)
 
 
 func _apply(cmds: Array) -> void:
@@ -1325,6 +1325,8 @@ func _draw_hud(size: Vector2) -> void:
 		_draw_rescue_button(size)
 	if draw_world and goal_key != "" and not paused and not session.selecting and not overlay.blocking():
 		_draw_goal_mark(goal_key)  # 2D 시험 장면만. 3D 화면은 목표 홀드 자체가 노랗게 깜빡인다(play_3d)
+	if route_preview != null:
+		_draw_preview_title(route_preview.title_alpha())  # 맨 위에(안내 줄·문구를 덮는다)
 
 
 # ---------- 균형 보기(docs/49, 설정 탭에서 켜고 끔) ----------
@@ -2165,7 +2167,8 @@ func _feel_tick() -> void:
 
 
 ## 일반 문제 시작·다시: 탑이 보이는 높이에서 시작 높이까지 카메라를 내린다(RoutePreview). 튜토리얼은 생략.
-func _start_preview() -> void:
+## full(처음 들어갈 때): 탑이 이미 보여도 탑·캐릭터에서 머물고 문제 안내를 띄운다. 다시 하기는 짧게, 탑이 보이면 생략.
+func _start_preview(full: bool) -> void:
 	route_preview = null
 	if tutorial != null or route.mode != "general" or route.goal_slots.is_empty():
 		return
@@ -2179,9 +2182,9 @@ func _start_preview() -> void:
 		gy = maxf(gy, (route.slots[key].pos as Vector2).y)
 	var start_cam := cam_y
 	var top := maxf(start_cam, gy - 0.3 * PLAY_H)
-	if top - start_cam < 0.05:
-		return  # 탑이 이미 보이면 생략
-	route_preview = RoutePreview.new(top, start_cam)
+	if not full and top - start_cam < 0.05:
+		return  # 다시 하기: 탑이 이미 보이면 생략
+	route_preview = RoutePreview.new(top, start_cam, full)
 	cam_y = top
 
 
@@ -2312,3 +2315,26 @@ func _fall_retry() -> void:
 	_after_reset("")
 	_fall_cause = ""
 	_new_attempt()
+
+
+
+## 처음 들어갈 때 루트 읽기 동안 문제 안내(2026-11-24 사용자 "어떤 문제들이 있는지 알려주자"): 화면 아래 가운데 카드에
+## 등급-번호·이름, 벽 각도·탑까지 높이, "화면을 누르면 바로 시작". 위쪽은 보여 줄 탑 홀드가 있어 비운다.
+func _draw_preview_title(a: float) -> void:
+	if a <= 0.0:
+		return
+	var size := get_viewport_rect().size
+	var name := route.name_ko if route.name_ko != "" else route.route_id
+	var head := ("%s-%d  %s" % [route.grade, route.order, name]) if route.grade != "" else name
+	var sub := "수직 벽" if route.wall_deg <= 0.0 else "%d° 기운 벽" % roundi(route.wall_deg)
+	sub += "  ·  탑까지 %.1fm" % _goal_height()
+	var w := minf(700.0 * ui_k, size.x * 0.5)
+	var box := Rect2(Vector2(size.x * 0.5 - w * 0.5, size.y - 170 * ui_k), Vector2(w, 150 * ui_k))
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.08, 0.06, 0.05, 0.88 * a)
+	sb.set_corner_radius_all(int(22 * ui_k))
+	draw_style_box(sb, box)
+	var y := box.position.y + 52 * ui_k
+	draw_string(font, Vector2(box.position.x, y), head, HORIZONTAL_ALIGNMENT_CENTER, w, int(38 * ui_k), Color(Color("f1d59a"), a))
+	draw_string(font, Vector2(box.position.x, y + 40 * ui_k), sub, HORIZONTAL_ALIGNMENT_CENTER, w, int(23 * ui_k), Color(1, 1, 1, 0.9 * a))
+	draw_string(font, Vector2(box.position.x, y + 78 * ui_k), "화면을 누르면 바로 시작", HORIZONTAL_ALIGNMENT_CENTER, w, int(19 * ui_k), Color(1, 1, 1, 0.6 * a))
