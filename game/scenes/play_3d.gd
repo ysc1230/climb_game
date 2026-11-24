@@ -230,6 +230,14 @@ func _build_wall() -> void:
 	var mat := _mesh(_box(Vector3(9.0, 0.25, 4.0)), mat_m, true)
 	mat.position = Vector3(0, MAT_TOP_Y - 0.125, 1.6)
 	add_child(mat)
+	# 암장 실내(안쪽 면만 보이는 큰 상자): 시점을 돌리거나 확대해도 매트 끝 밖·벽 뒤의 빈 공간이 보이지 않게(2026-11-24 사용자)
+	var room_m := _toon(Color("4a3a31"), Color("2e241f"))
+	room_m.next_pass = null  # 외곽선 껍데기는 안쪽 면 상자에 맞지 않는다
+	var box := _box(Vector3(26.0, 14.0, 26.0))
+	box.flip_faces = true
+	var room := _mesh(box, room_m, false)
+	room.position = Vector3(0, MAT_TOP_Y - 0.25 + 7.0, 1.0)
+	add_child(room)
 	# 옆벽: 같은 합판 톤을 어둡게, 화면 밖으로 빠지게(판정 없음). 벽 가장자리에서 앞으로 38° 벌어진 띠, 벽과 같이 접힘
 	for side in [-1, 1]:
 		var wm := _toon(WALL_PLY.darkened(0.28), WALL_OLIVE.darkened(0.2), true)
@@ -888,6 +896,7 @@ func _build_model() -> bool:
 
 
 const CAM_MIN_Y := 0.6  # 기운 벽에서 카메라 최저 높이(m, 매트 위)
+const CAM_WALL_GAP := 0.8  # 시점 카메라가 벽면에서 떨어지는 최소 거리(m)
 var _wings: Array[MeshInstance3D] = []  # 옆벽: 비스듬히·옆 시점에서는 카메라를 가려 숨긴다
 
 
@@ -908,8 +917,10 @@ func _update_camera() -> void:
 		w.visible = absf(yaw) < deg_to_rad(10.0)  # 옆벽(장식)이 돈 카메라를 가린다
 	var look := fold.point(Vector3(logic.session.body.pos.x * smoothstep(0.0, 0.3, absf(yaw)), logic.cam_y, CONTACT_DEPTH))
 	camera.position = look + Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, th * 0.25 + float(logic.cam_pitch)) * Vector3(0, 0, dist * float(logic.cam_zoom))
-	camera.position.y = maxf(camera.position.y, CAM_MIN_Y) if free_cam else camera.position.y
 	if free_cam:
+		# 돌리거나 기운 벽에서 카메라가 벽면을 뚫고 뒤(빈 공간)를 보지 않게 벽면 앞으로 밀고, 매트 아래로 내려가지 않게
+		camera.position = fold.push_in_front(camera.position, CAM_WALL_GAP)
+		camera.position.y = maxf(camera.position.y, CAM_MIN_Y)
 		camera.look_at(look, Vector3.UP)
 	else:
 		camera.rotation = Vector3.ZERO

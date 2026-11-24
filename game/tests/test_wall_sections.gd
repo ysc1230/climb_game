@@ -78,3 +78,17 @@ func test_profile_folds_continuously() -> void:
 		runner.check(absf(wp.s_at_world_y(wy) - s) < 0.01, "월드 높이 %.2f → 벽면 %.2f" % [wy, wp.s_at_world_y(wy)])
 	var prof := wp.world_profile(0.02)
 	runner.check(prof.size() > 10 and prof[0].x < prof[-1].x, "추락용 단면(월드 y 오름차순)")
+
+
+## 시점 카메라가 벽을 뚫지 않게(2026-11-24 사용자 "화면이 벽을 뚫는다거나 벽 안의 빈 공간을 보게 돼"):
+## 그 높이의 벽면에서 gap보다 가까우면(또는 벽 뒤면) 벽면 법선으로 밀어낸다. 충분히 앞이면 그대로.
+func test_push_in_front_of_wall() -> void:
+	var r := _route([{"from_y": 0.0, "deg": 30}, {"from_y": 1.2, "deg": 60}])
+	var wp := WallProfile.new(r, -1.0, 4.0)
+	var behind := wp.point(Vector3(0.5, 2.0, -0.4))  # 60° 구간 벽 뒤
+	var q := wp.push_in_front(behind, 0.6)
+	var s := wp.s_at_world_y(q.y)
+	var lz := (wp.frame(s).affine_inverse() * q).z
+	runner.check(lz >= 0.59, "벽 뒤 카메라를 벽면 앞 0.6m로 %.3f" % lz)
+	var front := wp.point(Vector3(0.2, 1.0, 3.0))
+	runner.check(wp.push_in_front(front, 0.6).distance_to(front) < 1e-4, "충분히 앞이면 그대로")

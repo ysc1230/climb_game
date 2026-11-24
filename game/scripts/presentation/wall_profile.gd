@@ -99,3 +99,16 @@ func world_profile(z: float) -> PackedVector2Array:
 		out.append(Vector2(q.y, q.z))
 		s += 0.1
 	return out
+
+
+## 월드 점 p가 그 높이의 벽면에서 gap보다 가깝거나 벽 뒤면 벽면 법선 쪽으로 gap까지 민다(시점 카메라가 벽을 뚫지 않게).
+## 밀면 높이가 바뀌므로 두 번 맞춘다. 벽 판 폭 밖도 같은 면으로 본다(옆으로 돌아도 벽 뒤로 못 감).
+func push_in_front(p: Vector3, gap: float) -> Vector3:
+	for i in 2:
+		var f := frame(s_at_world_y(p.y))
+		var lz := (f.affine_inverse() * p).z
+		if lz >= gap:
+			break
+		p += f.basis.z * (gap - lz)
+	return p
+
