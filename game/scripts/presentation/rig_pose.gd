@@ -71,6 +71,32 @@ func setup(rest_poses: Dictionary, rest_joints: Dictionary) -> void:
 		rest_dir[name] = dir.normalized()
 
 
+## 관절 키 -> 그 관절에서 시작하는 뼈(휴지 위치 조회용)
+const JOINT_BONE := {"pelvis": "pelvis", "spine": "spine", "chest": "chest", "neck": "neck", "head": "head",
+	"shoulder_L": "upperarm_L", "elbow_L": "forearm_L", "wrist_L": "hand_L",
+	"shoulder_R": "upperarm_R", "elbow_R": "forearm_R", "wrist_R": "hand_R",
+	"hip_L": "thigh_L", "knee_L": "shin_L", "ankle_L": "foot_L",
+	"hip_R": "thigh_R", "knee_R": "shin_R", "ankle_R": "foot_R"}
+
+
+## 스켈레톤 휴지 자세로 setup. 휴지 관절 위치는 관절 키로 명시한다(자식 뼈 열거 순서에 의존하지 않음, docs/04 §8.2).
+func setup_from_skeleton(skeleton: Skeleton3D) -> void:
+	var rest_poses := {}
+	var rest_joints := {}
+	for name in bone_names():
+		var idx := skeleton.find_bone(name)
+		if idx >= 0:
+			rest_poses[name] = skeleton.get_bone_global_rest(idx)
+	for key in JOINT_BONE:
+		if rest_poses.has(JOINT_BONE[key]):
+			rest_joints[key] = (rest_poses[JOINT_BONE[key]] as Transform3D).origin
+	rest_joints["head_top"] = rest_joints["head"] + Vector3(0, 0.14, 0)
+	for s in ["L", "R"]:
+		rest_joints["hand_" + s] = rest_joints["wrist_" + s] + (rest_joints["wrist_" + s] - rest_joints["elbow_" + s]).normalized() * Anatomy.HAND_LENGTH
+		rest_joints["toe_" + s] = rest_joints["ankle_" + s] + Vector3(0, -0.05, -0.15)
+	setup(rest_poses, rest_joints)
+
+
 ## 게임이 자세를 주는 뼈 전부(BONES 순서, 그다음 보조 뼈). 부모가 자식보다 먼저 온다.
 static func bone_names() -> Array:
 	var names := RigPose.BONES.map(func(e): return e[0])
@@ -91,8 +117,12 @@ static func arc(a: Vector3, b: Vector3) -> Dictionary:
 ## joints: 관절 키 -> 위치(같은 좌표계), roll_deg: 몸통 벽면 roll, yaw_deg: 골반 yaw(Y축, ψ>0 = 오른쪽이 벽 쪽).
 ## 합성 순서는 벽 기준 yaw → roll(04 §3)이라 몸통 기준 프레임은 roll × yaw이다.
 ## free_feet: "L"/"R" → 발이 떠 있는가(발바닥 방향용, 없으면 붙은 발).
+## grip: "L"/"R" → 쥔 정도 0~1. 쥔 만큼 아래팔·손을 길이축으로 돌려 손바닥(휴지 T자에서 아래)이 벽(−Z)을 보게 한다(docs/36).
 ## 반환: 뼈 -> Transform3D(그 좌표계의 전역 프레임).
-func solve(joints: Dictionary, roll_deg: float, yaw_deg: float = 0.0, free_feet := {}) -> Dictionary:
+const PALM_REST := Vector3.DOWN
+
+
+func solve(joints: Dictionary, roll_deg: float, yaw_deg: float = 0.0, free_feet := {}, grip := {}) -> Dictionary:
 	var out := {}
 	var roll := Basis(Vector3.BACK, deg_to_rad(roll_deg)) * Basis(Vector3.UP, deg_to_rad(yaw_deg))
 	for entry in BONES:
@@ -134,12 +164,18 @@ func solve(joints: Dictionary, roll_deg: float, yaw_deg: float = 0.0, free_feet 
 		if name.begins_with("thigh_"):
 			var side := name.right(1)
 			var bend: Vector3 = joints["knee_" + side] - (from_p + joints["ankle_" + side]) * 0.5
-			basis = _thigh_twist(basis, name, dir, bend)
+			basis = _hinge_twist(basis, name, dir, HINGE_FACE["thigh_"], bend)
+		elif name.begins_with("upperarm_") and joints.has("wrist_" + name.right(1)):
+			var side := name.right(1)
+			var bend: Vector3 = joints["elbow_" + side] - (from_p + joints["wrist_" + side]) * 0.5
+			basis = _hinge_twist(basis, name, dir, HINGE_FACE["upperarm_"], bend)
 		elif name.begins_with("foot_"):
 			var side := name.right(1)
 			var shin: Vector3 = (from_p - joints["knee_" + side]).normalized()
 			var w := FOOT_UP_WEIGHT_FREE if free_feet.get(side, false) else FOOT_UP_WEIGHT_STUCK
 			basis = _twist(basis, name, dir, Vector3.UP, roll * Vector3.UP * w - shin, 1.0)
+		elif name.begins_with("forearm_"):
+			basis = _palm_twist(basis, name, dir, float(grip.get(name.right(1), 0.0)))
 		basis = basis.orthonormalized()
 		_last[name] = basis
 		out[name] = Transform3D(basis, from_p)
@@ -157,31 +193,61 @@ func solve(joints: Dictionary, roll_deg: float, yaw_deg: float = 0.0, free_feet 
 	return out
 
 
-## 허벅지 비틀림: 무릎 앞면이 굽는 방향을 보게 돌린다. 굽힘이 작을수록(펴질수록) 직전 비틀림을 더 잇는다(굽힘 비중 w로
-## 직전 각 → 목표 각). 굽힘 크기만 보고 줄이면 무릎이 펴지는 2틱 사이에 다리가 길이축으로 50° 넘게 휙 돌았다(2026-11-21 사용자).
-## 한 번에 THIGH_TWIST_STEP_DEG까지만 돈다(목표가 ±180° 근처에서 반대 부호로 넘어가도 한 번에 돌지 않음).
-const THIGH_TWIST_STEP_DEG := 8.0
-var _thigh_twist_deg := {}   # 허벅지 → 직전 비틀림 각(도, 비틀지 않은 프레임 기준)
+## 위팔·허벅지 비틀림(docs/59 §5 3·4단계): 팔꿈치·무릎이 모델이 접히는 방향으로 굽도록 뼈를 길이축으로 돌린다.
+## 허벅지는 무릎 앞면(휴지 때 벽 쪽 FORWARD)이, 위팔은 팔꿈치 뒤(휴지 T자에서 BACK, 아래팔이 앞으로 접힘)가 굽힘 쪽
+## (중간 관절 − 양 끝 가운데)을 본다. 2026-11-25 사용자: "머리 위 홀드를 못 잡고 팔이 떨어질 때 이상한 각도로 돌아간다,
+## 무릎도". 위팔은 비틀기가 없어 팔꿈치가 모델과 170° 넘게 어긋나(뒤로 꺾임) 보였고, 허벅지는 기준축 최단 회전이 다리를
+## 높이 든 자세에서 한 프레임 25° 넘게 돌아 8°씩만 따라가던 비틀기가 늦었다.
+## - 직전 프레임 면을 지금 방향으로 평행 이동한 각(base)에서 시작한다(기준축 최단 회전의 빠른 돎을 따라가지 않음).
+## - 굽었으면 굽힘 쪽으로 한 프레임 TWIST_STEP_BENT_DEG까지, 거의 펴졌으면 비틀지 않은 각(0)으로 TWIST_STEP_STRAIGHT_DEG까지 간다.
+##   굽힘 비중 w(TWIST_BEND_MIN~FULL)로 한도를 섞는다. 그래서 뼈가 길이축으로 한 프레임에 이보다 빨리 돌지 않는다.
+const TWIST_STEP_BENT_DEG := 8.0
+const TWIST_STEP_STRAIGHT_DEG := 2.0
+const HINGE_FACE := {"upperarm_": Vector3.BACK, "thigh_": Vector3.FORWARD}
+var _twist_state := {}   # 뼈 → {dir, face}(직전 프레임 길이축과 비튼 뒤 면 방향)
 
 
-func _thigh_twist(basis: Basis, name: String, dir: Vector3, bend: Vector3) -> Basis:
-	var now: Vector3 = basis * rest_basis[name].inverse() * Vector3.FORWARD
-	now -= dir * now.dot(dir)
-	var want := bend - dir * bend.dot(dir)
-	if now.length() < 0.01:
+func _hinge_twist(basis: Basis, name: String, dir: Vector3, rest_face: Vector3, bend: Vector3) -> Basis:
+	var face0: Vector3 = basis * rest_basis[name].inverse() * rest_face
+	face0 -= dir * face0.dot(dir)
+	if face0.length() < 0.01:
 		return basis
+	face0 = face0.normalized()
+	var want := bend - dir * bend.dot(dir)
 	var w := smoothstep(TWIST_BEND_MIN, TWIST_BEND_FULL, want.length())
-	var target := now.normalized().signed_angle_to(want.normalized(), dir) if want.length() >= 0.001 else 0.0
-	var ang: float
-	if not _thigh_twist_deg.has(name):
-		ang = rad_to_deg(target) * w
-	else:
-		var prev: float = _thigh_twist_deg[name]
-		var step := rad_to_deg(angle_difference(deg_to_rad(prev), target)) * w
-		ang = prev + clampf(step, -THIGH_TWIST_STEP_DEG, THIGH_TWIST_STEP_DEG)
-	ang = wrapf(ang, -180.0, 180.0)
-	_thigh_twist_deg[name] = ang
-	return Basis(dir, deg_to_rad(ang)) * basis
+	var goal := face0.signed_angle_to(want.normalized(), dir) if want.length() >= 0.001 else 0.0
+	var base := goal * w
+	if _twist_state.has(name):
+		var st: Dictionary = _twist_state[name]
+		var pd: Vector3 = st.dir
+		var carried: Vector3 = (Quaternion(pd, dir) if pd.dot(dir) > ANTIPARALLEL_DOT and pd.dot(dir) < 0.999999 else Quaternion.IDENTITY) * (st.face as Vector3)
+		carried -= dir * carried.dot(dir)
+		if carried.length() > 0.01:
+			base = face0.signed_angle_to(carried.normalized(), dir)
+	var target := goal if w > 0.0 else 0.0
+	var step := deg_to_rad(lerpf(TWIST_STEP_STRAIGHT_DEG, TWIST_STEP_BENT_DEG, w))
+	var ang := base + clampf(angle_difference(base, target), -step, step)
+	_twist_state[name] = {"dir": dir, "face": face0.rotated(dir, ang)}
+	return Basis(dir, ang) * basis
+
+
+## 손바닥 돌리기(쥔 손, docs/36): 아래팔을 길이축으로 돌려 손바닥이 벽(−Z)을 보게 한다(손은 아래팔을 따른다).
+## 위팔 기준 아래팔 비틀림은 PALM_TWIST_MAX(엎침·뒤침 한계 안), 한 프레임 TWIST_STEP_BENT_DEG까지(놓을 때 휙 풀리지 않게).
+const PALM_TWIST_MAX := 85.0
+var _palm_deg := {}   # 아래팔 → 직전에 돌린 각(도)
+
+
+func _palm_twist(basis: Basis, name: String, dir: Vector3, amount: float) -> Basis:
+	var now: Vector3 = basis * rest_basis[name].inverse() * PALM_REST
+	now -= dir * now.dot(dir)
+	var want := Vector3.FORWARD - dir * Vector3.FORWARD.dot(dir)
+	var goal := 0.0
+	if now.length() >= 0.01 and want.length() >= 0.001:
+		goal = clampf(rad_to_deg(now.normalized().signed_angle_to(want.normalized(), dir)) * clampf(amount, 0.0, 1.0), -PALM_TWIST_MAX, PALM_TWIST_MAX)
+	var prev: float = _palm_deg.get(name, goal)
+	var ang := prev + clampf(goal - prev, -TWIST_STEP_BENT_DEG, TWIST_STEP_BENT_DEG)
+	_palm_deg[name] = ang
+	return basis if absf(ang) < 0.001 else Basis(dir, deg_to_rad(ang)) * basis
 
 
 ## 뼈를 길이축(dir) 둘레로 돌려, 휴지 때 rest_ref(휴지 좌표)를 보던 면이 want 쪽을 보게 한다. amount 0~1.

@@ -48,12 +48,54 @@ var _disp := {}
 
 
 func _update_display(session, delta: float) -> void:
+	var flying: bool = session.has_method("dyno_flying") and session.dyno_flying()
 	for limb in session.limbs:
 		var l: Dictionary = session.limbs[limb]
+		var hanging: bool = l.state == "Free" and not flying and PoseSolver.is_hand(limb)
+		_hang[limb] = move_toward(float(_hang.get(limb, 1.0 if hanging else 0.0)), 1.0 if hanging else 0.0, HANG_RATE * delta)
 		if l.state in ["Attached", "Armed"] or not _disp.has(limb):
 			_disp[limb] = l.pos
+		elif l.state == "Free" and not flying:
+			var b = session.body
+			var root := PoseSolver.joint_position(b.pos, b.angle, limb, b.yaw)
+			var full := (Tuning.ARM_UPPER + Tuning.ARM_LOWER) if PoseSolver.is_hand(limb) else (LimbIK.leg_upper_shown + LimbIK.leg_lower_shown)
+			var rest: Vector2 = b.pos + ClimbSession._rest_offset(limb)
+			if PoseSolver.is_hand(limb):
+				rest = root + Vector2(sin(deg_to_rad(HANG_OUT_DEG)) * PoseSolver.side_sign(limb), -cos(deg_to_rad(HANG_OUT_DEG))) * HANG_REACH * full
+			_disp[limb] = free_display(_disp[limb], rest, root, PoseSolver.side_sign(limb), full, delta)
 		else:
 			_disp[limb] = ReachMarker.display_point(_disp[limb], l, delta)
+
+
+## 놓친·쉬는(Free) 손발의 그림 위치(docs/59 §5 2단계, 2026-11-25 사용자: "머리 위 홀드를 못 잡고 팔이 떨어질 때 이상한 각도로
+## 돌아간다"). 판정 점은 쉬는 자리로 곧게 가서 어깨·고관절 바로 옆을 지난다. 그대로 그리면 팔꿈치가 155° 넘게 접혀 솟고 아래팔이
+## 몸통을 뚫는다. 그림은 어깨·고관절(root)을 중심으로 쉬는 자리(rest, 판정 Free의 목표)까지 바깥쪽 호를 그리며 내려온다:
+## 각은 바깥(옆)을 거쳐 돌고(안쪽 수평에서만 끊김), 남은 각이 크면 팔다리 길이의 FREE_DROP_RADIUS 밑으로 오므리지 않는다.
+## 호를 따라 FREE_DROP_SPEED로 움직인다. 판정 점(session)은 바꾸지 않는다.
+const FREE_DROP_SPEED := 2.5     # m/s(판정 Free 빠르기와 같음)
+const FREE_DROP_RADIUS := 0.8    # 팔다리 길이 비율
+const FREE_DROP_MIN_ARM := 0.4   # m, 각속도 = 빠르기 / max(반지름, 이 값). 접힌 다리가 엉덩이 옆에서 휙 돌지 않게(한 프레임 6° 남짓)
+## 놓친 손은 판정 쉬는 자리(골반 옆 위, 벽 가까이)가 아니라 몸 옆에 거의 편 채 늘어뜨린다: 어깨에서 아래로, 바깥으로 HANG_OUT_DEG,
+## 깊이는 골반 깊이에서 HANG_FRONT만큼 벽 쪽. 판정 쉬는 자리로 그리면 손이 어깨 앞 가까이 와서 팔꿈치가 90° 넘게 접히고
+## 굽는 방향이 반 바퀴 넘어가며 어깨 비틀림이 170°가 됐다(docs/59). 끌기 시작하면 HANG_RATE로 다시 벽 쪽으로 간다.
+const HANG_OUT_DEG := 15.0
+const HANG_REACH := 0.95         # 어깨→손목 거리 = 팔 길이 × 이 값(팔꿈치를 살짝 굽힘)
+const HANG_FRONT := 0.05
+const HANG_RATE := 4.0           # 1/s
+var _hang := {}                  # limb → 늘어뜨린 정도 0~1
+
+
+static func free_display(prev: Vector2, rest: Vector2, root: Vector2, side: float, limb_len: float, dt: float) -> Vector2:
+	var p := prev - root
+	var q := rest - root
+	var ap := atan2(p.y, p.x * side)  # 바깥 0, 위 +90°, 아래 −90°
+	var aq := atan2(q.y, q.x * side)
+	var rp := p.length()
+	var a := move_toward(ap, aq, FREE_DROP_SPEED * dt / maxf(rp, FREE_DROP_MIN_ARM))
+	var r := move_toward(rp, maxf(q.length(), FREE_DROP_RADIUS * limb_len), FREE_DROP_SPEED * dt)
+	var floor_r := lerpf(q.length(), FREE_DROP_RADIUS * limb_len, smoothstep(deg_to_rad(10.0), deg_to_rad(45.0), absf(aq - a)))
+	r = maxf(r, minf(rp, floor_r))
+	return root + Vector2(cos(a) * side, sin(a)) * r
 
 
 func compute(session, delta: float) -> Dictionary:
@@ -87,7 +129,7 @@ func compute(session, delta: float) -> Dictionary:
 		free_lift[limb] = move_toward(lift_now, float(want.lift[limb]), LIFT_SPEED * delta)
 		var root := _root(body, limb, depth, yaw)
 		var end := _end(session, limb, float(free_lift[limb]), depth)
-		var ik := LimbIK.solve_circle(_circle(limb, root, end, frame, pelvis, up, true, _free(session, limb)), bends.get(limb, Vector3.ZERO), max_step)
+		var ik := LimbIK.solve_circle(_circle(limb, root, end, frame, pelvis, up, true, _ik_free(session, limb)), bends.get(limb, Vector3.ZERO), max_step)
 		bends[limb] = ik.bend
 		var mid: Vector3 = ik.mid
 		var s := "L" if PoseSolver.side_sign(limb) < 0 else "R"
@@ -107,6 +149,13 @@ func compute(session, delta: float) -> Dictionary:
 ## 끌거나 떠 있는 손발인가(붙음·준비가 아님).
 static func _free(session, limb: StringName) -> bool:
 	return not (session.limbs[limb].state in ["Attached", "Armed"])
+
+
+## IK에 넘기는 free: 발은 _free(들어 옮기는 다리 규칙), 손은 늘어뜨린 손(Free, 다이노 비행 아님: 팔꿈치가 뒤로 갈 수 있음, docs/59).
+static func _ik_free(session, limb: StringName) -> bool:
+	if not PoseSolver.is_hand(limb):
+		return _free(session, limb)
+	return session.limbs[limb].state == "Free" and not (session.has_method("dyno_flying") and session.dyno_flying())
 
 
 ## 다리는 판정 고관절에서 몸 위쪽으로 LimbIK.hip_raise 올린 화면 회전 중심에서 시작한다.
@@ -151,6 +200,8 @@ func _end(session, limb: StringName, lift: float, pelvis_depth: float) -> Vector
 		z = maxf(z, float(surface_depth[session.limbs[limb].key]) + (HAND_ON_SURFACE if PoseSolver.is_hand(limb) else FOOT_ON_SURFACE))
 	if not stuck and not PoseSolver.is_hand(limb):
 		z = maxf(Tuning.CONTACT_DEPTH, minf(z, pelvis_depth - FREE_FOOT_FRONT))
+	if not stuck and PoseSolver.is_hand(limb):
+		z = lerpf(z, pelvis_depth - HANG_FRONT, float(_hang.get(limb, 0.0)))
 	return Vector3(e2.x, e2.y, z)
 
 
@@ -283,7 +334,7 @@ func _score_depth(session, body, up: Vector3, dpt: float, lifts: Dictionary, fin
 				options = FREE_HAND_DEPTHS if PoseSolver.is_hand(limb) else FREE_END_DEPTHS
 		var lv := INF
 		for extra in options:
-			var c := _circle(limb, root, _end(session, limb, extra, dpt), frame, pelvis, up, fine, free)
+			var c := _circle(limb, root, _end(session, limb, extra, dpt), frame, pelvis, up, fine, _ik_free(session, limb))
 			if c.is_empty():
 				break
 			var v := LimbIK.local_violation(c, bends.get(limb, Vector3.ZERO))

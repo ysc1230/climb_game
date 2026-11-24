@@ -41,6 +41,7 @@ const ELBOW_UP_HAND_BELOW := 0.15
 const FREE_LEG_SHIN_UP_MAX := 0.25           # 발을 들어 옮길 때 정강이(무릎→발)의 위쪽 성분 한계(무릎이 발보다 아래로 처지지 않음)
 const HEAD_CENTER_UP := 0.685                # 머리 중심: 골반 + 위 × 0.685(더미 머리 덩어리, docs/39. B안 1.00)
 const HEAD_CLEARANCE := 0.15                 # 팔 뼈가 머리 중심에 이보다 가까우면 머리를 뚫음(더미 머리 약 0.11 + 팔 0.035. B안 0.20)
+const STRETCH_EPS := 0.01                    # m, 어깨·고관절에서 손목·발목까지가 뼈 길이 합보다 이만큼 넘게 멀면 늘어남
 const STRAIGHT_EPS := 0.06                   # 굽힘(아래 뼈의 수직 성분 비)이 이보다 작으면(약 3°, 거의 펴짐) 비틀림을 재지 않음
 
 
@@ -193,6 +194,10 @@ static func check(t: Dictionary, angle_deg: float, yaw_deg: float, free := {}) -
 		var root: Vector3 = t[("shoulder_" if hand else "hip_") + s]
 		var mid: Vector3 = t[("elbow_" if hand else "knee_") + s]
 		var end: Vector3 = t[("wrist_" if hand else "ankle_") + s]
+		# 팔다리가 뼈 길이보다 길게 늘어남(손발 끝을 닿지 않는 곳에 그리면 손목·발목 뼈가 떨어져 살이 늘어 보인다, docs/59)
+		var full := (Tuning.ARM_UPPER + Tuning.ARM_LOWER) if hand else (LimbIK.leg_upper_shown + LimbIK.leg_lower_shown)
+		if root.distance_to(end) > full + STRETCH_EPS:
+			out.append({"kind": "stretch", "limb": limb, "value": root.distance_to(end) - full})
 		var tw := limb_twist(limb, root, mid, end, frame)
 		if not twist_ok(limb, tw):
 			out.append({"kind": "twist", "limb": limb, "value": tw})

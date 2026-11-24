@@ -34,21 +34,7 @@ func _setup_rig(body: String) -> void:
 	var sk: Skeleton3D = model.find_children("*", "Skeleton3D", true, false)[0]
 	var leg := CharacterAssembler.leg_shape(sk)
 	LimbIK.set_leg_shape(float(leg.raise), float(leg.upper), float(leg.lower))
-	var rest_poses := {}
-	var rest_joints := {}
-	for name in RigPose.bone_names():
-		var i := sk.find_bone(name)
-		if i >= 0:
-			rest_poses[name] = sk.get_bone_global_rest(i)
-	var jb: Dictionary = load("res://scenes/play_3d.gd").JOINT_BONE
-	for key in jb:
-		if rest_poses.has(jb[key]):
-			rest_joints[key] = (rest_poses[jb[key]] as Transform3D).origin
-	rest_joints["head_top"] = rest_joints["head"] + Vector3(0, 0.14, 0)
-	for s in ["L", "R"]:
-		rest_joints["hand_" + s] = rest_joints["wrist_" + s] + (rest_joints["wrist_" + s] - rest_joints["elbow_" + s]).normalized() * Anatomy.HAND_LENGTH
-		rest_joints["toe_" + s] = rest_joints["ankle_" + s] + Vector3(0, -0.05, -0.15)
-	rig.setup(rest_poses, rest_joints)
+	rig.setup_from_skeleton(sk)
 	model.free()
 
 

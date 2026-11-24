@@ -70,6 +70,7 @@ func test_charge_preview_and_short_cancel() -> void:
 ## 길게 끌수록 더 높은 홀드까지 닿고, 좋은 홀드에서 끝까지 끌면 다리를 쭉 편 높이보다 높이 뛴다. 나쁜 홀드는 덜 뛴다.
 func test_reach_by_length_and_quality() -> void:
 	var s := _session()
+	s._dyno_banned = {}  # 정상·마지막 홀드 막기(test_no_dyno_to_top_or_last_holds)와 상관없이 뛰는 높이만 본다
 	_charge(s, Tuning.DYNO_DRAG_MIN + 0.01)
 	var short_reach: Array = s.dyno_preview().reach
 	var short_top := s.route.slot_pos(short_reach[0]).y if not short_reach.is_empty() else 0.0
@@ -190,3 +191,56 @@ func test_pressed_hand_catches_and_sways() -> void:
 	for i in Tuning.DYNO_HANG_TICKS:
 		s.step()
 	runner.check(not s.rules.body_goal.is_finite() or s.dyno.is_empty(), "흔들림은 버티는 시간 뒤 멈춤")
+
+
+## 2026-11-25 사용자: "다이노는 한 판에 한 번만 가능하게". 판 = 시작(또는 다시 시작)부터 추락·완등까지.
+func test_dyno_once_per_attempt() -> void:
+	var s := _session()
+	_launch(s, Tuning.DYNO_DRAG_MAX, Vector2(-0.3, -1))
+	var caught := false
+	for i in 200:
+		if not str(s.dyno_aim().get(&"LH", "")).is_empty():
+			s.apply_input([{"type": "detach", "limb": &"LH"}])
+			caught = s.limbs[&"LH"].state == "Attached"
+			break
+		s.step()
+	for i in Tuning.DYNO_HANG_TICKS + 5:
+		s.step()
+	runner.check(caught and s.dyno.is_empty() and not s.falling, "다이노로 잡고 버팀이 끝남")
+	s.messages.clear()
+	s.apply_input([{"type": "dyno_start", "limb": InputRouter.DYNO}])
+	runner.check(s.dyno.is_empty() and s.messages.has("다이노는 한 판에 한 번만 할 수 있어요"), "같은 판에 두 번째 다이노는 안 됨: %s" % [s.messages])
+	s.reset()
+	s.apply_input([{"type": "dyno_start", "limb": InputRouter.DYNO}])
+	runner.check(s.dyno.get("phase", "") == "charge", "다시 시작하면 또 할 수 있음")
+	var c := _session()
+	_charge(c, Tuning.DYNO_DRAG_MAX)
+	c.apply_input([{"type": "dyno_cancel", "limb": InputRouter.DYNO}])
+	c.apply_input([{"type": "dyno_start", "limb": InputRouter.DYNO}])
+	runner.check(c.dyno.get("phase", "") == "charge", "취소한 준비는 횟수에 들지 않음")
+
+
+## 2026-11-25 사용자: "탑 홀드와 탑 전 홀드는 다이노가 불가능하게". 탑 전 홀드 = 정답 순서에서 두 손이 정상 직전에 각각 잡는 홀드.
+## 일반·만든 문제만(다이노 수업 코스는 정상으로 뛰는 것이 수업이라 그대로).
+func test_no_dyno_to_top_or_last_holds() -> void:
+	var s := _session()
+	var banned: Dictionary = s.dyno_banned_holds()
+	runner.check(banned.size() == 3 and banned.has("G_V0_01/G01") and banned.has("G_V0_01/H05") and banned.has("G_V0_01/H06"), "정상·두 손의 마지막 홀드 %s" % [banned])
+	var h3 := s.route.slot_pos("G_V0_01/H03/hand_1")
+	var h4 := s.route.slot_pos("G_V0_01/H04/hand_1")
+	s.reset_to({"pelvis": [(h3.x + h4.x) / 2.0, (h3.y + h4.y) / 2.0 - 0.6], "slots": {"LH": "G_V0_01/H03/hand_1", "RH": "G_V0_01/H04/hand_1", "LF": "G_V0_01/F03/foot_1", "RF": "G_V0_01/F04/foot_1"}})
+	for i in 30:
+		s.step()
+	_charge(s, Tuning.DYNO_DRAG_MAX)
+	var reach: Array = s.dyno_preview().reach
+	runner.check(reach.all(func(k): return not banned.has(String(k).get_base_dir())), "닿는 표시에 정상·마지막 홀드 없음 %s" % [reach])
+	var plain := _session()
+	plain.reset_to({"pelvis": [(h3.x + h4.x) / 2.0, (h3.y + h4.y) / 2.0 - 0.6], "slots": {"LH": "G_V0_01/H03/hand_1", "RH": "G_V0_01/H04/hand_1", "LF": "G_V0_01/F03/foot_1", "RF": "G_V0_01/F04/foot_1"}})
+	plain.route.mode = "course"
+	plain._dyno_banned = {}
+	for i in 30:
+		plain.step()
+	_charge(plain, Tuning.DYNO_DRAG_MAX)
+	runner.check(plain.dyno_preview().reach.any(func(k): return banned.has(String(k).get_base_dir())), "막지 않으면 이 자리에서 닿음(검사가 의미 있음)")
+	var lesson := ClimbSession.new(RouteDef.load_json("res://data/routes/course/C_DYNO_T.json"))
+	runner.check(lesson.dyno_banned_holds().is_empty(), "다이노 수업은 막지 않음")

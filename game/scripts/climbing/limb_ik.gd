@@ -283,6 +283,7 @@ static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis,
 	var t := dir.cross(n).normalized()
 	var pl: Vector3 = arm_pole(frame.inverse() * dir) if hand else leg_pole(frame.inverse() * v, free)
 	var free_leg := free and not hand
+	var hang := free and hand  # 손의 free는 늘어뜨린 손(ClimberPose: Free 상태, 다이노 비행 아님)
 	var pole := frame * Vector3(pl.x * sgn, pl.y, pl.z)
 	var pole_th := atan2(pole.dot(t), pole.dot(n))
 	var torso_a := pelvis + up * 0.04
@@ -294,7 +295,7 @@ static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis,
 	for k in samples:
 		var th := TAU * k / samples
 		var mid := center + (n * cos(th) + t * sin(th)) * h
-		var viol := _violation(limb, hand, root, mid, end, frame, torso_a, torso_b, head, free_leg)
+		var viol := _violation(limb, hand, root, mid, end, frame, torso_a, torso_b, head, free_leg, hang)
 		bad.append(viol)
 		var cost := viol + POLE_WEIGHT * absf(angle_difference(th, pole_th))
 		if cost < best_cost:
@@ -303,7 +304,7 @@ static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis,
 	# 연속 목표각: 선호 방향이 가능하면 그 방향, 아니면 가장 좋은 후보에서 선호 방향 쪽으로 가능한 구간의 경계(이분법).
 	# 후보 간격(10°)으로 목표가 계단처럼 뛰면 팔꿈치·무릎이 따라 뛰어 떨려 보인다(2026-11-08 사용자 보고).
 	var at := func(th: float) -> float:
-		return _violation(limb, hand, root, center + (n * cos(th) + t * sin(th)) * h, end, frame, torso_a, torso_b, head, free_leg)
+		return _violation(limb, hand, root, center + (n * cos(th) + t * sin(th)) * h, end, frame, torso_a, torso_b, head, free_leg, hang)
 	var target := TAU * best / samples
 	if at.call(pole_th) <= 0.0:
 		target = pole_th
@@ -323,7 +324,8 @@ static func _circle(limb: StringName, root: Vector3, end: Vector3, frame: Basis,
 
 
 ## 굽힘 후보 하나의 제약 위반량(0이면 해부학적으로 가능).
-static func _violation(limb: StringName, hand: bool, root: Vector3, mid: Vector3, end: Vector3, frame: Basis, torso_a: Vector3, torso_b: Vector3, head: Vector3, free_leg := false) -> float:
+## hang: 늘어뜨린 손(놓친 손, docs/59). 팔꿈치를 어깨보다 벽 쪽에 두라는 조건(ELBOW_FRONT_MARGIN)을 빼서 팔꿈치가 뒤로 갈 수 있다.
+static func _violation(limb: StringName, hand: bool, root: Vector3, mid: Vector3, end: Vector3, frame: Basis, torso_a: Vector3, torso_b: Vector3, head: Vector3, free_leg := false, hang := false) -> float:
 	var viol := 0.0
 	if free_leg:
 		viol += _free_leg_violation(limb, root, mid, end, frame)
@@ -339,7 +341,8 @@ static func _violation(limb: StringName, hand: bool, root: Vector3, mid: Vector3
 			viol += maxf(0.0, (r.x + margin) - tw) / 90.0 + maxf(0.0, tw - (r.y - margin)) / 90.0
 	viol += maxf(0.0, WALL_MIN_Z - mid.z) * 10.0
 	if hand:
-		viol += maxf(0.0, mid.z - (root.z - ELBOW_FRONT_MARGIN)) * 10.0
+		if not hang:
+			viol += maxf(0.0, mid.z - (root.z - ELBOW_FRONT_MARGIN)) * 10.0
 		viol += maxf(0.0, HEAD_MIN_DIST - Anatomy.arm_head_distance(root, mid, end, head)) * 10.0
 	var td := Anatomy._seg_dist(mid, torso_a, torso_b)
 	viol += maxf(0.0, TORSO_MIN_DIST - td) * 10.0

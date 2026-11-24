@@ -730,12 +730,6 @@ func _pose_capsules(t: Dictionary) -> void:
 		parts[str(limb) + "_end"].position = end
 
 
-## 관절 키 -> 그 관절에서 시작하는 뼈(휴지 위치 조회용)
-const JOINT_BONE := {"pelvis": "pelvis", "spine": "spine", "chest": "chest", "neck": "neck", "head": "head",
-	"shoulder_L": "upperarm_L", "elbow_L": "forearm_L", "wrist_L": "hand_L",
-	"shoulder_R": "upperarm_R", "elbow_R": "forearm_R", "wrist_R": "hand_R",
-	"hip_L": "thigh_L", "knee_L": "shin_L", "ankle_L": "foot_L",
-	"hip_R": "thigh_R", "knee_R": "shin_R", "ankle_R": "foot_R"}
 var rig := RigPose.new()
 
 
@@ -747,9 +741,9 @@ func _pose_model(t: Dictionary, delta: float) -> void:
 		if t[key] is Vector3 and key != "up":
 			local[key] = inv * (t[key] as Vector3)
 	var free_feet := {"L": ClimberPose._free(logic.session, &"LF"), "R": ClimberPose._free(logic.session, &"RF")}
-	var frames := rig.solve(local, _fall_angle if fall_sim != null else logic.session.body.angle, float(t.get("yaw", logic.session.body.yaw)), free_feet)
+	_update_curl(delta)
+	var frames := rig.solve(local, _fall_angle if fall_sim != null else logic.session.body.angle, float(t.get("yaw", logic.session.body.yaw)), free_feet, curl)
 	_apply_look(frames, inv, delta)
-	_grip_hands(frames, delta)
 	for name in RigPose.bone_names():
 		var idx := skeleton.find_bone(name)
 		if idx >= 0 and frames.has(name):
@@ -758,7 +752,7 @@ func _pose_model(t: Dictionary, delta: float) -> void:
 
 
 ## 손가락 말아 쥐기(docs/36, 2026-11-13 사용자: "홀드를 잡고 있으면 손가락을 구부리는 모션으로"):
-## 홀드를 잡은 손(Attached·Armed)은 아래팔·손을 길이축으로 돌려 손바닥(휴지 T자에서 아래)이 벽을 보게 하고(_grip_hands),
+## 홀드를 잡은 손(Attached·Armed)은 아래팔·손을 길이축으로 돌려 손바닥(휴지 T자에서 아래)이 벽을 보게 하고(RigPose.solve grip),
 ## 손 뼈(손가락 첫 마디)와 손가락 뼈(끝 마디)를 손바닥 쪽으로 접는다(_curl_fingers). 떼면 펴진다(1/s 8로 부드럽게).
 ## 손가락 뼈(finger_L/R)가 없는 모델이면 아무것도 하지 않는다.
 const CURL_HAND_DEG := 60.0   # 손 뼈를 손바닥 쪽으로 접는 각(손가락 첫 마디)
@@ -769,20 +763,12 @@ var finger_rest := {}         # "L"/"R" -> {idx, hand_idx, rest(손 기준 손�
 var curl := {"L": 0.0, "R": 0.0}
 
 
-## 잡은 정도(0~1)를 갱신하고, 잡은 손은 아래팔·손을 손바닥이 벽(−Z)을 보게 돌린다(잡은 정도만큼).
-func _grip_hands(frames: Dictionary, delta: float) -> void:
+## 잡은 정도(0~1)를 갱신한다. 잡은 손의 아래팔·손 돌리기는 RigPose.solve(grip)가 한다.
+func _update_curl(delta: float) -> void:
 	for s in ["L", "R"]:
 		var l: Dictionary = logic.session.limbs[StringName(s + "H")]
 		var want := 1.0 if l.state in ["Attached", "Armed"] else 0.0
 		curl[s] = move_toward(curl[s], want, CURL_SPEED * delta)
-		if curl[s] <= 0.001:
-			continue
-		for name in ["forearm_" + s, "hand_" + s]:
-			if not frames.has(name) or not rig.rest_basis.has(name):
-				continue
-			var f: Transform3D = frames[name]
-			var dir: Vector3 = (f.basis * rig.rest_basis[name].inverse() * rig.rest_dir[name]).normalized()
-			frames[name] = Transform3D(rig._twist(f.basis, name, dir, PALM_REST, Vector3.FORWARD, curl[s]), f.origin)
 
 
 func _curl_fingers(frames: Dictionary, _delta: float) -> void:
@@ -904,21 +890,7 @@ func _build_model() -> bool:
 		return false
 	var leg := CharacterAssembler.leg_shape(skeleton)  # 화면 다리 관절·길이는 모델마다(docs/37 §7)
 	LimbIK.set_leg_shape(float(leg.raise), float(leg.upper), float(leg.lower))
-	# 휴지 관절 위치는 관절 키로 명시한다(자식 뼈 열거 순서에 의존하지 않음, docs/04 §8.2)
-	var rest_poses := {}
-	var rest_joints := {}
-	for name in RigPose.bone_names():
-		var idx := skeleton.find_bone(name)
-		if idx >= 0:
-			rest_poses[name] = skeleton.get_bone_global_rest(idx)
-	for key in JOINT_BONE:
-		if rest_poses.has(JOINT_BONE[key]):
-			rest_joints[key] = (rest_poses[JOINT_BONE[key]] as Transform3D).origin
-	rest_joints["head_top"] = rest_joints["head"] + Vector3(0, 0.14, 0)
-	for s in ["L", "R"]:
-		rest_joints["hand_" + s] = rest_joints["wrist_" + s] + (rest_joints["wrist_" + s] - rest_joints["elbow_" + s]).normalized() * Anatomy.HAND_LENGTH
-		rest_joints["toe_" + s] = rest_joints["ankle_" + s] + Vector3(0, -0.05, -0.15)
-	rig.setup(rest_poses, rest_joints)
+	rig.setup_from_skeleton(skeleton)
 	finger_rest.clear()
 	for s in ["L", "R"]:
 		var fi := skeleton.find_bone("finger_" + s)

@@ -50,6 +50,7 @@ var _last_hint := &""
 
 func _init(p_route: RouteDef) -> void:
 	route = p_route
+	_dyno_banned = _banned_for_dyno(route)
 	reset()
 
 
@@ -89,6 +90,7 @@ func _reset_pose(pelvis: Vector2, angle: float, slots: Dictionary) -> void:
 	_tilt_active = false
 	dyno = {}
 	_dyno_relief = 0
+	dyno_used = false
 	body = BodyState.new(pelvis, angle)
 	limbs.clear()
 	for limb in PoseSolver.LIMBS:
@@ -742,6 +744,43 @@ func limb_loads() -> Dictionary:
 ## / {phase: "hang", ticks}(잡은 직후 1초: 균형을 잃어도 버팀, 다른 손 패드를 누르면 닿는 손홀드를 잡음)
 var dyno := {}
 var _dyno_relief := 0
+## 이번 판(시작·다시 시작부터 추락·완등까지)에 다이노로 뛰었는가. 2026-11-25 사용자: "다이노는 한 판에 한 번만"(다이노로만 모든 문제를 깨는 공략 막기).
+var dyno_used := false
+## 다이노로 잡을 수 없는 홀드(홀드 키 → true). 2026-11-25 사용자: "탑 홀드와 탑 전 홀드는 다이노가 불가능하게".
+var _dyno_banned := {}
+
+
+## 다이노로 잡을 수 없는 홀드: 정상과, 정답 순서에서 두 손이 정상 직전에 각각 잡는 홀드(정답 순서가 없으면 가장 높은 손홀드).
+## 일반·만든 문제만. 다이노 수업(코스)은 정상으로 뛰는 것이 수업이라 막지 않는다.
+static func _banned_for_dyno(r: RouteDef) -> Dictionary:
+	var out := {}
+	if not r.mode in ["general", "custom"]:
+		return out
+	for key in r.goal_slots:
+		out[String(key).get_base_dir()] = true
+	var last := {}
+	for m in r.intended_moves:
+		if m.size() < 2 or not PoseSolver.is_hand(StringName(m[0])) or not r.slots.has(str(m[1])):
+			continue
+		if r.goal_slots.has(m[1]):
+			break
+		last[StringName(m[0])] = str(m[1]).get_base_dir()
+	if last.is_empty():
+		var best_y := -INF
+		var best := ""
+		for key in r.slots:
+			if r.slots[key].has("hand_area") and not r.goal_slots.has(key) and r.slot_pos(key).y > best_y:
+				best_y = r.slot_pos(key).y
+				best = String(key).get_base_dir()
+		if best != "":
+			last[&"LH"] = best
+	for hand in last:
+		out[last[hand]] = true
+	return out
+
+
+func dyno_banned_holds() -> Dictionary:
+	return _dyno_banned
 const _UP := Vector2(0.0, 1.0)  # 월드 위(_UP은 화면 위라 −y)
 
 
@@ -833,7 +872,7 @@ func _dyno_reachable(v: Vector2) -> Array:
 				if found.has(key):
 					continue
 				var slot: Dictionary = route.slots[key]
-				if not slot.has("hand_area") and not route.goal_slots.has(key):
+				if (not slot.has("hand_area") and not route.goal_slots.has(key)) or _dyno_banned.has(String(key).get_base_dir()):
 					continue
 				var hp := route.slot_pos(key)
 				if hp.y > top + 0.05 and sh.distance_to(hp) <= arm:
@@ -849,6 +888,9 @@ func _dyno_input(c: Dictionary) -> void:
 	match str(c.type):
 		"dyno_start":
 			if falling or selecting or not dyno.is_empty():
+				return
+			if dyno_used:
+				messages.append("다이노는 한 판에 한 번만 할 수 있어요")
 				return
 			var hands := 0
 			var feet := 0
@@ -889,6 +931,7 @@ func _dyno_launch() -> void:
 	var v := _dyno_velocity()
 	var reach := _dyno_reachable(v)
 	var cost := lerpf(Tuning.DYNO_COST_MIN, Tuning.DYNO_COST_MAX, _dyno_t())
+	dyno_used = true
 	for hand in [PoseSolver.LH, PoseSolver.RH]:
 		rules.stamina[hand] = maxf(0.0, float(rules.stamina[hand]) - cost)
 	for limb in limbs:
@@ -1032,7 +1075,7 @@ func _highest_reachable_hand(hand: StringName) -> String:
 	var best_y := -INF
 	for key in route.slots:
 		var slot: Dictionary = route.slots[key]
-		if _held_keys().has(key) or (not slot.has("hand_area") and not route.goal_slots.has(key)):
+		if _held_keys().has(key) or (not slot.has("hand_area") and not route.goal_slots.has(key)) or _dyno_banned.has(String(key).get_base_dir()):
 			continue
 		var p := route.slot_pos(key)
 		if p.y > best_y and PoseSolver.can_reach(body.pos, body.angle, hand, p, body.yaw):

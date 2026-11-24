@@ -128,7 +128,7 @@ func _forced(t: Dictionary, body, limb: StringName) -> bool:
 	var hand := PoseSolver.is_hand(limb)
 	var sd := "L" if PoseSolver.side_sign(limb) < 0 else "R"
 	var frame := Anatomy.body_basis(body.angle, float(t.get("yaw", body.yaw)))
-	return LimbIK.min_violation(limb, t[("shoulder_" if hand else "hip_") + sd], t[("wrist_" if hand else "ankle_") + sd], frame, t.pelvis, t.up, ClimberPose._free(session, limb)) > 0.0
+	return LimbIK.min_violation(limb, t[("shoulder_" if hand else "hip_") + sd], t[("wrist_" if hand else "ankle_") + sd], frame, t.pelvis, t.up, ClimberPose._ik_free(session, limb)) > 0.0
 
 
 ## 중간 관절(팔꿈치·무릎)이 팔다리 축에서 떨어진 방향(굽힘 방향)이 한 틱에 크게 바뀌면 "뒤집힘"으로 센다.

@@ -17,7 +17,8 @@ const MID_MAX := 2.0         # m, 이보다 낮으면 중간, 아니면 높음
 const TILT_HIGH := 35.0      # 도, 몸이 이보다 기울어 떨어지면 높음
 const ANKLE_H := 0.07        # 서 있을 때 발목 높이(매트 위)
 const STAND_TOP := 1.75      # m, 선 자세 머리 꼭대기 높이(기운 벽에서 이 높이의 벽면보다 앞에 선다)
-const BLEND := 0.15          # 착지 순간 자세를 열쇠 자세로 넘기는 시간(초)
+const BLEND := 0.3           # 착지 순간 자세를 열쇠 자세로 넘기는 시간(초). 0.15초면 머리 위 팔이 한 프레임 30° 넘게 휘둘러져 위팔 비틀림이 못 따라갔다(docs/59)
+const ARM_BEND_REACH := 0.988  # 열쇠 자세 팔: 손목까지 거리 = 팔 길이 × 이 값(팔꿈치를 살짝 굽힘)
 const NAMES := ["pelvis", "spine", "chest", "neck", "head", "head_top",
 	"shoulder_L", "elbow_L", "wrist_L", "hand_L", "shoulder_R", "elbow_R", "wrist_R", "hand_R",
 	"hip_L", "knee_L", "ankle_L", "toe_L", "hip_R", "knee_R", "ankle_R", "toe_R"]
@@ -146,7 +147,7 @@ func step(dt: float) -> void:
 	while _acc >= STEP - 1e-9 and not _done:
 		_acc -= STEP
 		_tick(STEP)
-	_pos = _frame()
+	_pos = _fix_ankles(_frame())
 
 
 func _tick(dt: float) -> void:
@@ -198,9 +199,7 @@ func _frame() -> Dictionary:
 		prev = k[0]
 	var pts := _build(_base, cur, _land_t)
 	if _land_t < BLEND:
-		var w := smoothstep(0.0, 1.0, _land_t / BLEND)
-		for k in pts:
-			pts[k] = (_snap[k] as Vector3).lerp(pts[k], w)
+		pts = _chain_lerp(_snap, pts, smoothstep(0.0, 1.0, _land_t / BLEND))
 	return _clamp(pts)
 
 
@@ -209,17 +208,140 @@ func _frame_air() -> Dictionary:
 	var built := _build(_air_base(_pel), AIR, 0.0)
 	var w := smoothstep(0.0, 1.0, _air_t / 0.2)
 	var shift: Vector3 = _pel - (_start.pelvis as Vector3)
-	var pts := {}
+	var from := {}
 	for k in NAMES:
-		pts[k] = ((_start[k] as Vector3) + shift).lerp(built[k], w)
-	return _clamp(pts)
+		from[k] = (_start[k] as Vector3) + shift
+	return _clamp(_chain_lerp(from, built, w))
+
+
+## 두 자세 사이(docs/59 §5 5단계): 몸통 점은 직선 보간한다. 팔다리는 끝(손목·발목) 방향·거리와 굽는 방향(팔꿈치·무릎이
+## 팔다리 축에서 떨어진 쪽)을 구면 보간하고 두 마디 길이로 다시 푼다. 손·발끝은 뼈 방향을 구면 보간한다.
+## 점마다 직선 보간하면 팔꿈치·무릎이 팔다리 축을 가로질러 반대쪽으로 넘어가 어깨가 130° 넘게 비틀리고 무릎이 옆으로
+## 꺾였다(시작 자세 → 공중 자세 0.2초 사이). 한쪽이 거의 펴졌으면 다른 쪽 굽는 방향을 쓴다.
+const CHAINS := [["shoulder_", "elbow_", "wrist_", "hand_"], ["hip_", "knee_", "ankle_", "toe_"]]
+
+
+static func _slerp_dir(a: Vector3, b: Vector3, w: float) -> Vector3:
+	if a.length() < 1e-5:
+		return b.normalized()
+	if b.length() < 1e-5:
+		return a.normalized()
+	var an := a.normalized()
+	var bn := b.normalized()
+	if an.dot(bn) < -0.99:
+		var m := an.lerp(bn, w)
+		return m.normalized() if m.length() > 1e-4 else bn
+	return an.slerp(bn, w)
+
+
+## v 방향에서 잰 굽는 방향 b를 to 방향으로 옮긴다(최단 회전).
+static func _carry(b: Vector3, v: Vector3, to: Vector3) -> Vector3:
+	if b == Vector3.ZERO or v.length() < 1e-5:
+		return b
+	var vn := v.normalized()
+	if vn.dot(to) < -0.99 or vn.dot(to) > 0.99999:
+		return b
+	return Quaternion(vn, to) * b
+
+
+static func _bend_of(root: Vector3, mid: Vector3, end: Vector3) -> Vector3:
+	var ax := (end - root).normalized()
+	var off := (mid - root) - ax * (mid - root).dot(ax)
+	return off if off.length() > 0.01 else Vector3.ZERO
+
+
+static func _chain_lerp(a: Dictionary, b: Dictionary, w: float) -> Dictionary:
+	var out := {}
+	for k in a:
+		out[k] = (a[k] as Vector3).lerp(b[k], w)
+	for s in ["L", "R"]:
+		for ch in CHAINS:
+			var k0: String = ch[0] + s
+			var k1: String = ch[1] + s
+			var k2: String = ch[2] + s
+			var k3: String = ch[3] + s
+			var l1 := lerpf((a[k1] - a[k0]).length(), (b[k1] - b[k0]).length(), w)
+			var l2 := lerpf((a[k2] - a[k1]).length(), (b[k2] - b[k1]).length(), w)
+			var va: Vector3 = a[k2] - a[k0]
+			var vb: Vector3 = b[k2] - b[k0]
+			var dir := _slerp_dir(va, vb, w)
+			var d := clampf(lerpf(va.length(), vb.length(), w), absf(l1 - l2) + 1e-3, l1 + l2 - 1e-4)
+			# 굽는 방향은 팔다리 방향을 따라 옮긴다(팔을 휘둘러도 팔꿈치가 몸에 대해 같은 쪽: 어깨가 비틀리지 않음)
+			var ba := _carry(_bend_of(a[k0], a[k1], a[k2]), va, dir)
+			var bb := _carry(_bend_of(b[k0], b[k1], b[k2]), vb, dir)
+			var bend := _slerp_dir(ba if ba != Vector3.ZERO else bb, bb if bb != Vector3.ZERO else ba, w)
+			bend -= dir * bend.dot(dir)
+			var root: Vector3 = out[k0]
+			var x := (l1 * l1 - l2 * l2 + d * d) / (2.0 * d)
+			var h := sqrt(maxf(l1 * l1 - x * x, 0.0))
+			out[k1] = root + dir * x + (bend.normalized() * h if bend.length() > 1e-4 else Vector3.ZERO)
+			out[k2] = root + dir * d
+			# 손·발끝은 아래 마디(아래팔·정강이) 방향을 따라 옮긴 뒤 보간한다(따로 보간하면 손이 아래팔 쪽으로 뒤집혔다)
+			var low := ((out[k2] as Vector3) - (out[k1] as Vector3)).normalized()
+			var tl := lerpf((a[k3] - a[k2]).length(), (b[k3] - b[k2]).length(), w)
+			var ta := _carry(a[k3] - a[k2], a[k2] - a[k1], low)
+			var tb := _carry(b[k3] - b[k2], b[k2] - b[k1], low)
+			out[k3] = (out[k2] as Vector3) + _slerp_dir(ta, tb, w) * tl
+	return out
+
+
+## 발끝 방향을 정강이와의 각이 발목 범위(Anatomy.FOOT_ANKLE_SOLVE) 안이 되게 같은 평면에서 돌린다(docs/59: 발끝을 늘 앞으로
+## 두어 정강이가 기울면 발목이 170°까지 꺾였다).
+static func _fix_ankles(pts: Dictionary) -> Dictionary:
+	for s in ["L", "R"]:
+		var knee: Vector3 = pts["knee_" + s]
+		var ankle: Vector3 = pts["ankle_" + s]
+		var toe: Vector3 = pts["toe_" + s]
+		var shin := (ankle - knee).normalized()
+		var f := toe - ankle
+		var len := f.length()
+		if len < 1e-5:
+			continue
+		f /= len
+		var ang := rad_to_deg(shin.angle_to(f))
+		var lo := Anatomy.FOOT_ANKLE_SOLVE.x
+		var hi := Anatomy.FOOT_ANKLE_SOLVE.y
+		if ang >= lo and ang <= hi:
+			continue
+		var axis := shin.cross(f)
+		if axis.length() < 1e-4:
+			axis = shin.cross(Vector3.RIGHT)
+		pts["toe_" + s] = ankle + shin.rotated(axis.normalized(), deg_to_rad(clampf(ang, lo, hi))) * len
+	return pts
 
 
 func _clamp(pts: Dictionary) -> Dictionary:
+	var before := pts.duplicate()
 	for k in pts:
-		var p: Vector3 = pts[k]
-		pts[k] = Vector3(p.x, maxf(p.y, _mat), maxf(p.z, wall_at(p.y)))
+		pts[k] = _clamp_point(pts[k])
+	# 손목·발목이 벽·매트에 밀렸으면 팔꿈치·무릎을 같은 굽는 쪽으로 다시 푼다(점마다 밀면 팔꿈치 각이 한 프레임에 80° 넘게 튀었다, docs/59)
+	for s in ["L", "R"]:
+		for ch in CHAINS:
+			var k0: String = ch[0] + s
+			var k1: String = ch[1] + s
+			var k2: String = ch[2] + s
+			var k3: String = ch[3] + s
+			if (pts[k2] as Vector3).is_equal_approx(before[k2]):
+				continue
+			var hand: bool = ch[0] == "shoulder_"
+			var l1: float = _len.ua if hand else _len.thigh
+			var l2: float = _len.fa if hand else _len.shin
+			var root: Vector3 = pts[k0]
+			var v: Vector3 = (pts[k2] as Vector3) - root
+			var d := clampf(v.length(), absf(l1 - l2) + 1e-3, l1 + l2 - 1e-4)
+			var dir := v.normalized() if v.length() > 1e-5 else Vector3.DOWN
+			var bend := _carry(_bend_of(before[k0], before[k1], before[k2]), (before[k2] as Vector3) - (before[k0] as Vector3), dir)
+			bend -= dir * bend.dot(dir)
+			var x := (l1 * l1 - l2 * l2 + d * d) / (2.0 * d)
+			var h := sqrt(maxf(l1 * l1 - x * x, 0.0))
+			pts[k1] = _clamp_point(root + dir * x + (bend.normalized() * h if bend.length() > 1e-4 else Vector3.ZERO))
+			pts[k2] = root + dir * d
+			pts[k3] = _clamp_point((pts[k2] as Vector3) + ((before[k3] as Vector3) - (before[k2] as Vector3)))
 	return pts
+
+
+func _clamp_point(p: Vector3) -> Vector3:
+	return Vector3(p.x, maxf(p.y, _mat), maxf(p.z, wall_at(p.y)))
 
 
 ## 높이 y의 벽면 z(수직 벽은 _wall 그대로).
@@ -271,15 +393,24 @@ func _build(base: Vector3, c: Dictionary, t: float) -> Dictionary:
 		if a.y < min_y:
 			var flat := Vector2(a.x, a.z).normalized() * sqrt(1.0 - min_y * min_y)
 			a = Vector3(flat.x, min_y, flat.y)
-		# 손이 벽을 뚫으면 벽 앞에서 멈추게 아래·옆으로 돌린다
+		# 손이 벽을 뚫으면 벽 앞에서 멈추게 아래로 돌린다(옆은 그대로). 예전엔 옆·아래 비율을 지켜 돌려 벽 가까이 선 착지에서
+		# 앞으로 내리던 팔이 옆으로 뻗은 T자가 됐다(docs/59 §3.3).
 		var min_z := clampf((wall_at(sh.y) + 0.03 - sh.z) / (L.ua + L.fa + L.hand), -1.0, 1.0)
 		if a.z < min_z:
-			var side := Vector2(a.x, a.y).normalized() * sqrt(1.0 - min_z * min_z)
-			a = Vector3(side.x, side.y, min_z)
+			var room := sqrt(maxf(1.0 - min_z * min_z, 0.0))
+			var ax := clampf(a.x, -room, room)
+			a = Vector3(ax, -sqrt(maxf(room * room - ax * ax, 0.0)), min_z)
+		# 팔꿈치를 살짝 굽힌다(ARM_BEND_REACH): 굽는 쪽은 클라이밍 자세와 같은 선호 방향(LimbIK.arm_pole). 곧은 막대로 두면
+		# 굽는 쪽이 정해지지 않아 자세 사이를 보간할 때 시작 자세의 굽는 쪽(어깨가 비틀린 채)을 그대로 끌고 갔다(docs/59).
+		var d: float = (L.ua + L.fa) * ARM_BEND_REACH
+		var x0: float = clampf((L.ua * L.ua - L.fa * L.fa + d * d) / (2.0 * d), 0.0, L.ua)
+		var pl := LimbIK.arm_pole(a)
+		var pole := Vector3(pl.x * x, pl.y, pl.z)
+		pole -= a * pole.dot(a)
 		p["shoulder_" + s] = sh
-		p["elbow_" + s] = sh + a * L.ua
-		p["wrist_" + s] = sh + a * (L.ua + L.fa)
-		p["hand_" + s] = sh + a * (L.ua + L.fa + L.hand)
+		p["elbow_" + s] = sh + a * x0 + (pole.normalized() * sqrt(maxf(L.ua * L.ua - x0 * x0, 0.0)) if pole.length() > 1e-4 else Vector3.ZERO)
+		p["wrist_" + s] = sh + a * d
+		p["hand_" + s] = sh + a * (d + L.hand)
 		var hip := pel + Vector3(x * L.hipw, 0, 0)
 		var ankle := Vector3(base.x + x * maxf(L.hipw, 0.1) * 1.3, base.y + ANKLE_H + float(c.fy), base.z + float(c.fz))
 		var knee := _knee(hip, ankle, L.thigh, L.shin)
