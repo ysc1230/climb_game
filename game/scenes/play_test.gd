@@ -1252,16 +1252,35 @@ func _height() -> float:
 
 ## 목표 높이(m): 정상 홀드가 시작 손 홀드보다 높은 만큼(골반도 대략 그만큼 오른다).
 func _goal_height() -> float:
+	return goal_height_of(route)
+
+
+static func goal_height_of(r: RouteDef) -> float:
 	var top := -INF
-	for key in route.goal_slots:
-		top = maxf(top, route.slot_pos(key).y)
+	for key in r.goal_slots:
+		top = maxf(top, r.slot_pos(key).y)
 	var start := -INF
 	for limb in [&"LH", &"RH"]:
-		if route.start_slots.has(limb):
-			start = maxf(start, route.slot_pos(route.start_slots[limb]).y)
+		if r.start_slots.has(limb):
+			start = maxf(start, r.slot_pos(r.start_slots[limb]).y)
 	if not is_finite(top) or not is_finite(start):
 		return 1.0
 	return maxf(top - start, 0.5)
+
+
+## 위쪽 진행 바 표시(2026-11-24 사용자 "1,6번만"): walls = [[바 위치, 각도]] 벽 경사 구간(수직 벽은 없음),
+## falls = [바 위치] 떨어졌던 시도의 가장 높은 골반 높이. 바 위치 = (골반 높이 − 시작 골반) / 목표 높이, 0~1.
+static func bar_marks(r: RouteDef, fall_heights: Array) -> Dictionary:
+	var g := goal_height_of(r)
+	var frac := func(y: float) -> float: return clampf((y - r.start_pelvis.y) / g, 0.0, 1.0)
+	var walls := []
+	if not r.wall_sections.is_empty():
+		for i in r.wall_sections.size():
+			var w: Dictionary = r.wall_sections[i]
+			walls.append([0.0 if i == 0 else frac.call(float(w.from_y)), roundi(float(w.deg))])
+	elif r.wall_deg > 0.0:
+		walls.append([0.0, roundi(r.wall_deg)])
+	return {"walls": walls, "falls": fall_heights.map(func(h): return frac.call(float(h)))}
 
 
 func _draw_hud(size: Vector2) -> void:
@@ -1284,7 +1303,7 @@ func _draw_hud(size: Vector2) -> void:
 	if not paused:
 		_draw_danger_glow(size)  # 위쪽 정보 패널보다 먼저(패널이 붉게 흐려지지 않게)
 	var top_btns: Dictionary = hud.draw_top(self, size, ui_k, {"detail": detail_mode and warnings, "no_detail": not warnings, "help": _help_buttons(),
-		"title": title, "goal_height": _goal_height(), "height": _height(), "best_height": best_height,
+		"title": title, "goal_height": _goal_height(), "height": _height(), "best_height": best_height, "marks": bar_marks(route, _fall_heights()),
 		"stamina": session.rules.stamina, "phase_name": names[ph], "phase_color": colors[ph],
 		"load_l": roundi(hu.get(&"LH", 0.0) * 100), "load_r": roundi(hu.get(&"RH", 0.0) * 100),
 		"move": move, "budget": budget,

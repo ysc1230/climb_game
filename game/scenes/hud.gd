@@ -89,7 +89,7 @@ func draw_top(ci: CanvasItem, size: Vector2, k: float, info: Dictionary) -> Dict
 	var pw := size.x * 0.45
 	var pr := Rect2(Vector2(size.x * 0.5 - pw * 0.5, cy - 7 * k), Vector2(pw, 14 * k))
 	pr.position.x = minf(pr.position.x, hx - 70 * k - pw)
-	_progress(ci, pr, k, info.best_height / maxf(info.goal_height, 0.01), info.height / maxf(info.goal_height, 0.01))
+	_progress(ci, pr, k, info.best_height / maxf(info.goal_height, 0.01), info.height / maxf(info.goal_height, 0.01), info.get("marks", {}))
 	# 왼쪽: 문제 이름(남는 폭에 맞춰 자름)
 	var tx := strip.position.x + 20 * k
 	ci.draw_string(font_b, Vector2(tx, cy + 10 * k), str(info.title), HORIZONTAL_ALIGNMENT_LEFT, maxf(40 * k, pr.position.x - tx - 24 * k), int(28 * k), CREAM)
@@ -127,12 +127,28 @@ func _status_row(ci: CanvasItem, size: Vector2, k: float, info: Dictionary, y: f
 
 
 ## 진행 바: 출발 → 깃발. 가장 높이 오른 곳까지 금색, 지금 높이에 흰 점. 체크포인트가 없으므로 중간 점은 그리지 않는다.
-func _progress(ci: CanvasItem, r: Rect2, k: float, best: float, now: float) -> void:
+## marks(play_test.bar_marks): walls = 바 아래 경사 띠(가파를수록 붉게) + 구간 시작에 각도 글자,
+## falls = 떨어졌던 높이에 빨간 눈금(2026-11-24 사용자 "1,6번만").
+func _progress(ci: CanvasItem, r: Rect2, k: float, best: float, now: float, marks := {}) -> void:
+	var walls: Array = marks.get("walls", [])
+	var last_x := -INF
+	for i in walls.size():
+		var x0: float = r.position.x + r.size.x * float(walls[i][0])
+		var x1: float = r.position.x + r.size.x * (float(walls[i + 1][0]) if i + 1 < walls.size() else 1.0)
+		var deg: int = walls[i][1]
+		var col := Color("8fd0bc").lerp(Color("ff7a4a"), clampf(deg / 60.0, 0.0, 1.0))
+		ci.draw_rect(Rect2(Vector2(x0, r.end.y + 4 * k), Vector2(maxf(x1 - x0, 1.0), 6 * k)), col)
+		if x0 - last_x > 60 * k:  # 붙은 구간은 글자를 겹쳐 쓰지 않는다
+			ci.draw_string(font_b, Vector2(x0, r.position.y - 5 * k), "%d°" % deg, HORIZONTAL_ALIGNMENT_LEFT, -1, int(21 * k), col)
+			last_x = x0
 	panel(ci, r, k, TRACK, Color(1, 1, 1, 0.18), 6)
 	var b := clampf(best, 0.0, 1.0)
 	if b > 0.0:
 		panel(ci, Rect2(r.position, Vector2(maxf(r.size.y, r.size.x * b), r.size.y)), k, GOLD, Color(0, 0, 0, 0), 6)
 	var y := r.get_center().y
+	for f in marks.get("falls", []):
+		var fx: float = r.position.x + r.size.x * float(f)
+		ci.draw_line(Vector2(fx, r.position.y - 5 * k), Vector2(fx, r.end.y + 5 * k), Color(BAD, 0.9), 3.0 * k)
 	var p := Vector2(r.position.x + r.size.x * clampf(now, 0.0, 1.0), y)
 	ci.draw_circle(p, 10 * k, NIGHT)
 	ci.draw_circle(p, 8 * k, Color.WHITE)

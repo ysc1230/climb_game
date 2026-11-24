@@ -205,3 +205,17 @@ func test_demo_open_close() -> void:
 	n._demo_close()
 	runner.check(n.demo == null and not n.overlay.blocking(), "닫으면 바로 도전")
 	n.free()
+
+
+## 위쪽 진행 바 표시(2026-11-24 사용자 "1,6번만"): 벽 경사 구간과 떨어졌던 높이를 바 위치(0~1)로.
+## 바는 시작 골반에서 목표 높이까지라, 구간 시작 높이·떨어진 골반 높이도 같은 기준으로 바꾼다.
+func test_bar_marks_walls_and_falls() -> void:
+	var r := RouteDef.load_json("res://data/routes/general/G_V5_03.json")  # 30° → 1.5m부터 60°
+	var g: float = PlayTest.goal_height_of(r)
+	var m: Dictionary = PlayTest.bar_marks(r, [r.start_pelvis.y + g * 0.5, r.start_pelvis.y - 1.0, r.start_pelvis.y + g * 2.0])
+	runner.check(m.walls.size() == 2 and m.walls[0] == [0.0, 30] and is_equal_approx(m.walls[1][0], (1.5 - r.start_pelvis.y) / g) and m.walls[1][1] == 60, "구간: 처음 30°, 1.5m부터 60° %s" % [m.walls])
+	runner.check(m.falls.size() == 3 and is_equal_approx(m.falls[0], 0.5) and m.falls[1] == 0.0 and m.falls[2] == 1.0, "떨어진 높이 → 바 위치(0~1로 자름) %s" % [m.falls])
+	var one := RouteDef.load_json("res://data/routes/general/G_V4_02.json")
+	runner.check(PlayTest.bar_marks(one, []).walls == [[0.0, roundi(one.wall_deg)]], "구간 없는 기운 벽은 각도 하나")
+	var flat := RouteDef.load_json("res://data/routes/general/G_V0_02.json")
+	runner.check(PlayTest.bar_marks(flat, []).walls.is_empty(), "수직 벽은 경사 표시 없음")
