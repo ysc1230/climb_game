@@ -20,6 +20,9 @@ uniform float panel_size = 1.2;
 uniform bool mat_pattern = false;
 // 꺾이는 벽(docs/57): 합판 무늬를 월드 xy 대신 메시 UV(벽면 좌표 x, s)로 그린다. 접힌 벽에서도 판넬이 면을 따라간다.
 uniform bool wall_uv = false;
+// 자연 암벽(2026-11-25 사용자 "자연 암벽으로 문제 하나"): 바위 얼룩·결·금·이끼를 벽면 좌표로, 법선을 울퉁불퉁하게(툰 명암이 바위처럼 갈림).
+uniform bool rock_pattern = false;
+uniform float rock_bump = 1.5;  // 법선 흔들기 세기(비스듬히 빛 받는 옆벽은 0: 줄무늬가 생김)
 uniform vec4 bolt_color : source_color = vec4(0.19, 0.16, 0.13, 1.0);
 
 varying vec3 wpos;
@@ -64,6 +67,21 @@ void fragment() {
 		c = mix(c, bolt_color.rgb, hole * 0.9);
 		c *= 1.0 + rim * clamp(-bc.y * 6.0, -0.12, 0.12);  // 파인 구멍: 아래 테는 밝고 위 테는 어둡다(빛이 위에서)
 		c += (hash(floor(wxy * 60.0)) - 0.5) * 0.03;
+	}
+	if (rock_pattern) {
+		vec2 rp = wall_uv ? wuv : wpos.xy;
+		float n1 = vnoise(rp * 0.9);
+		c *= 0.84 + 0.28 * (n1 * 0.65 + vnoise(rp * 3.0 + 7.1) * 0.35);  // 은은한 큰 색 변화
+		c *= 1.0 + 0.025 * sin((rp.y + rp.x * 0.35 + n1 * 0.8) * 7.0);  // 비스듬한 결
+		float hs = hash(floor(rp * 90.0));
+		c *= hs > 0.93 ? 0.72 : (hs < 0.05 ? 1.14 : 1.0);  // 화강암 알갱이
+		float rn = abs(vnoise(rp * 1.1 + 11.0) * 2.0 - 1.0);
+		float crack_area = smoothstep(0.55, 0.7, vnoise(rp * 0.7 + 3.0));  // 금은 일부 자리에만
+		c = mix(c, c * 0.5, (1.0 - smoothstep(0.012, 0.03, rn)) * crack_area);
+		float e = 0.03;
+		float h0 = vnoise(rp * 2.5);
+		vec2 g = vec2(h0 - vnoise((rp + vec2(e, 0.0)) * 2.5), h0 - vnoise((rp + vec2(0.0, e)) * 2.5));
+		NORMAL = normalize(NORMAL + (TANGENT * g.x + BINORMAL * g.y) * rock_bump);
 	}
 	if (mat_pattern) {
 		vec2 m = wpos.xz;

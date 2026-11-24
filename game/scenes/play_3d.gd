@@ -95,6 +95,7 @@ func _fold_strip(a: Vector2, b: Vector2, from_s: float, to_s: float) -> ArrayMes
 			st.set_uv(uv[k])
 			st.add_vertex(q[k])
 	st.generate_normals()
+	st.generate_tangents()  # 바위 셰이더가 법선을 흔들 때 쓴다
 	return st.commit()
 
 
@@ -156,12 +157,12 @@ const SHADOW_OPACITY := 0.22
 func _build_environment() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color("3a2a22")
+	env.background_color = _style().bg
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color("7a5c50")
 	env.ambient_light_energy = 0.65
 	env.fog_enabled = true
-	env.fog_light_color = Color("c48a68")
+	env.fog_light_color = _style().fog
 	env.fog_density = 0.02
 	var we := WorldEnvironment.new()
 	we.environment = env
@@ -210,8 +211,35 @@ static func deco_spots(slots: Dictionary, half_w: float, top: float, r: RandomNu
 	return out
 
 
-const WALL_PLY := Color("c27a52")   # 합판 판넬(참고 그림의 주황 합판)
-const VOLUME_SAND := Color("d2b07a")  # 볼륨(모래·황토색)
+const WALL_PLY := Color("c27a52")   # 합판 판넬(참고 그림의 주황 합판, 0.20까지)
+const VOLUME_SAND := Color("d2b07a")  # 볼륨(모래·황토색, 0.20까지)
+## 벽 꾸밈(2026-11-25 사용자 "벽이 너무 예쁘지 않아" → 설계자 추천 실내 암장): 문제 JSON wall_style.
+## gym = 차분한 남회색 판넬(색 홀드가 눈에 띔), rock = 자연 암벽(바위 셰이더, 하늘·땅 배경, 바위색 홀드에 초크).
+## 캐릭터 색이 바뀌지 않게 주변광·해는 그대로 두고 벽·배경·안개만 바꾼다.
+const STYLES := {
+	"gym": {"wall": Color("5f6975"), "wall_shade": Color("2c323b"), "wing": Color("49515c"), "wing_shade": Color("262b33"),
+		"volumes": [Color("9ea3a9"), Color("3f444c"), Color("5f7790")], "bolt": Color("15181c"), "room": Color("2a2e34"),
+		"bg": Color("23272d"), "fog": Color("8a9098")},
+	"rock": {"wall": Color("847f7a"), "wall_shade": Color("47433f"), "wing": Color("726d68"), "wing_shade": Color("3a3632"),
+		"volumes": [Color("847f7a")], "bolt": Color("15181c"), "room": Color("9cc0e2"),
+		"bg": Color("9cc0e2"), "fog": Color("b8cde0"), "ground": Color("6b6152")},
+}
+## 자연 암벽 홀드: 바위색 몸 + 초크 묻은 윗날. 정상은 그대로 금색.
+const ROCK_HOLDS := {"hand": [Color("8a7f74"), Color("f2efe9")], "match": [Color("7d8592"), Color("dfe8f5")], "foot": [Color("6e655c"), Color("cfc7bd")]}
+
+
+func _style() -> Dictionary:
+	return STYLES.get(logic.route.wall_style, STYLES.gym)
+
+
+## 벽 재질: 실내는 합판 무늬(판넬·볼트), 자연 암벽은 바위 무늬.
+func _wall_mat(col: Color, shade_col: Color) -> ShaderMaterial:
+	var rock: bool = logic.route.wall_style == "rock"
+	var m := _toon(col, shade_col, not rock)
+	m.set_shader_parameter("wall_uv", true)
+	m.set_shader_parameter("rock_pattern", rock)
+	m.set_shader_parameter("bolt_color", _style().bolt)
+	return m
 const MAT_GRAY := Color("6b6f72")
 
 
@@ -219,8 +247,8 @@ func _build_wall() -> void:
 	var top := _wall_top()
 	var half_w := wall_half_width(logic.route.slots)
 	# 활성 등반 면: 접힌 띠 한 장(구간마다 각도, docs/57). 합판 판넬·이음선·볼트 구멍은 셰이더가 벽면 좌표(UV)로 그린다(작업 4 §4.3)
-	var wall_m := _toon(WALL_PLY, WALL_OLIVE, true)
-	wall_m.set_shader_parameter("wall_uv", true)
+	var st: Dictionary = _style()
+	var wall_m := _wall_mat(st.wall, st.wall_shade)
 	# 앞면이 카메라 쪽(Godot 앞면 = 시계 방향 감김)이 되게 오른쪽 → 왼쪽으로 잇는다
 	var wall := _mesh(_fold_strip(Vector2(half_w, -0.02), Vector2(-half_w, -0.02), -0.6, top), wall_m, true)
 	wall_root.add_child(wall)
@@ -231,17 +259,23 @@ func _build_wall() -> void:
 	mat.position = Vector3(0, MAT_TOP_Y - 0.125, 1.6)
 	add_child(mat)
 	# 암장 실내(안쪽 면만 보이는 큰 상자): 시점을 돌리거나 확대해도 매트 끝 밖·벽 뒤의 빈 공간이 보이지 않게(2026-11-24 사용자)
-	var room_m := _toon(Color("4a3a31"), Color("2e241f"))
+	var room_m := _toon(st.room, st.room.darkened(0.35))
 	room_m.next_pass = null  # 외곽선 껍데기는 안쪽 면 상자에 맞지 않는다
 	var box := _box(Vector3(26.0, 14.0, 26.0))
 	box.flip_faces = true
 	var room := _mesh(box, room_m, false)
 	room.position = Vector3(0, MAT_TOP_Y - 0.25 + 7.0, 1.0)
 	add_child(room)
+	if st.has("ground"):  # 자연 암벽: 하늘색 상자 바닥에 흙 땅
+		var gm := _toon(st.ground, st.ground.darkened(0.4))
+		gm.next_pass = null
+		var ground := _mesh(_box(Vector3(25.8, 0.02, 25.8)), gm, false)
+		ground.position = Vector3(0, MAT_TOP_Y - 0.24, 1.0)
+		add_child(ground)
 	# 옆벽: 같은 합판 톤을 어둡게, 화면 밖으로 빠지게(판정 없음). 벽 가장자리에서 앞으로 38° 벌어진 띠, 벽과 같이 접힘
 	for side in [-1, 1]:
-		var wm := _toon(WALL_PLY.darkened(0.28), WALL_OLIVE.darkened(0.2), true)
-		wm.set_shader_parameter("wall_uv", true)
+		var wm := _wall_mat(st.wing, st.wing_shade)
+		wm.set_shader_parameter("rock_bump", 0.0)
 		var inner := Vector2(side * half_w, -0.02)
 		var outer := inner + Vector2(side * 2.4 * cos(deg_to_rad(38.0)), 2.4 * sin(deg_to_rad(38.0)))
 		var wing := _mesh(_fold_strip(inner if side < 0 else outer, outer if side < 0 else inner, -1.0, top + 0.5), wm, true)
@@ -249,6 +283,8 @@ func _build_wall() -> void:
 		_wings.append(wing)
 	# 볼륨: 벽에 붙은 삼각기둥·상자(볼트). 벽 가장자리, 홀드와 겹치지 않는 자리에만(deco_spots)
 	var k := 0
+	if logic.route.wall_style == "rock":
+		return  # 자연 암벽에는 볼륨(인공 덩어리)이 없다
 	for d in deco_spots(logic.route.slots, half_w, top, rng):
 		_add_volume(Vector2(d[0], d[1]), d[2], k % 2 == 0)
 		k += 1
@@ -256,8 +292,11 @@ func _build_wall() -> void:
 
 ## 벽에 붙은 볼륨 하나. tri: 삼각기둥(세로 능선이 벽에서 튀어나옴), 아니면 납작한 상자. 겉면에 볼트 머리 몇 개.
 func _add_volume(p: Vector2, size: float, tri: bool) -> void:
-	var m := _toon(VOLUME_SAND.darkened(0.18 + rng.randf() * 0.12), WALL_OLIVE.darkened(0.2))  # 홀드보다 먼저 눈에 띄지 않게 벽과 비슷한 밝기
-	m.set_shader_parameter("speckle", true)
+	var vols: Array = _style().volumes
+	var vc: Color = vols[rng.randi() % vols.size()]
+	var m := _toon(vc.darkened(rng.randf() * 0.12), vc.darkened(0.5))  # 홀드보다 먼저 눈에 띄지 않게
+	m.set_shader_parameter("speckle", logic.route.wall_style != "rock")
+	m.set_shader_parameter("rock_pattern", logic.route.wall_style == "rock")
 	var out := size * (0.7 if tri else 0.45)
 	var v: MeshInstance3D
 	if tri:
@@ -269,6 +308,8 @@ func _add_volume(p: Vector2, size: float, tri: bool) -> void:
 		var rot := Vector3(rng.randf_range(-22, -12), rng.randf_range(-20, 20), rng.randf_range(-6, 6))
 		_on_wall(v, Vector3(p.x, p.y, -0.02 + out * 0.3), Basis.from_euler(rot * PI / 180.0))
 	wall_root.add_child(v)
+	if logic.route.wall_style == "rock":
+		return  # 자연 암벽의 바위 덩어리에는 볼트가 없다
 	var bolt_m := _toon(INK, INK)
 	for i in 3:
 		var b := MeshInstance3D.new()
@@ -388,7 +429,7 @@ func _build_holds() -> void:
 		var ang: float = (slot.hand_area.dir as Vector2).angle() if hand else (slot.foot_area.up as Vector2).angle() - PI / 2.0
 		var hold := MeshInstance3D.new()
 		hold.mesh = mesh
-		var cols: Array = HOLD_COLORS[kind]
+		var cols: Array = ROCK_HOLDS[kind] if logic.route.wall_style == "rock" and ROCK_HOLDS.has(kind) else HOLD_COLORS[kind]
 		var mats := [_toon(cols[0], cols[0].darkened(0.45)), _toon(cols[1], cols[1].darkened(0.35)), _toon(cols[0].darkened(0.62), INK)]
 		for m in mats.slice(0, 2):
 			m.set_shader_parameter("speckle", true)

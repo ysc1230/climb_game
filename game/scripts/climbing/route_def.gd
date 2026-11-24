@@ -19,6 +19,8 @@ var wall_deg := 0.0      # 벽 기울기(도, 0 수직, + 오버행). 실험(exp
 var wall_sections: Array = []
 ## 구간 경계 ±이 거리(m) 안에서 각도를 부드럽게 바꾼다(힘 계산·벽 모양이 갑자기 꺾이지 않게).
 const WALL_BLEND := 0.15
+## 벽 꾸밈(표현만, 2026-11-25): "gym" 실내 암장(기본) / "rock" 자연 암벽.
+var wall_style := "gym"
 var intended_moves: Array = []  # [[limb, slot key], ...] — 기술 단계는 [limb, ...나머지 원본 항목] 그대로(steps_raw와 같은 인덱스)
 var steps_raw: Array = []  # JSON intended_moves 원본(docs/28 §7.4 단계 형식, Task 5 검증기용)
 ## docs/28 §8.1 문제 필드. mode가 빈 문자열이면 시험 전용 루트(TX_*)다.
@@ -97,6 +99,7 @@ func _read(d: Dictionary) -> void:
 	order = int(d.get("order", 0))
 	# 벽 각도는 등급이 정한다(일반·만든 문제, 2026-11-22 사용자). 수업·튜토리얼은 수직.
 	wall_deg = GradeInfo.wall_deg(grade) if mode in ["general", "custom"] else 0.0
+	wall_style = "rock" if str(d.get("wall_style", "")) == "rock" else "gym"
 	wall_sections = []
 	if mode in ["general", "custom"]:
 		for w in d.get("wall_sections", []):
