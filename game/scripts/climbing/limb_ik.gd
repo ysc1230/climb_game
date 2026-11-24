@@ -62,7 +62,7 @@ const LEG_POLE_HIGH_FROM := -0.40  # 발 높이(엉덩이 기준, m)가 이보�
 const LEG_POLE_HIGH_FULL := -0.10  # 이 높이부터는 바깥·위만
 const WALL_MIN_Z := 0.05      # 팔꿈치·무릎 중심의 최소 Z(벽면 z=0 + 관절 반지름)
 const TORSO_MIN_DIST := 0.18  # 몸통 축(골반+0.04 ~ +0.45, 더미)에서 팔꿈치·무릎 중심까지 최소 거리
-const HEAD_MIN_DIST := 0.12   # 팔 뼈(위팔·아래팔)에서 머리 중심까지 최소 거리(더미, B안 0.17)
+const HEAD_MIN_DIST := 0.15   # 팔 뼈(위팔·아래팔)에서 머리 중심까지 최소 거리 = Anatomy.HEAD_CLEARANCE(머리 0.11 + 팔 0.035). 0.12면 머리를 2~3cm 뚫었다(docs/59 §9)
 const POLE_WEIGHT := 0.02     # 선호 방향과의 각(라디안)당 비용. 제약 위반(미터·도 환산)보다 훨씬 작다
 
 
