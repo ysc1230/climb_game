@@ -142,7 +142,16 @@ func compute(session, delta: float) -> Dictionary:
 			t["hip_" + s] = root
 			t["knee_" + s] = mid
 			t["ankle_" + s] = end
-			t["toe_" + s] = end + Anatomy.foot_direction(mid, end, frame) * Anatomy.FOOT_LENGTH
+			var fd := Anatomy.foot_direction(mid, end, frame, root)
+			var key = session.limbs[limb].key
+			if session.limbs[limb].state in ["Attached", "Armed"] and surface_top.has(key):
+				# 딛은 발: 이번 발목은 직전 방향으로 놓았으니 발끝도 그 방향(홀드 윗면 그대로), 다음 프레임 방향은 무릎 쪽으로 돈다
+				var prev: Vector3 = _foot_dir.get(limb, Anatomy.FOOT_WANT.normalized())
+				t["toe_" + s] = end + prev * Anatomy.FOOT_LENGTH
+				_foot_dir[limb] = prev.slerp(fd, minf(1.0, FOOT_TURN_SPEED * delta)).normalized()
+			else:
+				t["toe_" + s] = end + fd * Anatomy.FOOT_LENGTH
+				_foot_dir[limb] = fd
 	return t
 
 
@@ -182,6 +191,10 @@ var surface_depth := {}
 ## "위쪽 홀드에 발을 딛으면 허공에 딛은 것처럼 보인다" — 발목을 홀드 중심에 두니 발끝이 홀드 아래 벽 속으로 들어갔다).
 var surface_top := {}
 const TOE_IN_HOLD := 0.5   # 발끝 깊이 = 홀드 겉면 깊이 × 이 비율(윗면 가운데쯤)
+## 딛은 발의 발끝 방향(직전 프레임, 발목 자리를 정함). 무릎을 따라 FOOT_TURN_SPEED로 돈다: 발끝은 홀드 위 그대로, 뒤꿈치가 돈다
+## (2026-11-25 사용자 "어딜 밟아도 … 위에서 밟는 것처럼").
+var _foot_dir := {}
+const FOOT_TURN_SPEED := 6.0  # 1/s
 const HAND_ON_SURFACE := 0.065   # 손 접점(손가락 뿌리)을 홀드 겉면에서 띄우는 거리(말아 쥔 손가락 길이만큼, 손가락 끝이 겉면에 닿음)
 const FOOT_ON_SURFACE := 0.03
 
@@ -195,7 +208,7 @@ func _end(session, limb: StringName, lift: float, pelvis_depth: float) -> Vector
 	var key = session.limbs[limb].key
 	if stuck and not PoseSolver.is_hand(limb) and surface_depth.has(key) and surface_top.has(key):
 		var toe := Vector3(e2.x, e2.y + float(surface_top[key]), float(surface_depth[key]) * TOE_IN_HOLD)
-		return toe - Anatomy.FOOT_WANT.normalized() * Anatomy.FOOT_LENGTH
+		return toe - _foot_dir.get(limb, Anatomy.FOOT_WANT.normalized()) * Anatomy.FOOT_LENGTH
 	if stuck and surface_depth.has(key):
 		z = maxf(z, float(surface_depth[session.limbs[limb].key]) + (HAND_ON_SURFACE if PoseSolver.is_hand(limb) else FOOT_ON_SURFACE))
 	if not stuck and not PoseSolver.is_hand(limb):

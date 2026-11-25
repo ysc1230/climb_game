@@ -131,9 +131,25 @@ const FOOT_WANT := Vector3(0, -0.32, -0.95)   # 발끝: 벽 쪽·약간 아래
 const FOOT_ANKLE_SOLVE := Vector2(55.0, 115.0)  # 발 방향을 고를 때 쓰는 발목 각 범위(점검 범위보다 안쪽)
 
 
-static func foot_direction(knee: Vector3, ankle: Vector3, frame: Basis) -> Vector3:
+## 2026-11-25 사용자 "어딜 밟아도 발의 모양은 항상 위에서 밟는 것처럼 신발이 정직하게": hip을 주면 발끝이 허벅지가 뻗은 쪽
+## (엉덩이→무릎을 정강이에 수직으로, 앉으면 허벅지가 앞이고 발끝도 앞인 것처럼)을 FOOT_KNEE_FOLLOW만큼 따른다.
+## 무릎이 바깥(개구리)이면 발끝도 바깥, 드롭니면 안쪽. 발끝의 벽 쪽 성분은 FOOT_WALL_MIN 이상(벽에서 멀어지지 않음).
+## 다리가 거의 펴졌으면(무릎이 엉덩이→발목 선에서 3cm 안) 예전처럼 FOOT_WANT.
+const FOOT_KNEE_FOLLOW := 0.6
+const FOOT_WALL_MIN := 0.2
+static func foot_direction(knee: Vector3, ankle: Vector3, frame: Basis, hip := Vector3.INF) -> Vector3:
 	var shin := (ankle - knee).normalized()
 	var f := FOOT_WANT.normalized()
+	if hip != Vector3.INF and hip.distance_to(ankle) > 0.001:
+		var axis := (ankle - hip).normalized()
+		var off := (knee - hip) - axis * (knee - hip).dot(axis)
+		var thigh := (knee - hip).normalized()
+		var side := thigh - shin * thigh.dot(shin)
+		if off.length() > 0.03 and side.length() > 0.1:
+			f = (side.normalized() * FOOT_KNEE_FOLLOW + f * (1.0 - FOOT_KNEE_FOLLOW)).normalized()
+			var wall := f.dot(Vector3.FORWARD)
+			if wall < FOOT_WALL_MIN:
+				f = (f + Vector3.FORWARD * (FOOT_WALL_MIN - wall) * 1.5).normalized()
 	var ang := rad_to_deg(shin.angle_to(f))
 	var lo := FOOT_ANKLE_SOLVE.x
 	var hi := FOOT_ANKLE_SOLVE.y
