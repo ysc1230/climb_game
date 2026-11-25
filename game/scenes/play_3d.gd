@@ -218,10 +218,11 @@ const VOLUME_SAND := Color("d2b07a")  # 볼륨(모래·황토색, 0.20까지)
 ## 캐릭터 색이 바뀌지 않게 주변광·해는 그대로 두고 벽·배경·안개만 바꾼다.
 const STYLES := {
 	"gym": {"wall": Color("5f6975"), "wall_shade": Color("2c323b"), "wing": Color("49515c"), "wing_shade": Color("262b33"),
-		"volumes": [Color("9ea3a9"), Color("3f444c"), Color("5f7790")], "bolt": Color("15181c"), "room": Color("2a2e34"),
-		"bg": Color("23272d"), "fog": Color("8a9098")},
+		"volumes": [Color("3f444c"), Color("5f7790"), Color("4b5566")], "bolt": Color("15181c"), "room": Color("2a2e34"),
+		"bg": Color("23272d"), "fog": Color("8a9098"),
+		"mat": Color("3d4f6e"), "floor": Color("33373d"), "trim": Color("1f2226"), "neighbors": true},
 	"rock": {"wall": Color("847f7a"), "wall_shade": Color("47433f"), "wing": Color("726d68"), "wing_shade": Color("3a3632"),
-		"volumes": [Color("847f7a")], "bolt": Color("15181c"), "room": Color("9cc0e2"),
+		"volumes": [Color("847f7a")], "bolt": Color("15181c"), "room": Color("9cc0e2"), "mat": Color("3d4f6e"),
 		"bg": Color("9cc0e2"), "fog": Color("b8cde0"), "ground": Color("6b6152")},
 }
 ## 자연 암벽 홀드: 바위색 몸 + 초크 묻은 윗날. 정상은 그대로 금색.
@@ -252,8 +253,10 @@ func _build_wall() -> void:
 	# 앞면이 카메라 쪽(Godot 앞면 = 시계 방향 감김)이 되게 오른쪽 → 왼쪽으로 잇는다
 	var wall := _mesh(_fold_strip(Vector2(half_w, -0.02), Vector2(-half_w, -0.02), -0.6, top), wall_m, true)
 	wall_root.add_child(wall)
-	# 바닥 매트(윗면 y = MAT_TOP_Y, 낙하 인형이 같은 값을 쓴다): 회색 천, 1m 이음선
-	var mat_m := _toon(MAT_GRAY, MAT_GRAY.darkened(0.45))
+	# 바닥 매트(윗면 y = MAT_TOP_Y, 낙하 인형이 같은 값을 쓴다): 1m 이음선. 2026-11-25 사용자 "벽·주변 사물 개선":
+	# 벽과 같은 회갈색이라 바닥과 벽이 갈리지 않아 남색 크래시 패드로(실내 암장 흔한 색, 홀드 색과 겹치지 않음)
+	var mat_col: Color = st.get("mat", MAT_GRAY)
+	var mat_m := _toon(mat_col, mat_col.darkened(0.45))
 	mat_m.set_shader_parameter("mat_pattern", true)
 	var mat := _mesh(_box(Vector3(9.0, 0.25, 4.0)), mat_m, true)
 	mat.position = Vector3(0, MAT_TOP_Y - 0.125, 1.6)
@@ -266,6 +269,19 @@ func _build_wall() -> void:
 	var room := _mesh(box, room_m, false)
 	room.position = Vector3(0, MAT_TOP_Y - 0.25 + 7.0, 1.0)
 	add_child(room)
+	if st.has("floor"):  # 실내: 매트 밖은 어두운 고무 바닥(벽·매트와 갈리게)
+		var fm := _toon(st.floor, st.floor.darkened(0.4))
+		fm.next_pass = null
+		var floor_mesh := _mesh(_box(Vector3(25.8, 0.02, 25.8)), fm, false)
+		floor_mesh.position = Vector3(0, MAT_TOP_Y - 0.24, 1.0)
+		add_child(floor_mesh)
+	if st.has("trim"):  # 벽 위 끝 마감(어두운 덮개): 벽이 허공에서 끊겨 보이지 않게
+		var tm := _toon(st.trim, st.trim)
+		var cap := _mesh(_box(Vector3(2.0 * half_w, 0.08, 0.14)), tm, true)
+		_on_wall(cap, Vector3(0, top - 0.04, 0.05))
+		wall_root.add_child(cap)
+	if st.get("neighbors", false):
+		_add_neighbor_walls(half_w, top)
 	if st.has("ground"):  # 자연 암벽: 하늘색 상자 바닥에 흙 땅
 		var gm := _toon(st.ground, st.ground.darkened(0.4))
 		gm.next_pass = null
@@ -304,12 +320,17 @@ func _add_volume(p: Vector2, size: float, tri: bool) -> void:
 		v = _mesh(_prism(Vector3(size, out, size * 1.5)), m, true)
 		_on_wall(v, Vector3(p.x, p.y, -0.02 + out * 0.5), Basis(Vector3(0, 0, 1), PI / 2.0 + deg_to_rad(rng.randf_range(-10, 10))) * Basis(Vector3(1, 0, 0), PI / 2.0))
 	else:
-		v = _mesh(_box(Vector3(size, size * 0.8, out * 0.6)), m, true)
-		var rot := Vector3(rng.randf_range(-22, -12), rng.randf_range(-20, 20), rng.randf_range(-6, 6))
-		_on_wall(v, Vector3(p.x, p.y, -0.02 + out * 0.3), Basis.from_euler(rot * PI / 180.0))
+		# 네모뿔(밑면이 벽에 붙음): 납작한 밝은 상자에 볼트 점 셋은 "…" 이름표처럼 보였다(2026-11-25 사용자 "주변 사물 개선")
+		var pyr := CylinderMesh.new()
+		pyr.radial_segments = 4
+		pyr.rings = 1
+		pyr.bottom_radius = size * 0.7
+		pyr.top_radius = size * 0.08
+		pyr.height = out * 0.7
+		v = _mesh(pyr, m, true)
+		_on_wall(v, Vector3(p.x, p.y, -0.02 + out * 0.35), Basis(Vector3.BACK, deg_to_rad(rng.randf_range(0, 90))) * Basis(Vector3.RIGHT, PI / 2.0))
 	wall_root.add_child(v)
-	if logic.route.wall_style == "rock":
-		return  # 자연 암벽의 바위 덩어리에는 볼트가 없다
+	return  # 볼트 머리는 그리지 않는다: 점 셋이 "…" 이름표처럼 보였다(2026-11-25)
 	var bolt_m := _toon(INK, INK)
 	for i in 3:
 		var b := MeshInstance3D.new()
@@ -327,6 +348,36 @@ func _add_volume(p: Vector2, size: float, tri: bool) -> void:
 		else:
 			_on_wall(b, Vector3(p.x + t * size * 0.6, p.y + size * 0.2, -0.02 + out * 0.6 + 0.004), Basis(Vector3.RIGHT, PI / 2.0))
 		wall_root.add_child(b)
+
+
+## 이웃 벽(배경, 판정 없음): 옆벽 바깥에 다른 등반 벽 두 면. 시점을 넓히거나 돌려도 회색 빈 공간 대신 암장 안처럼 보인다.
+## 홀드와 헷갈리지 않게 홀드는 두지 않고 어두운 판넬과 볼륨만. 벽 접기(wall_root)를 따르지 않는 월드 고정.
+func _add_neighbor_walls(half_w: float, top: float) -> void:
+	var st: Dictionary = _style()
+	var h := maxf(top + 0.8, 4.5)
+	for side in [-1, 1]:
+		var m := _toon(st.wing.darkened(0.25), st.wing_shade.darkened(0.25), true)
+		m.set_shader_parameter("bolt_color", st.bolt)
+		var panel := _mesh(_box(Vector3(5.0, h, 0.2)), m, true)
+		_neighbors.append([side, panel])
+		var x: float = side * (half_w + 2.4 * cos(deg_to_rad(38.0)) + 2.3)
+		panel.transform = Transform3D(Basis(Vector3.UP, -side * deg_to_rad(55.0)), Vector3(x, MAT_TOP_Y + h * 0.5 - 0.25, 2.6))
+		add_child(panel)
+		var vols: Array = st.volumes
+		for i in 4:
+			var pyr := CylinderMesh.new()
+			pyr.radial_segments = 4 if i % 2 == 0 else 3
+			pyr.rings = 1
+			var size := rng.randf_range(0.35, 0.6)
+			pyr.bottom_radius = size
+			pyr.top_radius = size * 0.08
+			pyr.height = size * 0.6
+			var vc: Color = vols[(i + (1 if side > 0 else 0)) % vols.size()]
+			var vm := _toon(vc.darkened(0.15), vc.darkened(0.55))
+			var v := _mesh(pyr, vm, true)
+			var local := Vector3(rng.randf_range(-1.8, 1.8), rng.randf_range(-h * 0.35, h * 0.35), 0.1 + size * 0.3)
+			v.transform = Transform3D(Basis(Vector3.BACK, rng.randf() * PI) * Basis(Vector3.RIGHT, PI / 2.0), local)
+			panel.add_child(v)  # 판넬과 같이 숨긴다
 
 
 func _box(size: Vector3) -> BoxMesh:
@@ -911,6 +962,7 @@ func _build_model() -> bool:
 const CAM_MIN_Y := 0.6  # 기운 벽에서 카메라 최저 높이(m, 매트 위)
 const CAM_WALL_GAP := 0.8  # 시점 카메라가 벽면에서 떨어지는 최소 거리(m)
 var _wings: Array[MeshInstance3D] = []  # 옆벽: 비스듬히·옆 시점에서는 카메라를 가려 숨긴다
+var _neighbors := []  # [side, 판넬]: 이웃 벽(배경). 카메라가 그쪽으로 돌면 가리므로 숨긴다
 
 
 func _update_camera() -> void:
@@ -928,6 +980,8 @@ func _update_camera() -> void:
 	var free_cam: bool = logic.route.wall_deg > 0.0 or yaw != 0.0 or logic.cam_pitch != 0.0 or logic.cam_zoom != 1.0
 	for w in _wings:
 		w.visible = absf(yaw) < deg_to_rad(10.0)  # 옆벽(장식)이 돈 카메라를 가린다
+	for nb in _neighbors:
+		(nb[1] as Node3D).visible = yaw * float(nb[0]) < deg_to_rad(20.0)
 	var look := fold.point(Vector3(logic.session.body.pos.x * smoothstep(0.0, 0.3, absf(yaw)), logic.cam_y, CONTACT_DEPTH))
 	camera.position = look + Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, th * 0.25 + float(logic.cam_pitch)) * Vector3(0, 0, dist * float(logic.cam_zoom))
 	if free_cam:
