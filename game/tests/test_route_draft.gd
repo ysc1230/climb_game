@@ -182,3 +182,38 @@ func test_angle_at_many_sections() -> void:
 			a = lerpf(a, float(r.wall_sections[j].deg), smoothstep(b - RouteDef.WALL_BLEND, b + RouteDef.WALL_BLEND, y))
 		worst = maxf(worst, absf(a - r.angle_at(y)))
 	runner.check(worst < 0.001, "예전 식과 차이 %.4f" % worst)
+
+
+## 2026-11-25 사용자 "가깝지 않다는 게 얼마나 가까워야 하는지 모르겠어. 완료할 수 없거나 문제가 있을 수 있는 경우를 모아 둔 창".
+## 시작 자세가 안 되면 한 홀드를 어느 쪽으로 얼마나 옮기면 되는지 실제 자세 계산으로 찾는다(손이 발보다 0.65m 위: 너무 가까움).
+func test_start_fix_suggestion() -> void:
+	var d := RouteDraft.new()
+	var f1 := d.place("foot_big", -0.05, 0.3)
+	var f2 := d.place("foot_big", 0.25, 0.25)
+	var h1 := d.place("sloper", 0.0, 0.95)
+	var h2 := d.place("sloper", 0.25, 1.0)
+	d.set_start(&"LH", h1); d.set_start(&"RH", h2); d.set_start(&"LF", f1); d.set_start(&"RF", f2)
+	runner.check(not d.start_pose().ok, "재현: 시작 자세 안 됨")
+	var fix: Dictionary = d.start_fix()
+	runner.check(not fix.is_empty() and String(fix.text).contains("옮기면"), "고칠 곳 문구 %s" % [fix.get("text")])
+	var h := d.hold(fix.hold)
+	d.move(fix.hold, h.x + fix.move.x, h.y + fix.move.y)
+	runner.check(d.start_pose().ok, "말한 대로 옮기면 시작 자세가 됨")
+	runner.check(d.start_fix().is_empty(), "이미 되면 빈 값")
+
+
+## 만들 수는 있지만 문제가 있을 수 있는 것: 손이 닿기 어려운 먼 홀드, 천장에 가까운 구간, 탑보다 높은 홀드, 아주 높은 벽.
+func test_warnings() -> void:
+	var d := RouteDraft.new()
+	var h1 := d.place("jug", -0.3, 1.5)
+	var h2 := d.place("jug", 0.3, 1.5)
+	d.set_start(&"LH", h1); d.set_start(&"RH", h2)
+	runner.check(d.warnings().is_empty(), "문제 없으면 빈 목록 %s" % [d.warnings()])
+	var far := d.place("jug", 0.0, 3.2)
+	d.place("goal", 0.0, 3.6)
+	var w: Array = d.warnings()
+	runner.check(w.any(func(x): return x.hold == far and String(x.text).contains("닿기 어려")), "아래 손홀드에서 1.2m 넘게 먼 홀드 %s" % [w])
+	d.set_wall(2, 80)
+	runner.check(d.warnings().any(func(x): return String(x.text).contains("천장")), "70° 넘는 구간(110° 이하)")
+	d.place("jug", 0.5, 5.0)
+	runner.check(d.warnings().any(func(x): return String(x.text).contains("탑보다 높은")), "탑보다 높은 홀드")

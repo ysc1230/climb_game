@@ -232,9 +232,9 @@ func _body(delta: Vector2) -> String:
 	return ""
 
 
-## 다이노(docs/45): 준비 → drag만큼 끌기 → 30틱 웅크림 → 뛰기 → 그 손이 홀드에 닿으면(aim) 손 패드를 눌러 잡는다. 꼭대기를 지나도 못 겨누면 다른 손으로.
-## 잡은 뒤 20틱 안에 다른 손 패드도 누른다(버티는 시간 안에 닿는 홀드를 잡음).
-func _dyno(hand: StringName, drag: Vector2) -> String:
+## 다이노(docs/45): 준비 → drag만큼 끌기 → 30틱 웅크림 → 뛰기 → 가운데 원이 뜨면 성공 구간 가운데에서 누른다(두 손이 같이 잡음, 2026-11-25).
+## 잡은 뒤 발을 하나씩 딛는 동안(0.6초) 기다린다. hand는 정답 순서의 표기일 뿐(두 손이 같이 잡는다).
+func _dyno(_hand: StringName, drag: Vector2) -> String:
 	_input([{"type": "dyno_start", "limb": InputRouter.DYNO}])
 	_input([{"type": "dyno_move", "limb": InputRouter.DYNO, "delta": drag}])
 	if session.dyno.get("phase", "") != "charge":
@@ -244,27 +244,25 @@ func _dyno(hand: StringName, drag: Vector2) -> String:
 		if not err.is_empty():
 			return err
 	_input([{"type": "dyno_end", "limb": InputRouter.DYNO}])
-	for i in 240:
-		var aim := session.dyno_aim()
-		var who := hand if not str(aim.get(hand, "")).is_empty() or session.body.vel.y > 0.0 else TechniqueJudge.other_of(hand)
-		if session.dyno_flying() and not str(aim.get(who, "")).is_empty():
-			_input([{"type": "detach", "limb": who}])
-			if session.limbs[who].state == "Attached":
-				# 사람처럼 잡은 직후(버티는 1초 안) 다른 손 패드도 눌러 닿는 홀드를 잡는다
-				for j in 20:
-					var e := _tick()
-					if not e.is_empty() or cleared:
-						return e
-				var other := TechniqueJudge.other_of(who)
-				if session.limbs[other].state != "Attached":
-					_input([{"type": "detach", "limb": other}])
-				return ""
+	if not session.dyno_flying():
+		return "다이노로 뛰지 못함(닿는 합손 홀드 없음)"
+	for i in 400:
+		var ring := session.dyno_ring()
+		if not ring.is_empty() and float(ring.left) <= ((ring.zone as Vector2).x + (ring.zone as Vector2).y) * 0.5:
+			_input([{"type": "dyno_press", "limb": InputRouter.DYNO}])
+			if session.limbs[&"LH"].state != "Attached":
+				return "다이노 원을 눌렀지만 잡지 못함"
+			for j in Tuning.DYNO_FOOT_GAP * 2 + 2:
+				var e := _tick()
+				if not e.is_empty() or cleared:
+					return e
+			return ""
 		var err := _tick()
 		if not err.is_empty() or cleared:
 			return err
 		if not session.dyno_flying():
 			break
-	return "다이노로 %s이 잡지 못함" % hand
+	return "다이노로 잡지 못함"
 
 
 # ---------- 틱·측정 ----------

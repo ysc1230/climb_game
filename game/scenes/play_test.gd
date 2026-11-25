@@ -678,6 +678,11 @@ func _input(event: InputEvent) -> void:
 			return
 		on_fall_scene_done()
 		return
+	if press and not session.dyno_ring().is_empty():
+		# 다이노 원이 떠 있는 동안: 원을 누르면 잡기 판정, 다른 곳 누르기는 받지 않는다(손 패드로 잡지 않음)
+		if (event.position as Vector2).distance_to(_dyno_ring_center()) <= DYNO_RING_R * ui_k * 1.3:
+			_apply([{"type": "dyno_press", "limb": InputRouter.DYNO}])
+		return
 	if route_preview != null or celebrate_left > 0.0:
 		if event is InputEventScreenTouch and not event.pressed:
 			_overlay_event(event.index, event.position, false)  # [다시] 등을 누른 손가락의 뗌: 삼킴 표시를 지운다
@@ -1713,26 +1718,37 @@ func _draw_body_goal() -> void:
 
 
 ## 다이노(docs/45). 준비 중: 지금 끈 길이·방향으로 뛰면 팔이 닿는 손홀드에 고리(가장 높은 것은 굵게), 골반 옆에 힘 소모·홀드 품질.
-## 날아가는 중: 손마다 뻗어 닿은 홀드에 그 손 색 고리(그 손 패드를 누르면 잡음). 느린 화면 동안 "잡을 손의 패드를 눌러요"와 남은 시간.
+## 날아가는 중: 손마다 뻗어 닿은 홀드에 그 손 색 고리. 손이 합손 홀드에 닿으면(느린 화면) 화면 가운데에 2초 동안 줄어드는 원과
+## 노란 도넛(성공 구간). 원이 도넛 안일 때 원을 누르면 두 손으로 잡는다(2026-11-25 사용자).
+const DYNO_RING_R := 170.0  # 다이노 원 반지름(ui_k 곱하기 전)
+
+
+func _dyno_ring_center() -> Vector2:
+	return get_viewport_rect().size * 0.5
+
+
 func _draw_dyno() -> void:
 	var aim := session.dyno_aim()
 	if session.dyno_flying():
-		var any := false
 		for hand in aim:
 			if str(aim[hand]).is_empty():
 				continue
-			any = true
 			var c := w2s(session.route.slot_pos(aim[hand]))
 			var rr := (32.0 if hand == &"LH" else 42.0) * ui_k  # 두 손이 같은 홀드를 겨누면 고리 두 겹
 			draw_arc(c, rr, 0, TAU, 40, Color(0, 0, 0, 0.5), 9 * ui_k, true)
 			draw_arc(c, rr, 0, TAU, 40, LIMB_COLORS[hand], 5 * ui_k, true)
-		var left := session.dyno_slow_left()
-		if any:
-			var a := w2s(session.body.pos)
-			_outlined(Vector2(a.x - 250 * ui_k, a.y - 160 * ui_k), "잡을 손의 패드를 눌러요", 32, 500 * ui_k, Color("ffd166"), Color(0, 0, 0, 0.75), true)
-			if left > 0.0:
-				var w := 300.0 * ui_k
-				draw_rect(Rect2(Vector2(a.x - w * 0.5, a.y - 150 * ui_k), Vector2(w * left, 6 * ui_k)), Color("ffd166"))
+		var ring := session.dyno_ring()
+		if not ring.is_empty():
+			var c := _dyno_ring_center()
+			var big := DYNO_RING_R * ui_k
+			var z: Vector2 = ring.zone
+			var left: float = ring.left
+			var inside := left >= z.x and left <= z.y
+			draw_circle(c, big, Color(0, 0, 0, 0.4))
+			draw_arc(c, big * (z.x + z.y) * 0.5, 0, TAU, 72, Color("ffd166", 0.75 if inside else 0.5), big * (z.y - z.x), true)
+			draw_arc(c, big, 0, TAU, 72, Color(1, 1, 1, 0.8), 4 * ui_k, true)
+			draw_arc(c, maxf(big * left, 2.0), 0, TAU, 72, Color("8ee07a") if inside else Color.WHITE, 8 * ui_k, true)
+			_outlined(Vector2(c.x - 300 * ui_k, c.y - big - 24 * ui_k), "원이 노란 고리 안에 들어오면 눌러요", 30, 600 * ui_k, Color("ffd166"), Color(0, 0, 0, 0.75), true)
 		return
 	var pv := session.dyno_preview()
 	if pv.is_empty():
@@ -1759,7 +1775,7 @@ func _draw_dyno() -> void:
 	var grade := "홀드 좋음" if q >= 0.75 else ("홀드 보통" if q >= 0.45 else "홀드 나쁨")
 	var text := "더 끌어요"
 	if pv.ready:
-		text = "다이노 · 힘 -%d · %s" % [roundi(float(pv.cost)), grade] if not reach.is_empty() else "닿는 홀드가 없어요 · %s" % grade
+		text = "다이노 · 힘 -%d · %s" % [roundi(float(pv.cost)), grade] if not reach.is_empty() else "닿는 합손 홀드가 없어요 · %s" % grade
 	var a := w2s(session.body.pos)
 	var tw := font_b.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * ui_k)).x
 	_outlined(Vector2(a.x + 40 * ui_k, a.y), text, 30, tw, col, Color(0, 0, 0, 0.8), true)

@@ -11,7 +11,9 @@ const INK := Color("302820")
 const PANEL := Color(0.12, 0.11, 0.10, 0.88)
 const DIM := Color(1, 1, 1, 0.6)
 const RED := Color(1.0, 0.3, 0.25)
-const TOOLS := [["place", "놓기"], ["move", "옮기기"], ["rotate", "돌리기"], ["wall", "벽 각도"], ["erase", "지우기"], ["start", "시작 지정"]]
+## 2026-11-25 사용자 "놓기 옮기기 돌리기를 하나로 하고 벽 각도는 따로", "시작 지정이 아니라 시작홀드 설정".
+## 편집: 빈 벽을 누르면 고른 종류를 놓고, 홀드를 누르면 고르고(다시 누르면 해제), 끌면 고른 홀드를 옮기고, 오른쪽 아래 원으로 돌린다.
+const TOOLS := [["edit", "편집"], ["wall", "벽 각도"], ["erase", "지우기"], ["start", "시작홀드 설정"]]
 const LIMB_NAMES := {&"LH": "왼손", &"RH": "오른손", &"LF": "왼발", &"RF": "오른발"}
 const LIST := {"hand": ["jug", "crimp", "sloper", "pinch", "pocket"], "foot": ["foot_chip", "foot_big"], "goal": ["goal"]}
 const PICK_R := 0.13      # 홀드를 누른 것으로 보는 거리(m)
@@ -22,7 +24,7 @@ var game: Node
 var font: Font
 var k := 1.0
 var draft: RouteDraft
-var tool := "place"
+var tool := "edit"
 var start_limb: StringName = &"LH"
 var list_tab := "hand"
 var sel_type := "jug"
@@ -44,6 +46,10 @@ var _wall_dirty := false  # 벽 각도 조절 원을 끄는 중: 3D를 곧 다�
 var _rebuild_ms := 0
 var _bot_thread: Thread
 var _bot_result := {}
+var check_open := false   # 점검 창(못 만드는 이유·주의할 것, 2026-11-25 사용자)
+var _checks: Array = []    # 점검 창 줄 [{level: "block"|"warn"|"ok", text, hold, y}]
+var _warn: Array = []      # 주의할 것(고칠 때마다 RouteDraft.warnings)
+var _bot_ok := -1          # 봇 검사 결과: -1 모름, 0 못 찾음, 1 찾음(고치면 -1)
 var share_open := false   # 저장·공유 창
 var share_busy := false
 var share_code := ""
@@ -94,7 +100,10 @@ func _layout() -> void:
 func _changed(rebuild := true) -> void:
 	if rebuild and view != null:
 		view.rebuild(draft)
+	if rebuild:
+		_bot_ok = -1
 	_problems = draft.problems()
+	_warn = draft.warnings()
 	_bad = draft.bad_holds()
 	queue_redraw()
 
@@ -118,6 +127,7 @@ func _process(delta: float) -> void:
 	if _bot_thread != null and not _bot_thread.is_alive():
 		var res: Dictionary = _bot_thread.wait_to_finish()
 		_bot_thread = null
+		_bot_ok = 1 if res.get("ok", false) else 0
 		_say("깰 수 있어요(봇이 길을 찾았어요)" if res.get("ok", false) else "봇은 길을 못 찾았어요 — 직접 완등했다면 올릴 수 있어요")
 	queue_redraw()
 
@@ -135,9 +145,12 @@ func _scroll_rect() -> Rect2:
 	return Rect2(Vector2(144 * k, 90 * k), Vector2(58 * k, size.y - 90 * k - 64 * k))
 
 
-## 오른쪽 아래 조절 원 [가운데, 반지름](돌리기·벽 각도).
+## 오른쪽 아래 조절 원 [가운데, 반지름]. 편집: 고른 홀드 방향(판 오른쪽 아래, 작게), 벽 각도: 고른 높이부터의 기울기.
 func _dial() -> Array:
 	var size := get_viewport_rect().size
+	if tool == "edit":
+		var re := 64.0 * k
+		return [Vector2(size.x - 84 * k, size.y - 44 * k - 58 * k - 12 * k - re), re]
 	var r := 88.0 * k
 	return [Vector2(size.x - 190 * k, size.y - 44 * k - 58 * k - 14 * k - r), r]
 
@@ -206,14 +219,14 @@ func _pinch_mid() -> Vector2:
 
 func _down(pos: Vector2) -> void:
 	_press = {}
-	if share_open or _hit_button(pos) >= 0 or view == null:
+	if share_open or check_open or _hit_button(pos) >= 0 or view == null:
 		return
 	if _scroll_rect().has_point(pos):
 		_press = {"kind": "scroll"}
 		_scroll_to(pos.y)
 		return
 	var dl := _dial()
-	if tool in ["rotate", "wall"] and pos.distance_to(dl[0]) <= dl[1] * 1.25:
+	if tool in ["edit", "wall"] and pos.distance_to(dl[0]) <= dl[1] * 1.25:
 		_press = {"kind": "dial", "first": true}
 		_dial_to(pos)
 		return
@@ -234,11 +247,11 @@ func _drag(pos: Vector2, rel: Vector2) -> void:
 		return
 	if not _press.moved and pos.distance_to(_press.pos) > DRAG_PX * k:
 		_press.moved = true
-		if tool == "move" and selected == "" and _press.hold != "":
+		if tool == "edit" and selected == "" and _press.hold != "":
 			selected = _press.hold  # 고른 홀드가 없으면 끌기 시작한 홀드를 옮긴다
 	if not _press.moved:
 		return
-	if tool == "move" and selected != "":
+	if tool == "edit" and selected != "":
 		# 고른 홀드를 손가락이 움직인 만큼 옮겨 그린다(어디서 끌든, 벽 밖·놓을 수 있는 높이 밖으로는 안 감)
 		var h := draft.hold(selected)
 		var to: Vector2 = Vector2(h.x, h.y) + view.screen_to_wall(pos) - _press.wall
@@ -304,7 +317,7 @@ func _dial_to(pos: Vector2) -> void:
 	if v.length() < 10.0 * k:
 		return
 	var a := rad_to_deg(atan2(v.x, -v.y))
-	if tool == "rotate":
+	if tool == "edit":
 		var h := draft.hold(selected)
 		if h.is_empty() or h.type == "goal":
 			return
@@ -336,9 +349,9 @@ func _dial_end() -> void:
 
 func _tap_wall(w: Vector2, hit: String) -> void:
 	match tool:
-		"place":
+		"edit":
 			if hit != "":
-				selected = hit
+				selected = "" if hit == selected else hit  # 고른 홀드를 다시 누르면 해제(끌면 화면 이동)
 			else:
 				var id := draft.place(sel_type, w.x, w.y)
 				if id == "":
@@ -346,9 +359,6 @@ func _tap_wall(w: Vector2, hit: String) -> void:
 				else:
 					selected = id
 					_changed()
-		"move", "rotate":
-			if hit != "":  # 빈 곳을 눌러도 고른 홀드는 그대로(옮기기는 화면 어디서든 끈다)
-				selected = hit
 		"wall":
 			sel_wall = clampi(floori(w.y), 0, int(draft.max_y()))
 		"erase":
@@ -409,10 +419,10 @@ func _do(action: String, arg: String) -> void:
 		"list":
 			list_tab = arg
 			sel_type = LIST[arg][0]
-			tool = "place"
+			tool = "edit"
 		"type":
 			sel_type = arg
-			tool = "place"
+			tool = "edit"
 		"size":
 			draft.set_size(selected, arg)
 			_changed()
@@ -440,6 +450,20 @@ func _do(action: String, arg: String) -> void:
 				share_code = str(game.progress.shared.get(draft.route_id, {}).get("code", "")) if game != null else ""
 		"share_close":
 			share_open = false
+		"check_open":
+			_checks = _check_items()
+			check_open = true
+		"check_close":
+			check_open = false
+		"goto":  # 점검 창 [보기]: 그 홀드를 고르고(편집) 그 높이로
+			check_open = false
+			var h := draft.hold(arg)
+			if not h.is_empty():
+				tool = "edit"
+				selected = arg
+				view.logic.cam_y = clampf(h.y, 0.8, draft.max_y())
+			elif arg.is_valid_float():
+				view.logic.cam_y = clampf(arg.to_float(), 0.8, draft.max_y())
 		"publish":
 			_publish(arg)
 		"copy":
@@ -488,6 +512,70 @@ func _publish(vis: String) -> void:
 	draft.freeze()
 	_say("올렸어요! 코드 " + share_code)
 	queue_redraw()
+
+
+## 점검 창 줄: 막는 것(저장·올라 보기를 막음)은 고칠 곳까지, 주의할 것은 만들 수는 있지만 문제가 될 수 있는 것.
+func _check_items() -> Array:
+	var out: Array = []
+	for p in _problems:
+		match p:
+			RouteDraft.P_NAME:
+				out.append({"level": "block", "text": "문제 이름을 적어 주세요. 위쪽 이름 칸을 누르면 써요.", "hold": ""})
+			RouteDraft.P_START:
+				var miss: Array = []
+				for l in [&"LH", &"RH", &"LF", &"RF"]:
+					if draft.start[l] == "":
+						miss.append(LIMB_NAMES[l])
+				out.append({"level": "block", "text": "시작홀드를 정해 주세요: %s 자리가 비었어요. [시작홀드 설정]에서 손발을 고르고 홀드를 누르세요." % "·".join(miss), "hold": ""})
+			RouteDraft.P_GOAL:
+				out.append({"level": "block", "text": "탑 홀드를 놓아 주세요. [편집]에서 오른쪽 목록의 [탑]을 고르고 벽을 누르세요.", "hold": ""})
+			RouteDraft.P_POSE:
+				var fix := draft.start_fix()
+				if not fix.is_empty():
+					out.append({"level": "block", "text": "시작 자세를 만들 수 없어요. " + fix.text + ".", "hold": fix.hold})
+				elif draft.start_pose().ok:
+					out.append({"level": "block", "text": "시작 자세는 되지만 버티지 못해요(무게중심이 발 밖). 두 발을 두 손 아래 가운데 쪽으로 모아 보세요.", "hold": draft.start[&"LF"]})
+				else:
+					out.append({"level": "block", "text": "시작 자세를 만들 수 없어요. 한 홀드만 옮겨서는 안 돼요. 손은 발보다 1.2~1.5m 위, 손 사이 0.4~0.8m, 발 사이 0.3~0.5m쯤으로 놓아 보세요.", "hold": draft.start[&"LH"]})
+			RouteDraft.P_SPACING:
+				for v in draft.spacing_details():
+					out.append({"level": "block", "text": v.text, "hold": v.hold})
+			_:
+				var errs: Array = draft.build().errors
+				out.append({"level": "block", "text": p + (": " + str(errs[0]) if not errs.is_empty() else ""), "hold": ""})
+	for w in _warn:
+		out.append({"level": "warn", "text": w.text, "hold": w.hold, "y": w.y})
+	if _bot_ok == 0:
+		out.append({"level": "warn", "text": "봇이 길을 못 찾았어요. 직접 도움 없이 완등하면 올릴 수 있어요.", "hold": ""})
+	if out.is_empty():
+		out.append({"level": "ok", "text": "막는 것도 주의할 것도 없어요. [올라 보기]로 직접 올라 보세요.", "hold": ""})
+	return out
+
+
+func _draw_check(size: Vector2) -> void:
+	_buttons = []
+	var box := Rect2(Vector2(size.x * 0.5 - 520 * k, size.y * 0.5 - 300 * k), Vector2(1040, 600) * k)
+	draw_rect(box, Color(0.1, 0.09, 0.08, 0.97))
+	draw_rect(box, CREAM, false, 3.0)
+	var x := box.position.x + 30 * k
+	var y := box.position.y + 52 * k
+	_text(Vector2(x, y), "점검", 28, CREAM)
+	_text(Vector2(x + 100 * k, y), "빨강: 이것 때문에 저장·올라 보기를 못 해요 · 노랑: 만들 수는 있지만 문제가 될 수 있어요", 17, DIM)
+	y += 30 * k
+	var row_h := 72 * k
+	var rows := int((box.end.y - 90 * k - y) / row_h)
+	for i in mini(_checks.size(), rows):
+		var c: Dictionary = _checks[i]
+		var col := RED if c.level == "block" else (Color(1, 0.8, 0.3) if c.level == "warn" else Color(0.5, 0.9, 0.5))
+		draw_circle(Vector2(x + 10 * k, y + 22 * k), 9 * k, col)
+		_wrap(Vector2(x + 32 * k, y + 28 * k), c.text, 820 * k, 18, Color.WHITE)
+		var target: String = c.hold if c.hold != "" else (str(c.y) if float(c.get("y", -1.0)) >= 0.0 else "")
+		if target != "":
+			_button(Rect2(Vector2(box.end.x - 140 * k, y + 4 * k), Vector2(110, 46) * k), "보기", "goto", target, 20)
+		y += row_h
+	if _checks.size() > rows:
+		_text(Vector2(x, y + 20 * k), "그 밖에 %d개 — 위의 것을 고치면 보여요" % (_checks.size() - rows), 18, DIM)
+	_button(Rect2(Vector2(box.end.x - 180 * k, box.end.y - 70 * k), Vector2(150, 52) * k), "닫기", "check_close", "", 22)
 
 
 func _draw_share(size: Vector2) -> void:
@@ -546,8 +634,13 @@ func _draw() -> void:
 	var st := "홀드 %d/%d · 벽 %sm · 판 %d · " % [draft.holds.size(), RouteDraft.MAX_HOLDS, String.num(draft.wall_limit()), draft.version]
 	st += "막는 것 없음 — 올라 볼 수 있어요" if _problems.is_empty() else _problems[0]
 	_text(Vector2(16 * k, size.y - 14 * k), st, 19, CREAM if _problems.is_empty() else Color(1, 0.75, 0.6))
+	var nw := _warn.size() + (1 if _bot_ok == 0 else 0)
+	_button(Rect2(Vector2(size.x - 330 * k, size.y - 42 * k), Vector2(320, 40) * k), "점검 · 막는 것 %d · 주의 %d" % [_problems.size(), nw], "check_open", "", 18,
+		not _problems.is_empty() or nw > 0)
 	if share_open:
 		_draw_share(size)
+	if check_open:
+		_draw_check(size)
 	if message != "":
 		var r := Rect2(Vector2(size.x * 0.5 - 330 * k, 90 * k), Vector2(660, 54) * k)
 		draw_rect(r, Color(0, 0, 0, 0.8))
@@ -657,8 +750,8 @@ func _draw_panel(size: Vector2) -> void:
 	var x := size.x - 370 * k
 	var w := 360 * k
 	draw_rect(Rect2(Vector2(x - 10 * k, 72 * k), Vector2(380 * k, size.y - 116 * k)), PANEL)
-	if tool in ["rotate", "wall"]:
-		_draw_dial_panel(size, x, w)
+	if tool == "wall":
+		_draw_wall_panel(size, x, w)
 		return
 	var y := 84 * k
 	var tw := (w - 20 * k) / 3.0
@@ -670,76 +763,66 @@ func _draw_panel(size: Vector2) -> void:
 	var types: Array = LIST[list_tab]
 	for i in types.size():
 		var r := Rect2(Vector2(x + (i % 2) * (cw + 10 * k), y + int(i / 2) * 58 * k), Vector2(cw, 50 * k))
-		_button(r, HoldTypes.name_ko(types[i]), "type", types[i], 20, sel_type == types[i] and tool == "place")
+		_button(r, HoldTypes.name_ko(types[i]), "type", types[i], 20, sel_type == types[i] and tool == "edit")
 	y += ceili(types.size() / 2.0) * 58 * k + 10 * k
 	var h := draft.hold(selected)
 	if h.is_empty():
-		_wrap(Vector2(x, y + 20 * k), "목록에서 종류를 고르고 벽을 누르면 놓여요. 놓인 홀드를 누르면 여기서 크기·방향을 바꿔요.", w, 17, DIM)
+		_wrap(Vector2(x, y + 20 * k), "목록에서 종류를 고르고 벽을 누르면 놓여요. 놓인 홀드를 누르면 고르고, 끌면 옮기고, 아래 원으로 돌려요. 다시 누르면 고르기를 풀어요.", w, 17, DIM)
 		return
-	_text(Vector2(x, y + 24 * k), "고른 홀드: %s" % HoldTypes.name_ko(h.type), 21, CREAM)
+	var rot := int(h.rot) + (int(_preview.get("rot", 0)) if _preview.get("id", "") == selected else 0)
+	_text(Vector2(x, y + 24 * k), "고른 홀드: %s" % HoldTypes.name_ko(h.type) + ("" if h.type == "goal" else " · 방향 %d°" % posmod(rot, 360)), 21, CREAM)
 	y += 40 * k
 	if h.type == "goal":
 		_button(Rect2(Vector2(x, y), Vector2(w, 46 * k)), "지우기", "delete", "", 20)
+		return
+	if tool != "edit":
 		return
 	var sw := (w - 20 * k) / 3.0
 	for i in 3:
 		var s: String = HoldTypes.SIZES[i]
 		_button(Rect2(Vector2(x + i * (sw + 10 * k), y), Vector2(sw, 46 * k)), "크기 " + s, "size", s, 20, h.size == s)
 	y += 56 * k
-	_text(Vector2(x, y + 30 * k), "방향 %d°" % h.rot, 21, Color.WHITE)
-	var bw := 56 * k
-	var bx := x + 130 * k
-	for b in [["-45", "-45"], ["-5", "-5"], ["+5", "5"], ["+45", "45"]]:
-		_button(Rect2(Vector2(bx, y), Vector2(bw, 46 * k)), b[0], "rot", b[1], 18)
-		bx += bw + 6 * k
-	y += 56 * k
+	# 아래: 왼쪽 합손·지우기, 오른쪽 돌리기 원, 맨 아래 돌리기 버튼(원을 끄는 동안 홀드가 바로 돈다)
+	var lw := w - 170 * k
 	if RouteDraft.is_hand_type(h.type):
-		_button(Rect2(Vector2(x, y), Vector2(w, 46 * k)), "합손(두 손 같이): " + ("켜짐" if h.matchable else "꺼짐"), "match", "", 19, h.matchable)
-		y += 56 * k
-	_button(Rect2(Vector2(x, y), Vector2(w, 46 * k)), "지우기", "delete", "", 20)
+		_button(Rect2(Vector2(x, y + 10 * k), Vector2(lw, 46 * k)), "합손 " + ("켜짐" if h.matchable else "꺼짐"), "match", "", 19, h.matchable)
+	_button(Rect2(Vector2(x, y + 66 * k), Vector2(lw, 46 * k)), "지우기", "delete", "", 20)
+	var bw := (w - 30 * k) / 4.0
+	var btn_y := size.y - 44 * k - 58 * k
+	for i in 4:
+		var b: Array = [["-45°", "-45"], ["-5°", "-5"], ["+5°", "5"], ["+45°", "45"]][i]
+		_button(Rect2(Vector2(x + i * (bw + 10 * k), btn_y), Vector2(bw, 46 * k)), b[0], "rot", b[1], 19)
+	var dl := _dial()
+	_draw_dial(dl[0], dl[1], true, rot)
 
 
-## 돌리기·벽 각도 도구의 오른쪽 판: 설명, 고른 것, 아래에 조절 원과 버튼(끄는 동안 3D에 바로 보인다).
-func _draw_dial_panel(size: Vector2, x: float, w: float) -> void:
+## 벽 각도 도구의 오른쪽 판: 설명, 고른 높이, 아래에 조절 원과 버튼(끄는 동안 3D 벽이 바로 접힌다).
+func _draw_wall_panel(size: Vector2, x: float, w: float) -> void:
 	var y := 84 * k
 	var dl := _dial()
 	var c: Vector2 = dl[0]
 	var r: float = dl[1]
-	var on := true
-	var ang := 0.0  # 원 위 손잡이 방향(위 0, 시계 방향 +, 도)
 	var btn_y := size.y - 44 * k - 58 * k
 	var bw := (w - 30 * k) / 4.0
-	if tool == "rotate":
-		_text(Vector2(x, y + 24 * k), "돌리기", 24, CREAM)
-		_wrap(Vector2(x, y + 58 * k), "돌릴 홀드를 누른 뒤 아래 원을 돌리거나 버튼을 누르세요.", w, 17, DIM)
-		var h := draft.hold(selected)
-		on = not h.is_empty() and h.type != "goal"
-		if on:
-			ang = float(int(h.rot) + int(_preview.get("rot", 0)) if _preview.get("id", "") == selected else int(h.rot))
-			_text(Vector2(x, c.y - r - 30 * k), "%s · 방향 %d°" % [HoldTypes.name_ko(h.type), posmod(int(ang), 360)], 22, Color.WHITE)
-		else:
-			_text(Vector2(x, c.y - r - 30 * k), "고른 홀드 없음" if h.is_empty() else "탑은 돌리지 않아요", 20, DIM)
-		for i in 4:
-			var b: Array = [["-45°", "-45"], ["-5°", "-5"], ["+5°", "5"], ["+45°", "45"]][i]
-			if on:
-				_button(Rect2(Vector2(x + i * (bw + 10 * k), btn_y), Vector2(bw, 46 * k)), b[0], "rot", b[1], 19)
-	else:
-		_text(Vector2(x, y + 24 * k), "벽 각도", 24, CREAM)
-		_wrap(Vector2(x, y + 58 * k), "벽을 눌러 높이를 고른 뒤 원을 돌리세요. 그 높이부터 위가 기울어요. 180°는 수직, 90°는 천장이에요.", w, 17, DIM)
-		var deg := draft.wall_deg_at(sel_wall)
-		ang = deg
-		_text(Vector2(x, c.y - r - 30 * k), "%dm부터 %d°" % [sel_wall, 180 - deg], 22, Color.WHITE)
-		if sel_wall > 0 and draft.walls.any(func(wl): return int(wl.from_y) == sel_wall):
-			_button(Rect2(Vector2(x, c.y - r - 100 * k), Vector2(w, 44 * k)), "이 높이의 꺾임 지우기", "wdel", "", 18)
-		for i in 4:
-			var b: Array = [["-10°", "-10"], ["-1°", "-1"], ["+1°", "1"], ["+10°", "10"]][i]
-			_button(Rect2(Vector2(x + i * (bw + 10 * k), btn_y), Vector2(bw, 46 * k)), b[0], "wdeg", b[1], 19)
-		# 아래 벽(곧게 아래로)과 위 벽 사이 각이 화면 각도
-		draw_line(c, c + Vector2(0, r * 0.9), Color(1, 1, 1, 0.5), 5.0 * k)
+	_text(Vector2(x, y + 24 * k), "벽 각도", 24, CREAM)
+	_wrap(Vector2(x, y + 58 * k), "벽을 눌러 높이를 고른 뒤 원을 돌리세요. 그 높이부터 위가 기울어요. 180°는 수직, 90°는 천장이에요.", w, 17, DIM)
+	var deg := draft.wall_deg_at(sel_wall)
+	_text(Vector2(x, c.y - r - 30 * k), "%dm부터 %d°" % [sel_wall, 180 - deg], 22, Color.WHITE)
+	if sel_wall > 0 and draft.walls.any(func(wl): return int(wl.from_y) == sel_wall):
+		_button(Rect2(Vector2(x, c.y - r - 100 * k), Vector2(w, 44 * k)), "이 높이의 꺾임 지우기", "wdel", "", 18)
+	for i in 4:
+		var b: Array = [["-10°", "-10"], ["-1°", "-1"], ["+1°", "1"], ["+10°", "10"]][i]
+		_button(Rect2(Vector2(x + i * (bw + 10 * k), btn_y), Vector2(bw, 46 * k)), b[0], "wdeg", b[1], 19)
+	draw_line(c, c + Vector2(0, r * 0.9), Color(1, 1, 1, 0.5), 5.0 * k)  # 아래 벽(곧게 아래로)과 위 벽 사이 각이 화면 각도
+	_draw_dial(c, r, true, deg)
+
+
+## 조절 원: 눈금(돌리기 45°, 벽 각도 0~90° 15°마다)과 손잡이(위 0, 시계 방향 + ang도).
+func _draw_dial(c: Vector2, r: float, on: bool, ang: float) -> void:
 	var col := CREAM if on else Color(1, 1, 1, 0.25)
 	draw_circle(c, r, Color(0, 0, 0, 0.35))
 	draw_arc(c, r, 0, TAU, 48, col, 3.0 * k)
-	for t in range(0, 360, 45 if tool == "rotate" else 15):
+	for t in range(0, 360, 45 if tool == "edit" else 15):
 		if tool == "wall" and t > 90:
 			break
 		var d := Vector2(sin(deg_to_rad(t)), -cos(deg_to_rad(t)))
@@ -747,7 +830,7 @@ func _draw_dial_panel(size: Vector2, x: float, w: float) -> void:
 	if on:
 		var d := Vector2(sin(deg_to_rad(ang)), -cos(deg_to_rad(ang)))
 		draw_line(c, c + d * r * 0.9, CREAM, 6.0 * k)
-		draw_circle(c + d * r * 0.9, 13 * k, CREAM)
+		draw_circle(c + d * r * 0.9, 12 * k, CREAM)
 
 
 # ---------- 도우미 ----------

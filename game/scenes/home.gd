@@ -109,6 +109,7 @@ func _default_grade() -> String:
 
 func _set_tab(t: String) -> void:
 	tab = t
+	_close_input()  # 만들기 탭의 코드·별명 입력칸(LineEdit)이 다른 탭 위에 남지 않게(2026-11-25 사용자 "텍스트박스 같은 게 계속 떠 있어")
 	game.get_flow().set_last_tab(t)
 	_maybe_grade_card()
 

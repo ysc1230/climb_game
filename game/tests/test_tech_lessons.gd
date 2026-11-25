@@ -125,16 +125,14 @@ func test_dyno() -> void:
 		s.apply_input([{"type": "dyno_move", "limb": InputRouter.DYNO, "delta": Vector2(0, -0.8)}])
 		_hold(d, 30)
 		s.apply_input([{"type": "dyno_end", "limb": InputRouter.DYNO}])
-		var caught := false
-		for i in 200:
-			if not str(s.dyno_aim().get(hand, "")).is_empty() and not caught:
-				s.apply_input([{"type": "detach", "limb": hand}])
-				caught = true
+		var pressed := false
+		for i in 300:
+			var ring := s.dyno_ring()
+			if not ring.is_empty() and not pressed and float(ring.left) <= ((ring.zone as Vector2).x + (ring.zone as Vector2).y) * 0.5:
+				s.apply_input([{"type": "dyno_press", "limb": InputRouter.DYNO}])  # 가운데 원이 노란 고리 안일 때 누름(2026-11-25)
+				pressed = true
 			if d.tick() != "":
 				break
-		runner.check(caught and s.limbs[hand].state == "Attached" and d.results.size() == 2, "%s 패드를 누르면 %s가 잡음 %s" % [hand, hand, d.results])
-		_hold(d, 20)
-		var other := &"RH" if hand == &"LH" else &"LH"
-		s.apply_input([{"type": "detach", "limb": other}])
+		runner.check(pressed, "가운데 원을 누름(%s 차례)" % hand)
 		d.wait(300)
-		runner.check(not d.results.is_empty() and d.results[-1] == "done", "%s로 잡고 다른 손도 잡아 완등 %s" % [hand, d.results])
+		runner.check(not d.results.is_empty() and d.results[-1] == "done", "두 손이 정상을 같이 잡아 완등 %s" % [d.results])

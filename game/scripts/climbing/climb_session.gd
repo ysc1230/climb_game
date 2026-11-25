@@ -243,11 +243,11 @@ func apply_input(cmds: Array) -> void:
 			_dyno_input(c)
 			continue
 		if dyno.get("phase", "") == "flight":
-			if c.type in ["arm", "detach"] and PoseSolver.is_hand(c.limb):
-				_dyno_catch(c.limb)
-			continue  # 날아가는 동안 다른 조작은 받지 않는다
-		if dyno.get("phase", "") == "hang" and c.type == "detach" and PoseSolver.is_hand(c.limb) and _dyno_catch(c.limb):
-			continue
+			if c.type == "dyno_press":
+				_dyno_press()
+			continue  # 날아가는 동안 다른 조작은 받지 않는다(잡기는 가운데 원으로)
+		if dyno.get("phase", "") == "hang" and c.type in ["arm", "detach"]:
+			continue  # 잡은 직후 발을 딛는 동안(0.6초)은 손발 조작을 받지 않는다
 		if dyno.get("phase", "") == "charge":
 			continue  # 준비하는 동안 손발은 그대로
 		if c.type in ["body_start", "body_move", "body_end", "body_tilt"]:
@@ -523,6 +523,13 @@ func step() -> String:
 			var t: float = dyno.t
 			var fade := pow(0.5, t / 0.35)
 			rules.body_goal = (dyno.anchor as Vector2) + Vector2(float(dyno.amp) * cos(TAU * Tuning.DYNO_SWAY_HZ * t) * fade, -0.03 * absf(sin(TAU * Tuning.DYNO_SWAY_HZ * t)) * fade)
+		dyno.foot_t = int(dyno.get("foot_t", 0)) + 1
+		var feet: Array = dyno.get("feet", [])
+		if not feet.is_empty() and int(dyno.foot_t) >= Tuning.DYNO_FOOT_GAP * (int(dyno.get("feet_done", 0)) + 1):
+			var f: Array = feet.pop_front()  # 발 하나씩 0.3초 간격으로 딛는다
+			dyno.feet_done = int(dyno.get("feet_done", 0)) + 1
+			if not limbs[f[0]].state in ["Attached", "Armed"]:
+				_dyno_attach(f[0], f[1], route.slot_pos(f[1]))
 		if int(dyno.ticks) <= 0:
 			if dyno.has("anchor") and not _body_dragging:
 				rules.body_goal = Vector2(NAN, NAN)
@@ -740,8 +747,9 @@ func limb_loads() -> Dictionary:
 # ---------- 다이노(Tuning.DYNO_*, docs/45) ----------
 
 ## {} / {phase: "charge", anchor, drag(끈 벡터, 월드)}
-## / {phase: "flight", reach(닿는 손홀드 키 목록), aim: {hand: 키}, start_y, window(남은 틱), window_used, window_ticks}
-## / {phase: "hang", ticks}(잡은 직후 1초: 균형을 잃어도 버팀, 다른 손 패드를 누르면 닿는 손홀드를 잡음)
+## / {phase: "flight", reach(닿는 합손 홀드 키 목록), aim: {hand: 키}, start_y, q0(뛴 홀드 품질), window(남은 틱), window_used, window_ticks,
+##    target(원이 뜬 홀드), zone(성공 구간 반지름 비율)}
+## / {phase: "hang", ticks, anchor, feet: [[발, 키]…](0.3초마다 하나씩 딛음)}(잡은 직후 1초: 균형을 잃어도 버팀)
 var dyno := {}
 var _dyno_relief := 0
 ## 이번 판(시작·다시 시작부터 추락·완등까지)에 다이노로 뛰었는가. 2026-11-25 사용자: "다이노는 한 판에 한 번만"(다이노로만 모든 문제를 깨는 공략 막기).
@@ -788,11 +796,19 @@ func dyno_flying() -> bool:
 	return dyno.get("phase", "") == "flight"
 
 
-## 느린 화면 중이면 남은 비율(0~1), 아니면 -1.
-func dyno_slow_left() -> float:
+## 잡기 직전 줄어드는 원 {left(지금 반지름 비율 1→0), zone: Vector2(안, 밖), target}. 원이 없으면 {}.
+func dyno_ring() -> Dictionary:
 	if not dyno_flying() or int(dyno.window) <= 0:
-		return -1.0
-	return float(dyno.window) / float(dyno.window_ticks)
+		return {}
+	return {"left": float(dyno.window) / float(dyno.window_ticks), "zone": dyno.zone, "target": dyno.target}
+
+
+## 성공 구간 폭(반지름 비율). 2026-11-25 사용자 "등급과 홀드 두 개를 보고": 등급(V0 1 → V7 0.5), 뛴 홀드 품질(dyno_quality 0~1 → 0.6~1),
+## 잡을 홀드 크기(반폭 0.03~0.13 → 0.6~1, 정상 1)를 곱한다.
+static func dyno_zone_width(grade: String, takeoff_q: float, target_hw: float) -> float:
+	var g := lerpf(1.0, 0.5, clampf(GradeInfo._n(grade) / 7.0, 0.0, 1.0))
+	var w := Tuning.DYNO_ZONE_WIDTH * g * lerpf(0.6, 1.0, clampf(takeoff_q, 0.0, 1.0)) * lerpf(0.6, 1.0, clampf((target_hw - 0.03) / 0.10, 0.0, 1.0))
+	return maxf(w, Tuning.DYNO_ZONE_MIN)
 
 
 ## 날아가는 동안 손마다 팔을 뻗어 닿은 손홀드 키(없으면 빈 문자열). 그 손 패드를 누르면 잡는다.
@@ -872,7 +888,7 @@ func _dyno_reachable(v: Vector2) -> Array:
 				if found.has(key):
 					continue
 				var slot: Dictionary = route.slots[key]
-				if (not slot.has("hand_area") and not route.goal_slots.has(key)) or _dyno_banned.has(String(key).get_base_dir()):
+				if not _dyno_target_ok(key):
 					continue
 				var hp := route.slot_pos(key)
 				if hp.y > top + 0.05 and sh.distance_to(hp) <= arm:
@@ -882,6 +898,14 @@ func _dyno_reachable(v: Vector2) -> Array:
 	var keys := found.keys()
 	keys.sort_custom(func(a, b): return found[a] > found[b])
 	return keys
+
+
+## 다이노로 잡을 수 있는 홀드: 합손 홀드(두 손이 같이 잡음, 2026-11-25 사용자 "다이노는 합손이 가능한 홀드에만")와 정상(두 칸을 두 손으로).
+## 막힌 홀드(정상·탑 전 홀드, 일반·만든 문제)는 뺀다.
+func _dyno_target_ok(key: String) -> bool:
+	var slot: Dictionary = route.slots[key]
+	var ok: bool = route.goal_slots.has(key) or bool(slot.get("hand_area", {}).get("matchable", false))
+	return ok and not _dyno_banned.has(String(key).get_base_dir())
 
 
 func _dyno_input(c: Dictionary) -> void:
@@ -919,6 +943,11 @@ func _dyno_input(c: Dictionary) -> void:
 				rules.body_goal = Vector2(NAN, NAN)
 				messages.append("더 길게 끌어야 다이노해요")
 				return
+			if _dyno_reachable(_dyno_velocity()).is_empty():
+				dyno = {}
+				rules.body_goal = Vector2(NAN, NAN)
+				messages.append("닿는 합손 홀드(파란 홀드)가 없어서 뛰지 않았어요")
+				return
 			_dyno_launch()
 		"dyno_cancel":
 			if dyno.get("phase", "") == "charge":
@@ -931,6 +960,7 @@ func _dyno_launch() -> void:
 	var v := _dyno_velocity()
 	var reach := _dyno_reachable(v)
 	var cost := lerpf(Tuning.DYNO_COST_MIN, Tuning.DYNO_COST_MAX, _dyno_t())
+	var q0 := dyno_quality()  # 손발을 떼기 전 뛴 홀드 품질(성공 구간 폭)
 	dyno_used = true
 	for hand in [PoseSolver.LH, PoseSolver.RH]:
 		rules.stamina[hand] = maxf(0.0, float(rules.stamina[hand]) - cost)
@@ -944,7 +974,7 @@ func _dyno_launch() -> void:
 	body.angle = 0.0  # 날아가는 동안 몸은 곧게(표시한 닿는 홀드 계산과 같은 자세)
 	body.yaw = 0.0
 	rules.body_goal = Vector2(NAN, NAN)
-	dyno = {"phase": "flight", "reach": reach, "aim": {}, "start_y": body.pos.y, "window": 0, "window_used": false, "window_ticks": 1}
+	dyno = {"phase": "flight", "reach": reach, "aim": {}, "start_y": body.pos.y, "q0": q0, "window": 0, "window_used": false, "window_ticks": 1}
 	_dyno_place_limbs()
 	_log_event({"type": "dyno", "vel": v, "cost": cost, "reach": reach})
 
@@ -988,16 +1018,22 @@ func _dyno_tick() -> String:
 	_dyno_place_limbs()
 	if slow:
 		dyno.window = int(dyno.window) - 1
+		if int(dyno.window) <= 0:  # 원이 다 줄어들 때까지 안 누름(또는 성공 구간 밖에서 누름): 놓침
+			dyno = {}
+			_start_fall("DYNO_MISS")
+			return "fall:DYNO_MISS"
 	elif not dyno.window_used and not (dyno.reach as Array).is_empty():
 		for hand in dyno.aim:
 			var key: String = dyno.aim[hand]
 			if key != dyno.reach[0]:
-				continue  # 느린 화면은 표시한 가장 높은 홀드(굵은 고리)에 손이 닿을 때
+				continue  # 원은 표시한 가장 높은 홀드(굵은 고리)에 손이 닿을 때
 			var hw := float(route.slots[key].hand_area.half_width) if route.slots[key].has("hand_area") else 0.13
-			var win := lerpf(Tuning.DYNO_WINDOW_MIN, Tuning.DYNO_WINDOW_MAX, clampf((hw - 0.03) / 0.10, 0.0, 1.0))
-			dyno.window_ticks = maxi(1, roundi(win * Tuning.TICK_HZ))
+			var w := dyno_zone_width(route.grade, float(dyno.get("q0", 1.0)), hw)
+			dyno.window_ticks = maxi(1, roundi(Tuning.DYNO_RING_SEC * Tuning.TICK_HZ))
 			dyno.window = dyno.window_ticks
 			dyno.window_used = true
+			dyno.target = key
+			dyno.zone = Vector2(Tuning.DYNO_ZONE_MID - w * 0.5, Tuning.DYNO_ZONE_MID + w * 0.5)
 			break
 	if not slow and body.vel.y < 0.0 and body.pos.y < float(dyno.start_y) - Tuning.DYNO_MISS_DROP:
 		dyno = {}
@@ -1006,111 +1042,94 @@ func _dyno_tick() -> String:
 	return ""
 
 
-## 손 패드를 눌렀을 때 그 손이 잡는다(2026-11-18 사용자: "누른 버튼의 손으로"). 날아가는 중: 그 손이 겨눈 홀드, 없으면 그 어깨에서
-## 팔 길이 + DYNO_CATCH_SLACK 안의 가장 높은 표시 홀드(다른 손이 잡은 것 제외). 잡으면 두 발은 닿는 홀드를 딛고, 날던 방향으로
-## 몸이 흔들리다 멈춘다(hang 동안 골반 목표를 흔든다). hang 중(두 번째 손)이면 지금 몸에서 닿는 가장 가까운 손홀드. 없으면 false.
-func _dyno_catch(hand: StringName) -> bool:
-	if limbs[hand].state in ["Attached", "Armed"]:
-		return false
-	var key := ""
-	if dyno.phase == "flight":
-		key = dyno.aim.get(hand, "")
-		if key.is_empty():
-			var sh := PoseSolver.joint_position(body.pos, body.angle, hand, body.yaw)
-			var lim := PoseSolver.reach_of(hand).y * Tuning.DYNO_REACH + Tuning.DYNO_CATCH_SLACK
-			for k in dyno.reach:
-				if not _held_keys().has(k) and sh.distance_to(route.slot_pos(k)) <= lim:
-					key = k
-					break
+## 가운데 원을 눌렀다: 원이 성공 구간 안이면 두 손이 같이 잡고, 밖이면 놓친다(다음 틱에 떨어짐).
+func _dyno_press() -> void:
+	var ring := dyno_ring()
+	if ring.is_empty():
+		return
+	var z: Vector2 = ring.zone
+	if float(ring.left) >= z.x and float(ring.left) <= z.y:
+		_dyno_catch(str(ring.target))
 	else:
-		# 두 번째 손: 뛰며 표시한 홀드 중 팔 길이 + 여유 안의 가장 높은 것(모자라면 몸을 그만큼 끌어올림),
-		# 없으면 지금 닿는 손홀드 중 가장 높은 것
-		var sh := PoseSolver.joint_position(body.pos, body.angle, hand, body.yaw)
-		var arm := PoseSolver.reach_of(hand).y * Tuning.DYNO_REACH
-		for k in dyno.get("reach", []):
-			var kp := route.slot_pos(k)
-			if not _held_keys().has(k) and sh.distance_to(kp) <= arm + Tuning.DYNO_CATCH_SLACK:
-				key = k
-				if sh.distance_to(kp) > arm:
-					var pull: Vector2 = (kp - sh) - (kp - sh).normalized() * arm
-					body.pos += pull
-					if dyno.has("anchor"):
-						dyno.anchor = (dyno.anchor as Vector2) + pull
-				break
-		if key.is_empty():
-			key = _highest_reachable_hand(hand)
-	if key.is_empty():
-		return false
-	var point := route.slot_pos(key)
-	if dyno.phase == "flight":
-		var v := body.vel
-		var sh2 := PoseSolver.joint_position(body.pos, body.angle, hand, body.yaw)
-		var arm := PoseSolver.reach_of(hand).y * Tuning.DYNO_REACH
-		if sh2.distance_to(point) > arm:  # 여유로 잡은 경우: 팔이 닿게 몸을 끌어당긴다
-			body.pos += (point - sh2) - (point - sh2).normalized() * arm
-		body.vel = Vector2.ZERO
-		_dyno_place_limbs()
-		_dyno_attach(hand, key, point)
-		for foot in [PoseSolver.LF, PoseSolver.RF]:
-			var f := _nearest_reachable(foot, _held_keys(), false)
-			if not f.is_empty():
-				_dyno_attach(foot, f, route.slot_pos(f))
-		var amp := clampf(v.x * Tuning.DYNO_SWAY, -0.15, 0.15) + 0.05 * PoseSolver.side_sign(hand)
-		dyno = {"phase": "hang", "ticks": Tuning.DYNO_HANG_TICKS, "anchor": body.pos, "amp": amp, "t": 0.0, "reach": dyno.reach}
-		_dyno_relief = Tuning.DYNO_RELIEF_TICKS
-	else:
-		_dyno_attach(hand, key, point)
-	return true
+		dyno.window = 1
+		messages.append("타이밍을 놓쳤어요")
+
+
+## 두 손이 key를 같이 잡는다(합손 홀드는 두 손이 한 칸, 정상은 왼손 왼쪽 칸·오른손 오른쪽 칸). 골반은 홀드 아래로 옮겨 팔이 닿게 하고,
+## 발은 _dyno_feet_plan이 고른 자리를 0.3초 간격으로 하나씩 딛는다. 날던 방향으로 몸이 흔들리다 멈춘다.
+func _dyno_catch(key: String) -> void:
+	var keys := {PoseSolver.LH: key, PoseSolver.RH: key}
+	if route.goal_slots.has(key):
+		var g: Array = route.goal_slots.duplicate()
+		g.sort_custom(func(a, b): return route.slot_pos(a).x < route.slot_pos(b).x)
+		keys = {PoseSolver.LH: g[0], PoseSolver.RH: g[-1]}
+	var hp := (route.slot_pos(keys[PoseSolver.LH]) + route.slot_pos(keys[PoseSolver.RH])) * 0.5
+	var v := body.vel
+	body.vel = Vector2.ZERO
+	body.angle = 0.0
+	body.pos = Vector2(hp.x, clampf(body.pos.y, hp.y - 1.1, hp.y - 0.3))
+	for hand in keys:
+		_dyno_attach(hand, keys[hand], route.slot_pos(keys[hand]))
+	var plan := _dyno_feet_plan(keys)
+	for foot in [PoseSolver.LF, PoseSolver.RF]:
+		limbs[foot].pos = body.pos + _rest_offset(foot)
+		limbs[foot].req = limbs[foot].pos
+	var amp := clampf(v.x * Tuning.DYNO_SWAY, -0.15, 0.15)
+	dyno = {"phase": "hang", "ticks": Tuning.DYNO_HANG_TICKS, "anchor": plan.pelvis, "amp": amp, "t": 0.0, "feet": plan.feet}
+	_dyno_relief = Tuning.DYNO_RELIEF_TICKS
+
+
+## 잡은 뒤 발 자리(2026-11-25 사용자 "발 하나씩 0.3초 텀을 두고 최적의 무게중심으로 발자리를 찾아. 없거나 한 발만 되면 한 발만"):
+## 손 아래 0.5~2.1m·좌우 1m 안의 발 홀드(정상·손이 잡은 홀드 제외)로 두 발 조합을 먼저, 안 되면 한 발을 본다. 자세(find_target)가 되고
+## 받치는 발이 있는 것 중 골반이 지지 중심(support_center_x)에 가장 가까운 것. 반환 {feet: [[발, 키]…](딛는 순서), pelvis}. 없으면 매달림.
+func _dyno_feet_plan(hands: Dictionary) -> Dictionary:
+	var att := {}
+	for h in hands:
+		att[h] = route.slot_pos(hands[h])
+	var hp: Vector2 = (att[PoseSolver.LH] + att[PoseSolver.RH]) * 0.5
+	var hang := Vector2(hp.x, hp.y - 1.05)
+	var cands: Array = []
+	for key in route.slots:
+		var p := route.slot_pos(key)
+		if route.goal_slots.has(key) or hands.values().has(key) or p.y < hp.y - 2.1 or p.y > hp.y - 0.5 or absf(p.x - hp.x) > 1.0:
+			continue
+		cands.append(key)
+	var best := {}
+	var best_score := INF
+	for two in [true, false]:
+		for a in cands:
+			for b in (cands if two else [""]):
+				var a_p := route.slot_pos(a)
+				var feet := {}
+				if two:
+					if a == b or a_p.x > route.slot_pos(b).x:
+						continue
+					feet = {PoseSolver.LF: a, PoseSolver.RF: b}
+				else:
+					feet = {(PoseSolver.LF if a_p.x <= hp.x else PoseSolver.RF): a}
+				var at := att.duplicate()
+				for f in feet:
+					at[f] = route.slot_pos(feet[f])
+				var t := PoseSolver.find_target(hang, 0.0, at, PoseSolver.supporting_feet(hang, 0.0, at))
+				var p := Vector2(t.x, t.y)
+				if not PoseSolver.is_valid(p, t.z, at) or PoseSolver.supporting_feet(p, t.z, at).is_empty():
+					continue
+				var score := absf(p.x - rules.support_center_x(p, t.z, at))
+				if score < best_score:
+					best_score = score
+					best = {"feet": feet, "pelvis": p}
+		if not best.is_empty():
+			break
+	if best.is_empty():
+		return {"feet": [], "pelvis": hang}
+	var order: Array = []
+	for f in best.feet:
+		order.append([f, best.feet[f]])
+	order.sort_custom(func(x, y): return route.slot_pos(x[1]).y > route.slot_pos(y[1]).y)  # 높은(가까운) 발판부터
+	return {"feet": order, "pelvis": best.pelvis}
 
 
 func _dyno_attach(limb: StringName, key: String, point: Vector2) -> void:
 	var contact := GripCheck.contact_for_pose(key, route.slots, limb, point, body.pos, body.angle, body.yaw, attached(), _contact_meta(), _endpoints(), forbid.has(&"grip_auto"))
 	_attach(limb, key, point, contact)
 	_log_event({"type": "dyno_catch", "limb": limb, "key": key})
-
-
-## 지금 몸에서 hand가 닿는(can_reach) 손홀드·정상 중 가장 높은 것(잡힌 것 제외). 없으면 "".
-func _highest_reachable_hand(hand: StringName) -> String:
-	var best := ""
-	var best_y := -INF
-	for key in route.slots:
-		var slot: Dictionary = route.slots[key]
-		if _held_keys().has(key) or (not slot.has("hand_area") and not route.goal_slots.has(key)) or _dyno_banned.has(String(key).get_base_dir()):
-			continue
-		var p := route.slot_pos(key)
-		if p.y > best_y and PoseSolver.can_reach(body.pos, body.angle, hand, p, body.yaw):
-			best = key
-			best_y = p.y
-	return best
-
-
-func _held_keys() -> Dictionary:
-	var out := {}
-	for limb in attached():
-		out[limbs[limb].key] = true
-	return out
-
-
-## limb이 지금 몸에서 닿는(PoseSolver.can_reach) 가장 가까운 슬롯. 손은 손홀드·정상만, 발은 정상이 아닌 모든 홀드(docs/38) 중
-## 고관절보다 0.05m 넘게 낮은 것. used의 슬롯은 건너뛴다.
-func _nearest_reachable(limb: StringName, used: Dictionary, hand: bool) -> String:
-	var joint := PoseSolver.joint_position(body.pos, body.angle, limb, body.yaw)
-	var best := ""
-	var best_d := INF
-	for key in route.slots:
-		if used.has(key):
-			continue
-		var slot: Dictionary = route.slots[key]
-		var goal := route.goal_slots.has(key)
-		if hand and not slot.has("hand_area") and not goal:
-			continue
-		var p := route.slot_pos(key)
-		if not hand and (goal or p.y > joint.y - 0.05):
-			continue
-		if not PoseSolver.can_reach(body.pos, body.angle, limb, p, body.yaw):
-			continue
-		var d := (limbs[limb].pos as Vector2).distance_to(p)
-		if d < best_d:
-			best = key
-			best_d = d
-	return best

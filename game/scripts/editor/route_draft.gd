@@ -21,7 +21,7 @@ const P_NAME := "문제 이름을 적어 주세요"
 const P_START := "시작 자리(두 손·두 발)를 정해 주세요"
 const P_GOAL := "탑 홀드를 놓아 주세요"
 const P_SPACING := "빨간 홀드가 다른 홀드와 너무 가까워요"
-const P_POSE := "시작 자세를 만들 수 없어요(손발이 너무 멀어요)"
+const P_POSE := "시작 자세를 만들 수 없어요(손발이 너무 멀거나 가까워요) — [점검]에서 고칠 곳을 보세요"
 const P_ROUTE := "문제 데이터 오류"
 
 var route_id := ""
@@ -345,8 +345,69 @@ func problems() -> Array:
 	return out
 
 
-## 간격 규칙(docs/44)을 어기는 홀드 id.
-func bad_holds() -> Array:
+## 시작 자세가 안 될 때 고칠 곳(2026-11-25 사용자 "얼마나 가까워야 하는지 모르겠어"): 시작 홀드 하나를 8방향으로 0.1m씩(0.6m까지)
+## 옮겨 보며 시작 자세(start_pose)가 되는 가장 작은 이동을 찾는다. {limb, hold, move(m), text}. 이미 되거나 못 찾으면 {}.
+## 점검 창을 열 때만 부른다(최대 192번 자세 계산, 약 0.2초).
+func start_fix() -> Dictionary:
+	if start.values().has("") or start_pose().ok:
+		return {}
+	var dirs := [[Vector2(0, -1), "아래로"], [Vector2(0, 1), "위로"], [Vector2(-1, 0), "왼쪽으로"], [Vector2(1, 0), "오른쪽으로"],
+		[Vector2(-1, -1), "왼쪽 아래로"], [Vector2(1, -1), "오른쪽 아래로"], [Vector2(-1, 1), "왼쪽 위로"], [Vector2(1, 1), "오른쪽 위로"]]
+	const NAMES := {&"LH": "왼손", &"RH": "오른손", &"LF": "왼발", &"RF": "오른발"}
+	for step in range(1, 7):
+		for limb in [&"LF", &"RF", &"LH", &"RH"]:
+			var h := hold(start[limb])
+			var x0: float = h.x
+			var y0: float = h.y
+			for dv in dirs:
+				var mv: Vector2 = (dv[0] as Vector2).normalized() * step * 0.1
+				h.x = _sx(x0 + mv.x)
+				h.y = _sy(y0 + mv.y)
+				var ok: bool = start_pose().ok
+				h.x = x0
+				h.y = y0
+				if ok:
+					return {"limb": limb, "hold": h.id, "move": mv, "text": "%s 홀드를 %s %.1fm 옮기면 시작 자세가 돼요" % [NAMES[limb], dv[1], step * 0.1]}
+	return {}
+
+
+const FAR_HAND := 1.2   # 아래 손홀드에서 이보다 먼 손홀드는 닿기 어렵다(두 팔 다 뻗어도 손 사이 약 1.75m, 기존 문제는 0.5~0.6m)
+const ROOF_DEG := 70    # 이보다 기운(화면 110° 이하) 구간은 발 딛기가 어렵다
+
+
+## 만들 수는 있지만 문제가 있을 수 있는 것 [{text, hold, y}](점검 창). 가벼운 계산만(고칠 때마다 센다).
+func warnings() -> Array:
+	var out: Array = []
+	var hands := holds.filter(func(h): return is_hand_type(h.type) or h.type == "goal")
+	var base := -INF
+	for l in [&"LH", &"RH"]:
+		if start[l] != "":
+			base = maxf(base, hold(start[l]).y)
+	for h in hands:
+		if h.y <= base + 0.01:
+			continue
+		var best := INF
+		for o in hands:
+			if o.y < h.y - 0.01:
+				best = minf(best, Vector2(o.x, o.y).distance_to(Vector2(h.x, h.y)))
+		if best > FAR_HAND and best < INF:
+			var tip := " 합손 홀드라 다이노로는 닿을 수 있어요." if h.get("matchable", false) else ""
+			out.append({"text": "%s(%.1fm)가 아래 손홀드에서 %.1fm 떨어져 닿기 어려워요(%.1fm 안이 좋아요).%s" % [HoldTypes.name_ko(h.type), h.y, best, FAR_HAND, tip], "hold": h.id, "y": h.y})
+	for w in walls:
+		if int(w.deg) >= ROOF_DEG and float(w.from_y) < wall_limit():
+			out.append({"text": "%dm부터 %d°: 천장에 가까워 발을 딛기 어려워요(토훅·힐훅은 아직 없어요)." % [int(w.from_y), 180 - int(w.deg)], "hold": "", "y": float(w.from_y)})
+	var g := goal_hold()
+	if not g.is_empty():
+		var above := holds.filter(func(h): return h.type != "goal" and h.y > g.y + 0.3)
+		if not above.is_empty():
+			out.append({"text": "탑보다 높은 홀드 %d개는 쓰이지 않아요." % above.size(), "hold": above[0].id, "y": above[0].y})
+	if wall_limit() > 20.0:
+		out.append({"text": "벽이 20m 넘게 높아요. 봇 검사(5초)가 끝까지 못 볼 수 있어요.", "hold": "", "y": -1.0})
+	return out
+
+
+## 간격 규칙(docs/44)을 어기는 홀드 쌍 [{hold, other, text}](점검 창: 얼마나 떼야 하는지).
+func spacing_details() -> Array:
 	var out: Array = []
 	if holds.size() < 2:
 		return out
@@ -355,8 +416,23 @@ func bad_holds() -> Array:
 		d.goal_slots = ["x", "y"]  # 탑 없이도 간격은 본다(읽기 오류는 무시)
 	var r := RouteDef.from_dict(d)
 	for line in HoldSpacing.violations(r):
-		for part in String(line).split(" ↔ "):
-			var id := part.split(" ")[0]
+		var p := String(line).split(" ")  # "H03 ↔ H05 간격 0.050m < 0.120m"
+		var a := hold(p[0])
+		var b := hold(p[2])
+		if a.is_empty() or b.is_empty():
+			continue
+		var gap := p[4].to_float()
+		var now := "겹쳐 있어요" if gap <= 0.005 else "너무 가까워요(지금 %.2fm)" % gap
+		out.append({"hold": p[0], "other": p[2], "text": "%s·%s 사이가 %s. %.2fm 넘게 떼어 놓으세요." % [
+			HoldTypes.name_ko(a.type), HoldTypes.name_ko(b.type), now, p[6].to_float()]})
+	return out
+
+
+## 간격 규칙(docs/44)을 어기는 홀드 id.
+func bad_holds() -> Array:
+	var out: Array = []
+	for v in spacing_details():
+		for id in [v.hold, v.other]:
 			if not out.has(id):
 				out.append(id)
 	return out
