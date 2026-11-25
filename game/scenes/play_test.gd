@@ -267,6 +267,9 @@ const CAM_TURN := 0.006          # 끈 픽셀당 도는 각(라디안)
 const CAM_YAW_MAX := deg_to_rad(85.0)
 const CAM_PITCH_RANGE := Vector2(deg_to_rad(-35.0), deg_to_rad(40.0))  # − 위에서 내려다봄, + 아래에서 올려다봄
 const CAM_ZOOM_RANGE := Vector2(0.45, 1.6)
+## 시점 방향이 벽 어느 구간이든 면에서 이만큼은 떨어진다(2026-11-25 사용자 "벽이 통과해서 보여": 85°로 옆에서 보거나
+## 60° 구간을 위에서 내려다보면 벽이 종이처럼 얇고 볼륨·뒤 공간이 비쳐 보였다)
+const CAM_MIN_VIEW := deg_to_rad(25.0)
 var cam_yaw := 0.0
 var cam_pitch := 0.0
 var cam_zoom := 1.0
@@ -732,8 +735,29 @@ static func _make_router() -> InputRouter:
 
 
 func _cam_turn(d: Vector2) -> void:
-	cam_yaw = clampf(cam_yaw - d.x * CAM_TURN, -CAM_YAW_MAX, CAM_YAW_MAX)
-	cam_pitch = clampf(cam_pitch - d.y * CAM_TURN, CAM_PITCH_RANGE.x, CAM_PITCH_RANGE.y)
+	for step: Vector2 in [Vector2(d.x, 0.0), Vector2(0.0, d.y)]:  # 축마다 따로, 한계를 넘는 끌기는 넘지 않는 데까지(반씩 줄여 봄)
+		for i in 6:
+			var yaw := clampf(cam_yaw - step.x * CAM_TURN, -CAM_YAW_MAX, CAM_YAW_MAX)
+			var pitch := clampf(cam_pitch - step.y * CAM_TURN, CAM_PITCH_RANGE.x, CAM_PITCH_RANGE.y)
+			if cam_view_ok(route, yaw, pitch, cam_y):
+				cam_yaw = yaw
+				cam_pitch = pitch
+				break
+			step *= 0.5
+
+
+## 시점 방향(play_3d와 같은 식: 카메라 높이 벽 각의 1/4 + pitch, yaw)이 벽 구간마다 면에서 CAM_MIN_VIEW 이상 떨어졌나.
+## 처음 시점부터 그보다 비스듬한 구간(천장 등)은 처음 시점보다 비스듬해지지만 않으면 된다.
+static func cam_view_ok(r: RouteDef, yaw: float, pitch: float, y: float) -> bool:
+	var base := deg_to_rad(r.angle_at(y)) * 0.25
+	var d := Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, base + pitch) * Vector3.BACK
+	var d0 := Basis(Vector3.RIGHT, base) * Vector3.BACK
+	var degs: Array = [r.wall_deg] if r.wall_sections.is_empty() else r.wall_sections.map(func(w): return float(w.deg))
+	for a in degs:
+		var n := Basis(Vector3.RIGHT, deg_to_rad(a)) * Vector3.BACK  # 그 구간 벽면 법선(WallProfile.basis_at의 Z)
+		if d.dot(n) < minf(sin(CAM_MIN_VIEW), d0.dot(n) - 0.001):
+			return false
+	return true
 
 
 ## 오버레이 버튼(일시정지·목록·다시·다음·도움말·건너뛰기). 결과·완료 화면이 떠 있으면 모든 입력을 받아 쓴다.
@@ -925,6 +949,9 @@ func _pause(manual := false) -> void:
 func _physics_process(_delta: float) -> void:
 	if message_ticks > 0:
 		message_ticks -= 1
+	if not cam_view_ok(route, cam_yaw, cam_pitch, cam_y):  # 오르며 카메라 높이 벽 각이 바뀌어 벗어나면 처음 시점 쪽으로 천천히
+		cam_yaw *= 0.9
+		cam_pitch *= 0.9
 	if ui_mode == UI.PANEL:
 		_check_timer -= _delta
 		if _check_timer <= 0.0:

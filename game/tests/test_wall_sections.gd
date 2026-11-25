@@ -92,3 +92,17 @@ func test_push_in_front_of_wall() -> void:
 	runner.check(lz >= 0.59, "벽 뒤 카메라를 벽면 앞 0.6m로 %.3f" % lz)
 	var front := wp.point(Vector3(0.2, 1.0, 3.0))
 	runner.check(wp.push_in_front(front, 0.6).distance_to(front) < 1e-4, "충분히 앞이면 그대로")
+
+
+## 시점이 벽 면을 거의 옆·위에서 보면 벽이 종이처럼 얇고 볼륨·뒤가 비쳐 보인다(2026-11-25 사용자 "벽이 통과해서 보여"):
+## 어느 구간이든 면에서 CAM_MIN_VIEW 이상 떨어진 방향으로만 돌린다. 처음 시점부터 비스듬한 구간은 처음 시점보다 나빠지지만 않게.
+func test_camera_never_grazes_wall() -> void:
+	var PT := load("res://scenes/play_test.gd")
+	var r := _route([{"from_y": 0.0, "deg": 30}, {"from_y": 1.5, "deg": 60}])
+	runner.check(PT.cam_view_ok(r, 0.0, 0.0, 1.0), "처음 시점은 됨")
+	runner.check(PT.cam_view_ok(r, deg_to_rad(40.0), 0.0, 1.0), "옆으로 40°는 됨")
+	runner.check(PT.cam_view_ok(r, 0.0, deg_to_rad(30.0), 1.0), "아래에서 올려다보기는 됨")
+	runner.check(not PT.cam_view_ok(r, deg_to_rad(85.0), 0.0, 1.0), "옆 85°(벽이 종이처럼)는 안 됨")
+	runner.check(not PT.cam_view_ok(r, 0.0, deg_to_rad(-35.0), 1.0), "60° 구간을 위에서 내려다보기는 안 됨")
+	var ceil := _route([{"from_y": 0.0, "deg": 30}, {"from_y": 1.5, "deg": 90}])
+	runner.check(PT.cam_view_ok(ceil, 0.0, 0.0, 1.0), "90° 천장이 있어도 처음 시점은 됨")
