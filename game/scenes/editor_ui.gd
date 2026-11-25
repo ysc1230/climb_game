@@ -6,11 +6,17 @@ extends Node2D
 ## 2026-11-25 사용자: 옮기기는 고른 홀드를 화면 어디서든 끌어서, 돌리기는 오른쪽 아래 조절 원으로, 벽 각도 탭(180°~90°, 1m·1°),
 ## 두 손가락 시점, 100m까지 높아지는 벽, 왼쪽 높이 스크롤바(눈금 8개 이하).
 
-const CREAM := Color("f1d59a")
-const INK := Color("302820")
-const PANEL := Color(0.12, 0.11, 0.10, 0.88)
-const DIM := Color(1, 1, 1, 0.6)
-const RED := Color(1.0, 0.3, 0.25)
+## 색·글꼴은 홈(home.gd)과 같다(2026-11-25 사용자 "전체적인 홈 화면과 유사한 UI로"): 남색 반투명 둥근 판, 분필색 글자,
+## 강조는 노랑 하나(고른 것·누를 다음 것). 막는 것은 빨강, 주의는 주황.
+const NIGHT := Color("0d1620")
+const CHALK := Color("f6f2ea")
+const SHOE := Color("ffc93c")
+const CREAM := Color("f1d59a")   # 보조 정보
+const HAIR := Color(0.965, 0.95, 0.92, 0.14)
+const DIM := Color(0.965, 0.95, 0.92, 0.66)
+const RED := Color("ff5a4a")
+const WARN := Color(1, 0.75, 0.6)
+const GOOD := Color("7cc443")
 ## 2026-11-25 사용자 "놓기 옮기기 돌리기를 하나로 하고 벽 각도는 따로", "시작 지정이 아니라 시작홀드 설정".
 ## 편집: 빈 벽을 누르면 고른 종류를 놓고, 홀드를 누르면 고르고(다시 누르면 해제), 끌면 고른 홀드를 옮기고, 오른쪽 아래 원으로 돌린다.
 const TOOLS := [["edit", "편집"], ["wall", "벽 각도"], ["erase", "지우기"], ["start", "시작홀드 설정"]]
@@ -21,7 +27,10 @@ const DRAG_PX := 14.0     # 이보다 움직이면 누르기가 아니라 끌기
 
 var view                  # EditorView
 var game: Node
-var font: Font
+var font: Font      # 본문(400)
+var font_m: Font    # 버튼(600)
+var font_b: Font    # 제목·이름표(750)
+var _boxes := {}    # 둥근 판 모양 캐시
 var k := 1.0
 var draft: RouteDraft
 var tool := "edit"
@@ -56,9 +65,9 @@ var share_code := ""
 
 
 func _ready() -> void:
-	var sf := SystemFont.new()
-	sf.font_names = PackedStringArray(["Noto Sans CJK KR", "Noto Sans KR", "Apple SD Gothic Neo", "sans-serif"])
-	font = sf
+	font = UiFont.get_font(400)
+	font_m = UiFont.get_font(600)
+	font_b = UiFont.get_font(750)
 	game = get_node_or_null("/root/Game")
 	var id: String = game.editing_route_id if game != null else ""
 	draft = MyRoutes.load_draft(id) if id != "" else null
@@ -92,7 +101,7 @@ func _layout() -> void:
 	k = maxf(minf(size.x / 1600.0, size.y / 720.0), 0.3)
 	_name_edit.position = Vector2(150, 10) * k
 	_name_edit.size = Vector2(300, 52) * k
-	_name_edit.add_theme_font_size_override("font_size", int(24 * k))
+	UiFont.style_line_edit(_name_edit, k, 22, 52 * k)
 	queue_redraw()
 
 
@@ -555,20 +564,19 @@ func _check_items() -> Array:
 func _draw_check(size: Vector2) -> void:
 	_buttons = []
 	var box := Rect2(Vector2(size.x * 0.5 - 520 * k, size.y * 0.5 - 300 * k), Vector2(1040, 600) * k)
-	draw_rect(box, Color(0.1, 0.09, 0.08, 0.97))
-	draw_rect(box, CREAM, false, 3.0)
+	_panel(box)
 	var x := box.position.x + 30 * k
 	var y := box.position.y + 52 * k
-	_text(Vector2(x, y), "점검", 28, CREAM)
-	_text(Vector2(x + 100 * k, y), "빨강: 이것 때문에 저장·올라 보기를 못 해요 · 노랑: 만들 수는 있지만 문제가 될 수 있어요", 17, DIM)
+	_text(Vector2(x, y), "점검", 28, CHALK)
+	_text(Vector2(x + 100 * k, y), "빨강: 이것 때문에 저장·올라 보기를 못 해요 · 주황: 만들 수는 있지만 문제가 될 수 있어요", 17, DIM)
 	y += 30 * k
 	var row_h := 72 * k
 	var rows := int((box.end.y - 90 * k - y) / row_h)
 	for i in mini(_checks.size(), rows):
 		var c: Dictionary = _checks[i]
-		var col := RED if c.level == "block" else (Color(1, 0.8, 0.3) if c.level == "warn" else Color(0.5, 0.9, 0.5))
+		var col := RED if c.level == "block" else (WARN if c.level == "warn" else GOOD)
 		draw_circle(Vector2(x + 10 * k, y + 22 * k), 9 * k, col)
-		_wrap(Vector2(x + 32 * k, y + 28 * k), c.text, 820 * k, 18, Color.WHITE)
+		_wrap(Vector2(x + 32 * k, y + 28 * k), c.text, 820 * k, 18, CHALK)
 		var target: String = c.hold if c.hold != "" else (str(c.y) if float(c.get("y", -1.0)) >= 0.0 else "")
 		if target != "":
 			_button(Rect2(Vector2(box.end.x - 140 * k, y + 4 * k), Vector2(110, 46) * k), "보기", "goto", target, 20)
@@ -581,25 +589,24 @@ func _draw_check(size: Vector2) -> void:
 func _draw_share(size: Vector2) -> void:
 	_buttons = []
 	var box := Rect2(Vector2(size.x * 0.5 - 380 * k, size.y * 0.5 - 200 * k), Vector2(760, 400) * k)
-	draw_rect(box, Color(0.1, 0.09, 0.08, 0.97))
-	draw_rect(box, CREAM, false, 3.0)
+	_panel(box)
 	var x := box.position.x + 30 * k
 	var y := box.position.y + 56 * k
-	_text(Vector2(x, y), "이 기기에 저장했어요", 26, CREAM)
+	_text(Vector2(x, y), "이 기기에 저장했어요", 26, CHALK)
 	y += 44 * k
 	var can: bool = game != null and draft.can_publish(game.progress)
 	if share_code != "":
 		_text(Vector2(x, y), "공유 코드", 20, DIM)
-		_text(Vector2(x, y + 64 * k), share_code, 56, Color.WHITE)
+		_text(Vector2(x, y + 64 * k), share_code, 56, CHALK)
 		_button(Rect2(Vector2(x + 330 * k, y + 14 * k), Vector2(150, 56) * k), "복사", "copy", "", 22)
 		y += 100 * k
 	if game == null or not game.share().enabled():
 		_wrap(Vector2(x, y + 10 * k), "공유 서버가 아직 준비되지 않았어요. 만든 문제는 이 기기에서 계속 올라 볼 수 있어요.", 700 * k, 20, DIM)
 	elif not can:
 		var why: String = _problems[0] if not _problems.is_empty() else "직접 도움 없이 한 번 완등해야 올릴 수 있어요([올라 보기])"
-		_wrap(Vector2(x, y + 10 * k), "아직 올릴 수 없어요: " + why, 700 * k, 20, Color(1, 0.75, 0.6))
+		_wrap(Vector2(x, y + 10 * k), "아직 올릴 수 없어요: " + why, 700 * k, 20, WARN)
 	elif share_busy:
-		_text(Vector2(x, y + 30 * k), "올리는 중…", 24, Color.WHITE)
+		_text(Vector2(x, y + 30 * k), "올리는 중…", 24, CHALK)
 	else:
 		_button(Rect2(Vector2(x, y + 10 * k), Vector2(330, 64) * k), "친구에게 코드로", "publish", "link", 22)
 		_button(Rect2(Vector2(x + 360 * k, y + 10 * k), Vector2(330, 64) * k), "모두에게 공개", "publish", "public", 22, true)
@@ -615,11 +622,12 @@ func _draw() -> void:
 		return
 	_draw_wall_overlay(size)
 	# 위 줄
-	draw_rect(Rect2(Vector2.ZERO, Vector2(size.x, 72 * k)), PANEL)
+	draw_rect(Rect2(Vector2.ZERO, Vector2(size.x, 72 * k)), Color(NIGHT, 0.86))
+	draw_line(Vector2(0, 72 * k), Vector2(size.x, 72 * k), HAIR, 1.5 * k)
 	_button(Rect2(Vector2(10, 10) * k, Vector2(130, 52) * k), "나가기", "exit", "")
 	var gx := 470 * k
 	_button(Rect2(Vector2(gx, 10 * k), Vector2(48, 52) * k), "◀", "grade", "-1")
-	_text_c(Rect2(Vector2(gx + 48 * k, 10 * k), Vector2(110, 52) * k), "예상 " + draft.grade, 22, CREAM)
+	_text_c(Rect2(Vector2(gx + 48 * k, 10 * k), Vector2(110, 52) * k), "예상 " + draft.grade, 22, CHALK)
 	_button(Rect2(Vector2(gx + 158 * k, 10 * k), Vector2(48, 52) * k), "▶", "grade", "1")
 	var x := size.x - 10 * k
 	for b in [["저장", "save", 120], ["봇 검사", "bot", 130], ["올라 보기", "climb", 150], ["되돌리기", "undo", 130]]:
@@ -630,10 +638,11 @@ func _draw() -> void:
 	_draw_panel(size)
 	# 아래 상태
 	_draw_scrollbar()
-	draw_rect(Rect2(Vector2(0, size.y - 44 * k), Vector2(size.x, 44 * k)), PANEL)
+	draw_rect(Rect2(Vector2(0, size.y - 44 * k), Vector2(size.x, 44 * k)), Color(NIGHT, 0.86))
+	draw_line(Vector2(0, size.y - 44 * k), Vector2(size.x, size.y - 44 * k), HAIR, 1.5 * k)
 	var st := "홀드 %d/%d · 벽 %sm · 판 %d · " % [draft.holds.size(), RouteDraft.MAX_HOLDS, String.num(draft.wall_limit()), draft.version]
 	st += "막는 것 없음 — 올라 볼 수 있어요" if _problems.is_empty() else _problems[0]
-	_text(Vector2(16 * k, size.y - 14 * k), st, 19, CREAM if _problems.is_empty() else Color(1, 0.75, 0.6))
+	_text(Vector2(16 * k, size.y - 14 * k), st, 19, CHALK if _problems.is_empty() else WARN)
 	var nw := _warn.size() + (1 if _bot_ok == 0 else 0)
 	_button(Rect2(Vector2(size.x - 330 * k, size.y - 42 * k), Vector2(320, 40) * k), "점검 · 막는 것 %d · 주의 %d" % [_problems.size(), nw], "check_open", "", 18,
 		not _problems.is_empty() or nw > 0)
@@ -642,9 +651,10 @@ func _draw() -> void:
 	if check_open:
 		_draw_check(size)
 	if message != "":
-		var r := Rect2(Vector2(size.x * 0.5 - 330 * k, 90 * k), Vector2(660, 54) * k)
-		draw_rect(r, Color(0, 0, 0, 0.8))
-		_text_c(r, message, 22, Color.WHITE)
+		var tw := font_b.get_string_size(message, HORIZONTAL_ALIGNMENT_LEFT, -1, int(22 * k)).x + 56 * k
+		var r := Rect2(Vector2(size.x * 0.5 - tw * 0.5, 90 * k), Vector2(tw, 54 * k))
+		draw_style_box(_box(Color(NIGHT, 0.94), r.size.y * 0.5, Color(CHALK, 0.24), 1.5), r)
+		draw_string(font_b, Vector2(r.position.x, _baseline(r, 22, font_b)), message, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(22 * k), CHALK)
 
 
 ## 벽 위 표시: 편집 범위 선(접힌 벽을 따라), 벽 끝(그 위에 놓으면 높아짐), 시작 자리 이름표, 탑, 간격 위반(빨강), 고른 홀드(노랑),
@@ -653,10 +663,10 @@ func _draw_wall_overlay(_size: Vector2) -> void:
 	var w2s: Callable = view.world_to_screen
 	var top := draft.max_y()
 	for sx in [-RouteDraft.WALL_HALF, RouteDraft.WALL_HALF]:
-		_wall_line(Vector2(sx, 0.0), Vector2(sx, top), Color(1, 1, 1, 0.35), 2.0)
+		_wall_line(Vector2(sx, 0.0), Vector2(sx, top), Color(CHALK, 0.35), 2.0)
 	var lim := draft.wall_limit()
 	if lim < top:
-		_wall_line(Vector2(-RouteDraft.WALL_HALF, lim), Vector2(RouteDraft.WALL_HALF, lim), Color(1, 1, 1, 0.45), 2.0)
+		_wall_line(Vector2(-RouteDraft.WALL_HALF, lim), Vector2(RouteDraft.WALL_HALF, lim), Color(CHALK, 0.5), 2.0)
 		if view.in_view(Vector2(0, lim)):
 			_outlined(w2s.call(Vector2(0, lim)) + Vector2(-210 * k, -10 * k), "벽 끝 %sm · 위에 놓으면 높아져요" % String.num(lim), 16, 420 * k)
 	if tool == "wall":
@@ -665,7 +675,7 @@ func _draw_wall_overlay(_size: Vector2) -> void:
 			if y > 0.0:
 				_wall_line(Vector2(-RouteDraft.WALL_HALF, y), Vector2(RouteDraft.WALL_HALF, y), Color(0.55, 0.85, 1.0, 0.8), 2.0)
 		for y in [float(sel_wall), float(sel_wall + 1)]:
-			_wall_line(Vector2(-RouteDraft.WALL_HALF, y), Vector2(RouteDraft.WALL_HALF, y), CREAM, 4.0)
+			_wall_line(Vector2(-RouteDraft.WALL_HALF, y), Vector2(RouteDraft.WALL_HALF, y), SHOE, 4.0)
 		if view.in_view(Vector2(RouteDraft.WALL_HALF, sel_wall + 0.5)):
 			_outlined(w2s.call(Vector2(RouteDraft.WALL_HALF, sel_wall + 0.5)) + Vector2(10 * k, 6 * k), "%dm부터 %d°" % [sel_wall, 180 - draft.wall_deg_at(sel_wall)], 18, 0.0, HORIZONTAL_ALIGNMENT_LEFT)
 	var start_of := {}
@@ -685,7 +695,7 @@ func _draw_wall_overlay(_size: Vector2) -> void:
 		if _bad.has(h.id):
 			draw_arc(c, r * 1.2, 0, TAU, 32, RED, 4.0 * k)
 		if h.id == selected:
-			draw_arc(c, r * 1.35, 0, TAU, 32, CREAM, 3.0 * k)
+			draw_arc(c, r * 1.35, 0, TAU, 32, SHOE, 3.5 * k)
 		if start_of.has(h.id):
 			_outlined(c + Vector2(-60 * k, -r * 1.3), start_of[h.id], 18, 120 * k)
 		if h.type == "goal":
@@ -693,7 +703,7 @@ func _draw_wall_overlay(_size: Vector2) -> void:
 		elif h.id == selected and RouteDraft.is_hand_type(h.type):
 			# 잡는 힘 방향(손이 버티는 쪽): rot 0 = 위
 			var tip: Vector2 = w2s.call(hp + HoldTypes.rotate(Vector2(0, 1), rot) * 0.16)
-			draw_line(c, tip, CREAM, 3.0 * k)
+			draw_line(c, tip, SHOE, 3.5 * k)
 
 
 ## 벽면을 따라 a에서 b까지(같은 x면 접힌 벽을 따라 25cm마다 꺾어) 선을 긋는다. 카메라 뒤 부분은 뺀다.
@@ -716,24 +726,25 @@ func _draw_scrollbar() -> void:
 	var r := _scroll_rect()
 	var top := draft.max_y()
 	var bar := Rect2(Vector2(r.end.x - 16 * k, r.position.y), Vector2(12 * k, r.size.y))
-	draw_rect(Rect2(Vector2(r.position.x - 2 * k, r.position.y - 6 * k), Vector2(r.size.x + 4 * k, r.size.y + 12 * k)), PANEL)
-	draw_rect(bar, Color(1, 1, 1, 0.18))
+	draw_style_box(_box(Color(NIGHT, 0.8), 16 * k, HAIR, 1.5), Rect2(Vector2(r.position.x - 2 * k, r.position.y - 10 * k), Vector2(r.size.x + 4 * k, r.size.y + 20 * k)))
+	draw_style_box(_box(Color(CHALK, 0.16), bar.size.x * 0.5), bar)
 	var to_y := func(m: float) -> float: return r.end.y - clampf(m / top, 0.0, 1.0) * r.size.y
 	var half: float = view.zoom_h * 0.5
 	var a: float = to_y.call(view.logic.cam_y + half)
 	var b: float = to_y.call(view.logic.cam_y - half)
-	draw_rect(Rect2(Vector2(bar.position.x - 3 * k, a), Vector2(bar.size.x + 6 * k, maxf(b - a, 6 * k))), Color(CREAM, 0.85))
+	var thumb := Rect2(Vector2(bar.position.x - 3 * k, a), Vector2(bar.size.x + 6 * k, maxf(b - a, 12 * k)))
+	draw_style_box(_box(SHOE, thumb.size.x * 0.5), thumb)
 	var lim: float = to_y.call(draft.wall_limit())
-	draw_line(Vector2(bar.position.x - 6 * k, lim), Vector2(bar.end.x + 2 * k, lim), Color(1, 1, 1, 0.6), 2.0 * k)
+	draw_line(Vector2(bar.position.x - 6 * k, lim), Vector2(bar.end.x + 2 * k, lim), Color(CHALK, 0.6), 2.0 * k)
 	var step := tick_step(top)
 	for i in floori(top / step) + 1:
 		var y: float = to_y.call(i * step)
-		draw_line(Vector2(bar.position.x - 5 * k, y), Vector2(bar.position.x, y), Color.WHITE, 2.0 * k)
-		draw_string(font, Vector2(r.position.x, y + 5 * k), "%dm" % (i * step), HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - 22 * k, int(14 * k), Color(1, 1, 1, 0.85))
+		draw_line(Vector2(bar.position.x - 5 * k, y), Vector2(bar.position.x, y), Color(CHALK, 0.8), 2.0 * k)
+		draw_string(font_m, Vector2(r.position.x, y + 5 * k), "%dm" % (i * step), HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - 22 * k, int(14 * k), DIM)
 
 
 func _draw_tools(size: Vector2) -> void:
-	draw_rect(Rect2(Vector2(0, 72 * k), Vector2(140 * k, size.y - 116 * k)), PANEL)
+	draw_style_box(_box(Color(NIGHT, 0.8), 18 * k, HAIR, 1.5), Rect2(Vector2(4 * k, 80 * k), Vector2(136 * k, size.y - 132 * k)))
 	var y := 84 * k
 	for t in TOOLS:
 		_button(Rect2(Vector2(10 * k, y), Vector2(120, 52) * k), t[1], "tool", t[0], 20, tool == t[0])
@@ -749,7 +760,7 @@ func _draw_tools(size: Vector2) -> void:
 func _draw_panel(size: Vector2) -> void:
 	var x := size.x - 370 * k
 	var w := 360 * k
-	draw_rect(Rect2(Vector2(x - 10 * k, 72 * k), Vector2(380 * k, size.y - 116 * k)), PANEL)
+	draw_style_box(_box(Color(NIGHT, 0.8), 18 * k, HAIR, 1.5), Rect2(Vector2(x - 12 * k, 80 * k), Vector2(378 * k, size.y - 132 * k)))
 	if tool == "wall":
 		_draw_wall_panel(size, x, w)
 		return
@@ -770,7 +781,7 @@ func _draw_panel(size: Vector2) -> void:
 		_wrap(Vector2(x, y + 20 * k), "목록에서 종류를 고르고 벽을 누르면 놓여요. 놓인 홀드를 누르면 고르고, 끌면 옮기고, 아래 원으로 돌려요. 다시 누르면 고르기를 풀어요.", w, 17, DIM)
 		return
 	var rot := int(h.rot) + (int(_preview.get("rot", 0)) if _preview.get("id", "") == selected else 0)
-	_text(Vector2(x, y + 24 * k), "고른 홀드: %s" % HoldTypes.name_ko(h.type) + ("" if h.type == "goal" else " · 방향 %d°" % posmod(rot, 360)), 21, CREAM)
+	_text(Vector2(x, y + 24 * k), "고른 홀드: %s" % HoldTypes.name_ko(h.type) + ("" if h.type == "goal" else " · 방향 %d°" % posmod(rot, 360)), 21, CHALK)
 	y += 40 * k
 	if h.type == "goal":
 		_button(Rect2(Vector2(x, y), Vector2(w, 46 * k)), "지우기", "delete", "", 20)
@@ -804,23 +815,23 @@ func _draw_wall_panel(size: Vector2, x: float, w: float) -> void:
 	var r: float = dl[1]
 	var btn_y := size.y - 44 * k - 58 * k
 	var bw := (w - 30 * k) / 4.0
-	_text(Vector2(x, y + 24 * k), "벽 각도", 24, CREAM)
+	_text(Vector2(x, y + 24 * k), "벽 각도", 24, CHALK)
 	_wrap(Vector2(x, y + 58 * k), "벽을 눌러 높이를 고른 뒤 원을 돌리세요. 그 높이부터 위가 기울어요. 180°는 수직, 90°는 천장이에요.", w, 17, DIM)
 	var deg := draft.wall_deg_at(sel_wall)
-	_text(Vector2(x, c.y - r - 30 * k), "%dm부터 %d°" % [sel_wall, 180 - deg], 22, Color.WHITE)
+	_text(Vector2(x, c.y - r - 30 * k), "%dm부터 %d°" % [sel_wall, 180 - deg], 22, CHALK)
 	if sel_wall > 0 and draft.walls.any(func(wl): return int(wl.from_y) == sel_wall):
 		_button(Rect2(Vector2(x, c.y - r - 100 * k), Vector2(w, 44 * k)), "이 높이의 꺾임 지우기", "wdel", "", 18)
 	for i in 4:
 		var b: Array = [["-10°", "-10"], ["-1°", "-1"], ["+1°", "1"], ["+10°", "10"]][i]
 		_button(Rect2(Vector2(x + i * (bw + 10 * k), btn_y), Vector2(bw, 46 * k)), b[0], "wdeg", b[1], 19)
-	draw_line(c, c + Vector2(0, r * 0.9), Color(1, 1, 1, 0.5), 5.0 * k)  # 아래 벽(곧게 아래로)과 위 벽 사이 각이 화면 각도
+	draw_line(c, c + Vector2(0, r * 0.9), Color(CHALK, 0.5), 5.0 * k)  # 아래 벽(곧게 아래로)과 위 벽 사이 각이 화면 각도
 	_draw_dial(c, r, true, deg)
 
 
 ## 조절 원: 눈금(돌리기 45°, 벽 각도 0~90° 15°마다)과 손잡이(위 0, 시계 방향 + ang도).
 func _draw_dial(c: Vector2, r: float, on: bool, ang: float) -> void:
-	var col := CREAM if on else Color(1, 1, 1, 0.25)
-	draw_circle(c, r, Color(0, 0, 0, 0.35))
+	var col := Color(CHALK, 0.7) if on else Color(CHALK, 0.25)
+	draw_circle(c, r, Color(NIGHT, 0.7))
 	draw_arc(c, r, 0, TAU, 48, col, 3.0 * k)
 	for t in range(0, 360, 45 if tool == "edit" else 15):
 		if tool == "wall" and t > 90:
@@ -829,8 +840,9 @@ func _draw_dial(c: Vector2, r: float, on: bool, ang: float) -> void:
 		draw_line(c + d * r * 0.86, c + d * r, col, 2.0 * k)
 	if on:
 		var d := Vector2(sin(deg_to_rad(ang)), -cos(deg_to_rad(ang)))
-		draw_line(c, c + d * r * 0.9, CREAM, 6.0 * k)
-		draw_circle(c + d * r * 0.9, 12 * k, CREAM)
+		draw_line(c, c + d * r * 0.9, SHOE, 6.0 * k)
+		draw_circle(c + d * r * 0.9, 12 * k, SHOE)
+		draw_circle(c, 6 * k, SHOE)
 
 
 # ---------- 도우미 ----------
@@ -843,29 +855,63 @@ static func tick_step(h: float) -> int:
 	return 15
 
 
+## 글자. 21 이상은 제목·이름으로 보고 굵게(홈과 같은 글꼴).
 func _text(pos: Vector2, s: String, fs: int, col: Color) -> void:
-	draw_string(font, pos, s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs * k), col)
+	draw_string(font_b if fs >= 21 else font, pos, s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(fs * k), col)
 
 
 func _text_c(r: Rect2, s: String, fs: int, col: Color) -> void:
+	draw_string(font_m, Vector2(r.position.x, _baseline(r, fs, font_m)), s, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(fs * k), col)
+
+
+## r 안에서 글자를 세로 가운데에 두는 기준선.
+func _baseline(r: Rect2, fs: int, f: Font) -> float:
 	var px := int(fs * k)
-	draw_string(font, Vector2(r.position.x, r.position.y + r.size.y * 0.5 + px * 0.35), s, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, px, col)
+	return r.position.y + (r.size.y + f.get_ascent(px) - f.get_descent(px)) * 0.5
+
+
+## 둥근 판 모양(채움·모서리·테두리, 홈과 같은 식). 같은 모양은 한 번만 만든다(매 프레임 다시 그림).
+func _box(fill: Color, radius: float, border := Color(0, 0, 0, 0), bw := 0.0) -> StyleBoxFlat:
+	var key := "%s|%d|%s|%.1f|%.3f" % [fill, int(radius), border, bw, k]
+	if _boxes.has(key):
+		return _boxes[key]
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = fill
+	sb.set_corner_radius_all(int(radius))
+	if bw > 0.0 and border.a > 0.0:
+		sb.border_color = border
+		sb.set_border_width_all(maxi(1, roundi(bw * k)))
+	sb.anti_aliasing = true
+	_boxes[key] = sb
+	return sb
+
+
+## 창(점검·저장): 거의 불투명한 남색 둥근 판(홈 _panel).
+func _panel(r: Rect2) -> void:
+	draw_style_box(_box(Color(NIGHT, 0.97), 26 * k, Color(CHALK, 0.2), 1.5), r)
 
 
 func _wrap(pos: Vector2, s: String, w: float, fs: int, col: Color) -> void:
 	draw_multiline_string(font, pos, s, HORIZONTAL_ALIGNMENT_LEFT, w, int(fs * k), 5, col)
 
 
+## 벽 위 이름표: 남색 알약 위 분필색 굵은 글자(플레이 화면 안내와 같은 모양). pos는 기준선, w 안에서 가운데(0이면 왼쪽 맞춤).
 func _outlined(pos: Vector2, s: String, fs: int, w: float, align := HORIZONTAL_ALIGNMENT_CENTER) -> void:
 	var px := int(fs * k)
-	draw_string_outline(font, pos, s, align, w if w > 0.0 else -1.0, px, maxi(4, int(px * 0.2)), Color(0, 0, 0, 0.8))
-	draw_string(font, pos, s, align, w if w > 0.0 else -1.0, px, Color.WHITE)
+	var tw := font_b.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, px).x
+	var x0 := pos.x + (w - tw) * 0.5 if align == HORIZONTAL_ALIGNMENT_CENTER and w > 0.0 else pos.x
+	var pill := Rect2(Vector2(x0 - px * 0.6, pos.y - px * 1.05), Vector2(tw + px * 1.2, px * 1.5))
+	draw_style_box(_box(Color(NIGHT, 0.82), pill.size.y * 0.5, Color(CHALK, 0.2), 1.0), pill)
+	draw_string(font_b, Vector2(x0, pos.y), s, HORIZONTAL_ALIGNMENT_LEFT, -1, px, CHALK)
 
 
+## 버튼(홈과 같음): 주(strong, 고른 것·누를 다음 것) = 노란 알약 + 남색 굵은 글자, 보조 = 반투명 남색 알약 + 가는 테두리 + 분필색 글자.
 func _button(r: Rect2, text: String, action: String, arg: String, fs := 22, strong := false) -> void:
-	draw_rect(r, CREAM if strong else Color(0.1, 0.1, 0.1, 0.8))
-	draw_rect(r, Color(1, 1, 1, 0.7), false, 2.0)
-	_text_c(r, text, fs, INK if strong else Color.WHITE)
+	var radius := r.size.y * 0.5 if r.size.y <= 72 * k else 22 * k
+	draw_style_box(_box(SHOE if strong else Color(NIGHT, 0.72), radius, Color(0, 0, 0, 0) if strong else Color(CHALK, 0.26), 1.5), r)
+	if text != "":
+		var f: Font = font_b if strong else font_m
+		draw_string(f, Vector2(r.position.x, _baseline(r, fs, f)), text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(fs * k), NIGHT if strong else CHALK)
 	_buttons.append({"rect": r, "action": action, "arg": arg})
 
 

@@ -934,7 +934,6 @@ func _draw_input(size: Vector2) -> void:
 	_text(box.position + Vector2(30, 50) * k, "공유 코드 6글자를 넣어 주세요" if input_mode == "code" else "별명(최대 12자)", 22, Color.WHITE)
 	_input_edit.position = box.position + Vector2(30, 80) * k
 	_input_edit.size = Vector2(620, 60) * k
-	_input_edit.add_theme_font_size_override("font_size", int(28 * k))
 	_button(Rect2(box.position + Vector2(30, 170) * k, Vector2(290, 56) * k), "열기" if input_mode == "code" else "바꾸기", "input_go", "", 22, true)
 	_button(Rect2(box.position + Vector2(360, 170) * k, Vector2(290, 56) * k), "그만두기", "input_close", "", 22)
 	if make_msg != "":
@@ -948,6 +947,7 @@ func _open_input(mode: String) -> void:
 		_input_edit = LineEdit.new()
 		add_child(_input_edit)
 	_input_edit.visible = true
+	UiFont.style_line_edit(_input_edit, k, 28, 60 * k)  # 기본 회색 상자 대신 홈 알약 모양
 	_input_edit.max_length = 6 if mode == "code" else 12
 	_input_edit.text = "" if mode == "code" else game.progress.nickname
 	_input_edit.grab_focus()
