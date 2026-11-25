@@ -754,36 +754,18 @@ var dyno := {}
 var _dyno_relief := 0
 ## 이번 판(시작·다시 시작부터 추락·완등까지)에 다이노로 뛰었는가. 2026-11-25 사용자: "다이노는 한 판에 한 번만"(다이노로만 모든 문제를 깨는 공략 막기).
 var dyno_used := false
-## 다이노로 잡을 수 없는 홀드(홀드 키 → true). 2026-11-25 사용자: "탑 홀드와 탑 전 홀드는 다이노가 불가능하게".
+## 다이노로 잡을 수 없는 홀드(홀드 키 → true): 탑. 2026-11-25 사용자 "탑 홀드와 탑 전 홀드는 다이노가 불가능하게" 뒤
+## "탑 홀드를 제외한 모든 합손 홀드는 다 가능하도록"(일반 문제의 합손 홀드가 모두 탑 전 홀드라 다이노가 아예 안 됐다).
 var _dyno_banned := {}
 
 
-## 다이노로 잡을 수 없는 홀드: 정상과, 정답 순서에서 두 손이 정상 직전에 각각 잡는 홀드(정답 순서가 없으면 가장 높은 손홀드).
-## 일반·만든 문제만. 다이노 수업(코스)은 정상으로 뛰는 것이 수업이라 막지 않는다.
+## 다이노로 잡을 수 없는 홀드: 정상(탑). 일반·만든 문제만. 다이노 수업(코스)은 정상으로 뛰는 것이 수업이라 막지 않는다.
 static func _banned_for_dyno(r: RouteDef) -> Dictionary:
 	var out := {}
 	if not r.mode in ["general", "custom"]:
 		return out
 	for key in r.goal_slots:
 		out[String(key).get_base_dir()] = true
-	var last := {}
-	for m in r.intended_moves:
-		if m.size() < 2 or not PoseSolver.is_hand(StringName(m[0])) or not r.slots.has(str(m[1])):
-			continue
-		if r.goal_slots.has(m[1]):
-			break
-		last[StringName(m[0])] = str(m[1]).get_base_dir()
-	if last.is_empty():
-		var best_y := -INF
-		var best := ""
-		for key in r.slots:
-			if r.slots[key].has("hand_area") and not r.goal_slots.has(key) and r.slot_pos(key).y > best_y:
-				best_y = r.slot_pos(key).y
-				best = String(key).get_base_dir()
-		if best != "":
-			last[&"LH"] = best
-	for hand in last:
-		out[last[hand]] = true
 	return out
 
 
@@ -901,7 +883,7 @@ func _dyno_reachable(v: Vector2) -> Array:
 
 
 ## 다이노로 잡을 수 있는 홀드: 합손 홀드(두 손이 같이 잡음, 2026-11-25 사용자 "다이노는 합손이 가능한 홀드에만")와 정상(두 칸을 두 손으로).
-## 막힌 홀드(정상·탑 전 홀드, 일반·만든 문제)는 뺀다.
+## 막힌 홀드(정상, 일반·만든 문제)는 뺀다.
 func _dyno_target_ok(key: String) -> bool:
 	var slot: Dictionary = route.slots[key]
 	var ok: bool = route.goal_slots.has(key) or bool(slot.get("hand_area", {}).get("matchable", false))

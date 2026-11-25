@@ -88,7 +88,7 @@ func test_charge_preview_and_short_cancel() -> void:
 ## 길게 끌수록 더 높은 홀드까지 닿고, 좋은 홀드에서 끝까지 끌면 다리를 쭉 편 높이보다 높이 뛴다. 나쁜 홀드는 덜 뛴다.
 func test_reach_by_length_and_quality() -> void:
 	var s := _session()
-	s._dyno_banned = {}  # 정상·마지막 홀드 막기(test_no_dyno_to_top_or_last_holds)와 상관없이 뛰는 높이만 본다
+	s._dyno_banned = {}  # 탑 막기(test_no_dyno_to_top_or_last_holds)와 상관없이 뛰는 높이만 본다
 	_charge(s, Tuning.DYNO_DRAG_MIN + 0.01)
 	var short_reach: Array = s.dyno_preview().reach
 	var short_top := s.route.slot_pos(short_reach[0]).y if not short_reach.is_empty() else 0.0
@@ -255,9 +255,11 @@ func test_dyno_once_per_attempt() -> void:
 ## 2026-11-25 사용자: "탑 홀드와 탑 전 홀드는 다이노가 불가능하게". 탑 전 홀드 = 정답 순서에서 두 손이 정상 직전에 각각 잡는 홀드.
 ## 일반·만든 문제만(다이노 수업 코스는 정상으로 뛰는 것이 수업이라 그대로).
 func test_no_dyno_to_top_or_last_holds() -> void:
+	# 2026-11-25 사용자: "탑 홀드를 제외한 모든 합손 홀드는 다 가능하도록". 일반 문제의 합손 홀드(모두 H04)가 탑 전 홀드라
+	# "탑 전 홀드 금지"와 겹쳐 일반 문제에서 다이노가 아예 안 됐다(V6-2 "닿는 합손 홀드가 없어요"). 이제 막는 것은 탑뿐이다.
 	var s := _session()
 	var banned: Dictionary = s.dyno_banned_holds()
-	runner.check(banned.size() == 3 and banned.has("G_V0_01/G01") and banned.has("G_V0_01/H05") and banned.has("G_V0_01/H06"), "정상·두 손의 마지막 홀드 %s" % [banned])
+	runner.check(banned.keys() == ["G_V0_01/G01"], "탑만 막음 %s" % [banned])
 	var h3 := s.route.slot_pos("G_V0_01/H03/hand_1")
 	var h4 := s.route.slot_pos("G_V0_01/H04/hand_1")
 	s.reset_to({"pelvis": [(h3.x + h4.x) / 2.0, (h3.y + h4.y) / 2.0 - 0.6], "slots": {"LH": "G_V0_01/H03/hand_1", "RH": "G_V0_01/H04/hand_1", "LF": "G_V0_01/F03/foot_1", "RF": "G_V0_01/F04/foot_1"}})
@@ -265,14 +267,11 @@ func test_no_dyno_to_top_or_last_holds() -> void:
 		s.step()
 	_charge(s, Tuning.DYNO_DRAG_MAX)
 	var reach: Array = s.dyno_preview().reach
-	runner.check(reach.all(func(k): return not banned.has(String(k).get_base_dir())), "닿는 표시에 정상·마지막 홀드 없음 %s" % [reach])
-	var plain := _session()
-	plain.reset_to({"pelvis": [(h3.x + h4.x) / 2.0, (h3.y + h4.y) / 2.0 - 0.6], "slots": {"LH": "G_V0_01/H03/hand_1", "RH": "G_V0_01/H04/hand_1", "LF": "G_V0_01/F03/foot_1", "RF": "G_V0_01/F04/foot_1"}})
-	plain.route.mode = "course"
-	plain._dyno_banned = {}
-	for i in 30:
-		plain.step()
-	_charge(plain, Tuning.DYNO_DRAG_MAX)
-	runner.check(plain.dyno_preview().reach.any(func(k): return banned.has(String(k).get_base_dir())), "막지 않으면 이 자리에서 닿음(검사가 의미 있음)")
+	runner.check(not reach.is_empty() and reach.all(func(k): return not banned.has(String(k).get_base_dir())), "탑 전 합손 홀드는 닿고 탑은 없음 %s" % [reach])
+	var v6 := ClimbSession.new(RouteDef.load_json("res://data/routes/general/G_V6_02.json"))
+	for i in 60:
+		v6.step()
+	_charge(v6, Tuning.DYNO_DRAG_MAX)
+	runner.check(v6.dyno_preview().reach.has("G_V6_02/H04/hand_1"), "V6-2 시작 자세에서 파란 합손 홀드 H04에 닿음 %s" % [v6.dyno_preview().reach])
 	var lesson := ClimbSession.new(RouteDef.load_json("res://data/routes/course/C_DYNO_T.json"))
 	runner.check(lesson.dyno_banned_holds().is_empty(), "다이노 수업은 막지 않음")
