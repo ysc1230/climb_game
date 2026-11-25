@@ -118,6 +118,12 @@ func _wall_rect() -> Rect2:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
+		# 폰 터치는 마우스로 바뀌지 않아(emulate_mouse_from_touch=false) 이름 칸이 눌림을 못 받는다: 직접 글쓰기를 시작·끝낸다.
+		if event.pressed and _name_edit.get_global_rect().has_point(event.position):
+			_name_edit.edit()
+			return
+		if event.pressed and _name_edit.has_focus():
+			_name_edit.release_focus()
 		if event.pressed:
 			_touches[event.index] = event.position
 			if _touches.size() == 1:
