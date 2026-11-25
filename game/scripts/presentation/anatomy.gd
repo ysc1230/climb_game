@@ -137,6 +137,9 @@ const FOOT_ANKLE_SOLVE := Vector2(55.0, 115.0)  # 발 방향을 고를 때 쓰�
 ## 다리가 거의 펴졌으면(무릎이 엉덩이→발목 선에서 3cm 안) 예전처럼 FOOT_WANT.
 const FOOT_KNEE_FOLLOW := 0.6
 const FOOT_WALL_MIN := 0.2
+## 발은 정강이 축 둘레로 다리 평면에서 이만큼까지만 돈다(무릎을 굽혔을 때 정강이·발 돌림, 안쪽·바깥 모두). 벽 쪽 섞기보다 먼저다
+## (2026-11-25 사용자 "발도 내회전 외회전 둘 다": 무릎이 옆·뒤를 볼 때 발이 정강이 둘레로 147°까지 비틀렸다).
+const FOOT_TWIST_MAX := 30.0
 static func foot_direction(knee: Vector3, ankle: Vector3, frame: Basis, hip := Vector3.INF) -> Vector3:
 	var shin := (ankle - knee).normalized()
 	var f := FOOT_WANT.normalized()
@@ -150,6 +153,13 @@ static func foot_direction(knee: Vector3, ankle: Vector3, frame: Basis, hip := V
 			var wall := f.dot(Vector3.FORWARD)
 			if wall < FOOT_WALL_MIN:
 				f = (f + Vector3.FORWARD * (FOOT_WALL_MIN - wall) * 1.5).normalized()
+			var ref := side.normalized()
+			var fp := f - shin * f.dot(shin)
+			if fp.length() > 0.01:
+				var a := ref.signed_angle_to(fp.normalized(), shin)
+				var lim := deg_to_rad(FOOT_TWIST_MAX)
+				if absf(a) > lim:
+					f = (ref.rotated(shin, signf(a) * lim) * fp.length() + shin * f.dot(shin)).normalized()
 	var ang := rad_to_deg(shin.angle_to(f))
 	var lo := FOOT_ANKLE_SOLVE.x
 	var hi := FOOT_ANKLE_SOLVE.y

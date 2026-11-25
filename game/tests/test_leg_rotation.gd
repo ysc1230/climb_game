@@ -65,3 +65,68 @@ func test_squat_feet_turn_out() -> void:
 		t = pose.compute(s, Tuning.DT)
 	var l: Vector3 = (t.toe_L - t.ankle_L).normalized()
 	runner.check(l.x < -0.3, "왼발 발끝이 왼쪽(바깥)으로 %s" % l)
+
+
+## 팔꿈치·무릎을 옮길 때 어깨·고관절 돌림 한계를 넘어 한 바퀴(±180°) 돌지 않는다. 2026-11-25 사용자(V6-2 화면 두 장): "팔꿈치 방향이
+## 밑에서 오른쪽 위쪽 순서로 움직여. 이런 외회전은 불가능", "발도 내회전 외회전 둘 다 불가능한지 확인". 손이 어깨 옆·아래면 팔꿈치가
+## 아래(바깥돌림 +118°)에서 위로 바깥돌림 한계 너머(+118° → ±180° → −101°)로 넘어갔다.
+func _twists(limb: StringName, root: Vector3, end: Vector3, start: Vector3, pelvis: Vector3) -> Array:
+	var c := LimbIK.circle(limb, root, end, F, pelvis, Vector3.UP, 36, false)
+	var bend := (start - (c.dir as Vector3) * start.dot(c.dir)).normalized()
+	var out := []
+	for i in 40:
+		var r := LimbIK.solve_circle(c, bend, 3.0)
+		bend = r.bend
+		out.append(Anatomy.limb_twist(limb, root, r.mid, end, F))
+	return out
+
+
+func test_elbow_does_not_wrap_past_rotation_limit() -> void:
+	var pelvis := Vector3(0.22, 1.07, 0.25)
+	var sh := pelvis + Vector3(-0.175, 0.49, 0)
+	for hand_off in [Vector3(-0.35, -0.30, 0.05), Vector3(-0.30, -0.05, 0.10)]:
+		var tw := _twists(&"LH", sh, sh + hand_off, Vector3(0, -1, 0), pelvis)
+		runner.check(tw.all(func(v): return is_nan(v) or v > 0.0), "팔꿈치가 아래(바깥돌림)에서 위(안쪽돌림)로 한 바퀴 넘어가지 않음 %s" % [tw.slice(0, 6)])
+		runner.check(Anatomy.twist_ok(&"LH", tw[-1]), "어깨 돌림 한계 안에 머묾 %.0f°" % tw[-1])
+
+
+func test_knee_returns_inside_rotation_limit() -> void:
+	var pelvis := Vector3(0.22, 1.07, 0.25)
+	var hip := pelvis + Vector3(0.095, 0, 0)
+	for start in [Vector3(0, -1, 0), Vector3(-1, 0, 0)]:
+		var tw := _twists(&"RF", hip, hip + Vector3(0.05, -0.60, -0.25), start, pelvis)
+		runner.check(Anatomy.twist_ok(&"RF", tw[-1]), "고관절 안쪽돌림 한계 밖(−70° 넘음)에서 시작해도 한계 안으로 %.0f°" % tw[-1])
+		var wrapped := false
+		for i in range(1, tw.size()):
+			if not is_nan(tw[i]) and not is_nan(tw[i - 1]) and absf(tw[i] - tw[i - 1]) > 180.0:
+				wrapped = true
+		runner.check(not wrapped, "±180°를 건너 반대쪽으로 넘어가지 않음 %s" % [tw.slice(0, 6)])
+
+
+## 발(발목 아래)은 정강이 축 둘레로 다리 평면(허벅지를 정강이에 수직으로 한 방향)에서 FOOT_TWIST_MAX까지만 돈다(2026-11-25 사용자
+## "발도 내회전 외회전 둘 다 불가능한지 확인"). 무릎이 옆·뒤를 볼 때 벽 쪽 섞기로 발이 정강이 둘레 147°까지 비틀렸다.
+func test_foot_twist_within_limit() -> void:
+	var hip := Vector3(0.1, 0.75, 0.3)
+	var worst := 0.0
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	for i in 4000:
+		var ankle := hip + Vector3(rng.randf_range(-0.4, 0.6), rng.randf_range(-0.75, 0.2), rng.randf_range(-0.35, -0.05))
+		var d := hip.distance_to(ankle)
+		if d > 0.8 or d < 0.2:
+			continue
+		var axis := (ankle - hip).normalized()
+		var perp := axis.cross(Vector3(rng.randf_range(-1, 1), rng.randf_range(-1, 1), rng.randf_range(-1, 1))).normalized()
+		var x := (0.41 * 0.41 - 0.40 * 0.40 + d * d) / (2.0 * d)
+		var knee := hip + axis * x + perp * sqrt(maxf(0.41 * 0.41 - x * x, 0.0))
+		var shin := (ankle - knee).normalized()
+		var thigh := (knee - hip).normalized()
+		var side := thigh - shin * thigh.dot(shin)
+		if side.length() < 0.1:
+			continue
+		var f := _toe(hip, knee, ankle)
+		var fp := f - shin * f.dot(shin)
+		if fp.length() < 0.05:
+			continue
+		worst = maxf(worst, absf(rad_to_deg(side.normalized().signed_angle_to(fp.normalized(), shin))))
+	runner.check(worst <= Anatomy.FOOT_TWIST_MAX + 1.0, "발 돌림 최대 %.0f° ≤ %.0f°" % [worst, Anatomy.FOOT_TWIST_MAX])

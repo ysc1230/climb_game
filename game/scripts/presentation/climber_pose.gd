@@ -190,6 +190,7 @@ var surface_depth := {}
 ## 붙은 발은 발끝(앞꿈치)이 홀드 윗면(surface_top[슬롯 키], 홀드 중심에서 위로)에 얹히게 발목을 둔다(2026-11-15 사용자:
 ## "위쪽 홀드에 발을 딛으면 허공에 딛은 것처럼 보인다" — 발목을 홀드 중심에 두니 발끝이 홀드 아래 벽 속으로 들어갔다).
 var surface_top := {}
+const STRETCH_WEIGHT := 30.0  # 깊이 고르기: 닿지 않는 1m당 벌점(1cm = 0.3). 돌림 한계 벌점이 세진 뒤(2026-11-25) 머리 위로 끈 손이 1.1cm 늘어났다
 const TOE_IN_HOLD := 0.5   # 발끝 깊이 = 홀드 겉면 깊이 × 이 비율(윗면 가운데쯤)
 ## 딛은 발의 발끝 방향(직전 프레임, 발목 자리를 정함). 무릎을 따라 FOOT_TURN_SPEED로 돈다: 발끝은 홀드 위 그대로, 뒤꿈치가 돈다
 ## (2026-11-25 사용자 "어딜 밟아도 … 위에서 밟는 것처럼").
@@ -346,11 +347,14 @@ func _score_depth(session, body, up: Vector3, dpt: float, lifts: Dictionary, fin
 			else:
 				options = FREE_HAND_DEPTHS if PoseSolver.is_hand(limb) else FREE_END_DEPTHS
 		var lv := INF
+		var full := (Tuning.ARM_UPPER + Tuning.ARM_LOWER) if PoseSolver.is_hand(limb) else (LimbIK.leg_upper_shown + LimbIK.leg_lower_shown)
 		for extra in options:
-			var c := _circle(limb, root, _end(session, limb, extra, dpt), frame, pelvis, up, fine, _ik_free(session, limb))
+			var end := _end(session, limb, extra, dpt)
+			var c := _circle(limb, root, end, frame, pelvis, up, fine, _ik_free(session, limb))
 			if c.is_empty():
 				break
-			var v := LimbIK.local_violation(c, bends.get(limb, Vector3.ZERO))
+			# 손발 끝이 뼈 길이보다 멀면(그 깊이에서 닿지 않음) 팔다리가 늘어나 보인다: 닿는 깊이를 고르게 벌점(STRETCH_WEIGHT/m)
+			var v := LimbIK.local_violation(c, bends.get(limb, Vector3.ZERO)) + maxf(0.0, root.distance_to(end) - full) * STRETCH_WEIGHT
 			if v < lv:
 				lv = v
 				lift[limb] = extra

@@ -64,6 +64,10 @@ const WALL_MIN_Z := 0.05      # 팔꿈치·무릎 중심의 최소 Z(벽면 z=0 
 const TORSO_MIN_DIST := 0.18  # 몸통 축(골반+0.04 ~ +0.45, 더미)에서 팔꿈치·무릎 중심까지 최소 거리
 const HEAD_MIN_DIST := 0.15   # 팔 뼈(위팔·아래팔)에서 머리 중심까지 최소 거리 = Anatomy.HEAD_CLEARANCE(머리 0.11 + 팔 0.035). 0.12면 머리를 2~3cm 뚫었다(docs/59 §9)
 const POLE_WEIGHT := 0.02     # 선호 방향과의 각(라디안)당 비용. 제약 위반(미터·도 환산)보다 훨씬 작다
+## 어깨·고관절 돌림 한계를 넘은 각 TWIST_EXCESS_DEG°가 위반 1. 2026-11-25 사용자 "팔꿈치 방향이 밑에서 오른쪽 위쪽 순서로 움직여. 이런 외회전은
+## 불가능", "발도 내회전 외회전 둘 다": 90°당 1이던 때는 팔꿈치(무릎)를 반대쪽으로 옮길 때 바깥돌림을 한계 너머 한 바퀴(±180°) 지나는 벽 쪽 길이
+## 가능한 길(돌림 0°를 지나는 등 쪽 길)보다 싸서 그 길로 돌았다(손이 어깨 옆·아래: +118° → ±180° → −101°).
+const TWIST_EXCESS_DEG := 15.0
 
 
 ## free: 끌거나 떠 있는 발(FREE_LEG 규칙 적용).
@@ -338,7 +342,7 @@ static func _violation(limb: StringName, hand: bool, root: Vector3, mid: Vector3
 		if not is_nan(tw):
 			var r := Anatomy.ARM_TWIST if hand else Anatomy.LEG_TWIST
 			var margin := 10.0
-			viol += maxf(0.0, (r.x + margin) - tw) / 90.0 + maxf(0.0, tw - (r.y - margin)) / 90.0
+			viol += (maxf(0.0, (r.x + margin) - tw) + maxf(0.0, tw - (r.y - margin))) / TWIST_EXCESS_DEG
 	viol += maxf(0.0, WALL_MIN_Z - mid.z) * 10.0
 	if hand:
 		if not hang:
