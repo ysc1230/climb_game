@@ -35,6 +35,13 @@ static func radius(e: Dictionary, u: Vector2) -> float:
 static func violations(route: RouteDef) -> PackedStringArray:
 	var out: PackedStringArray = []
 	var keys: Array = route.slots.keys()
+	# 홀드마다 타원은 한 번만. 반지름은 긴 반축(rmax)을 넘지 않아, 중심 거리가 rmax로 잡은 한계 이상인 쌍은 어길 수 없다
+	# (만들기 화면 홀드 300개에서 쌍마다 타원을 다시 만들면 0.27초, 2026-11-25)
+	var el := {}
+	var rmax := {}
+	for key in keys:
+		el[key] = ellipse(route, key)
+		rmax[key] = maxf(el[key].a, el[key].b)
 	for i in keys.size():
 		for j in range(i + 1, keys.size()):
 			var a: String = keys[i]
@@ -43,9 +50,11 @@ static func violations(route: RouteDef) -> PackedStringArray:
 				continue
 			var pa: Vector2 = route.slot_pos(a)
 			var pb: Vector2 = route.slot_pos(b)
+			if pa.distance_to(pb) >= rmax[a] + rmax[b] + 2.0 * maxf(rmax[a], rmax[b]):
+				continue
 			var u := (pb - pa).normalized()
-			var ra := radius(ellipse(route, a), u)
-			var rb := radius(ellipse(route, b), u)
+			var ra := radius(el[a], u)
+			var rb := radius(el[b], u)
 			var gap := pa.distance_to(pb) - ra - rb
 			var need := 2.0 * maxf(ra, rb)
 			if gap < need - 0.0005:

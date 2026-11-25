@@ -5,11 +5,15 @@ extends RefCounted
 ## 놓기·옮기기는 1cm, 돌리기는 5°에 맞물린다. 되돌리기는 최근 UNDO_MAX단계.
 
 const SCHEMA := 1                 # 공유 문제 JSON 판(§6). 앱이 모르는 더 새 판이면 열지 않는다
-const MAX_HOLDS := 40
+const MAX_HOLDS := 300           # 2026-11-25 사용자 "100m로 제한하고 홀드는 300개"
 const NAME_MAX := 20
 const UNDO_MAX := 30
 const WALL_HALF := 1.0            # 벽 폭 2.0m
-const WALL_H := 4.5
+## 벽 높이는 저장하지 않고 가장 높은 홀드에서 정한다(wall_limit). 벽 끝 위 EXTEND까지 놓을 수 있고, 놓으면 벽이 높아진다
+## (2026-11-25 사용자 "벽 제한 높이보다 위에 홀드를 놓으면 높아지도록 하여 용량을 최대한 관리", "100m까지").
+const WALL_H_MIN := 4.5
+const WALL_H_MAX := 100.0
+const EXTEND := 2.0
 const Y_MIN := 0.05
 const GOAL_HALF := 0.2            # 탑 두 칸의 간격 절반(일반 문제와 같음)
 const GRADES := ["V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7"]
@@ -26,6 +30,9 @@ var grade := "V0"
 var version := 1
 var holds: Array = []             # [{id, type, size, rot, x, y, matchable}]
 var start := {&"LH": "", &"RH": "", &"LF": "", &"RF": ""}  # limb → 홀드 id
+## 벽 각도 구간 [{from_y: m, deg}] from_y 오름차순, 첫 구간 0m. deg = 오버행(0 수직 … 90 천장, 플레이의 wall_sections와 같음),
+## 화면에는 180 − deg(2026-11-25 사용자 "180도(평면)부터 90도까지", "최소 단위 1m와 1도, 횟수 제한 없음").
+var walls: Array = [{"from_y": 0, "deg": 0}]
 var _next := 1
 var _undo: Array = []
 var _frozen := false              # 완등·올린 판: 다음 고침에서 판을 올린다
@@ -106,6 +113,54 @@ func set_matchable(id: String, on: bool) -> void:
 	h.matchable = on
 
 
+## 가장 높은 홀드 높이(없으면 0).
+func top_y() -> float:
+	return holds.reduce(func(m, h): return maxf(m, h.y), 0.0)
+
+
+## 지금 벽 높이(m): 가장 높은 홀드 위 1m를 미터로 올림, 4.5~100.
+func wall_limit() -> float:
+	return clampf(ceilf(top_y()) + 1.0, WALL_H_MIN, WALL_H_MAX)
+
+
+## 홀드를 놓을 수 있는 가장 높은 곳.
+func max_y() -> float:
+	return minf(wall_limit() + EXTEND, WALL_H_MAX)
+
+
+## from_y m부터 위로 벽 각도(오버행 deg, 0~90). 아래와 같은 각이 돼도 경계는 남긴다(다이얼을 끄는 중 이웃 경계가 사라지지 않게).
+func set_wall(from_y: int, deg: int, push := true) -> void:
+	from_y = clampi(from_y, 0, int(WALL_H_MAX) - 1)
+	deg = clampi(deg, 0, 90)
+	if push:
+		_push()
+	var i := 0
+	while i < walls.size() and int(walls[i].from_y) < from_y:
+		i += 1
+	if i < walls.size() and int(walls[i].from_y) == from_y:
+		walls[i].deg = deg
+	else:
+		walls.insert(i, {"from_y": from_y, "deg": deg})
+
+
+## from_y m의 경계를 지운다(아래 구간이 이어짐). 0m는 지우지 않는다.
+func remove_wall(from_y: int) -> void:
+	for i in range(1, walls.size()):
+		if int(walls[i].from_y) == from_y:
+			_push()
+			walls.remove_at(i)
+			return
+
+
+## 높이 y가 속한 구간의 각도(섞기 없이).
+func wall_deg_at(y: float) -> int:
+	var a := 0
+	for w in walls:
+		if float(w.from_y) <= y:
+			a = int(w.deg)
+	return a
+
+
 func remove(id: String) -> void:
 	var i := holds.find(hold(id))
 	if i < 0:
@@ -158,21 +213,22 @@ func _push() -> void:
 
 
 func _state() -> Dictionary:
-	return {"holds": holds.duplicate(true), "start": start.duplicate(), "next": _next}
+	return {"holds": holds.duplicate(true), "start": start.duplicate(), "next": _next, "walls": walls.duplicate(true)}
 
 
 func _load_state(s: Dictionary) -> void:
 	holds = s.holds
 	start = s.start
 	_next = s.next
+	walls = s.walls
 
 
 static func _sx(x: float) -> float:
 	return snappedf(clampf(x, -WALL_HALF, WALL_HALF), 0.01)
 
 
-static func _sy(y: float) -> float:
-	return snappedf(clampf(y, Y_MIN, WALL_H), 0.01)
+func _sy(y: float) -> float:
+	return snappedf(clampf(y, Y_MIN, max_y()), 0.01)
 
 
 static func _snap_rot(deg: int) -> int:
@@ -217,10 +273,11 @@ func to_route_dict(pelvis := Vector2.INF, angle := 0.0) -> Dictionary:
 	var d := {
 		"route_id": route_id, "mode": "custom", "schema": SCHEMA, "grade": grade, "order": 0, "name_ko": name,
 		"content_version": version, "validation_status": "Draft", "note": "",
-		"bounds": {"x_min": -1.5, "x_max": 1.5, "y_min": 0.0, "y_max": 4.5}, "fail_line_y": -0.5,
+		"bounds": {"x_min": -1.5, "x_max": 1.5, "y_min": 0.0, "y_max": wall_limit()}, "fail_line_y": -0.5,
 		"check_swapped": false, "time_medal_seconds": 120, "goal_slots": goal_slots, "platforms": [],
 		"start_pose": {"angle": angle, "pelvis": [snappedf(pelvis.x, 0.001), snappedf(pelvis.y, 0.001)], "slots": st},
 		"intended_moves": [], "required_techniques": [], "crux_steps": {}, "holds": hs,
+		"wall_sections": _wall_sections(),
 	}
 	# 두 시작 발이 바닥 가까이(발판 높이 ≤ 0.15m)면 바닥 받침(일반 문제의 시작 발판과 같음)
 	var lf := hold(start[&"LF"])
@@ -229,6 +286,15 @@ func to_route_dict(pelvis := Vector2.INF, angle := 0.0) -> Dictionary:
 		d.platforms = [{"platform_id": "P00", "foot_slot_keys": [_key(lf), _key(rf)], "top_y": 0.1,
 			"x_range": [snappedf(minf(lf.x, rf.x) - 0.35, 0.01), snappedf(maxf(lf.x, rf.x) + 0.35, 0.01)]}]
 	return d
+
+
+## 플레이의 꺾이는 벽 구간: 아래와 같은 각의 경계는 합친다.
+func _wall_sections() -> Array:
+	var out: Array = []
+	for w in walls:
+		if out.is_empty() or out[-1].deg != float(w.deg):
+			out.append({"from_y": float(w.from_y), "deg": float(w.deg)})
+	return out
 
 
 func build(pelvis := Vector2.INF, angle := 0.0) -> RouteDef:
@@ -308,7 +374,8 @@ func to_dict() -> Dictionary:
 	var st := {}
 	for l in start:
 		st[String(l)] = start[l]
-	return {"schema": SCHEMA, "route_id": route_id, "name": name, "grade": grade, "version": version, "holds": holds.duplicate(true), "start": st, "next": _next}
+	return {"schema": SCHEMA, "route_id": route_id, "name": name, "grade": grade, "version": version, "holds": holds.duplicate(true), "start": st, "next": _next,
+		"walls": walls.duplicate(true)}
 
 
 static func from_dict(d: Dictionary) -> RouteDraft:
@@ -322,6 +389,14 @@ static func from_dict(d: Dictionary) -> RouteDraft:
 		if h is Dictionary and HoldTypes.has(str(h.get("type", ""))):
 			r.holds.append({"id": str(h.id), "type": str(h.type), "size": str(h.get("size", "M")), "rot": int(h.get("rot", 0)),
 				"x": float(h.x), "y": float(h.y), "matchable": bool(h.get("matchable", false))})
+	# 벽 각도 탭 전(0.27까지)의 초안은 등급이 각도를 정했다: 그 각도 한 구간으로
+	r.walls = [{"from_y": 0, "deg": int(GradeInfo.wall_deg(r.grade))}]
+	if d.get("walls") is Array and not d.walls.is_empty():
+		r.walls = []
+		for w in d.walls:
+			r.walls.append({"from_y": int(w.get("from_y", 0)), "deg": clampi(int(w.get("deg", 0)), 0, 90)})
+		r.walls.sort_custom(func(a, b): return a.from_y < b.from_y)
+		r.walls[0].from_y = 0
 	var st: Dictionary = d.get("start", {})
 	for l in r.start:
 		r.start[l] = str(st.get(String(l), ""))

@@ -264,10 +264,13 @@ func _build_wall() -> void:
 	# 암장 실내(안쪽 면만 보이는 큰 상자): 시점을 돌리거나 확대해도 매트 끝 밖·벽 뒤의 빈 공간이 보이지 않게(2026-11-24 사용자)
 	var room_m := _toon(st.room, st.room.darkened(0.35))
 	room_m.next_pass = null  # 외곽선 껍데기는 안쪽 면 상자에 맞지 않는다
-	var box := _box(Vector3(26.0, 14.0, 26.0))
+	# 높은 벽(만들기 화면 100m까지, 2026-11-25)은 방이 벽 끝·앞으로 나온 천장 끝까지 덮게 키운다(작으면 방 천장이 벽을 가림)
+	var tip := fold.point(Vector3(0, top, 0))
+	var room_h := maxf(14.0, tip.y + 6.0)
+	var box := _box(Vector3(26.0, room_h, maxf(26.0, 2.0 * (tip.z + 10.0 - 1.0))))
 	box.flip_faces = true
 	var room := _mesh(box, room_m, false)
-	room.position = Vector3(0, MAT_TOP_Y - 0.25 + 7.0, 1.0)
+	room.position = Vector3(0, MAT_TOP_Y - 0.25 + room_h * 0.5, 1.0)
 	add_child(room)
 	if st.has("floor"):  # 실내: 매트 밖은 어두운 고무 바닥(벽·매트와 갈리게)
 		var fm := _toon(st.floor, st.floor.darkened(0.4))
@@ -395,6 +398,7 @@ func _prism(size: Vector3) -> PrismMesh:
 # ---------- 홀드 ----------
 
 var hold_glows := {}  # 슬롯 키 → 홀드 위에 겹친 빛 메시(잡을 수 있음: 흰색 깜빡임, 튜토리얼 목표: 노란색 깜빡임)
+var hold_nodes := {}  # 슬롯 키 → [홀드 메시, 판정 벽 좌표 틀]: 만들기 화면이 끄는 홀드만 바로 옮겨 그린다
 
 
 ## 홀드 디자인 v2(docs/32): Blender로 만든 실제 크기 로우폴리 레진 홀드(art/holds/holds.glb, tools/holds/make_holds.py).
@@ -494,6 +498,7 @@ func _build_holds() -> void:
 		var hb := Basis(Vector3.BACK, ang + tilt)
 		_on_wall(hold, Vector3(p.x, p.y, 0.0), hb.scaled(Vector3.ONE * sc))
 		wall_root.add_child(hold)
+		hold_nodes[key] = [hold, Transform3D(hb.scaled(Vector3.ONE * sc), Vector3(p.x, p.y, 0.0))]
 		climber_pose.surface_depth[key] = mesh.get_aabb().end.z * sc  # 홀드 겉면(손발을 여기 얹는다)
 		climber_pose.surface_top[key] = mesh.get_aabb().end.y * sc  # 홀드 윗면(발끝을 여기 얹는다)
 		var glow := MeshInstance3D.new()

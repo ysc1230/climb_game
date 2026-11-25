@@ -103,7 +103,7 @@ func _read(d: Dictionary) -> void:
 	wall_sections = []
 	if mode in ["general", "custom"]:
 		for w in d.get("wall_sections", []):
-			wall_sections.append({"from_y": float(w.get("from_y", 0.0)), "deg": clampf(float(w.get("deg", 0.0)), 0.0, 60.0)})
+			wall_sections.append({"from_y": float(w.get("from_y", 0.0)), "deg": clampf(float(w.get("deg", 0.0)), 0.0, 90.0)})  # 90 = 천장(만들기 화면 벽 각도, 2026-11-25)
 		wall_sections.sort_custom(func(a, b): return a.from_y < b.from_y)
 		if not wall_sections.is_empty():
 			wall_deg = wall_sections.reduce(func(m, w): return maxf(m, w.deg), 0.0)
@@ -325,9 +325,20 @@ func _check_slot_for(limb: StringName, key: String, where: String) -> void:
 func angle_at(y: float) -> float:
 	if wall_sections.is_empty():
 		return wall_deg
-	var a: float = wall_sections[0].deg
-	for i in range(1, wall_sections.size()):
+	# 경계 + WALL_BLEND가 y 아래인 마지막 구간까지는 섞임이 다 끝나 그 구간 각도 그대로다: 거기서부터 섞는다(1m마다 100구간도 빠르게)
+	var lo := 0
+	var hi := wall_sections.size() - 1
+	while lo < hi:
+		var mid := (lo + hi + 1) / 2
+		if float(wall_sections[mid].from_y) + WALL_BLEND <= y:
+			lo = mid
+		else:
+			hi = mid - 1
+	var a: float = wall_sections[lo].deg
+	for i in range(lo + 1, wall_sections.size()):
 		var b: float = wall_sections[i].from_y
+		if b - WALL_BLEND >= y:
+			break
 		a = lerpf(a, float(wall_sections[i].deg), smoothstep(b - WALL_BLEND, b + WALL_BLEND, y))
 	return a
 
