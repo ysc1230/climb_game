@@ -129,6 +129,9 @@ func compute(session, delta: float) -> Dictionary:
 		free_lift[limb] = move_toward(lift_now, float(want.lift[limb]), LIFT_SPEED * delta)
 		var root := _root(body, limb, depth, yaw)
 		var end := _end(session, limb, float(free_lift[limb]), depth)
+		var stood := not hand and _stood(session, limb)
+		if stood:
+			end = _pivot_foot(limb, root, end, frame, pelvis, up)
 		var ik := LimbIK.solve_circle(_circle(limb, root, end, frame, pelvis, up, true, _ik_free(session, limb)), bends.get(limb, Vector3.ZERO), max_step)
 		bends[limb] = ik.bend
 		var mid: Vector3 = ik.mid
@@ -148,7 +151,10 @@ func compute(session, delta: float) -> Dictionary:
 				# 딛은 발: 이번 발목은 직전 방향으로 놓았으니 발끝도 그 방향(홀드 윗면 그대로), 다음 프레임 방향은 무릎 쪽으로 돈다
 				var prev: Vector3 = _foot_dir.get(limb, Anatomy.FOOT_WANT.normalized())
 				t["toe_" + s] = end + prev * Anatomy.FOOT_LENGTH
-				_foot_dir[limb] = prev.slerp(fd, minf(1.0, FOOT_TURN_SPEED * delta)).normalized()
+				var next := prev.slerp(fd, minf(1.0, FOOT_TURN_SPEED * delta)).normalized()
+				# 무릎 쪽으로 돌다가 발목이 무릎 자리가 없는 곳으로 가면 돌지 않는다(_pivot_foot와 오락가락하지 않게)
+				if not stood or _leg_viol(limb, root, end + (prev - next) * Anatomy.FOOT_LENGTH, frame, pelvis, up) <= PIVOT_OK:
+					_foot_dir[limb] = next
 			else:
 				t["toe_" + s] = end + fd * Anatomy.FOOT_LENGTH
 				_foot_dir[limb] = fd
@@ -198,6 +204,55 @@ var _foot_dir := {}
 const FOOT_TURN_SPEED := 6.0  # 1/s
 const HAND_ON_SURFACE := 0.065   # 손 접점(손가락 뿌리)을 홀드 겉면에서 띄우는 거리(말아 쥔 손가락 길이만큼, 손가락 끝이 겉면에 닿음)
 const FOOT_ON_SURFACE := 0.03
+
+
+## 딛은 발 뒤꿈치 돌리기(2026-11-26 사용자 V0-2 화면 "무릎이 불가능한 각도야. 그리고 발도 문제가 있어"): 판정 다리 길이는 엉덩이→홀드
+## 접점이라(최소 0.24m) 발끝 기준으로 놓은 발목(발 길이만큼 벽 밖·위)이 엉덩이에 너무 가까워질 수 있다. 그러면 무릎 자리가 하나도 없어
+## 돌림 한계를 넘어 접혔다. 발목에서 무릎 자리가 없으면 발끝은 홀드에 둔 채 발 방향을 돌려 무릎 자리를 낸다(주로 뒤꿈치 내리기).
+## 후보: FOOT_WANT를 좌우 PIVOT_YAWS·위로 PIVOT_PITCHES만큼 돈 방향 중 가장 나은 것. 지금 방향에서 그쪽으로 무릎 자리가 생기는 만큼만 돈다.
+const PIVOT_OK := 0.05     # 가장 나은 굽힘의 위반이 이 아래면 무릎 자리가 있다
+const PIVOT_YAWS := [0.0, 45.0, -45.0, 90.0, -90.0]
+const PIVOT_PITCHES := [0.0, 30.0, 60.0]
+
+
+## 홀드 윗면에 발끝을 얹은 발(_end가 발끝 기준으로 발목을 놓는다).
+func _stood(session, limb: StringName) -> bool:
+	var key = session.limbs[limb].key
+	return session.limbs[limb].state in ["Attached", "Armed"] and surface_depth.has(key) and surface_top.has(key)
+
+
+func _leg_viol(limb: StringName, root: Vector3, ankle: Vector3, frame: Basis, pelvis: Vector3, up: Vector3) -> float:
+	return LimbIK.circle_min(LimbIK.circle(limb, root, ankle, frame, pelvis, up, LimbIK.SEARCH_SAMPLES, false))
+
+
+## 반환: 발목. 발 방향(_foot_dir)을 바꿨으면 그 방향의 발목.
+func _pivot_foot(limb: StringName, root: Vector3, end: Vector3, frame: Basis, pelvis: Vector3, up: Vector3) -> Vector3:
+	if _leg_viol(limb, root, end, frame, pelvis, up) <= PIVOT_OK:
+		return end
+	var fd: Vector3 = _foot_dir.get(limb, Anatomy.FOOT_WANT.normalized())
+	var toe := end + fd * Anatomy.FOOT_LENGTH
+	var best := fd
+	var best_v := INF
+	for yaw in PIVOT_YAWS:
+		for pitch in PIVOT_PITCHES:
+			var d: Vector3 = (Basis(Vector3.UP, deg_to_rad(yaw)) * Basis(Vector3.RIGHT, deg_to_rad(pitch))) * Anatomy.FOOT_WANT.normalized()
+			var v := _leg_viol(limb, root, toe - d * Anatomy.FOOT_LENGTH, frame, pelvis, up)
+			if v < best_v - 0.01 or (absf(v - best_v) <= 0.01 and d.angle_to(fd) < best.angle_to(fd)):
+				best = d
+				best_v = v
+	if best_v <= PIVOT_OK:
+		# 지금 방향에서 best 쪽으로 무릎 자리가 생기는 가장 작은 만큼(이분법)
+		var lo := 0.0
+		var hi := 1.0
+		for i in 5:
+			var m := (lo + hi) * 0.5
+			if _leg_viol(limb, root, toe - fd.slerp(best, m).normalized() * Anatomy.FOOT_LENGTH, frame, pelvis, up) <= PIVOT_OK:
+				hi = m
+			else:
+				lo = m
+		best = fd.slerp(best, hi).normalized()
+	_foot_dir[limb] = best
+	return toe - best * Anatomy.FOOT_LENGTH
 
 
 func _end(session, limb: StringName, lift: float, pelvis_depth: float) -> Vector3:

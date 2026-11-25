@@ -130,3 +130,35 @@ func test_foot_twist_within_limit() -> void:
 			continue
 		worst = maxf(worst, absf(rad_to_deg(side.normalized().signed_angle_to(fp.normalized(), shin))))
 	runner.check(worst <= Anatomy.FOOT_TWIST_MAX + 1.0, "발 돌림 최대 %.0f° ≤ %.0f°" % [worst, Anatomy.FOOT_TWIST_MAX])
+
+
+## 딛은 발 다리는 몸이 내려가도 사람이 할 수 있는 무릎 자리가 남는다. 2026-11-26 사용자(V0-2 화면): "무릎이 불가능한 각도야. 그리고
+## 발도 문제가 있어". 엉덩이 높이 오른발(F06)을 딛은 채 몸을 왼쪽 아래로 옮기면 발끝 기준으로 놓은 발목(발 길이만큼 벽 밖·위)이
+## 엉덩이에 0.24m까지 다가와 무릎 자리가 하나도 없었고(가장 나은 굽힘도 위반 1.7), 무릎이 안돌림 한계 너머 −86°로 접혔다.
+## 판정 다리 길이(엉덩이→홀드 접점, 최소 0.24)는 발 길이를 뺀 발목 자리를 모른다. 발끝은 홀드에 둔 채 뒤꿈치를 돌려 다리가 접힐 자리를 낸다.
+func test_stuck_foot_leg_possible_when_hips_sink() -> void:
+	var r := RouteDef.load_json("res://data/routes/general/G_V0_03.json")
+	var s: ClimbSession = SessionBot.run(r, r.steps_raw.slice(0, 4)).session
+	var pose := ClimberPose.new()
+	for key in r.slots:
+		pose.surface_depth[key] = 0.07
+		pose.surface_top[key] = 0.05
+	var moves := [[Vector2(-0.007879, 0.002713), 64], [Vector2(-0.00146, -0.008204), 70], [Vector2(-0.007655, -0.003293), 80]]
+	var worst := 0.0
+	var worst_v := 0.0
+	for m in moves:
+		s.apply_input([{"type": "body_start"}])
+		for i in int(m[1]):
+			s.apply_input([{"type": "body_move", "delta": m[0]}])
+			s.step()
+			var t := pose.compute(s, Tuning.DT)
+			var fr := Anatomy.body_basis(s.body.angle, float(t.yaw))
+			for side in ["L", "R"]:
+				var limb := StringName(side + "F")
+				var tw := Anatomy.limb_twist(limb, t["hip_" + side], t["knee_" + side], t["ankle_" + side], fr)
+				if not is_nan(tw):
+					worst = maxf(worst, maxf(Anatomy.LEG_TWIST.x - tw, tw - Anatomy.LEG_TWIST.y))
+				worst_v = maxf(worst_v, LimbIK.min_violation(limb, t["hip_" + side], t["ankle_" + side], fr, t.pelvis, t.up))
+		s.apply_input([{"type": "body_end"}])
+	runner.check(worst <= 5.0, "무릎 돌림이 한계를 넘지 않음(넘은 최대 %.0f°)" % worst)
+	runner.check(worst_v <= 0.1, "무릎 자리가 늘 있음(가장 나은 굽힘의 위반 최대 %.2f)" % worst_v)
