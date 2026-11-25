@@ -17,6 +17,8 @@ var _built: Array = []
 func _ready() -> void:
 	rng.seed = 1230
 	logic = Stub.new()
+	logic.route = RouteDraft.new().build(Vector2(0, 0.75))  # 배경·안개 색(_style)이 문제의 벽 꾸밈을 읽는다
+	add_child(wall_root)  # 벽·홀드는 접힌 벽(fold) 위에 wall_root 아래로 놓인다(docs/57)
 	_build_environment()
 	var ui = get_node_or_null("UI/EditorUI")
 	if ui != null:
@@ -27,11 +29,17 @@ func rebuild(d: RouteDraft) -> void:
 	for n in _built:
 		n.queue_free()
 	_built.clear()
+	for n in wall_root.get_children():
+		wall_root.remove_child(n)
+		n.queue_free()
 	hold_glows.clear()
+	_wings.clear()
+	_neighbors.clear()
 	var before := {}
 	for c in get_children():
 		before[c] = true
 	logic.route = d.build(Vector2(0, 0.75))
+	fold = WallProfile.new(logic.route, -1.5, _wall_top() + 3.0)
 	rng.seed = 1230
 	_build_wall()
 	_build_holds()

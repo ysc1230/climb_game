@@ -1272,8 +1272,11 @@ func _tutorial_limb() -> StringName:
 	return StringName(str(tutorial.current().get("goal_event", {}).get("limb", "")))
 
 
-## 시작 골반에서 오른 높이(m).
+## 시작 골반에서 오른 높이(m). 완등(두 손이 탑)이면 목표 높이: 탑을 잡아도 골반은 목표 높이의 70~85%만 올라
+## 진행 바가 깃발에 못 닿았다(2026-11-25 사용자 "탑을 둘 다 잡으면 상단의 깃발 표시까지 도달해야 해").
 func _height() -> float:
+	if session.halted == &"clear":
+		return _goal_height()
 	return maxf(session.body.pos.y - route.start_pelvis.y, 0.0)
 
 

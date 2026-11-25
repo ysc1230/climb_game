@@ -207,6 +207,18 @@ func test_demo_open_close() -> void:
 	n.free()
 
 
+## 탑을 두 손으로 잡으면 진행 바가 깃발까지 찬다(2026-11-25 사용자 "탑을 둘 다 잡으면 상단의 깃발 표시까지 도달해야 해").
+## 바는 골반이 오른 높이인데, 탑을 잡아도 골반은 목표 높이의 70~85%만 올라 깃발에 못 닿았다(V0 첫 문제 71%).
+func test_bar_reaches_flag_on_top() -> void:
+	var n: Node2D = preload("res://scenes/play_test.gd").new()
+	n.route = RouteDef.load_json("res://data/routes/general/G_V0_02.json")
+	n.session = ClimbSession.new(n.route)
+	runner.check(n._height() < n._goal_height(), "시작에서는 깃발 아래")
+	n.session.halted = &"clear"
+	runner.check(is_equal_approx(n._height(), n._goal_height()), "완등하면 깃발까지 %.2f / %.2f" % [n._height(), n._goal_height()])
+	n.free()
+
+
 ## 위쪽 진행 바 표시(2026-11-24 사용자 "1,6번만"): 벽 경사 구간과 떨어졌던 높이를 바 위치(0~1)로.
 ## 바는 시작 골반에서 목표 높이까지라, 구간 시작 높이·떨어진 골반 높이도 같은 기준으로 바꾼다.
 func test_bar_marks_walls_and_falls() -> void:
