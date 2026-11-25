@@ -14,6 +14,13 @@ const CREAM := Color("f1d59a")   # 보조 정보(사암 밝은 면)
 const INK := Color("302820")     # 캐릭터 미리보기 외곽선
 const BG := NIGHT
 const DIM := Color(0.965, 0.95, 0.92, 0.66)
+## 스포츠 블록(2026-11-26 사용자 "디자인 요소가 old해 보여서 끌리지 않는다" → 스포츠 블록, 홈부터): 테두리 알약 대신 단단한 면,
+## 등급마다 실제 암장 테이프 색, 고른 등급은 큰 숫자. 테두리 선은 쓰지 않는다.
+const SLATE := Color("172431")    # 카드·보조 버튼 면
+const BLOCK_R := 8.0              # 블록 모서리(배율 전)
+const SKEW := 0.22                # 주 버튼 기울기
+const GRADE_TAPE := {"V0": Color("39c46a"), "V1": Color("ffd23f"), "V2": Color("ff8a3d"), "V3": Color("3f8cff"),
+	"V4": Color("ff4b5c"), "V5": Color("9a6bff"), "V6": Color("e9e4da"), "V7": Color("ff5fae")}
 const MARGIN := 64.0
 const APP_NAME := "OVERHANG"
 const SLOT_NAMES := {"tutorial": "튜토리얼", "easy": "쉬움", "normal": "보통", "hard": "어려움"}
@@ -405,7 +412,7 @@ func _draw_tabs(_size: Vector2) -> void:
 		var by := _baseline(r, 26, f)
 		draw_string(f, Vector2(x, by), t[1], HORIZONTAL_ALIGNMENT_LEFT, -1, int(26 * k), CHALK if on else DIM)
 		if on:
-			draw_style_box(_box(SHOE, 2 * k), Rect2(Vector2(x, by + 12 * k), Vector2(tw, 4 * k)))
+			draw_rect(Rect2(Vector2(x - 4 * k, by + 12 * k), Vector2(tw + 8 * k, 6 * k)), SHOE)
 		_buttons.append({"rect": r, "action": "tab", "arg": t[0]})
 		x += tw + 44 * k
 
@@ -428,30 +435,38 @@ func _draw_general(size: Vector2) -> void:
 	if gs.is_empty():
 		_text(Vector2(x0, y + 60 * k), "아직 문제가 없어요", 26, DIM)
 		return
-	# 등급 줄: 고른 등급은 노란 알약, 잠긴 등급은 흐리게 + 자물쇠, 다 깬 등급은 오른쪽 위 점
-	var pw := minf(96.0 * k, (cw - (gs.size() - 1) * 10 * k) / gs.size())
+	# 등급 타일: 아래에 테이프 색 띠. 고른 등급은 테이프 색으로 채움, 잠긴 등급은 흐리게 + 자물쇠, 다 깬 등급은 오른쪽 위 점
+	var pw := minf(92.0 * k, (cw - (gs.size() - 1) * 8 * k) / gs.size())
 	var x := x0
 	for g in gs:
 		var open := progress.grade_unlocked(g, idx)
 		var on := g == grade
-		var r := Rect2(Vector2(x, y), Vector2(pw, 56 * k))
-		draw_style_box(_box(SHOE if on else Color(NIGHT, 0.66 if open else 0.42), r.size.y * 0.5, Color(0, 0, 0, 0) if on else HAIR, 1.5), r)
-		var tc := NIGHT if on else (CHALK if open else DIM)
-		draw_string(font_b, Vector2(r.position.x, _baseline(r, 24, font_b)), g, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(24 * k), tc)
+		var tc := tape(g)
+		var r := Rect2(Vector2(x, y), Vector2(pw, 60 * k))
+		draw_style_box(_box(tc if on else Color(SLATE, 0.9 if open else 0.55), BLOCK_R * k), r)
+		if not on:
+			draw_rect(Rect2(Vector2(r.position.x + 10 * k, r.end.y - 7 * k), Vector2(r.size.x - 20 * k, 4 * k)), Color(tc, 1.0 if open else 0.35))
+		var fc := ink_on(tc) if on else (CHALK if open else DIM)
+		draw_string(font_b, Vector2(r.position.x, _baseline(r, 24, font_b) - 2 * k), g, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(24 * k), fc)
 		if not open:
-			_lock(Vector2(r.end.x - 17 * k, r.position.y + 21 * k), tc)
+			_lock(Vector2(r.end.x - 16 * k, r.position.y + 20 * k), fc)
 		elif idx.general(g).size() > 0 and progress.cleared_count(g, idx) >= idx.general(g).size():
-			draw_circle(Vector2(r.end.x - 15 * k, r.position.y + 15 * k), 5 * k, NIGHT if on else SHOE)
+			draw_circle(Vector2(r.end.x - 13 * k, r.position.y + 13 * k), 5 * k, fc if on else SHOE)
 		_buttons.append({"rect": r, "action": "grade", "arg": g})
-		x += pw + 10 * k
-	# 고른 등급 제목 + 몇 개 깼는지 + 한 줄 설명(잠겼으면 여는 방법)
+		x += pw + 8 * k
+	# 고른 등급: 테이프 색 큰 숫자 + 이름 + 완등 칸(문제 수만큼) + 한 줄 설명(잠겼으면 여는 방법)
 	var routes: Array[RouteDef] = idx.general(grade)
-	y += 56 * k + 64 * k
-	var title := "%s %s" % [grade, GradeInfo.name_of(grade)]
-	draw_string(font_b, Vector2(x0, y), title, HORIZONTAL_ALIGNMENT_LEFT, -1, int(40 * k), CHALK)
-	var tx := x0 + font_b.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, int(40 * k)).x + 20 * k
-	draw_string(font_m, Vector2(tx, y), "%d문제 중 %d개 완등" % [routes.size(), progress.cleared_count(grade, idx)], HORIZONTAL_ALIGNMENT_LEFT, -1, int(21 * k), DIM)
-	y += 42 * k
+	y += 60 * k + 118 * k
+	var big := int(112 * k)
+	draw_string(font_b, Vector2(x0 - 4 * k, y), grade, HORIZONTAL_ALIGNMENT_LEFT, -1, big, tape(grade))
+	var tx := x0 + font_b.get_string_size(grade, HORIZONTAL_ALIGNMENT_LEFT, -1, big).x + 22 * k
+	draw_string(font_b, Vector2(tx, y - 52 * k), GradeInfo.name_of(grade), HORIZONTAL_ALIGNMENT_LEFT, -1, int(36 * k), CHALK)
+	var done := progress.cleared_count(grade, idx)
+	var seg := 34.0 * k
+	for i in routes.size():
+		draw_style_box(_box(tape(grade) if i < done else Color(CHALK, 0.14), 3 * k), Rect2(Vector2(tx + i * (seg + 6 * k), y - 24 * k), Vector2(seg, 10 * k)))
+	draw_string(font_m, Vector2(tx + routes.size() * (seg + 6 * k) + 8 * k, y - 13 * k), "%d/%d 완등" % [done, routes.size()], HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), DIM)
+	y += 40 * k
 	var lock := progress.grade_lock_text(grade, idx)
 	if lock != "":
 		_lock(Vector2(x0 + 9 * k, y - 8 * k), CREAM)
@@ -483,7 +498,8 @@ func _draw_problem_row(r: Rect2, route: RouteDef) -> void:
 	var progress: Progress = game.progress
 	var lock := progress.route_lock_text(route, idx)
 	_card(r, lock != "")
-	var pad := 28.0 * k
+	draw_rect(Rect2(r.position, Vector2(8 * k, r.size.y)), Color(tape(route.grade), 0.35 if lock != "" else 1.0))
+	var pad := 32.0 * k
 	var x := r.position.x + pad
 	var b := Rect2(Vector2(r.end.x - pad - 164 * k, r.position.y + r.size.y * 0.5 - 30 * k), Vector2(164, 60) * k)
 	var w := b.position.x - x - 24 * k
@@ -523,7 +539,7 @@ func _wall_deg(route: RouteDef) -> int:
 func _chip(pos: Vector2, text: String, col: Color) -> float:
 	var fs := int(17 * k)
 	var r := Rect2(Vector2(pos.x, pos.y - 24 * k), Vector2(font_m.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + 22 * k, 30 * k))
-	draw_style_box(_box(Color(0, 0, 0, 0), r.size.y * 0.5, Color(col, 0.6), 1.5), r)
+	draw_style_box(_box(Color(col, 0.18), 5 * k), r)
 	draw_string(font_m, Vector2(r.position.x, _baseline(r, 17, font_m)), text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, fs, col)
 	return r.end.x
 
@@ -552,13 +568,13 @@ func _draw_medals(pos: Vector2, route: RouteDef) -> float:
 		var got: bool = m[1]
 		var tw := font_m.get_string_size(str(m[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 		var r := Rect2(Vector2(x, pos.y - 23 * k), Vector2(tw + (40 if got else 22) * k, 30 * k))
-		draw_style_box(_box(Color(SHOE, 0.14) if got else Color(0, 0, 0, 0), r.size.y * 0.5, Color(SHOE, 0.7) if got else HAIR, 1.5), r)
+		draw_style_box(_box(SHOE if got else Color(CHALK, 0.07), 5 * k), r)
 		var tx := r.position.x + 11 * k
 		if got:
 			var c := Vector2(r.position.x + 18 * k, r.get_center().y)
-			draw_polyline(PackedVector2Array([c + Vector2(-6, 0) * k, c + Vector2(-2, 4) * k, c + Vector2(6, -5) * k]), SHOE, 2.2 * k, true)
+			draw_polyline(PackedVector2Array([c + Vector2(-6, 0) * k, c + Vector2(-2, 4) * k, c + Vector2(6, -5) * k]), NIGHT, 2.4 * k, true)
 			tx += 18 * k
-		draw_string(font_m, Vector2(tx, _baseline(r, 18, font_m)), str(m[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, SHOE if got else DIM)
+		draw_string(font_b if got else font_m, Vector2(tx, _baseline(r, 18, font_m)), str(m[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, NIGHT if got else DIM)
 		x = r.end.x + 8 * k
 	return x
 
@@ -1083,14 +1099,25 @@ func _box(fill: Color, radius: float, border := Color(0, 0, 0, 0), bw := 0.0) ->
 	return sb
 
 
-## 카드(문제·수업·홀드 등): 남색 반투명 둥근 판 + 가는 선. dim이면 더 옅게(잠김).
+## 카드(문제·수업·홀드 등): 단단한 슬레이트 블록(선 없음). dim이면 더 옅게(잠김).
 func _card(r: Rect2, dim := false) -> void:
-	draw_style_box(_box(Color(NIGHT, 0.56 if dim else 0.80), 20 * k, HAIR, 1.5), r)
+	draw_style_box(_box(Color(SLATE, 0.62 if dim else 0.92), BLOCK_R * k), r)
+
+
+## 등급 테이프 색(없으면 노랑).
+static func tape(grade: String) -> Color:
+	return GRADE_TAPE.get(grade, SHOE)
+
+
+## 바탕색 위 글자색: 밝은 바탕이면 남색, 어두우면 흰색.
+static func ink_on(c: Color) -> Color:
+	return NIGHT if c.get_luminance() > 0.55 else CHALK
 
 
 ## 창(확인·입력·설명): 거의 불투명한 남색 둥근 판.
 func _panel(r: Rect2) -> void:
-	draw_style_box(_box(Color(NIGHT, 0.97), 26 * k, Color(CHALK, 0.2), 1.5), r)
+	draw_style_box(_box(Color(SLATE, 0.98), BLOCK_R * 1.5 * k), r)
+	draw_rect(Rect2(r.position, Vector2(r.size.x, 6 * k)), SHOE)
 
 
 ## r 안에서 글자를 세로 가운데에 두는 기준선.
@@ -1099,10 +1126,12 @@ func _baseline(r: Rect2, fs: int, f: Font) -> float:
 	return r.position.y + (r.size.y + f.get_ascent(px) - f.get_descent(px)) * 0.5
 
 
-## 버튼: 주(strong) = 노란 알약 + 남색 굵은 글자, 보조 = 반투명 남색 알약 + 가는 테두리 + 흰 글자.
+## 버튼: 주(strong) = 비스듬히 기운 노란 블록 + 남색 굵은 글자, 보조 = 선 없는 슬레이트 블록 + 흰 글자.
 func _button(r: Rect2, text: String, action: String, arg: String, fs := 24, strong := false) -> void:
-	var radius := r.size.y * 0.5 if r.size.y <= 72 * k else 22 * k
-	draw_style_box(_box(SHOE if strong else Color(NIGHT, 0.66), radius, Color(0, 0, 0, 0) if strong else Color(CHALK, 0.26), 1.5), r)
+	var sb := _box(SHOE if strong else Color(SLATE, 0.9), BLOCK_R * k)
+	if strong:
+		sb.skew = Vector2(SKEW, 0)
+	draw_style_box(sb, r)
 	if text != "":
 		var f: Font = font_b if strong else font_m
 		draw_string(f, Vector2(r.position.x, _baseline(r, fs, f)), text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(fs * k), NIGHT if strong else CHALK)
