@@ -6,7 +6,7 @@
   "y_min": 0.0
  },
  "check_swapped": false,
- "content_version": 2,
+ "content_version": 3,
  "crux_steps": {
   "T_HIGH_STEP": 3,
   "T_MATCH": 6
@@ -123,7 +123,7 @@
       "LH",
       "RH"
      ],
-     "hold_type": "foot_chip",
+     "hold_type": "crimp",
      "pos": [
       0.07,
       0.1
@@ -142,7 +142,7 @@
       "LH",
       "RH"
      ],
-     "hold_type": "foot_chip",
+     "hold_type": "crimp",
      "pos": [
       -0.29,
       0.1
@@ -161,7 +161,7 @@
       "LH",
       "RH"
      ],
-     "hold_type": "foot_chip",
+     "hold_type": "crimp",
      "pos": [
       -0.29,
       0.36
@@ -180,7 +180,7 @@
       "LH",
       "RH"
      ],
-     "hold_type": "foot_chip",
+     "hold_type": "crimp",
      "pos": [
       0.22,
       0.94
@@ -295,8 +295,8 @@
  ],
  "score_ref": {
   "grabs": 11,
-  "quality": 0.763,
-  "spent_per_m": 79.05
+  "quality": 0.779,
+  "spent_per_m": 61.45
  },
  "start_pose": {
   "angle": 0.0,

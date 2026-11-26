@@ -574,6 +574,8 @@ func _update_reach_rings() -> void:
 		var r: MeshInstance3D = reach_rings[limb]
 		r.visible = l.state == "Dragging" and not logic.session.selecting
 		if r.visible:
+			var gd := ReachMarker.grip_guide(logic.session, limb)  # 손: 잡을 자리 안내 색(초록·주황·빨강)
+			(r.material_override as StandardMaterial3D).albedo_color = Color(ReachMarker.GUIDE_COLORS[gd.level], 0.95) if not gd.is_empty() else Color(1, 1, 1, 0.8)
 			var p := ReachMarker.ring_point(l)
 			_on_wall(r, Vector3(p.x, p.y, CONTACT_DEPTH + 0.01), Basis(Vector3.RIGHT, PI / 2.0))
 
@@ -582,19 +584,22 @@ func _update_hold_glow() -> void:
 	var t := Time.get_ticks_msec() * 0.001
 	var fast := 0.5 + 0.5 * sin(TAU * 2.2 * t)
 	var slow := 0.5 + 0.5 * sin(TAU * 1.2 * t)
-	var grab := {}
+	var grab := {}   # 홀드 → 빛 색(손은 잡기 안내 색, 발은 흰색)
 	if not logic.session.selecting:
 		for limb in logic.session.limbs:
 			var l: Dictionary = logic.session.limbs[limb]
-			if l.state == "Dragging" and not l.cand.is_empty():
-				grab[l.cand.key] = true
+			var gd := ReachMarker.grip_guide(logic.session, limb)
+			if not gd.is_empty():
+				grab[gd.key] = ReachMarker.GUIDE_COLORS[gd.level]
+			elif l.state == "Dragging" and not l.cand.is_empty():
+				grab[l.cand.key] = Color.WHITE
 	var goal: String = logic._tutorial_goal_key()
 	for key in hold_glows:
 		var g: MeshInstance3D = hold_glows[key]
 		var m := g.material_override as StandardMaterial3D
 		if grab.has(key):
 			g.visible = true
-			m.albedo_color = Color(1, 1, 1, 0.35 + 0.6 * fast)
+			m.albedo_color = Color(grab[key], 0.35 + 0.6 * fast)
 		elif key == goal:
 			g.visible = true
 			m.albedo_color = Color(1.0, 0.86, 0.35, 0.25 + 0.5 * slow)
@@ -721,10 +726,108 @@ func _fall_targets(delta: float) -> Dictionary:
 		return t
 	var t := _pose_targets(delta)
 	_last_t = t
-	# 캐릭터 틀 = 골반 높이의 벽면 틀. 관절은 하나씩 접어 그 틀 좌표로(docs/57 §5)
+	# 캐릭터 틀 = 골반 높이의 벽면 틀(docs/57 §5). 몸은 그 틀로 통째로, 잡은 손발 끝만 접힌 벽의 홀드 자리에
 	_char_s = (t.pelvis as Vector3).y
 	char_root.transform = fold.frame(_char_s)
-	return _to_char(_to_world(t))
+	var held := {}
+	for limb in PoseSolver.LIMBS:
+		held[limb] = logic.session.limbs[limb].state in ["Attached", "Armed"]
+	return climber_to_char(t, fold, held)
+
+
+const UPPER_KEYS := ["spine", "chest", "neck", "head", "head_top", "shoulder_L", "elbow_L", "wrist_L", "hand_L", "shoulder_R", "elbow_R", "wrist_R", "hand_R"]
+const LOWER_KEYS := ["hip_L", "knee_L", "ankle_L", "toe_L", "hip_R", "knee_R", "ankle_R", "toe_R"]
+const LIMB_KEYS := {&"LH": ["shoulder_L", "elbow_L", "wrist_L", "hand_L"], &"RH": ["shoulder_R", "elbow_R", "wrist_R", "hand_R"],
+	&"LF": ["hip_L", "knee_L", "ankle_L", "toe_L"], &"RF": ["hip_R", "knee_R", "ankle_R", "toe_R"]}
+
+
+## 판정 벽 좌표 관절 → 캐릭터 틀(골반 높이의 벽면 틀) 좌표. 골반은 접힌 벽 위 제자리, 윗몸(척추·머리·팔)과 아랫몸(다리)은
+## 각각 골반을 축으로 통째로 돌려 놓는다(뼈 길이 그대로, 허리에서 꺾임). 도는 방향은 잡은 손(딛은 발)이 접힌 벽의 홀드에
+## 가장 잘 닿는 벽 방향(골반 높이 ~ 손발 높이 사이). 잡은 손발 끝(손목·발목)은 실제 홀드 자리로 옮기고 팔꿈치·무릎을
+## 두 마디 IK로 다시 푼다. 점마다 접으면 크게 꺾이는 벽에서 몸이 찌그러지고 손가락이 늘어났다(2026-11-27 사용자
+## "거의 누워있는 벽에서 무게중심에 따라 캐릭터가 엄청 찌그러져", "다음 홀드를 향해 뻗으면 손가락이 엄청 늘어지는").
+static func climber_to_char(t: Dictionary, f: WallProfile, held: Dictionary) -> Dictionary:
+	var sp: float = (t.pelvis as Vector3).y
+	var fi := f.frame(sp).affine_inverse()
+	var pel: Vector3 = fi * f.point(t.pelvis)
+	var out := {"pelvis": pel}
+	for k in t:
+		if not (t[k] is Vector3) or k == "up":
+			out[k] = t[k]
+	var hands := PoseSolver.LIMBS.filter(func(l): return PoseSolver.is_hand(l) and held.get(l, false))
+	var feet := PoseSolver.LIMBS.filter(func(l): return not PoseSolver.is_hand(l) and held.get(l, false))
+	for part in [[UPPER_KEYS, hands], [LOWER_KEYS, feet]]:
+		var rot := _part_basis(t, f, fi, pel, part[1])
+		for k in part[0]:
+			if t.has(k):
+				out[k] = pel + rot * ((t[k] as Vector3) - (t.pelvis as Vector3))
+	for k in t:  # 나머지 점(있으면)은 그대로 접는다
+		if t[k] is Vector3 and not out.has(k):
+			out[k] = fi * f.point(t[k])
+	for limb in hands + feet:
+		var ks: Array = LIMB_KEYS[limb]
+		if not (t.has(ks[0]) and t.has(ks[1]) and t.has(ks[2])):
+			continue
+		var target: Vector3 = fi * f.point(t[ks[2]])
+		if target.distance_to(out[ks[2]]) < 0.001:
+			continue
+		var l1: float = (t[ks[1]] as Vector3).distance_to(t[ks[0]])
+		var l2: float = (t[ks[2]] as Vector3).distance_to(t[ks[1]])
+		var root: Vector3 = out[ks[0]]
+		var old_dir: Vector3 = ((out[ks[2]] as Vector3) - (out[ks[1]] as Vector3)).normalized()
+		var to := target - root
+		var short := to.length() - (l1 + l2 - 0.001)
+		if short > 0.0:  # 닿지 않으면 어깨(엉덩이)를 그 홀드 쪽으로 내민다(SHOULDER_REACH·HIP_REACH까지)
+			root += to.normalized() * minf(short, SHOULDER_REACH if PoseSolver.is_hand(limb) else HIP_REACH)
+			out[ks[0]] = root
+			to = target - root
+		if to.length() > l1 + l2 - 0.001:  # 그래도 닿지 않으면 팔·다리를 다 편 끝(홀드 조금 앞)
+			target = root + to.normalized() * (l1 + l2 - 0.001)
+		var mid := LimbIK.two_bone(root, target, out[ks[1]], l1, l2)
+		var new_dir: Vector3 = (target - mid).normalized()
+		if out.has(ks[3]) and old_dir.length() > 0.5 and new_dir.length() > 0.5:
+			out[ks[3]] = target + Quaternion(old_dir, new_dir) * ((out[ks[3]] as Vector3) - (out[ks[2]] as Vector3))
+		out[ks[1]] = mid
+		out[ks[2]] = target
+	return out
+
+
+const PART_LEAN_EXTRA := 0.5   # 벽 방향 범위 밖으로 더 기울여 보는 각(라디안, 약 29°)
+const SHOULDER_REACH := 0.12   # 손이 홀드에 닿지 않을 때 어깨를 내미는 최대 거리(m)
+const HIP_REACH := 0.07        # 발이 닿지 않을 때 엉덩이를 내미는 최대 거리(m)
+const PART_LEAN_STEPS := 16
+
+
+## 윗몸·아랫몸을 돌릴 방향(캐릭터 틀 기준 회전): 골반 높이 ~ 잡은 손발 높이의 벽 방향(앞뒤로 PART_LEAN_EXTRA 더) 중, 잡은 손발 끝이
+## 팔·다리 길이 안에 들고(못 닿는 거리 합이 가장 작고) 펼친 자세와 가장 가까운 것. 잡은 손발이 없으면 골반 높이.
+static func _part_basis(t: Dictionary, f: WallProfile, fi: Transform3D, pel: Vector3, limbs: Array) -> Basis:
+	var sp: float = (t.pelvis as Vector3).y
+	if limbs.is_empty():
+		return fi.basis * f.basis_at(sp)
+	var lo := f.angle_rad(sp)
+	var hi := lo
+	for limb in limbs:
+		var e: Vector3 = t[LIMB_KEYS[limb][2]]
+		lo = minf(lo, f.angle_rad(e.y))
+		hi = maxf(hi, f.angle_rad(e.y))
+	lo -= PART_LEAN_EXTRA
+	hi += PART_LEAN_EXTRA
+	var best := Basis()
+	var best_cost := INF
+	for i in PART_LEAN_STEPS + 1:
+		var rot := fi.basis * Basis(Vector3.RIGHT, lerpf(lo, hi, float(i) / PART_LEAN_STEPS))
+		var cost := 0.0
+		for limb in limbs:
+			var ks: Array = LIMB_KEYS[limb]
+			var root: Vector3 = pel + rot * ((t[ks[0]] as Vector3) - (t.pelvis as Vector3))
+			var end: Vector3 = pel + rot * ((t[ks[2]] as Vector3) - (t.pelvis as Vector3))
+			var target: Vector3 = fi * f.point(t[ks[2]])
+			var reach: float = (t[ks[1]] as Vector3).distance_to(t[ks[0]]) + (t[ks[2]] as Vector3).distance_to(t[ks[1]])
+			cost += maxf(0.0, root.distance_to(target) - reach + 0.01) * 10.0 + end.distance_to(target)
+		if cost < best_cost - 1e-6:
+			best_cost = cost
+			best = rot
+	return best
 
 
 ## 판정 벽 좌표 관절 → 월드(접힌 벽). 점은 하나씩 접고, 방향 "up"은 골반 높이의 벽 틀로 돌린다.
@@ -844,7 +947,7 @@ func _pose_model(t: Dictionary, delta: float) -> void:
 			local[key] = inv * (t[key] as Vector3)
 	var free_feet := {"L": ClimberPose._free(logic.session, &"LF"), "R": ClimberPose._free(logic.session, &"RF")}
 	_update_curl(delta)
-	var frames := rig.solve(local, _fall_angle if fall_sim != null else logic.session.body.angle, float(t.get("yaw", logic.session.body.yaw)), free_feet, curl, _palm_dirs())
+	var frames := rig.solve(local, _fall_angle if fall_sim != null else logic.session.body.angle, float(t.get("yaw", logic.session.body.yaw)), free_feet, curl)
 	_apply_look(frames, inv, delta)
 	for name in RigPose.bone_names():
 		var idx := skeleton.find_bone(name)
@@ -863,20 +966,6 @@ const CURL_SPEED := 8.0       # 1/s
 const PALM_REST := Vector3.DOWN  # 휴지 T자 손바닥 방향
 var finger_rest := {}         # "L"/"R" -> {idx, hand_idx, rest(손 기준 손가락 휴지 Transform), len}
 var curl := {"L": 0.0, "R": 0.0}
-
-
-## 잡은 손바닥이 볼 쪽: 위를 보는 면은 벽, 옆·아래를 보는 면(사이드풀·개스턴·언더)은 그 면 쪽(벽에 반쯤 기댐).
-## 뼈대 좌표는 벽 좌표와 같은 방향(x 오른쪽, y 위, FORWARD 벽 쪽)으로 본다.
-func _palm_dirs() -> Dictionary:
-	var out := {}
-	if fall_sim != null:
-		return out
-	for hand in [&"LH", &"RH"]:
-		var c: ContactInfo = logic.session.rules.contact_meta.get(hand)
-		if c == null or c.grip_kind in [&"", &"pull"]:
-			continue
-		out["L" if hand == &"LH" else "R"] = (Vector3.FORWARD * 0.5 + Vector3(-c.axis.x, -c.axis.y, 0.0)).normalized()
-	return out
 
 
 ## 잡은 정도(0~1)를 갱신한다. 잡은 손의 아래팔·손 돌리기는 RigPose.solve(grip)가 한다.

@@ -23,7 +23,7 @@ def build(r):
     holds = []
     slot_of = {}
     for h in r["holds"]:
-        foot = h["t"] in FOOT_TYPES
+        foot = h["t"] in FOOT_TYPES or h["hid"].startswith("F")  # 발 쓰임 홀드(F…)는 칸 이름 foot_1
         sid = "foot_1" if foot else "hand_1"
         # 2026-11-26 사용자 "모든 홀드들이 손홀드이자 발홀드": 발판도 손 칸(발은 RouteDef가 모든 손 칸에 더함). 칸 이름은 그대로
         s = {"slot_id": sid, "pos": [h["x"], h["y"]], "allowed": h["allowed"] or ["LH", "RH"],

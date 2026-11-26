@@ -6,7 +6,7 @@
   "y_min": 0.0
  },
  "check_swapped": false,
- "content_version": 2,
+ "content_version": 3,
  "crux_steps": {},
  "fail_line_y": -0.5,
  "goal_slots": [
@@ -117,7 +117,7 @@
       "LH",
       "RH"
      ],
-     "hold_type": "foot_chip",
+     "hold_type": "crimp",
      "pos": [
       -0.15,
       0.1
@@ -136,7 +136,7 @@
       "LH",
       "RH"
      ],
-     "hold_type": "foot_chip",
+     "hold_type": "crimp",
      "pos": [
       0.18,
       0.1
@@ -155,7 +155,7 @@
       "LH",
       "RH"
      ],
-     "hold_type": "foot_chip",
+     "hold_type": "crimp",
      "pos": [
       -0.2,
       0.5
@@ -174,7 +174,7 @@
       "LH",
       "RH"
      ],
-     "hold_type": "foot_chip",
+     "hold_type": "crimp",
      "pos": [
       -0.15,
       1.0
@@ -193,7 +193,7 @@
       "LH",
       "RH"
      ],
-     "hold_type": "foot_chip",
+     "hold_type": "crimp",
      "pos": [
       0.0,
       1.25
@@ -298,7 +298,7 @@
  "score_ref": {
   "grabs": 10,
   "quality": 0.742,
-  "spent_per_m": 40.52
+  "spent_per_m": 26.48
  },
  "start_pose": {
   "angle": 0.0,

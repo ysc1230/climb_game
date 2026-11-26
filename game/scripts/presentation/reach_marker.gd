@@ -24,6 +24,28 @@ static func nearest_slot_dist(route: RouteDef, limb: StringName, p: Vector2, occ
 	return best
 
 
+## 잡기 안내(2026-11-27 사용자 "손으로 홀드를 잡을 때 어딜 잡아야 잘잡았는지 보이지않아 … 초록 주황 빨강 색으로 가이드"):
+## 끄는 손이 노리는 홀드와 그 단계. GOOD 지금 놓으면 잘 잡힘(가운데 쪽·편한 방향), OK 잡히지만 가장자리이거나 불편한 방향
+## (개스턴·언더), BAD 노리지만 그 손으로는 못 잡음(방향·거리). 노리는 홀드가 없거나 손이 아니면 {}.
+enum Guide { GOOD, OK, BAD }
+const GUIDE_COLORS := [Color("7cc443"), Color("ffa53a"), Color("ff5a4a")]
+const GUIDE_GOOD_Q := 0.7
+
+
+static func grip_guide(s, limb: StringName) -> Dictionary:
+	var l: Dictionary = s.limbs[limb]
+	if l.state != "Dragging" or not PoseSolver.is_hand(limb):
+		return {}
+	if not l.cand.is_empty():
+		var c := GripCheck.contact_for(l.cand.key, s.route.slots, limb, l.cand.point, s.body.pos, s.body.angle, s.body.yaw)
+		var good: bool = float(l.cand.quality) >= GUIDE_GOOD_Q and c.grip_kind in [&"", &"pull", &"sidepull"]
+		return {"key": l.cand.key, "level": Guide.GOOD if good else Guide.OK}
+	var aim := GripCheck.aimed_slot(s.route.slots, l.req)
+	if aim != "" and (s.route.slots[aim].has("hand_area") or s.route.goal_slots.has(aim)):
+		return {"key": aim, "level": Guide.BAD}
+	return {}
+
+
 ## 고리를 그릴 점: 잡힐 후보가 있으면 후보 점, 없으면 판정 점.
 static func ring_point(l: Dictionary) -> Vector2:
 	var c: Dictionary = l.get("cand", {})

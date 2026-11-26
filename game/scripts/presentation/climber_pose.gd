@@ -140,7 +140,7 @@ func compute(session, delta: float) -> Dictionary:
 			t["shoulder_" + s] = root
 			t["elbow_" + s] = mid
 			t["wrist_" + s] = end
-			t["hand_" + s] = end + (end - mid).normalized() * Anatomy.HAND_LENGTH
+			t["hand_" + s] = end + _hand_dir(session, limb, (end - mid).normalized()) * Anatomy.HAND_LENGTH
 		else:
 			t["hip_" + s] = root
 			t["knee_" + s] = mid
@@ -159,6 +159,21 @@ func compute(session, delta: float) -> Dictionary:
 				t["toe_" + s] = end + fd * Anatomy.FOOT_LENGTH
 				_foot_dir[limb] = fd
 	return t
+
+
+const WRIST_BEND_MAX := deg_to_rad(95.0)  # 옆·아래를 보는 면을 잡을 때 손목을 꺾는 최대 각
+const WRIST_BEHIND := 0.05                # 그때 손목을 잡는 면 반대쪽으로 옮기는 거리(m)
+
+
+## 손(손목 → 손가락) 방향: 옆·아래를 보는 면을 잡은 손은 손가락이 잡는 면 쪽(힘 축)을 향하게 손목을 꺾는다(WRIST_BEND_MAX까지).
+## 사이드풀이면 손가락이 옆 날을, 언더면 아래 날을 감싼다(2026-11-27 사용자 "저 홀드는 옆으로밖에 잡을 수 없는데 그렇게 잡은것처럼 보이지않아").
+static func _hand_dir(session, limb: StringName, forearm: Vector3) -> Vector3:
+	var c = session.rules.contact_meta.get(limb)
+	if c == null or not (session.limbs[limb].state in ["Attached", "Armed"]) or not (c.grip_kind in [&"sidepull", &"gaston", &"undercling"]):
+		return forearm
+	var want := Vector3(c.axis.x, c.axis.y, 0.0).normalized()
+	var ang := forearm.angle_to(want)
+	return want if ang <= WRIST_BEND_MAX else forearm.slerp(want, WRIST_BEND_MAX / ang).normalized()
 
 
 ## 끌거나 떠 있는 손발인가(붙음·준비가 아님).
@@ -267,6 +282,11 @@ func _end(session, limb: StringName, lift: float, pelvis_depth: float) -> Vector
 		return toe - _foot_dir.get(limb, Anatomy.FOOT_WANT.normalized()) * Anatomy.FOOT_LENGTH
 	if stuck and surface_depth.has(key):
 		z = maxf(z, float(surface_depth[session.limbs[limb].key]) + (HAND_ON_SURFACE if PoseSolver.is_hand(limb) else FOOT_ON_SURFACE))
+	if stuck and PoseSolver.is_hand(limb):
+		# 옆·아래를 보는 면: 손목을 홀드의 몸 쪽(잡는 면의 반대편)에 두고 손이 홀드를 가로질러 날을 감싼다(저그의 손목이 홀드 아래에 오듯)
+		var c = session.rules.contact_meta.get(limb)
+		if c != null and c.grip_kind in [&"sidepull", &"gaston", &"undercling"]:
+			e2 -= (c.axis as Vector2).normalized() * WRIST_BEHIND
 	if not stuck and not PoseSolver.is_hand(limb):
 		z = maxf(Tuning.CONTACT_DEPTH, minf(z, pelvis_depth - FREE_FOOT_FRONT))
 	if not stuck and PoseSolver.is_hand(limb):

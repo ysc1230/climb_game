@@ -22,7 +22,8 @@ const GOOD := Color("7cc443")
 ## 편집: 빈 벽을 누르면 고른 종류를 놓고, 홀드를 누르면 고르고(다시 누르면 해제), 끌면 고른 홀드를 옮기고, 오른쪽 아래 원으로 돌린다.
 const TOOLS := [["edit", "홀드 놓기"], ["wall", "벽 각도"], ["erase", "홀드 지우기"], ["start", "시작홀드 설정"]]
 const LIMB_NAMES := {&"LH": "왼손", &"RH": "오른손", &"LF": "왼발", &"RF": "오른발"}
-const TYPES := ["jug", "crimp", "sloper", "pinch", "pocket", "foot_chip", "foot_big"]
+## 2026-11-27 사용자 "크고작은 발판홀드는 없애. 홀드종류를 선택한 뒤 손 발 탑 홀드로 사용할지 선택": 발판 종류는 고를 수 없다(옛 문제에서는 그대로 읽음)
+const TYPES := ["jug", "crimp", "sloper", "pinch", "pocket"]
 const ROLES := [["hand", "손으로"], ["foot", "발로"], ["top", "탑으로"]]
 const ROLE_KO := {"hand": "손", "foot": "발", "top": "탑"}
 const SIZE_KO := {"S": "작게", "M": "보통", "L": "크게"}
@@ -145,6 +146,7 @@ func _process(delta: float) -> void:
 		view.rebuild(draft)
 		_rebuild_ms = Time.get_ticks_msec()
 		_rebuild_cost = _rebuild_ms - t0
+	_name_edit.editable = tut == null or tut.target() == ["name", ""]  # 튜토리얼: 이름 단계에서만 이름 칸
 	if tut != null:
 		tut.typing = _name_edit.has_focus()
 		match tut.update(draft, _problems, delta):
@@ -261,7 +263,7 @@ func _down(pos: Vector2) -> void:
 		_scroll_to(pos.y)
 		return
 	var dl := _dial()
-	if tool in ["edit", "wall"] and pos.distance_to(dl[0]) <= dl[1] * 1.25:
+	if tool in ["edit", "wall"] and pos.distance_to(dl[0]) <= dl[1] * 1.25 and _tut_edit_ok():
 		_press = {"kind": "dial", "first": true}
 		view.hold_cam = tool == "wall"  # 각도를 돌리는 동안 카메라(땅)는 그대로, 벽만 돈다
 		_dial_to(pos)
@@ -283,11 +285,11 @@ func _drag(pos: Vector2, rel: Vector2) -> void:
 		return
 	if not _press.moved and pos.distance_to(_press.pos) > DRAG_PX * k:
 		_press.moved = true
-		if tool == "edit" and selected == "" and _press.hold != "":
+		if tool == "edit" and selected == "" and _press.hold != "" and _tut_edit_ok():
 			selected = _press.hold  # 고른 홀드가 없으면 끌기 시작한 홀드를 옮긴다
 	if not _press.moved:
 		return
-	if tool == "edit" and selected != "":
+	if tool == "edit" and selected != "" and _tut_edit_ok():
 		# 고른 홀드를 손가락이 움직인 만큼 옮겨 그린다(어디서 끌든, 벽 밖·놓을 수 있는 높이 밖으로는 안 감)
 		var h := draft.hold(selected)
 		var to: Vector2 = Vector2(h.x, h.y) + view.screen_to_wall(pos) - _press.wall
@@ -386,6 +388,12 @@ func _dial_end() -> void:
 
 
 func _tap_wall(w: Vector2, hit: String) -> void:
+	if tut != null and not _tut_edit_ok():
+		var t := tut.target()
+		# 벽을 누르는 단계(노란 원·고리 친 홀드)만: 다른 단계에서 벽을 누르거나 홀드를 고르면 예외가 생긴다
+		if not (t.size() == 2 and t[0] in ["mark", "hold"]) or (t[0] == "mark" and hit != ""):
+			_say("지금은 노란 고리가 있는 곳만 누를 수 있어요")
+			return
 	match tool:
 		"edit":
 			if hit != "":
@@ -444,7 +452,26 @@ func _hit_button(pos: Vector2) -> int:
 	return -1
 
 
+## 튜토리얼 중에는 가리키는 것만 된다(2026-11-27 사용자 "가이드하는 선택지 외에 다른걸 선택함으로써 발생할수있는 예외를 모두 없애.
+## 가이드중인 스텝외에는 선택이 안되도록"). [끄기]·점검 창 버튼은 늘 되고, 자유롭게 놓기·점검 단계에서는 홀드 고치기가 된다.
+func _tut_allows(action: String, arg: String) -> bool:
+	if tut == null or action in ["tut", "check_close", "goto", "share_close", "copy"]:
+		return true
+	var t := tut.target()
+	if t.size() == 2 and t[0] == action and str(t[1]) == arg:
+		return true
+	return _tut_edit_ok() and (action in ["type", "role", "size", "match", "rot", "delete", "undo"] or (action == "tool" and arg == "edit"))
+
+
+## 튜토리얼에서 홀드를 마음대로 고쳐도 되는 단계(자유롭게 놓기, 점검: 막는 것을 고친다). 튜토리얼이 아니면 늘 된다.
+func _tut_edit_ok() -> bool:
+	return tut == null or tut.target() in [["tut_next", ""], ["check_open", ""]]
+
+
 func _do(action: String, arg: String) -> void:
+	if not _tut_allows(action, arg):
+		_say("지금은 노란 고리가 있는 곳만 누를 수 있어요")
+		return
 	if action != "save":
 		_tut_note("%s:%s" % [action, arg])  # 튜토리얼: 누른 버튼(저장은 된 뒤에)
 	match action:
@@ -1071,7 +1098,7 @@ func _tut_place_ok(w: Vector2) -> bool:
 	if not tut.mark_strict():
 		return true
 	if sel_role != tut.place_kind():
-		_say("먼저 오른쪽 %s를 누르세요" % ("[큰 발판]" if tut.place_kind() == "foot" else "[저그]와 [손으로]"))
+		_say("먼저 오른쪽 %s를 누르세요" % ("[크림프]와 [발로]" if tut.place_kind() == "foot" else "[저그]와 [손으로]"))
 		return false
 	if w.distance_to(tut.mark(draft)) > EditorTutorial.MARK_R:
 		_say("노란 원 안을 누르세요")

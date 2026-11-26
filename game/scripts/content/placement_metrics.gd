@@ -20,7 +20,7 @@ static func measure(route: RouteDef) -> Dictionary:
 			continue
 		# 발판 종류는 손으로도 잡히지만(2026-11-26 모든 홀드는 손·발 홀드) 발 홀드로 센다. 옛 형식은 손 칸이 있으면 손
 		var t := str(route.slots[key].get("hold_type", ""))
-		if route.slots[key].has("hand_area") and not HoldTypes.is_foot(t):
+		if route.slots[key].has("hand_area") and not HoldTypes.is_foot(t) and not String(key).ends_with("/foot_1"):  # 발 쓰임(칸 foot_1)도 발
 			hand[h] = true
 		else:
 			foot_only[h] = true

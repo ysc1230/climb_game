@@ -446,3 +446,17 @@ static func _solve_limited(dir: Vector3, center: Vector3, h: float, desired: Vec
 			theta += clampf(theta_want - theta, -step, step)
 	var bend := (n * cos(theta) + t * sin(theta)).normalized()
 	return {"mid": center + bend * h, "bend": bend}
+
+
+## 두 마디 IK: root에서 target까지 길이 l1·l2 두 마디의 가운데 관절. pole 쪽으로 굽힌다(뼈 길이 그대로).
+static func two_bone(root: Vector3, target: Vector3, pole: Vector3, l1: float, l2: float) -> Vector3:
+	var to := target - root
+	var d := clampf(to.length(), absf(l1 - l2) + 1e-4, l1 + l2 - 1e-4)
+	var dir := to.normalized() if to.length() > 1e-6 else Vector3.UP
+	var a := (l1 * l1 + d * d - l2 * l2) / (2.0 * d)
+	var h := sqrt(maxf(l1 * l1 - a * a, 0.0))
+	var pv := pole - root
+	pv -= dir * pv.dot(dir)
+	if pv.length() < 1e-4:
+		pv = dir.cross(Vector3.FORWARD if absf(dir.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT)
+	return root + dir * a + pv.normalized() * h

@@ -30,11 +30,11 @@ func test_follow_every_click_makes_own_route() -> void:
 		var m: Vector2 = t.mark(d)
 		d.place("jug", m.x, m.y)
 		runner.check(_go(t, d), "원 %d에 놓으면 다음" % (i + 1))
-	runner.check(_id(t) == "type_foot", "손 둘 → [큰 발판]")
-	runner.check(_go(t, d, "type:foot_big") and t.place_kind() == "foot", "[큰 발판] → 발 자리")
+	runner.check(_id(t) == "type_foot", "손 둘 → [크림프]")
+	runner.check(_go(t, d, "type:crimp") and _go(t, d, "role:foot") and t.place_kind() == "foot", "[크림프] → [발로] → 발 자리(2026-11-27 발판 종류 없앰)")
 	for i in 2:
 		var m: Vector2 = t.mark(d)
-		d.place("foot_big", m.x, m.y)
+		d.place("crimp", m.x, m.y, "foot")
 		runner.check(_go(t, d), "원 %d에 놓으면 다음" % (i + 3))
 	runner.check(_id(t) == "tool_start" and _go(t, d, "tool:start"), "[시작홀드 설정]")
 	for i in 4:
@@ -69,7 +69,7 @@ func test_begin_after_start_is_set() -> void:
 	var ids := []
 	for i in 4:
 		var m: Vector2 = EditorTutorial.SPOTS[i]
-		ids.append(d.place("jug" if i < 2 else "foot_big", m.x, m.y))
+		ids.append(d.place("jug" if i < 2 else "crimp", m.x, m.y, "hand" if i < 2 else "foot"))
 	for i in 4:
 		d.set_start([&"LH", &"RH", &"LF", &"RF"][i], ids[i])
 	var t := EditorTutorial.new()

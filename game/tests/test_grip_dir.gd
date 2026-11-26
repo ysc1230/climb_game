@@ -86,3 +86,45 @@ func test_v4_side_route_hands() -> void:
 	var h5: Dictionary = r.slots["G_V4_12/H05/hand_1"]
 	runner.check(GripDir.kind(&"LH", h3.grip_modes[0].axis, h3.pos, pel, 0.0, 0.0) == &"sidepull" and not GripDir.any_ok(h3, &"RH", pel, 0.0, 0.0), "H03은 왼손 사이드풀만")
 	runner.check(GripDir.kind(&"RH", h5.grip_modes[0].axis, h5.pos, pel, 0.0, 0.0) == &"sidepull" and not GripDir.any_ok(h5, &"LH", pel, 0.0, 0.0), "H05는 오른손 사이드풀만")
+
+
+## 잡기 안내 색(2026-11-27 사용자 "초록 주황 빨강 색으로 가이드"): 노리는 홀드를 그 손으로 못 잡으면 빨강, 잡히면 초록·주황.
+func test_grip_guide_colors() -> void:
+	var r := RouteDef.load_json(ContentIndex.route_path("G_V4_12"))
+	var s := ClimbSession.new(r)
+	var R := "G_V4_12/"
+	s.reset_to({"pelvis": [0.05, 1.15], "slots": {"LH": R + "H01/hand_1", "RH": R + "H02/hand_1", "LF": R + "F04/foot_1", "RF": R + "F03/foot_1"}})
+	var key := R + "H03/hand_1"   # 왼쪽을 보는 크림프(몸 왼쪽): 왼손만
+	var hp: Vector2 = r.slots[key].pos
+	for hand in [&"LH", &"RH"]:
+		var l: Dictionary = s.limbs[hand]
+		l.state = "Dragging"
+		l.req = hp
+		l.pos = hp
+		l.cand = GripCheck.candidate(r.slots, hand, hp, s.body.pos, s.body.angle, s.attached(), s.occupied())
+	var lg := ReachMarker.grip_guide(s, &"LH")
+	var rg := ReachMarker.grip_guide(s, &"RH")
+	runner.check(lg.get("key", "") == key and lg.level != ReachMarker.Guide.BAD, "왼손: 잡힘(초록·주황) %s" % [lg])
+	runner.check(rg.get("key", "") == key and rg.level == ReachMarker.Guide.BAD, "오른손: 못 잡는 면이라 빨강 %s" % [rg])
+	runner.check(ReachMarker.grip_guide(s, &"LF").is_empty(), "발은 안내 없음")
+
+
+## 튜토리얼 잠금(2026-11-27 사용자 "가이드중인 스텝외에는 선택이 안되도록"): 플레이는 가리키는 홀드만 잡고, 만들기는 가리키는 버튼만.
+func test_tutorial_locks() -> void:
+	var r := RouteDef.load_json(ContentIndex.route_path("G_V4_12"))
+	var s := ClimbSession.new(r)
+	var R := "G_V4_12/"
+	s.reset_to({"pelvis": [0.05, 1.15], "slots": {"LH": R + "H01/hand_1", "RH": R + "H02/hand_1", "LF": R + "F04/foot_1", "RF": R + "F03/foot_1"}})
+	var hp: Vector2 = r.slots[R + "H03/hand_1"].pos
+	s.limbs[&"LH"].pos = hp
+	runner.check(s._candidate(&"LH").get("key", "") == R + "H03/hand_1", "잠금 없으면 H03 후보")
+	s.only_slots = {&"LH": R + "H04/hand_1"}
+	runner.check(s._candidate(&"LH").get("key", "") != R + "H03/hand_1", "튜토리얼이 H04를 가리키면 H03은 못 잡음")
+	var ui = load("res://scenes/editor_ui.gd").new()
+	ui.tut = EditorTutorial.new()
+	runner.check(ui._tut_allows("type", "jug") and not ui._tut_allows("save", "") and not ui._tut_allows("type", "crimp") and ui._tut_allows("tut", ""),
+		"만들기 첫 단계: [저그]와 [끄기]만")
+	ui.tut.index = ui.tut.steps.map(func(st): return st.id).find("free")
+	runner.check(ui._tut_allows("type", "crimp") and ui._tut_allows("tut_next", "") and not ui._tut_allows("save", "") and not ui._tut_allows("exit", ""),
+		"자유롭게 놓기: 홀드 고치기·[다음]만")
+	ui.free()

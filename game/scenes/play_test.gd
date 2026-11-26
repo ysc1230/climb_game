@@ -855,6 +855,11 @@ func _apply(cmds: Array) -> void:
 			"cam_zoom":
 				cam_zoom = clampf(cam_zoom * float(c.ratio), CAM_ZOOM_RANGE.x, CAM_ZOOM_RANGE.y)
 	cmds = cmds.filter(func(c): return not str(c.type) in ["cam_start", "cam_orbit", "cam_zoom"])
+	# 튜토리얼: 이 단계가 가리키는 손발만 움직이고, 그 손발은 가리키는 홀드만 잡는다(2026-11-27 사용자 "가이드중인 스텝외에는 선택이 안되도록")
+	var lock := _tutorial_limb()
+	if lock != &"":
+		cmds = cmds.filter(func(c): return not (PoseSolver.LIMBS.has(c.get("limb", &"")) and c.limb != lock))
+	session.only_slots = {lock: _tutorial_goal_key()} if lock != &"" and _tutorial_goal_key() != "" else {}
 	if tilt != null and not tilt_drag:  # 기울이기만: 가운데 끌기 명령은 버린다(다이노 두 번 누르기는 그대로)
 		cmds = cmds.filter(func(c): return not str(c.type) in ["body_start", "body_move", "body_end"])
 	var was_dragging := {}

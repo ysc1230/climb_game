@@ -38,6 +38,8 @@ var event_seq := 0  # 마지막으로 기록한 이벤트의 seq
 ## &"flag": 균형 발 상태를 만들지 않음, &"match": 반대 손이 잡은 홀드 거부, &"foot_swap": 패드 풋스왑 끔,
 ## &"lock_off": LockOff 선호 대신 뻗기 선호(0.60), &"grip_auto": 잡기 방향 자동 선택 끔(grip_modes[0]).
 var forbid := {}
+## 튜토리얼: 손발 → 그 단계에 잡을 수 있는 유일한 홀드 키(2026-11-27 사용자 "가이드중인 스텝외에는 선택이 안되도록"). 비면 제한 없음.
+var only_slots := {}
 const MOVE_EVENT_LABELS := [MoveClassifier.HIGH_STEP, MoveClassifier.STAND_UP, MoveClassifier.CROSS_REACH, MoveClassifier.HAND_MATCH, MoveClassifier.LOCK_OFF]
 var _last_move_label: StringName = MoveClassifier.REST
 var tick_count := 0
@@ -288,12 +290,14 @@ func _clamp_to_reach(limb: StringName, previous: Vector2, p: Vector2) -> Vector2
 ## 실제 말단 기준 잡기 후보(GripCheck, 히스테리시스는 직전에 보여준 후보 기준).
 func _candidate(limb: StringName) -> Dictionary:
 	var l: Dictionary = limbs[limb]
-	var reject := Callable() if forbid.is_empty() else _forbidden_target.bind(limb)
+	var reject := Callable() if forbid.is_empty() and only_slots.is_empty() else _forbidden_target.bind(limb)
 	return GripCheck.candidate(route.slots, limb, l.pos, body.pos, body.angle, attached(), occupied(), l.cand.get("key", ""), body.yaw, reject)
 
 
 ## 검증기 금지 플래그로 거부하는 잡기 목표인가(28 §7.4). 금지가 비면 항상 false.
 func _forbidden_target(key: String, point: Vector2, limb: StringName) -> bool:
+	if only_slots.has(limb) and key != only_slots[limb]:
+		return true  # 튜토리얼이 가리키는 홀드가 아님
 	if PoseSolver.is_hand(limb):
 		var o: Dictionary = limbs[TechniqueJudge.other_of(limb)]
 		if not (o.state in ["Attached", "Armed"]):
