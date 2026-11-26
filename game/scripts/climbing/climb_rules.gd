@@ -116,7 +116,7 @@ func contacts_for(pelvis: Vector2, angle_deg: float, attached: Dictionary, feet:
 			continue
 		if PoseSolver.is_hand(limb):
 			if _hand_eligible(pelvis, angle_deg, limb, attached[limb], yaw_deg):
-				out.append(_contact_of(limb, attached[limb], pelvis.x))
+				out.append(_contact_of(limb, attached[limb], pelvis.x, pelvis, angle_deg, yaw_deg))
 		elif feet.has(limb):
 			out.append(_contact_of(limb, attached[limb], pelvis.x))
 	return out
@@ -131,11 +131,21 @@ func _quality_of(limb: StringName) -> float:
 
 
 ## 몸 위치를 반영한 접점 품질: 슬로퍼는 몸 창 배율(HoldArea.window_factor)을 곱한다. pelvis_x가 NAN이면 그대로.
-func quality_at(limb: StringName, pelvis_x: float) -> float:
+## pelvis를 주면 면 방향 잡기(GripDir)도 다시 본다: 그 손으로 못 잡는 자세가 되면 SLIP_QUALITY배.
+func quality_at(limb: StringName, pelvis_x: float, pelvis := Vector2(NAN, NAN), angle := 0.0, yaw := 0.0) -> float:
 	if not contact_meta.has(limb):
 		return 1.0
 	var c: ContactInfo = contact_meta[limb]
-	return c.quality * HoldArea.window_factor(c.window, c.hold_x, pelvis_x)
+	var q := c.quality * HoldArea.window_factor(c.window, c.hold_x, pelvis_x)
+	return q * (GripDir.SLIP_QUALITY if grip_lost(limb, pelvis, angle, yaw) else 1.0)
+
+
+## 잡은 손이 지금 자세에서는 그 면을 잡을 수 없는가(GripDir). 방식을 모르는 접점·pelvis 없음은 false.
+func grip_lost(limb: StringName, pelvis: Vector2, angle := 0.0, yaw := 0.0) -> bool:
+	if not is_finite(pelvis.x) or not contact_meta.has(limb):
+		return false
+	var c: ContactInfo = contact_meta[limb]
+	return c.grip_kind != &"" and is_finite(c.hold_pos.x) and GripDir.kind(limb, c.axis, c.hold_pos, pelvis, angle, yaw) == &""
 
 
 ## 손 하중 자격. 언더클링은 하중 받는 발이 1개 이상 있어야 한다(docs/04 §10).
@@ -148,12 +158,12 @@ func _eligible_hand_count(pelvis: Vector2, angle_deg: float, attached: Dictionar
 
 
 ## 품질·방식을 반영한 접점: 최대 하중 × (0.5+0.5q), 반각 × (0.6+0.4q).
-func _contact_of(limb: StringName, pos: Vector2, pelvis_x: float = NAN) -> Dictionary:
+func _contact_of(limb: StringName, pos: Vector2, pelvis_x: float = NAN, pelvis := Vector2(NAN, NAN), angle := 0.0, yaw := 0.0) -> Dictionary:
 	var base := SupportSolver.contact(limb, pos)
 	if not contact_meta.has(limb):
 		return SupportSolver.contact_with(limb, pos, base.axis, base.half_angle, base.max_load * load_scale)
 	var info: ContactInfo = contact_meta[limb]
-	var q := quality_at(limb, pelvis_x)
+	var q := quality_at(limb, pelvis_x, pelvis, angle, yaw)
 	var half: float = info.half_angle if info.half_angle > 0.0 else base.half_angle
 	return SupportSolver.contact_with(limb, pos, info.axis, half * (0.6 + 0.4 * q), base.max_load * (0.5 + 0.5 * q) * load_scale)
 
@@ -289,11 +299,14 @@ func _apply_fatigue(result: Dictionary, attached: Dictionary, platform: bool, mo
 	for hand in [PoseSolver.LH, PoseSolver.RH]:
 		var rate := Fatigue.FREE_HAND_RATE
 		if attached.has(hand):
-			rate = Fatigue.attached_hand_rate(phase == Phase.REBALANCING, platform, rest_ok, foot_support, hands_attached, result.u.get(hand, 0.0), low_load, quality_at(hand, body.pos.x if body != null else NAN))
+			rate = Fatigue.attached_hand_rate(phase == Phase.REBALANCING, platform, rest_ok, foot_support, hands_attached, result.u.get(hand, 0.0), low_load,
+				quality_at(hand, body.pos.x if body != null else NAN, body.pos if body != null else Vector2(NAN, NAN), body.angle if body != null else 0.0, body.yaw if body != null else 0.0))
 		if rate < 0.0:
 			rate *= float(fatigue_multiplier.get(hand, 1.0)) * drain_scale
 			if contact_meta.has(hand):
 				rate *= Fatigue.size_multiplier(contact_meta[hand].half_width) * contact_meta[hand].fatigue_mult
+				if body != null and grip_lost(hand, body.pos, body.angle, body.yaw):
+					rate *= GripDir.SLIP_DRAIN  # 그 손으로 못 잡는 자세: 손 힘이 확 빠져 미끄러진다
 			if attached.has(hand) and result.get("loads", {}).get(hand, 0.0) >= SupportSolver.BARN_MIN_LOAD:
 				rate *= strain
 		stamina[hand] = Fatigue.apply(stamina[hand], rate, Tuning.DT, fatigue_disabled)

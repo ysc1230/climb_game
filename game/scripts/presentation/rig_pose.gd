@@ -122,7 +122,9 @@ static func arc(a: Vector3, b: Vector3) -> Dictionary:
 const PALM_REST := Vector3.DOWN
 
 
-func solve(joints: Dictionary, roll_deg: float, yaw_deg: float = 0.0, free_feet := {}, grip := {}) -> Dictionary:
+## palm: "L"/"R" → 손바닥이 볼 쪽(뼈대 좌표). 없으면 벽(FORWARD). 옆·아래를 보는 면을 잡은 손(GripDir, 2026-11-26 사용자
+## "홀드 방향에 따라 손이 잡는 방향도 같이 바뀌어야해").
+func solve(joints: Dictionary, roll_deg: float, yaw_deg: float = 0.0, free_feet := {}, grip := {}, palm := {}) -> Dictionary:
 	var out := {}
 	var roll := Basis(Vector3.BACK, deg_to_rad(roll_deg)) * Basis(Vector3.UP, deg_to_rad(yaw_deg))
 	for entry in BONES:
@@ -175,7 +177,7 @@ func solve(joints: Dictionary, roll_deg: float, yaw_deg: float = 0.0, free_feet 
 			var w := FOOT_UP_WEIGHT_FREE if free_feet.get(side, false) else FOOT_UP_WEIGHT_STUCK
 			basis = _twist(basis, name, dir, Vector3.UP, roll * Vector3.UP * w - shin, 1.0)
 		elif name.begins_with("forearm_"):
-			basis = _palm_twist(basis, name, dir, float(grip.get(name.right(1), 0.0)))
+			basis = _palm_twist(basis, name, dir, float(grip.get(name.right(1), 0.0)), palm.get(name.right(1), Vector3.FORWARD))
 		basis = basis.orthonormalized()
 		_last[name] = basis
 		out[name] = Transform3D(basis, from_p)
@@ -237,10 +239,10 @@ const PALM_TWIST_MAX := 85.0
 var _palm_deg := {}   # 아래팔 → 직전에 돌린 각(도)
 
 
-func _palm_twist(basis: Basis, name: String, dir: Vector3, amount: float) -> Basis:
+func _palm_twist(basis: Basis, name: String, dir: Vector3, amount: float, palm_to := Vector3.FORWARD) -> Basis:
 	var now: Vector3 = basis * rest_basis[name].inverse() * PALM_REST
 	now -= dir * now.dot(dir)
-	var want := Vector3.FORWARD - dir * Vector3.FORWARD.dot(dir)
+	var want := palm_to - dir * palm_to.dot(dir)
 	var goal := 0.0
 	if now.length() >= 0.01 and want.length() >= 0.001:
 		goal = clampf(rad_to_deg(now.normalized().signed_angle_to(want.normalized(), dir)) * clampf(amount, 0.0, 1.0), -PALM_TWIST_MAX, PALM_TWIST_MAX)

@@ -1,0 +1,316 @@
+{
+ "bounds": {
+  "x_max": 1.5,
+  "x_min": -1.5,
+  "y_max": 4.55,
+  "y_min": 0.0
+ },
+ "check_swapped": false,
+ "content_version": 1,
+ "crux_steps": {
+  "T_MATCH": 5
+ },
+ "fail_line_y": -0.5,
+ "goal_slots": [
+  "G_V4_12/G01/hand_1"
+ ],
+ "grade": "V4",
+ "holds": [
+  {
+   "hold_id": "H01",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      -0.29,
+      1.5
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H02",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      0.31,
+      1.5
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H03",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "crimp",
+     "pos": [
+      -0.3,
+      1.92
+     ],
+     "rot_deg": 270,
+     "size": "L",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H04",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "matchable": true
+     },
+     "hold_type": "jug",
+     "pos": [
+      0.12,
+      2.35
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H05",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "crimp",
+     "pos": [
+      0.56,
+      2.62
+     ],
+     "rot_deg": 90,
+     "size": "L",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F01",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "foot_chip",
+     "pos": [
+      -0.15,
+      0.1
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F02",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "foot_chip",
+     "pos": [
+      0.18,
+      0.1
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F03",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "foot_chip",
+     "pos": [
+      0.28,
+      0.45
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F04",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "foot_chip",
+     "pos": [
+      0.05,
+      0.95
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "G01",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "matchable": true
+     },
+     "hold_type": "jug",
+     "pos": [
+      0.42,
+      3.05
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
+    }
+   ]
+  }
+ ],
+ "intended_moves": [
+  [
+   "RF",
+   "G_V4_12/F03/foot_1"
+  ],
+  [
+   "LH",
+   "G_V4_12/H03/hand_1"
+  ],
+  [
+   "LF",
+   "G_V4_12/F04/foot_1"
+  ],
+  [
+   "RH",
+   "G_V4_12/H04/hand_1"
+  ],
+  [
+   "RF",
+   "G_V4_12/H02/hand_1"
+  ],
+  [
+   "LH",
+   "G_V4_12/H04/hand_1"
+  ],
+  [
+   "RH",
+   "G_V4_12/H05/hand_1"
+  ],
+  [
+   "LF",
+   "G_V4_12/H01/hand_1"
+  ],
+  [
+   "LH",
+   "G_V4_12/G01/hand_1"
+  ],
+  [
+   "RH",
+   "G_V4_12/G01/hand_1"
+  ]
+ ],
+ "mode": "general",
+ "name_ko": "옆으로 당기기",
+ "note": "컨셉: 홀드 방향이 손과 몸 위치를 정한다. 왼쪽을 보는 크림프(H03)는 왼손만, 몸은 오른쪽(오른발 높이)으로. 오른쪽을 보는 크림프(H05)는 오른손만, 몸은 왼쪽으로(사이드풀). 가운데 파란 저그(H04)에서 매치(#5). 5° 벽이 1.8m부터 20°. 탑은 위를 보는 큰 저그(3.05m).",
+ "order": 1,
+ "platforms": [
+  {
+   "foot_slot_keys": [
+    "G_V4_12/F01/foot_1",
+    "G_V4_12/F02/foot_1"
+   ],
+   "platform_id": "P00",
+   "top_y": 0.1,
+   "x_range": [
+    -0.5,
+    0.6
+   ]
+  }
+ ],
+ "required_techniques": [
+  "T_MATCH"
+ ],
+ "route_id": "G_V4_12",
+ "score_gates": [
+  {
+   "slot": "G_V4_12/H04/hand_1",
+   "technique": "T_MATCH"
+  }
+ ],
+ "start_pose": {
+  "angle": 0.0,
+  "pelvis": [
+   0.05,
+   0.75
+  ],
+  "slots": {
+   "LF": "G_V4_12/F01/foot_1",
+   "LH": "G_V4_12/H01/hand_1",
+   "RF": "G_V4_12/F02/foot_1",
+   "RH": "G_V4_12/H02/hand_1"
+  }
+ },
+ "time_medal_seconds": 120,
+ "validation_status": "Draft",
+ "wall_sections": [
+  {
+   "deg": 5.0,
+   "from_y": 0.0
+  },
+  {
+   "deg": 20.0,
+   "from_y": 1.8
+  }
+ ],
+ "score_ref": {
+  "grabs": 10,
+  "quality": 0.7,
+  "spent_per_m": 71.72
+ }
+}

@@ -85,7 +85,8 @@ func test_hand_type_as_foot() -> void:
 	s.allowed = ["LF", "RF"]
 	var f := _one("jug", "L", 0, {"allowed": ["LF", "RF"]})
 	runner.check(not f.has("hand_area") and is_equal_approx(f.foot_area.half_width, 0.12) and f.foot_area.half_height > 0.0, "저그를 발로: 발 영역(반폭 0.12) %s" % [f])
-	runner.check(not _route([_slot("foot_big").merged({"allowed": ["LH", "RH"]}, true)]).errors.is_empty(), "발판은 손 칸이 될 수 없음")
+	var fb := _one("foot_big", "M", 0, {"allowed": ["LH", "RH"]})
+	runner.check(fb.has("hand_area") and fb.has("foot_area") and fb.fatigue_mult > 1.0, "발판도 손 칸(2026-11-26 사용자 \"모든 홀드들이 손홀드이자 발홀드\") %s" % [fb])
 
 
 func test_foot_rotation_and_share() -> void:
@@ -110,7 +111,7 @@ func test_old_format_unchanged() -> void:
 
 
 func test_invalid_fields() -> void:
-	for bad in [_slot("blob"), _slot("jug", "XL"), _slot("jug", "M", 7), _slot("jug", "M", 360), _slot("foot_chip").merged({"allowed": ["LH"]}, true)]:
+	for bad in [_slot("blob"), _slot("jug", "XL"), _slot("jug", "M", 7), _slot("jug", "M", 360)]:
 		runner.check(not _route([bad]).errors.is_empty(), "잘못된 값은 오류 %s" % [bad])
 
 

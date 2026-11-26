@@ -101,7 +101,7 @@ func _reset_pose(pelvis: Vector2, angle: float, slots: Dictionary) -> void:
 		var key: String = slots[limb]
 		var p := route.slot_pos(key)
 		limbs[limb] = {"state": "Attached", "key": key, "pos": p, "grab": p, "req": p, "cand": {}, "flag": p, "flag_depth": 0.0,
-			"contact": GripCheck.contact_for(key, route.slots, limb, p)}
+			"contact": GripCheck.contact_for(key, route.slots, limb, p, pelvis, angle)}  # 손은 그 자세의 잡는 방식(GripDir)
 	rules.contact_meta = _contact_meta()
 	rules.reset(body, attached(), {}, false)
 	goal_ticks = 0

@@ -6,7 +6,7 @@
   "y_min": 0.0
  },
  "check_swapped": false,
- "content_version": 1,
+ "content_version": 2,
  "crux_steps": {
   "T_HIGH_STEP": 3
  },
@@ -116,8 +116,8 @@
    "slots": [
     {
      "allowed": [
-      "LF",
-      "RF"
+      "LH",
+      "RH"
      ],
      "hold_type": "foot_chip",
      "pos": [
@@ -135,8 +135,8 @@
    "slots": [
     {
      "allowed": [
-      "LF",
-      "RF"
+      "LH",
+      "RH"
      ],
      "hold_type": "foot_chip",
      "pos": [
@@ -154,8 +154,8 @@
    "slots": [
     {
      "allowed": [
-      "LF",
-      "RF"
+      "LH",
+      "RH"
      ],
      "hold_type": "foot_chip",
      "pos": [
@@ -173,8 +173,8 @@
    "slots": [
     {
      "allowed": [
-      "LF",
-      "RF"
+      "LH",
+      "RH"
      ],
      "hold_type": "foot_chip",
      "pos": [
@@ -280,6 +280,11 @@
    "technique": "T_HIGH_STEP"
   }
  ],
+ "score_ref": {
+  "grabs": 10,
+  "quality": 0.704,
+  "spent_per_m": 59.2
+ },
  "start_pose": {
   "angle": 0.0,
   "pelvis": [
@@ -308,10 +313,5 @@
    "deg": 30.0,
    "from_y": 2.2
   }
- ],
- "score_ref": {
-  "grabs": 10,
-  "quality": 0.704,
-  "spent_per_m": 59.2
- }
+ ]
 }

@@ -73,19 +73,17 @@ func goal_hold() -> Dictionary:
 	return {}
 
 
-## 손으로 잡을 수 있는 홀드인가(손·탑 쓰임). 발로 놓은 홀드는 발만 딛는다.
+## 손 쓰임 홀드인가(손·탑). 발 쓰임도 손으로 잡히지만(2026-11-26) 길 점검(먼 손홀드)은 손 쓰임만 본다.
 static func is_hand_hold(h: Dictionary) -> bool:
 	return h.get("role", "hand") != "foot"
 
 
-## 종류가 쓰일 수 있는 쓰임(2026-11-26 사용자 "홀드 종류가 기준이 된 후에 손 발 탑을 선택"): 발판은 발만,
-## 손홀드 종류는 손·발, 합손 되는 크기가 있으면 탑도.
+## 종류가 쓰일 수 있는 쓰임(2026-11-26 사용자 "홀드 종류가 기준이 된 후에 손 발 탑을 선택"): 어느 종류든 손·발
+## ("모든 홀드들이 손홀드이자 발홀드": 쓰임은 표시이고 손발 모두 쓴다), 합손 되는 크기가 있으면 탑도. 첫째가 기본 쓰임.
 static func roles_for(type: String) -> Array:
 	if not HoldTypes.has(type) or type == "goal":
 		return []
-	if HoldTypes.is_foot(type):
-		return ["foot"]
-	var out := ["hand", "foot"]
+	var out := ["foot", "hand"] if HoldTypes.is_foot(type) else ["hand", "foot"]
 	if HoldTypes.SIZES.any(func(sz): return HoldTypes.can_match(type, sz)):
 		out.append("top")
 	return out
@@ -109,7 +107,7 @@ func place(type: String, x: float, y: float, role := "", size := "M", rot := 0) 
 		role = "top"
 		size = "L"
 	if role == "":
-		role = "foot" if HoldTypes.is_foot(type) else "hand"
+		role = roles_for(type)[0] if HoldTypes.has(type) else "hand"
 	if not roles_for(type).has(role):
 		return ""
 	if role == "top":
@@ -164,10 +162,10 @@ func set_size(id: String, size: String) -> void:
 	h.matchable = h.matchable and HoldTypes.can_match(h.type, size)
 
 
-## 합손 켜기·끄기: 손 쓰임이고 그 종류·크기가 될 때만 켠다(탑은 늘 합손).
+## 합손 켜기·끄기: 탑이 아니고 그 종류·크기가 될 때만 켠다(탑은 늘 합손).
 func set_matchable(id: String, on: bool) -> void:
 	var h := hold(id)
-	if h.is_empty() or h.role != "hand" or (on and not HoldTypes.can_match(h.type, h.size)):
+	if h.is_empty() or h.role == "top" or (on and not HoldTypes.can_match(h.type, h.size)):
 		return
 	_push()
 	h.matchable = on
@@ -232,12 +230,10 @@ func remove(id: String) -> void:
 			start[l] = ""
 
 
-## 시작 자리. 손은 손 쓰임 홀드만(탑 제외), 발은 탑이 아닌 아무 홀드. 같은 홀드를 다른 손발이 쓰고 있었으면 그쪽을 비운다.
+## 시작 자리. 손발 모두 탑이 아닌 아무 홀드(2026-11-26 "모든 홀드들이 손홀드이자 발홀드"). 같은 홀드를 다른 손발이 쓰고 있었으면 그쪽을 비운다.
 func set_start(limb: StringName, id: String) -> bool:
 	var h := hold(id)
 	if h.is_empty() or h.role == "top":
-		return false
-	if PoseSolver.is_hand(limb) and h.role != "hand":
 		return false
 	_push()
 	for l in start:
@@ -307,11 +303,12 @@ func to_route_dict(pelvis := Vector2.INF, angle := 0.0) -> Dictionary:
 	var goal_slots: Array = []
 	for h in holds:
 		var foot: bool = h.role == "foot"
-		var s := {"slot_id": "foot_1" if foot else "hand_1", "pos": [h.x, h.y], "allowed": ["LF", "RF"] if foot else ["LH", "RH"],
+		# 손발 모두 쓴다(발은 RouteDef가 손 칸에 더함). 발 쓰임은 칸 이름만 foot_1
+		var s := {"slot_id": "foot_1" if foot else "hand_1", "pos": [h.x, h.y], "allowed": ["LH", "RH"],
 			"hold_type": h.type, "size": h.size, "rot_deg": h.rot}
 		if h.role == "top":  # 탑 하나: 두 손이 같은 칸을 잡으면 완등(합손 칸)
 			goal_slots.append(_key(h))
-		if h.matchable and not foot:
+		if h.matchable:
 			s["hand_area"] = {"matchable": true}
 		hs.append({"hold_id": h.id, "slots": [s]})
 	var st := {}
@@ -572,7 +569,7 @@ static func from_dict(d: Dictionary) -> RouteDraft:
 			role = roles_for(t)[0]
 		if role == "top":
 			size = top_size(t, size)
-		var m := role == "top" or (role == "hand" and bool(h.get("matchable", false)) and HoldTypes.can_match(t, size))
+		var m := role == "top" or (bool(h.get("matchable", false)) and HoldTypes.can_match(t, size))
 		r.holds.append({"id": str(h.id), "type": t, "size": size, "rot": int(h.get("rot", 0)), "x": float(h.x), "y": float(h.y), "matchable": m, "role": role})
 	# 벽 각도 탭 전(0.27까지)의 초안은 등급이 각도를 정했다: 그 각도 한 구간으로
 	r.walls = [{"from_y": 0, "deg": int(GradeInfo.wall_deg(r.grade))}]

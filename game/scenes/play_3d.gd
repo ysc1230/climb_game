@@ -510,7 +510,9 @@ func _add_hold(key: String) -> void:
 	var slot: Dictionary = logic.route.slots[key]
 	var is_goal: bool = logic.route.goal_slots.has(key)
 	var hand: bool = slot.has("hand_area")
-	var kind := "goal" if is_goal else ("foot" if not hand else ("match" if slot.hand_area.get("matchable", false) else "hand"))
+	# 발 쓰임(칸 foot_1)은 손으로도 잡히지만(2026-11-26 모든 홀드는 손·발 홀드) 발 홀드 색으로
+	var foot_kind := not hand or key.ends_with("/foot_1")
+	var kind := "goal" if is_goal else ("foot" if foot_kind else ("match" if slot.hand_area.get("matchable", false) else "hand"))
 	var variant := hold_variant(key, slot, is_goal)
 	var mesh := _hold_mesh(variant)
 	var ang: float = (slot.hand_area.dir as Vector2).angle() if hand else (slot.foot_area.up as Vector2).angle() - PI / 2.0
@@ -842,7 +844,7 @@ func _pose_model(t: Dictionary, delta: float) -> void:
 			local[key] = inv * (t[key] as Vector3)
 	var free_feet := {"L": ClimberPose._free(logic.session, &"LF"), "R": ClimberPose._free(logic.session, &"RF")}
 	_update_curl(delta)
-	var frames := rig.solve(local, _fall_angle if fall_sim != null else logic.session.body.angle, float(t.get("yaw", logic.session.body.yaw)), free_feet, curl)
+	var frames := rig.solve(local, _fall_angle if fall_sim != null else logic.session.body.angle, float(t.get("yaw", logic.session.body.yaw)), free_feet, curl, _palm_dirs())
 	_apply_look(frames, inv, delta)
 	for name in RigPose.bone_names():
 		var idx := skeleton.find_bone(name)
@@ -861,6 +863,20 @@ const CURL_SPEED := 8.0       # 1/s
 const PALM_REST := Vector3.DOWN  # 휴지 T자 손바닥 방향
 var finger_rest := {}         # "L"/"R" -> {idx, hand_idx, rest(손 기준 손가락 휴지 Transform), len}
 var curl := {"L": 0.0, "R": 0.0}
+
+
+## 잡은 손바닥이 볼 쪽: 위를 보는 면은 벽, 옆·아래를 보는 면(사이드풀·개스턴·언더)은 그 면 쪽(벽에 반쯤 기댐).
+## 뼈대 좌표는 벽 좌표와 같은 방향(x 오른쪽, y 위, FORWARD 벽 쪽)으로 본다.
+func _palm_dirs() -> Dictionary:
+	var out := {}
+	if fall_sim != null:
+		return out
+	for hand in [&"LH", &"RH"]:
+		var c: ContactInfo = logic.session.rules.contact_meta.get(hand)
+		if c == null or c.grip_kind in [&"", &"pull"]:
+			continue
+		out["L" if hand == &"LH" else "R"] = (Vector3.FORWARD * 0.5 + Vector3(-c.axis.x, -c.axis.y, 0.0)).normalized()
+	return out
 
 
 ## 잡은 정도(0~1)를 갱신한다. 잡은 손의 아래팔·손 돌리기는 RigPose.solve(grip)가 한다.

@@ -46,7 +46,7 @@ func test_top_is_one_hold_of_any_type() -> void:
 	var b := d.place("sloper", 0.3, 3.2, "top")
 	var tops := d.holds.filter(func(h): return h.role == "top")
 	runner.check(b == a and tops.size() == 1 and d.goal_hold().type == "sloper" and is_equal_approx(d.goal_hold().x, 0.3), "탑은 하나: 다시 놓으면 그 탑이 옮겨지고 종류가 바뀜 %s" % [tops])
-	runner.check(d.place("foot_chip", 0.0, 2.0, "top") == "" and d.place("foot_big", 0.0, 2.0, "hand") == "", "발판은 탑·손이 될 수 없음")
+	runner.check(d.place("foot_chip", 0.0, 2.0, "top") == "" and d.place("foot_big", 0.0, 2.0, "hand") != "", "발판은 탑이 될 수 없음(합손 안 됨), 손 쓰임은 됨")
 	d.set_size(a, "S")
 	runner.check(d.goal_hold().size == "M", "탑은 합손 안 되는 크기로 못 줄임(슬로퍼 작은 것) %s" % d.goal_hold().size)
 	runner.check(d.place("goal", 0.0, 3.5) == a and d.goal_hold().type == "jug", "예전 이름 goal은 저그 탑")
@@ -58,9 +58,10 @@ func test_type_then_role() -> void:
 	var f := d.place("jug", -0.6, 0.9, "foot")
 	var r := d.build()
 	var slot: Dictionary = r.slots.get("U_TEST/%s/foot_1" % f, {})
-	runner.check(r.errors.is_empty() and not slot.is_empty() and not slot.has("hand_area") and not slot.allowed.has(&"LH"), "저그를 발로: 발만 딛는 칸 %s %s" % [r.errors, slot])
-	runner.check(not d.set_start(&"LH", f) and d.set_start(&"LF", f), "발로 놓은 홀드는 발 시작만")
-	runner.check(RouteDraft.roles_for("crimp") == ["hand", "foot", "top"] and RouteDraft.roles_for("foot_big") == ["foot"], "종류마다 쓰임")
+	# 2026-11-26 사용자 "모든 홀드들이 손홀드이자 발홀드": 쓰임은 표시, 손발 모두
+	runner.check(r.errors.is_empty() and slot.has("hand_area") and slot.allowed.has(&"LH") and slot.allowed.has(&"LF"), "저그를 발로 놓아도 손발 모두 %s %s" % [r.errors, slot])
+	runner.check(d.set_start(&"LH", f), "발로 놓은 홀드에서도 손 시작")
+	runner.check(RouteDraft.roles_for("crimp") == ["hand", "foot", "top"] and RouteDraft.roles_for("foot_big") == ["foot", "hand"], "종류마다 쓰임(발판 기본은 발) %s" % [RouteDraft.roles_for("foot_big")])
 
 
 ## 합손 켜기는 그 종류·크기가 될 때만, 크기를 바꿔 안 되면 꺼진다(2026-11-26 사용자 "홀드 크기에 따라 합손이 불가능한 경우").
@@ -152,7 +153,9 @@ func test_problems_listed() -> void:
 func test_start_rules() -> void:
 	var d := _draft()
 	var foot: String = d.start[&"LF"]
-	runner.check(not d.set_start(&"LH", foot), "손 시작은 손홀드만")
+	runner.check(not d.set_start(&"LH", d.goal_hold().id) and d.set_start(&"LH", foot), "손 시작은 탑이 아닌 아무 홀드(발판도)")
+	d = _draft()
+	foot = d.start[&"LF"]
 	runner.check(d.set_start(&"LF", d.start[&"RF"]) and d.start[&"RF"] == "", "같은 자리를 다른 손발에 주면 앞 손발은 비움")
 	d.remove(d.start[&"LH"])
 	runner.check(d.start[&"LH"] == "", "지운 홀드는 시작에서 빠짐")

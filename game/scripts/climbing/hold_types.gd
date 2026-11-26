@@ -61,9 +61,7 @@ static func field_error(s: Dictionary, hand: bool) -> String:
 	var rot = s.get("rot_deg", 0)
 	if not (rot is float or rot is int) or int(rot) != rot or int(rot) % 5 != 0 or rot < 0 or rot > 355:
 		return "rot_deg는 0~355, 5의 배수: %s" % rot
-	if hand and is_foot(type):
-		return "%s는 발 홀드" % type
-	return ""
+	return ""  # 2026-11-26 사용자 "모든 홀드들이 손홀드이자 발홀드": 발판도 손 칸이 될 수 있다
 
 
 ## 슬롯 사전에 종류 필드와 그에서 만든 영역·그립 방식을 채운다. s: 슬롯 JSON(이미 field_error 통과).
@@ -84,13 +82,17 @@ static func fill(slot: Dictionary, s: Dictionary, hand := true) -> void:
 		var hh := float(t.half_height[i]) if t.has("half_height") else clampf(float(t.half_width[i]) * 0.6, 0.03, 0.08)
 		slot.foot_area = {"up": rotate(Vector2(0, 1), rot), "half_height": hh, "half_width": float(t.half_width[i])}
 		slot.grip_modes = [{"mode": &"pull", "axis": Vector2(0, 1), "half_angle": 65.0}]
-		return
+		if not hand:
+			return
+		slot.fatigue_mult = float(t.get("hand_fatigue", 1.5))  # 발판을 손으로: 얕아 힘이 빨리 빠진다
 	var hw := float(t.half_width[i])
 	var ha: Dictionary = s.get("hand_area", {})
 	slot.hand_area = {"dir": rotate(Vector2(1, 0), rot), "half_width": hw, "matchable": bool(ha.get("matchable", false)) and can_match(type, size)}
-	var half := float(t.half_angle) + (0.0 if t.get("fixed_size", false) else float(data().size_half_angle[size]))
+	var half := float(t.get("half_angle", 35.0)) + (0.0 if t.get("fixed_size", false) else float(data().size_half_angle[size]))
 	var modes: Array = []
-	for m in t.modes:
+	for m in t.get("modes", [0]):
 		var deg := rot + float(m)
 		modes.append({"mode": mode_for(deg), "axis": rotate(Vector2(0, 1), deg), "half_angle": half})
+	if t.has("reverse"):  # 반대 면(저그): 잡히지만 힘이 많이 빠진다(사용자 "반대편으로 잡을수는 있으나 잡기 힘들어")
+		modes.append({"mode": mode_for(rot + 180.0), "axis": rotate(Vector2(0, 1), rot + 180.0), "half_angle": float(t.reverse.half_angle), "fatigue": float(t.reverse.fatigue)})
 	slot.grip_modes = modes

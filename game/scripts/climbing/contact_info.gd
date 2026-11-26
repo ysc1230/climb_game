@@ -16,6 +16,8 @@ var fatigue_mult: float = 1.0      # 손: 종류 피로 배율(저그 0.7, 크�
 var foot_share: float = 1.0        # 발: 발 몫 배율(작은 발판 0.85)
 var window: Array = []             # 손: 슬로퍼 몸 창 [안 m, 밖 m, 밖 품질 배율]. 비면 없음
 var hold_x: float = 0.0            # 몸 창 기준(홀드 중심 x)
+var hold_pos := Vector2(NAN, NAN)  # 손: 홀드 중심(면 방향 잡기 다시 보기, GripDir)
+var grip_kind: StringName = &""    # 손: 면 방향 잡기 방식(pull·sidepull·cross·gaston·undercling). 비면 보지 않음
 
 
 static func make(p_key: String, p_point: Vector2, p_quality: float, p_mode: StringName, p_edge: StringName) -> ContactInfo:
@@ -35,6 +37,7 @@ func apply_slot(slot: Dictionary) -> ContactInfo:
 	foot_share = float(slot.get("foot_share", 1.0))
 	window = slot.get("window", [])
 	hold_x = (slot.pos as Vector2).x
+	hold_pos = slot.pos
 	return self
 
 
@@ -44,3 +47,5 @@ func copy_hold_from(c: ContactInfo) -> void:
 	foot_share = c.foot_share
 	window = c.window
 	hold_x = c.hold_x
+	hold_pos = c.hold_pos
+	grip_kind = c.grip_kind

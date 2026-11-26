@@ -197,6 +197,10 @@ func test_index_real_data() -> void:
 	for g in idx.grades():
 		runner.check(idx.general(g).size() >= 1 and idx.general(g)[0].route_id == "G_%s_11" % g, "%s 첫 문제는 컨셉 문제 %s" % [g, idx.general(g).map(func(r): return r.route_id)])
 	runner.check(idx.route("G_V3_11") != null and idx.route("G_V3_02") == null and idx.route("NOPE") == null, "route 조회(옛 문제는 없음)")
+	# 2026-11-26 사용자 "문제가 너무 짧으면 안돼 앞으로는 적어도 2.5m이상": 바닥에서 탑까지
+	for r in idx.all_routes():
+		if r.mode == "general":
+			runner.check(ScoreCalc.top_y(r) >= 2.5, "%s 탑 높이 %.2fm ≥ 2.5m" % [r.route_id, ScoreCalc.top_y(r)])
 	runner.check(idx.general("V9").is_empty(), "없는 등급 빈 배열")
 	runner.check(idx.courses().size() == 10 and idx.course("C_NOPE").is_empty() and idx.route("C_BASIC_T") != null, "수업 10개(기본 4 + 기술 6)")
 	runner.check(idx.errors.is_empty(), "색인 오류 없음 %s" % [idx.errors])

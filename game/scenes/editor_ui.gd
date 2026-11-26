@@ -42,6 +42,7 @@ var tool := "edit"
 var start_limb: StringName = &"LH"
 var sel_type := "jug"
 var sel_role := "hand"    # 놓을 쓰임: hand | foot | top
+var sel_size := "M"       # 놓을 크기(2026-11-26 사용자 "홀드종류 먼저 선택 손 발 탑홀드 선택하고 크기 선택")
 var selected := ""
 var message := ""
 var _message_t := 0.0
@@ -394,7 +395,7 @@ func _tap_wall(w: Vector2, hit: String) -> void:
 					return
 				if tut != null and tut.mark(draft) != null and w.distance_to(tut.mark(draft)) <= EditorTutorial.MARK_R:
 					w = tut.mark(draft)  # 원 안을 누르면 원 가운데에
-				var id := draft.place(sel_type, w.x, w.y, sel_role)
+				var id := draft.place(sel_type, w.x, w.y, sel_role, sel_size)
 				if id == "":
 					_say("홀드는 %d개까지 놓을 수 있어요" % RouteDraft.MAX_HOLDS)
 				else:
@@ -421,7 +422,7 @@ func _tap_wall(w: Vector2, hit: String) -> void:
 					var order := [&"LH", &"RH", &"LF", &"RF"]
 					start_limb = order[(order.find(start_limb) + 1) % 4]
 				else:
-					_say("손 시작은 [손으로] 놓은 홀드에만 정할 수 있어요")
+					_say("탑은 시작홀드가 될 수 없어요")
 	queue_redraw()
 
 
@@ -465,11 +466,11 @@ func _do(action: String, arg: String) -> void:
 			_preview = {}
 		"limb":
 			start_limb = StringName(arg)
-		"type":  # 종류를 먼저 고른다. 발판은 발로만, 발판에서 손홀드 종류로 오면 손으로
+		"type":  # 종류를 먼저 고른다. 발판 ↔ 다른 종류로 바뀌면 그 종류의 기본 쓰임(발판은 발로)
 			var was_foot := HoldTypes.is_foot(sel_type)
 			sel_type = arg
 			var roles := RouteDraft.roles_for(arg)
-			if not roles.has(sel_role) or (was_foot and not HoldTypes.is_foot(arg)):
+			if not roles.has(sel_role) or was_foot != HoldTypes.is_foot(arg):
 				sel_role = roles[0]
 			tool = "edit"
 		"role":
@@ -477,12 +478,13 @@ func _do(action: String, arg: String) -> void:
 				sel_role = arg
 				tool = "edit"
 			else:
-				_say("%s 발로만 쓸 수 있어요" % _eun(HoldTypes.name_ko(sel_type)))
-		"size":
+				_say("%s 탑이 될 수 없어요(두 손으로 같이 잡을 수 없어요)" % _eun(HoldTypes.name_ko(sel_type)))
+		"size":  # 놓을 크기. 고른 홀드가 있으면 그 홀드도
+			sel_size = arg
 			var h := draft.hold(selected)
 			if h.get("role", "") == "top" and not HoldTypes.can_match(h.type, arg):
 				_say("탑은 두 손으로 잡아야 해서 합손 되는 크기만 돼요. " + _match_hint(h.type))
-			else:
+			elif not h.is_empty():
 				draft.set_size(selected, arg)
 				_changed()
 		"rot":
@@ -876,23 +878,28 @@ func _draw_panel(size: Vector2) -> void:
 		var ro: Array = ROLES[i]
 		_button(Rect2(Vector2(x + i * (cw + 10 * k), y), Vector2(cw, 46 * k)), ro[1], "role", ro[0], 19, sel_role == ro[0] and tool == "edit", not roles.has(ro[0]))
 	y += 56 * k
+	# 3) 크기: 놓을 크기, 고른 홀드가 있으면 그 홀드의 크기(누르면 둘 다)
 	var h := draft.hold(selected)
+	_text(Vector2(x, y + 16 * k), "크기", 16, DIM)
+	y += 24 * k
+	var cur_size: String = h.size if not h.is_empty() else sel_size
+	var top_type: String = h.type if not h.is_empty() and h.role == "top" else (sel_type if h.is_empty() and sel_role == "top" else "")
+	for i in 3:
+		var sz: String = HoldTypes.SIZES[i]
+		_button(Rect2(Vector2(x + i * (cw + 10 * k), y), Vector2(cw, 46 * k)), SIZE_KO[sz], "size", sz, 19, cur_size == sz and tool == "edit",
+			top_type != "" and not HoldTypes.can_match(top_type, sz))
+	y += 56 * k
 	if h.is_empty():
-		_wrap(Vector2(x, y + 20 * k), "종류와 쓰임을 고르고 벽을 누르면 놓여요. 놓인 홀드를 누르면 고르고, 끌면 옮기고, 아래 원으로 돌려요. 다시 누르면 고르기를 풀어요.", w, 17, DIM)
+		_wrap(Vector2(x, y + 20 * k), "종류·쓰임·크기를 고르고 벽을 누르면 놓여요. 모든 홀드는 손으로도 발로도 써요. 놓인 홀드를 누르면 고르고, 끌면 옮기고, 아래 원으로 돌려요(잡는 면 방향).", w, 17, DIM)
 		return
 	var rot := int(h.rot) + (int(_preview.get("rot", 0)) if _preview.get("id", "") == selected else 0)
 	_text(Vector2(x, y + 22 * k), "고른 홀드: %s · %s · 방향 %d°" % [HoldTypes.name_ko(h.type), ROLE_KO[h.role], posmod(rot, 360)], 20, CHALK)
 	y += 34 * k
 	if tool != "edit":
 		return
-	var sw := (w - 20 * k) / 3.0
-	for i in 3:
-		var sz: String = HoldTypes.SIZES[i]
-		_button(Rect2(Vector2(x + i * (sw + 10 * k), y), Vector2(sw, 46 * k)), SIZE_KO[sz], "size", sz, 19, h.size == sz, h.role == "top" and not HoldTypes.can_match(h.type, sz))
-	y += 56 * k
 	# 아래: 왼쪽 합손(켜면 노란 불)·지우기, 오른쪽 돌리기 원, 맨 아래 돌리기 버튼(원을 끄는 동안 홀드가 바로 돈다)
 	var lw := w - 170 * k
-	if h.role == "hand":
+	if h.role != "top":
 		_button(Rect2(Vector2(x, y + 10 * k), Vector2(lw, 46 * k)), "합손", "match", "", 20, h.matchable, not HoldTypes.can_match(h.type, h.size))
 	elif h.role == "top":
 		_wrap(Vector2(x, y + 30 * k), "탑은 두 손으로 잡으면 끝나요", lw, 16, DIM)

@@ -25,7 +25,8 @@ def build(r):
     for h in r["holds"]:
         foot = h["t"] in FOOT_TYPES
         sid = "foot_1" if foot else "hand_1"
-        s = {"slot_id": sid, "pos": [h["x"], h["y"]], "allowed": h["allowed"] or (["LF", "RF"] if foot else ["LH", "RH"]),
+        # 2026-11-26 사용자 "모든 홀드들이 손홀드이자 발홀드": 발판도 손 칸(발은 RouteDef가 모든 손 칸에 더함). 칸 이름은 그대로
+        s = {"slot_id": sid, "pos": [h["x"], h["y"]], "allowed": h["allowed"] or ["LH", "RH"],
              "hold_type": h["t"], "size": h["size"], "rot_deg": h["rot"]}
         if h["matchable"]:
             s["hand_area"] = {"matchable": True}

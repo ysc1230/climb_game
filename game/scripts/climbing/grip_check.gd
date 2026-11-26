@@ -204,6 +204,8 @@ static func candidate(slots: Dictionary, limb: StringName, endpoint: Vector2, pe
 		# 접점은 홀드 자리에서 CULL_PAD 안이라, 그보다 먼 홀드는 잡을 수 없다: 계산 없이 건너뛴다(홀드 300개, 2026-11-26 최적화)
 		if endpoint.distance_squared_to(slot.pos) > pow(radius_for(limb, slot) + CULL_PAD, 2):
 			continue
+		if PoseSolver.is_hand(limb) and slot.has("hand_area") and not GripDir.any_ok(slot, limb, pelvis, angle_deg, yaw_deg):
+			continue  # 그 손으로는 못 잡는 면 방향(GripDir)
 		var ok := func(p: Vector2) -> bool:
 			if reject.is_valid() and reject.call(key, p):
 				return false
@@ -227,20 +229,31 @@ static func candidate(slots: Dictionary, limb: StringName, endpoint: Vector2, pe
 
 
 ## 접점 정보(품질·그립 방식). 손은 grip_modes[0], 발은 foot/inside.
-static func contact_for(slot_key: String, slots: Dictionary, limb: StringName, point: Vector2) -> ContactInfo:
+## pelvis를 주면 손은 그 자세에서 잡을 수 있는 첫 그립 방식으로(면 방향, GripDir), 방식에 따라 손 힘 배율을 곱한다.
+static func contact_for(slot_key: String, slots: Dictionary, limb: StringName, point: Vector2, pelvis := Vector2(NAN, NAN), angle := 0.0, yaw := 0.0) -> ContactInfo:
 	var slot: Dictionary = slots[slot_key]
 	if PoseSolver.is_hand(limb):
-		return _hand_contact(slot_key, slot, point, HoldArea.project_hand(slot, point).quality, slot.grip_modes[0])
+		var q: float = HoldArea.project_hand(slot, point).quality
+		if is_finite(pelvis.x):
+			for gm in slot.grip_modes:
+				var k := GripDir.kind(limb, gm.axis, slot.pos, pelvis, angle, yaw)
+				if k != &"":
+					return _hand_contact(slot_key, slot, point, q, gm, k)
+		return _hand_contact(slot_key, slot, point, q, slot.grip_modes[0])
 	var qf: float = HoldArea.project_foot(slot, point).quality
 	return ContactInfo.make(slot_key, point, qf, &"foot", &"inside").apply_slot(slot)
 
 
-static func _hand_contact(slot_key: String, slot: Dictionary, point: Vector2, q: float, gm: Dictionary) -> ContactInfo:
-	var ci := ContactInfo.make(slot_key, point, q, gm.mode, &"")
+## k: 면 방향 잡기 방식(GripDir.kind). 비면 그립 방식 이름 그대로, 배율 없음.
+static func _hand_contact(slot_key: String, slot: Dictionary, point: Vector2, q: float, gm: Dictionary, k := &"") -> ContactInfo:
+	var ci := ContactInfo.make(slot_key, point, q, GripDir.mode_name(k) if k != &"" else gm.mode, &"")
 	ci.axis = gm.axis
 	ci.half_angle = gm.half_angle
 	ci.half_width = float(slot.hand_area.half_width)
-	return ci.apply_slot(slot)
+	ci.apply_slot(slot)
+	ci.grip_kind = k
+	ci.fatigue_mult *= float(gm.get("fatigue", 1.0)) * float(GripDir.FATIGUE.get(k, 1.0))
+	return ci
 
 
 ## 패드 잡기 방향 자동 선택(docs/28 §4.3). 손은 홀드의 grip_modes마다 접점을 만들어 지금 자세에서 힘 계산을 하고,
@@ -250,9 +263,12 @@ static func _hand_contact(slot_key: String, slot: Dictionary, point: Vector2, q:
 ## 하중 받는 발은 이 방식으로 잡은 자세의 힘 해에서 정한다(언더클링 자격·높은 발 조건).
 static func contact_for_pose(slot_key: String, slots: Dictionary, limb: StringName, point: Vector2, pelvis: Vector2, angle: float, yaw: float, attached: Dictionary, meta: Dictionary, endpoints: Dictionary, forbid_auto := false) -> ContactInfo:
 	var slot: Dictionary = slots[slot_key]
-	var modes: Array = slot.grip_modes
+	var modes: Array = slot.grip_modes.filter(func(gm): return GripDir.kind(limb, gm.axis, slot.pos, pelvis, angle, yaw) != &"") \
+		if PoseSolver.is_hand(limb) and slot.has("hand_area") else slot.grip_modes
+	if modes.is_empty():
+		modes = slot.grip_modes
 	if not PoseSolver.is_hand(limb) or forbid_auto or modes.size() < 2:
-		return contact_for(slot_key, slots, limb, point)
+		return contact_for(slot_key, slots, limb, point, pelvis, angle, yaw)
 	var q: float = HoldArea.project_hand(slot, point).quality
 	var with_new := attached.duplicate()
 	with_new[limb] = point
@@ -265,7 +281,7 @@ static func contact_for_pose(slot_key: String, slots: Dictionary, limb: StringNa
 	var best := INF
 	for gm in modes:
 		var m := meta.duplicate()
-		m[limb] = _hand_contact(slot_key, slot, point, q, gm)
+		m[limb] = _hand_contact(slot_key, slot, point, q, gm, GripDir.kind(limb, gm.axis, slot.pos, pelvis, angle, yaw))
 		var r := ClimbRules.evaluate_pose(pelvis, angle, yaw, with_new, eps, m, feet, feet)
 		var loaded := ClimbRules.loaded_from(r, [])
 		var ok: bool = r.status == SupportSolver.Status.FEASIBLE and not ClimbRules.barn_exceeded(r) \
@@ -280,7 +296,7 @@ static func contact_for_pose(slot_key: String, slots: Dictionary, limb: StringNa
 			if costs[i] < best + GRIP_TIE_MARGIN:
 				pick = i
 				break
-	return _hand_contact(slot_key, slot, point, q, modes[pick])
+	return _hand_contact(slot_key, slot, point, q, modes[pick], GripDir.kind(limb, modes[pick].axis, slot.pos, pelvis, angle, yaw))
 
 
 ## 요청 목표 근처에서 노린 슬롯(종류 무관, 가장 가까운 것).
