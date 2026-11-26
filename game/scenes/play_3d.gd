@@ -81,22 +81,47 @@ func _on_wall(node: Node3D, p: Vector3, b := Basis()) -> void:
 
 
 ## 접힌 띠 메시: 벽면 높이 from_s~to_s를 따라 (펼친 좌표의) 두 점 a(x, z)·b(x, z) 사이를 잇는다. UV = (가로 거리, s)로 합판 무늬.
-func _fold_strip(a: Vector2, b: Vector2, from_s: float, to_s: float) -> ArrayMesh:
+## 꺾이는 곳(각도가 변하는 구간)만 5cm마다 나누고 곧은 곳은 STRIP_FLAT m마다(100m 벽이 5cm마다면 띠 하나 2100칸, 2026-11-26 최적화).
+func _fold_strip(a: Vector2, b: Vector2, from_s: float, to_s: float, fine := STRIP_FINE) -> ArrayMesh:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var n := maxi(2, int(ceil((to_s - from_s) / 0.05)))
+	var rows := strip_rows(fold, from_s, to_s, fine)
 	var w := a.distance_to(b)
-	for i in n:
-		var sa := from_s + (to_s - from_s) * i / n
-		var sb := from_s + (to_s - from_s) * (i + 1) / n
+	for i in rows.size() - 1:
+		var sa: float = rows[i]
+		var sb: float = rows[i + 1]
 		var q := [fold.point(Vector3(a.x, sa, a.y)), fold.point(Vector3(b.x, sa, b.y)), fold.point(Vector3(b.x, sb, b.y)), fold.point(Vector3(a.x, sb, a.y))]
 		var uv := [Vector2(a.x, sa), Vector2(a.x + w, sa), Vector2(a.x + w, sb), Vector2(a.x, sb)]
 		for k in [0, 1, 2, 0, 2, 3]:
 			st.set_uv(uv[k])
 			st.add_vertex(q[k])
 	st.generate_normals()
-	st.generate_tangents()  # 바위 셰이더가 법선을 흔들 때 쓴다
+	if logic.route.wall_style == "rock":
+		st.generate_tangents()  # 바위 셰이더가 법선을 흔들 때만 쓴다
 	return st.commit()
+
+
+const STRIP_FINE := 0.05   # 꺾이는 곳의 띠 칸 높이(m)
+const STRIP_FLAT := 4.0    # 곧은 곳의 띠 칸 최대 높이(m)
+
+
+## 띠를 나눌 벽면 높이들: 각도가 변하는 칸은 STRIP_FINE마다, 곧은 곳은 STRIP_FLAT까지 한 칸.
+static func strip_rows(f: WallProfile, from_s: float, to_s: float, fine := STRIP_FINE) -> PackedFloat32Array:
+	var n := maxi(2, int(ceil((to_s - from_s) / fine)))
+	var rows := PackedFloat32Array([from_s])
+	var prev_s := from_s
+	var prev_a := f.angle_rad(from_s)
+	for i in range(1, n + 1):
+		var s := from_s + (to_s - from_s) * i / n
+		var a := f.angle_rad(s)
+		var bend := absf(a - prev_a) > 1e-5
+		if bend and rows[rows.size() - 1] < prev_s - 1e-6:
+			rows.append(prev_s)  # 곧은 곳이 끝나고 꺾이기 시작하는 자리
+		if bend or i == n or s - rows[rows.size() - 1] >= STRIP_FLAT - 1e-6:
+			rows.append(s)
+		prev_s = s
+		prev_a = a
+	return rows
 
 
 # ---------- 재질 ----------
@@ -297,7 +322,7 @@ func _build_wall() -> void:
 		wm.set_shader_parameter("rock_bump", 0.0)
 		var inner := Vector2(side * half_w, -0.02)
 		var outer := inner + Vector2(side * 2.4 * cos(deg_to_rad(38.0)), 2.4 * sin(deg_to_rad(38.0)))
-		var wing := _mesh(_fold_strip(inner if side < 0 else outer, outer if side < 0 else inner, -1.0, top + 0.5), wm, true)
+		var wing := _mesh(_fold_strip(inner if side < 0 else outer, outer if side < 0 else inner, -1.0, top + 0.5, 0.15), wm, true)  # 장식이라 꺾임을 성기게
 		wall_root.add_child(wing)
 		_wings.append(wing)
 	# 볼륨: 벽에 붙은 삼각기둥·상자(볼트). 벽 가장자리, 홀드와 겹치지 않는 자리에만(deco_spots)
@@ -399,6 +424,8 @@ func _prism(size: Vector3) -> PrismMesh:
 
 var hold_glows := {}  # 슬롯 키 → 홀드 위에 겹친 빛 메시(잡을 수 있음: 흰색 깜빡임, 튜토리얼 목표: 노란색 깜빡임)
 var hold_nodes := {}  # 슬롯 키 → [홀드 메시, 판정 벽 좌표 틀]: 만들기 화면이 끄는 홀드만 바로 옮겨 그린다
+var build_glows := true  # 만들기 화면은 빛 메시를 쓰지 않는다(홀드 300개면 메시 300개 더)
+var _hold_mats := {}     # 종류(hand·match·foot·goal, 암벽) → 면 역할별 재질 3개. 홀드마다 새로 만들지 않고 나눠 쓴다
 
 
 ## 홀드 디자인 v2(docs/32): Blender로 만든 실제 크기 로우폴리 레진 홀드(art/holds/holds.glb, tools/holds/make_holds.py).
@@ -475,41 +502,58 @@ static func hold_view_scale(slot: Dictionary, mesh: Mesh, is_goal: bool) -> floa
 
 func _build_holds() -> void:
 	for key in logic.route.slots:
-		var slot: Dictionary = logic.route.slots[key]
-		var is_goal: bool = logic.route.goal_slots.has(key)
-		var hand: bool = slot.has("hand_area")
-		var kind := "goal" if is_goal else ("foot" if not hand else ("match" if slot.hand_area.get("matchable", false) else "hand"))
-		var variant := hold_variant(key, slot, is_goal)
-		var mesh := _hold_mesh(variant)
-		var ang: float = (slot.hand_area.dir as Vector2).angle() if hand else (slot.foot_area.up as Vector2).angle() - PI / 2.0
-		var hold := MeshInstance3D.new()
-		hold.mesh = mesh
-		var cols: Array = ROCK_HOLDS[kind] if logic.route.wall_style == "rock" and ROCK_HOLDS.has(kind) else HOLD_COLORS[kind]
+		_add_hold(key)
+
+
+## 홀드 하나(메시·재질·빛)를 벽에 놓는다.
+func _add_hold(key: String) -> void:
+	var slot: Dictionary = logic.route.slots[key]
+	var is_goal: bool = logic.route.goal_slots.has(key)
+	var hand: bool = slot.has("hand_area")
+	var kind := "goal" if is_goal else ("foot" if not hand else ("match" if slot.hand_area.get("matchable", false) else "hand"))
+	var variant := hold_variant(key, slot, is_goal)
+	var mesh := _hold_mesh(variant)
+	var ang: float = (slot.hand_area.dir as Vector2).angle() if hand else (slot.foot_area.up as Vector2).angle() - PI / 2.0
+	var hold := MeshInstance3D.new()
+	hold.mesh = mesh
+	var mats := _hold_materials(kind)
+	for si in mesh.get_surface_count():
+		hold.set_surface_override_material(si, mats[surface_role(mesh, si)])
+	var p: Vector2 = slot.pos
+	var tilt := 0.0 if str(slot.get("hold_type", "")) != "" else deg_to_rad(rng.randf_range(-8, 8))  # 종류 홀드는 rot_deg 그대로
+	var sc := hold_view_scale(slot, mesh, is_goal) * rng.randf_range(0.95, 1.05)
+	var hb := Basis(Vector3.BACK, ang + tilt)
+	_on_wall(hold, Vector3(p.x, p.y, 0.0), hb.scaled(Vector3.ONE * sc))
+	wall_root.add_child(hold)
+	hold_nodes[key] = [hold, Transform3D(hb.scaled(Vector3.ONE * sc), Vector3(p.x, p.y, 0.0))]
+	climber_pose.surface_depth[key] = mesh.get_aabb().end.z * sc  # 홀드 겉면(손발을 여기 얹는다)
+	climber_pose.surface_top[key] = mesh.get_aabb().end.y * sc  # 홀드 윗면(발끝을 여기 얹는다)
+	if not build_glows:
+		return
+	var glow := MeshInstance3D.new()
+	glow.mesh = mesh
+	var gm := _overlay(Color(1, 1, 1, 0.0))
+	gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glow.material_override = gm
+	_on_wall(glow, Vector3(p.x, p.y, 0.004), hb.scaled(Vector3.ONE * sc * 1.18))
+	glow.visible = false
+	wall_root.add_child(glow)
+	hold_glows[key] = glow
+
+
+## 종류별 홀드 재질 [몸체, 윗날, 어두운 면](surface_role 순서). 같은 종류 홀드가 나눠 쓴다.
+func _hold_materials(kind: String) -> Array:
+	var rock: bool = logic.route.wall_style == "rock" and ROCK_HOLDS.has(kind)
+	var mk := kind + ("|rock" if rock else "")
+	if not _hold_mats.has(mk):
+		var cols: Array = ROCK_HOLDS[kind] if rock else HOLD_COLORS[kind]
 		var mats := [_toon(cols[0], cols[0].darkened(0.45)), _toon(cols[1], cols[1].darkened(0.35)), _toon(cols[0].darkened(0.62), INK)]
-		for m in mats.slice(0, 2):
-			m.set_shader_parameter("speckle", true)
-		for si in mesh.get_surface_count():
-			var m: ShaderMaterial = mats[surface_role(mesh, si)]
-			m.next_pass.set_shader_parameter("width", 0.006)
-			hold.set_surface_override_material(si, m)
-		var p: Vector2 = slot.pos
-		var tilt := 0.0 if str(slot.get("hold_type", "")) != "" else deg_to_rad(rng.randf_range(-8, 8))  # 종류 홀드는 rot_deg 그대로
-		var sc := hold_view_scale(slot, mesh, is_goal) * rng.randf_range(0.95, 1.05)
-		var hb := Basis(Vector3.BACK, ang + tilt)
-		_on_wall(hold, Vector3(p.x, p.y, 0.0), hb.scaled(Vector3.ONE * sc))
-		wall_root.add_child(hold)
-		hold_nodes[key] = [hold, Transform3D(hb.scaled(Vector3.ONE * sc), Vector3(p.x, p.y, 0.0))]
-		climber_pose.surface_depth[key] = mesh.get_aabb().end.z * sc  # 홀드 겉면(손발을 여기 얹는다)
-		climber_pose.surface_top[key] = mesh.get_aabb().end.y * sc  # 홀드 윗면(발끝을 여기 얹는다)
-		var glow := MeshInstance3D.new()
-		glow.mesh = mesh
-		var gm := _overlay(Color(1, 1, 1, 0.0))
-		gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		glow.material_override = gm
-		_on_wall(glow, Vector3(p.x, p.y, 0.004), hb.scaled(Vector3.ONE * sc * 1.18))
-		glow.visible = false
-		wall_root.add_child(glow)
-		hold_glows[key] = glow
+		for i in 3:
+			if i < 2:
+				mats[i].set_shader_parameter("speckle", true)
+			mats[i].next_pass.set_shader_parameter("width", 0.006)
+		_hold_mats[mk] = mats
+	return _hold_mats[mk]
 
 
 ## 홀드 빛: 끄는 손발 아래 지금 놓으면 잡히는 홀드(세션 후보)는 흰색으로 깜빡이며 빛나고,

@@ -21,20 +21,41 @@ func _init(route: RouteDef, p_s0 := -1.0, p_s1 := 4.0) -> void:
 	_ang.resize(n)
 	_oy.resize(n)
 	_oz.resize(n)
+	# 각도: 구간 경계 ±WALL_BLEND(섞는 곳)만 angle_at으로, 나머지는 그 구간 각도 그대로(1만 칸을 다 부르면 100m 벽에서 13ms, 2026-11-26 최적화)
+	var secs: Array = route.wall_sections
+	var cur := deg_to_rad(route.angle_at(s0) if secs.is_empty() else float(secs[0].deg))
+	var j := 1
 	for i in n:
-		_ang[i] = deg_to_rad(route.angle_at(s0 + i * STEP))
+		var s := s0 + i * STEP
+		while j < secs.size() and float(secs[j].from_y) + RouteDef.WALL_BLEND <= s:
+			cur = deg_to_rad(float(secs[j].deg))
+			j += 1
+		_ang[i] = deg_to_rad(route.angle_at(s)) if j < secs.size() and s > float(secs[j].from_y) - RouteDef.WALL_BLEND else cur
 	# 0에서 0으로 맞추고(벽 아래 가장자리 y = 0, z = 0이 예전 회전 축) 사다리꼴로 적분
 	var i0 := clampi(int(round(-s0 / STEP)), 0, n - 1)
 	_oy[i0] = (s0 + i0 * STEP) * cos(_ang[i0])
 	_oz[i0] = (s0 + i0 * STEP) * sin(_ang[i0])
+	# 곧은 구간은 각도가 같아 cos·sin을 다시 쓴다(100m 벽이면 표가 1만 칸, 2026-11-26 최적화)
+	var la := INF
+	var dy := 0.0
+	var dz := 0.0
 	for i in range(i0 + 1, n):
 		var a := (_ang[i - 1] + _ang[i]) * 0.5
-		_oy[i] = _oy[i - 1] + STEP * cos(a)
-		_oz[i] = _oz[i - 1] + STEP * sin(a)
+		if a != la:
+			la = a
+			dy = STEP * cos(a)
+			dz = STEP * sin(a)
+		_oy[i] = _oy[i - 1] + dy
+		_oz[i] = _oz[i - 1] + dz
+	la = INF
 	for i in range(i0 - 1, -1, -1):
 		var a := (_ang[i + 1] + _ang[i]) * 0.5
-		_oy[i] = _oy[i + 1] - STEP * cos(a)
-		_oz[i] = _oz[i + 1] - STEP * sin(a)
+		if a != la:
+			la = a
+			dy = STEP * cos(a)
+			dz = STEP * sin(a)
+		_oy[i] = _oy[i + 1] - dy
+		_oz[i] = _oz[i + 1] - dz
 
 
 ## 벽면 높이 s의 각도(라디안).

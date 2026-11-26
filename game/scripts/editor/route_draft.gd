@@ -41,6 +41,10 @@ var _next := 1
 var _undo: Array = []
 var _frozen := false              # 완등·올린 판: 다음 고침에서 판을 올린다
 var _pose_key := ""               # start_pose(균형) 결과를 다시 쓰는 열쇠(시작 홀드·벽 각도)
+var _spacing_key := ""            # spacing_details 결과를 다시 쓰는 열쇠(홀드 목록)
+var _spacing: Array = []
+var _layout_key := ""             # layout_route 결과를 다시 쓰는 열쇠
+var _layout: RouteDef
 var _pose := {}
 ## 버티는 골반을 찾을 때 옮겨 보는 거리(가까운 것부터, 좌우 0.3m·위아래 0.2m까지)
 static var _POSE_OFFSETS: Array = _pose_offsets()
@@ -349,6 +353,16 @@ func build(pelvis := Vector2.INF, angle := 0.0) -> RouteDef:
 	return RouteDef.from_dict(to_route_dict(pelvis, angle))
 
 
+## 3D 미리보기·간격·막는 것이 같이 쓰는 문제(골반 (0, 0.75), 읽기 오류는 골반과 무관). 홀드·시작·벽이 그대로면 지난 것을 쓴다
+## (홀드 300개면 한 번 읽는 데 약 5ms, 고칠 때마다 세 번 읽던 것을 한 번으로, 2026-11-26 최적화). 받은 쪽은 고치지 않는다.
+func layout_route() -> RouteDef:
+	var key := str([holds, start, walls, route_id, name, grade])
+	if key != _layout_key:
+		_layout_key = key
+		_layout = build(Vector2(0, 0.75))
+	return _layout
+
+
 ## 시작 네 자리에서 몸이 자리 잡는 골반 {ok, pelvis, angle, balanced}(PoseSolver.find_target, 여러 출발점).
 ## balance: 그 골반에서 실제로 버티는지(SessionBot.start_ok)도 보고, 안 되면 골반을 가까운 곳부터 옮겨 버티는 자리를 찾는다
 ## (2026-11-26 사용자 "무게중심 때문에 시작 홀드 설정이 안 되는 경우가 있는데 여유롭게": 450가지 배치에서 못 버틴 85개가 모두 0.3m 안에 버티는 자리가 있었다).
@@ -405,11 +419,9 @@ func problems() -> Array:
 	if goal_hold().is_empty():
 		out.append(P_GOAL)
 	if not out.has(P_START) and not out.has(P_GOAL):
-		var pose := start_pose()
-		var r := build(pose.pelvis, pose.angle)
-		if not r.errors.is_empty():
+		if not layout_route().errors.is_empty():
 			out.append(P_ROUTE)
-		elif not pose.balanced:
+		elif not start_pose().balanced:
 			out.append(P_POSE)
 	if not bad_holds().is_empty():
 		out.append(P_SPACING)
@@ -450,12 +462,23 @@ const ROOF_DEG := 70    # 이보다 기운(화면 110° 이하) 구간은 발 �
 func warnings() -> Array:
 	var out: Array = []
 	var hands := holds.filter(func(h): return is_hand_hold(h))
+	hands.sort_custom(func(a, b): return a.y < b.y)  # 높이 순: 1.2m 안 아래 홀드만 본다(홀드 300개면 모든 쌍 9만, 2026-11-26 최적화)
 	var base := -INF
 	for l in [&"LH", &"RH"]:
 		if start[l] != "":
 			base = maxf(base, hold(start[l]).y)
-	for h in hands:
+	for i in hands.size():
+		var h: Dictionary = hands[i]
 		if h.y <= base + 0.01:
+			continue
+		var near := false
+		var j := i - 1
+		while j >= 0 and h.y - hands[j].y <= FAR_HAND:
+			if hands[j].y < h.y - 0.01 and Vector2(hands[j].x, hands[j].y).distance_to(Vector2(h.x, h.y)) <= FAR_HAND:
+				near = true
+				break
+			j -= 1
+		if near:
 			continue
 		var best := INF
 		for o in hands:
@@ -477,15 +500,21 @@ func warnings() -> Array:
 	return out
 
 
-## 간격 규칙(docs/44)을 어기는 홀드 쌍 [{hold, other, text}](점검 창: 얼마나 떼야 하는지).
+## 간격 규칙을 어기는(겹친) 홀드 쌍 [{hold, other, text}](점검 창). 홀드가 그대로면 지난 결과를 쓴다(고칠 때마다 막는 것·빨간 홀드가 두 번 부름).
 func spacing_details() -> Array:
+	var key := str(holds)
+	if key == _spacing_key:
+		return _spacing
+	_spacing_key = key
+	_spacing = _spacing_of()
+	return _spacing
+
+
+func _spacing_of() -> Array:
 	var out: Array = []
 	if holds.size() < 2:
 		return out
-	var d := to_route_dict(Vector2(0, 0.75))
-	if d.goal_slots.is_empty():
-		d.goal_slots = ["x", "y"]  # 탑 없이도 간격은 본다(읽기 오류는 무시)
-	var r := RouteDef.from_dict(d)
+	var r := layout_route()  # 탑이 없어 읽기 오류가 있어도 홀드 칸은 읽힌다
 	for line in HoldSpacing.violations(r, 0.0, MIN_GAP):
 		var p := String(line).split(" ")  # "H03 ↔ H05 간격 0.050m < 0.120m"
 		var a := hold(p[0])

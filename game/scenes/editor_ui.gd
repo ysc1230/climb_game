@@ -58,6 +58,7 @@ var _preview := {}        # 끄는 중인 홀드 {id, off(벽 좌표 m), rot(더
 var sel_wall := 0         # 벽 각도 도구: 고른 높이(m, 그 높이부터 위)
 var _wall_dirty := false  # 벽 각도 조절 원을 끄는 중: 3D를 곧 다시 만든다
 var _rebuild_ms := 0
+var _rebuild_cost := 0     # 지난번 벽 다시 접기에 걸린 시간(ms)
 var _bot_thread: Thread
 var _bot_result := {}
 var check_open := false   # 점검 창(못 만드는 이유·주의할 것, 2026-11-25 사용자)
@@ -136,10 +137,13 @@ func _say(t: String) -> void:
 
 
 func _process(delta: float) -> void:
-	if _wall_dirty and view != null and Time.get_ticks_msec() - _rebuild_ms > 80:  # 각도를 끄는 동안 벽을 다시 접어 보인다
+	# 각도를 끄는 동안 벽을 다시 접어 보인다. 다시 접는 데 걸린 시간의 두 배는 쉬어 그 사이 화면이 끊기지 않게(느린 폰·100m 벽, 2026-11-26)
+	if _wall_dirty and view != null and Time.get_ticks_msec() - _rebuild_ms > maxi(80, _rebuild_cost * 2):
 		_wall_dirty = false
-		_rebuild_ms = Time.get_ticks_msec()
+		var t0 := Time.get_ticks_msec()
 		view.rebuild(draft)
+		_rebuild_ms = Time.get_ticks_msec()
+		_rebuild_cost = _rebuild_ms - t0
 	if tut != null:
 		tut.typing = _name_edit.has_focus()
 		match tut.update(draft, _problems, delta):
@@ -748,8 +752,12 @@ func _draw() -> void:
 func _draw_wall_overlay(_size: Vector2) -> void:
 	var w2s: Callable = view.world_to_screen
 	var top := draft.max_y()
+	# 보이는 높이 근처만 그린다(100m 벽 가장자리 선 800칸·홀드 300개를 매 프레임, 2026-11-26 최적화). 기울여 볼 때를 위해 넉넉히.
+	var lo: float = view.logic.cam_y - view.zoom_h * 1.5 - 1.0
+	var hi: float = view.logic.cam_y + view.zoom_h * 1.5 + 1.0
 	for sx in [-RouteDraft.WALL_HALF, RouteDraft.WALL_HALF]:
-		_wall_line(Vector2(sx, 0.0), Vector2(sx, top), Color(CHALK, 0.35), 2.0)
+		if hi > 0.0 and lo < top:
+			_wall_line(Vector2(sx, maxf(0.0, lo)), Vector2(sx, minf(top, hi)), Color(CHALK, 0.35), 2.0)
 	var lim := draft.wall_limit()
 	if lim < top:
 		_wall_line(Vector2(-RouteDraft.WALL_HALF, lim), Vector2(RouteDraft.WALL_HALF, lim), Color(CHALK, 0.5), 2.0)
@@ -758,7 +766,7 @@ func _draw_wall_overlay(_size: Vector2) -> void:
 	if tool == "wall":
 		for wl in draft.walls:
 			var y := float(wl.from_y)
-			if y > 0.0:
+			if y > 0.0 and y > lo and y < hi:
 				_wall_line(Vector2(-RouteDraft.WALL_HALF, y), Vector2(RouteDraft.WALL_HALF, y), Color(0.55, 0.85, 1.0, 0.8), 2.0)
 		for y in [float(sel_wall), float(sel_wall + 1)]:
 			_wall_line(Vector2(-RouteDraft.WALL_HALF, y), Vector2(RouteDraft.WALL_HALF, y), SHOE, 4.0)
@@ -769,6 +777,8 @@ func _draw_wall_overlay(_size: Vector2) -> void:
 		if draft.start[l] != "":
 			start_of[draft.start[l]] = LIMB_NAMES[l]
 	for h in draft.holds:
+		if (h.y < lo or h.y > hi) and _preview.get("id", "") != h.id:
+			continue
 		var hp := Vector2(h.x, h.y)
 		var rot := int(h.rot)
 		if _preview.get("id", "") == h.id:

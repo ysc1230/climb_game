@@ -4,15 +4,17 @@ extends RefCounted
 ## 초당 10번 [시간, 골반 x·y, 몸 기울기, 돌림, LH·RH·LF·RF 끝 x·y, 붙음 비트]. 저장은 소수 셋째 자리.
 
 const HZ := 10.0
+const MAX_FRAMES := 3000  # 이보다 길면(10번/초로 5분) 하나 걸러 지우고 간격을 두 배로: 100m 벽처럼 긴 등반도 저장이 커지지 않게(2026-11-26)
 const LIMBS := [&"LH", &"RH", &"LF", &"RF"]
 
 var frames: Array = []
 var _time := 0.0
+var _step := 1.0 / HZ
 
 
 func record(s: ClimbSession, dt: float) -> void:
 	_time += dt
-	if not frames.is_empty() and _time - float(frames.back()[0]) < 1.0 / HZ - 1e-6:
+	if not frames.is_empty() and _time - float(frames.back()[0]) < _step - 1e-6:
 		return
 	var f := [_time, s.body.pos.x, s.body.pos.y, s.body.angle, s.body.yaw]
 	var bits := 0
@@ -25,6 +27,13 @@ func record(s: ClimbSession, dt: float) -> void:
 			bits |= 1 << i
 	f.append(bits)
 	frames.append(f)
+	if frames.size() > MAX_FRAMES:
+		var kept: Array = []
+		for i in frames.size():
+			if i % 2 == 0 or i == frames.size() - 1:
+				kept.append(frames[i])
+		frames = kept
+		_step *= 2.0
 
 
 func duration() -> float:

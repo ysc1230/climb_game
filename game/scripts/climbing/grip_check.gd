@@ -186,6 +186,9 @@ static func _hand_free(s: float, limb: StringName, entries: Array) -> bool:
 	return true
 
 
+const CULL_PAD := 0.4  # 접점이 홀드 자리에서 떨어질 수 있는 거리 위한(손: 반폭+두께 ≤ 0.16, 발: 반폭·반높이+비킴+두께 ≤ 0.35)
+
+
 ## 실제 말단 기준 잡기 후보. occupied: 슬롯 키 → [{limb, interval}] (발 interval은 ZERO).
 ## previous: 직전에 보여준 후보 키(히스테리시스 0.03m). 반환 {key, point, quality} 또는 {}.
 ## reject: (key, point) → true면 그 목표를 후보에서 뺀다(검증기 금지 플래그, 28 §7.4). 비면 쓰지 않는다.
@@ -197,6 +200,9 @@ static func candidate(slots: Dictionary, limb: StringName, endpoint: Vector2, pe
 	for key in slots:
 		var slot: Dictionary = slots[key]
 		if not slot.allowed.has(limb):
+			continue
+		# 접점은 홀드 자리에서 CULL_PAD 안이라, 그보다 먼 홀드는 잡을 수 없다: 계산 없이 건너뛴다(홀드 300개, 2026-11-26 최적화)
+		if endpoint.distance_squared_to(slot.pos) > pow(radius_for(limb, slot) + CULL_PAD, 2):
 			continue
 		var ok := func(p: Vector2) -> bool:
 			if reject.is_valid() and reject.call(key, p):

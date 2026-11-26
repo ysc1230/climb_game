@@ -37,20 +37,29 @@ static func violations(route: RouteDef, need_mul := 2.0, min_gap := 0.0) -> Pack
 	var out: PackedStringArray = []
 	var keys: Array = route.slots.keys()
 	# 홀드마다 타원은 한 번만. 반지름은 긴 반축(rmax)을 넘지 않아, 중심 거리가 rmax로 잡은 한계 이상인 쌍은 어길 수 없다
-	# (만들기 화면 홀드 300개에서 쌍마다 타원을 다시 만들면 0.27초, 2026-11-25)
+	# (만들기 화면 홀드 300개에서 쌍마다 타원을 다시 만들면 0.27초, 2026-11-25).
+	# 높이 순으로 놓고 위로 그 한계 안의 것만 본다(모든 쌍 4만 5천 개 대신 가까운 것만, 2026-11-26 최적화).
 	var el := {}
 	var rmax := {}
+	var pos := {}
+	var gmax := 0.0
 	for key in keys:
 		el[key] = ellipse(route, key)
 		rmax[key] = maxf(el[key].a, el[key].b)
+		pos[key] = route.slot_pos(key)
+		gmax = maxf(gmax, rmax[key])
+	keys.sort_custom(func(a, b): return pos[a].y < pos[b].y)
 	for i in keys.size():
+		var a: String = keys[i]
+		var pa: Vector2 = pos[a]
+		var reach: float = rmax[a] + gmax + maxf(need_mul * maxf(rmax[a], gmax), min_gap)
 		for j in range(i + 1, keys.size()):
-			var a: String = keys[i]
 			var b: String = keys[j]
+			var pb: Vector2 = pos[b]
+			if pb.y - pa.y >= reach:
+				break
 			if a.get_slice("/", 1) == b.get_slice("/", 1):
 				continue
-			var pa: Vector2 = route.slot_pos(a)
-			var pb: Vector2 = route.slot_pos(b)
 			if pa.distance_to(pb) >= rmax[a] + rmax[b] + maxf(need_mul * maxf(rmax[a], rmax[b]), min_gap):
 				continue
 			var u := (pb - pa).normalized()

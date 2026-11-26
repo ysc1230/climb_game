@@ -861,20 +861,24 @@ func _dyno_reachable(v: Vector2) -> Array:
 	var p := body.pos
 	var vel := v
 	var found := {}
+	# 날아서 닿을 수 있는 상자 밖 홀드는 미리 뺀다(240틱 × 두 손 × 홀드 300개, 2026-11-26 최적화).
+	# 떨어져 그만두기 전까지 시간 tb, 오르는 높이 rise, 어깨는 골반에서 1m 안.
+	var tb := minf(240 * Tuning.DT, (maxf(v.y, 0.0) + sqrt(v.y * v.y + 2.0 * 9.8 * Tuning.DYNO_MISS_DROP)) / 9.8)
+	var rise := v.y * v.y / (2.0 * 9.8) if v.y > 0.0 else 0.0
+	var pad := arm + 1.0
+	var cands: Array = []
+	for key in route.slots:
+		var hp := route.slot_pos(key)
+		if hp.y > top + 0.05 and hp.y <= body.pos.y + rise + pad and absf(hp.x - body.pos.x) <= absf(v.x) * tb + pad and _dyno_target_ok(key):
+			cands.append([key, hp])
 	for i in 240:
 		vel.y -= 9.8 * Tuning.DT
 		p += vel * Tuning.DT
 		for hand in [PoseSolver.LH, PoseSolver.RH]:
 			var sh := PoseSolver.joint_position(p, 0.0, hand)
-			for key in route.slots:
-				if found.has(key):
-					continue
-				var slot: Dictionary = route.slots[key]
-				if not _dyno_target_ok(key):
-					continue
-				var hp := route.slot_pos(key)
-				if hp.y > top + 0.05 and sh.distance_to(hp) <= arm:
-					found[key] = hp.y
+			for c in cands:
+				if not found.has(c[0]) and sh.distance_to(c[1]) <= arm:
+					found[c[0]] = (c[1] as Vector2).y
 		if vel.y < 0.0 and p.y < body.pos.y - Tuning.DYNO_MISS_DROP:
 			break
 	var keys := found.keys()
