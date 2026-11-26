@@ -30,12 +30,23 @@ def build(r):
             s["hand_area"] = {"matchable": True}
         holds.append({"hold_id": h["hid"], "slots": [s]})
         slot_of[h["hid"]] = "%s/%s/%s" % (rid, h["hid"], sid)
-    gx, gy = r["goal"]
-    holds.append({"hold_id": "G01", "slots": [
-        {"slot_id": "goal_left", "pos": [round(gx - 0.2, 3), gy], "allowed": ["LH", "RH"], "hold_type": "goal", "size": "M", "rot_deg": 0},
-        {"slot_id": "goal_right", "pos": [round(gx + 0.2, 3), gy], "allowed": ["LH", "RH"], "hold_type": "goal", "size": "M", "rot_deg": 0}]})
-    slot_of["GL"] = "%s/G01/goal_left" % rid
-    slot_of["GR"] = "%s/G01/goal_right" % rid
+    if "top" in r:
+        # 탑 하나(2026-11-26 사용자 "탑홀드는 무조건 하나", 종류는 제각각): 두 손이 같은 합손 칸을 잡으면 완등
+        t = r["top"]
+        holds.append({"hold_id": "G01", "slots": [{"slot_id": "hand_1", "pos": [t["x"], t["y"]], "allowed": ["LH", "RH"],
+            "hold_type": t["t"], "size": t["size"], "rot_deg": t["rot"], "hand_area": {"matchable": True}}]})
+        slot_of["TOP"] = "%s/G01/hand_1" % rid
+        goal_slots = [slot_of["TOP"]]
+        top_y = t["y"]
+    else:
+        gx, gy = r["goal"]
+        holds.append({"hold_id": "G01", "slots": [
+            {"slot_id": "goal_left", "pos": [round(gx - 0.2, 3), gy], "allowed": ["LH", "RH"], "hold_type": "goal", "size": "M", "rot_deg": 0},
+            {"slot_id": "goal_right", "pos": [round(gx + 0.2, 3), gy], "allowed": ["LH", "RH"], "hold_type": "goal", "size": "M", "rot_deg": 0}]})
+        slot_of["GL"] = "%s/G01/goal_left" % rid
+        slot_of["GR"] = "%s/G01/goal_right" % rid
+        goal_slots = [slot_of["GL"], slot_of["GR"]]
+        top_y = gy
 
     def key(v):
         return slot_of[v] if isinstance(v, str) and v in slot_of else v
@@ -47,9 +58,9 @@ def build(r):
     d = {
         "route_id": rid, "mode": "general", "grade": r["grade"], "order": r["order"], "name_ko": r["name"],
         "content_version": r.get("version", 1), "validation_status": "Draft", "note": r["note"],
-        "bounds": {"x_min": -1.5, "x_max": 1.5, "y_min": 0.0, "y_max": 4.5}, "fail_line_y": -0.5,
+        "bounds": {"x_min": -1.5, "x_max": 1.5, "y_min": 0.0, "y_max": max(4.5, round(top_y + 1.5, 2))}, "fail_line_y": -0.5,
         "check_swapped": False, "time_medal_seconds": r.get("time_medal", 120),
-        "goal_slots": [slot_of["GL"], slot_of["GR"]],
+        "goal_slots": goal_slots,
         "start_pose": {"angle": 0.0, "pelvis": st.get("pelvis", [0.05, 0.75]), "slots": {l: slot_of[st[l]] for l in ("LH", "RH", "LF", "RF")}},
         "platforms": [{"platform_id": "P00", "foot_slot_keys": [slot_of[st["LF"]], slot_of[st["RF"]]], "top_y": 0.1, "x_range": [-0.5, 0.6]}],
         "intended_moves": moves,
@@ -57,6 +68,10 @@ def build(r):
         "crux_steps": r.get("crux", {}),
         "holds": holds,
     }
+    if "walls" in r:  # 벽 각도 구간 [(from_y m, 오버행 deg)]: 등급이 아니라 문제가 정한다(2026-11-26 사용자 "각도가 난이도가 되고있어")
+        d["wall_sections"] = [{"from_y": float(y), "deg": float(a)} for y, a in r["walls"]]
+    if "style" in r:
+        d["wall_style"] = r["style"]
     if "gates" in r:
         d["score_gates"] = [{"slot": slot_of[s], "technique": t} for s, t in r["gates"]]
     path = os.path.join(ROOT, rid + ".json")

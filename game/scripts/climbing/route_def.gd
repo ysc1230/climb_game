@@ -347,11 +347,12 @@ func angle_at(y: float) -> float:
 	return a
 
 
-## 벽 각도 설명: "35°" 또는 꺾이는 벽 "30° → 60°"(작은 글자에서 화살표가 ">"로 읽히지 않게 띄움).
+## 벽 각도 설명, 만들기 화면과 같은 땅 기준(180° 수직, 90° 천장, 180° 넘으면 뒤로 누움, 2026-11-26):
+## "145°" 또는 꺾이는 벽 "150° → 120°"(작은 글자에서 화살표가 ">"로 읽히지 않게 띄움).
 func wall_desc() -> String:
 	if wall_sections.is_empty():
-		return "%d°" % roundi(wall_deg)
-	return " → ".join(wall_sections.map(func(w): return "%d°" % roundi(w.deg)))
+		return "%d°" % (180 - roundi(wall_deg))
+	return " → ".join(wall_sections.map(func(w): return "%d°" % (180 - roundi(w.deg))))
 
 
 func slot_pos(key: String) -> Vector2:

@@ -127,7 +127,7 @@ func _status_row(ci: CanvasItem, size: Vector2, k: float, info: Dictionary, y: f
 
 
 ## 진행 바: 출발 → 깃발. 가장 높이 오른 곳까지 금색, 지금 높이에 흰 점. 체크포인트가 없으므로 중간 점은 그리지 않는다.
-## marks(play_test.bar_marks): walls = 바 아래 경사 띠(가파를수록 붉게) + 구간 시작에 각도 글자,
+## marks(play_test.bar_marks): walls = 바 아래 경사 띠(가파를수록 붉게) + 구간 시작에 각도 글자(땅 기준, 180° 수직),
 ## falls = 떨어졌던 높이에 빨간 눈금(2026-11-24 사용자 "1,6번만").
 func _progress(ci: CanvasItem, r: Rect2, k: float, best: float, now: float, marks := {}) -> void:
 	var walls: Array = marks.get("walls", [])
@@ -139,7 +139,7 @@ func _progress(ci: CanvasItem, r: Rect2, k: float, best: float, now: float, mark
 		var col := Color("8fd0bc").lerp(Color("ff7a4a"), clampf(deg / 60.0, 0.0, 1.0))
 		ci.draw_rect(Rect2(Vector2(x0, r.end.y + 4 * k), Vector2(maxf(x1 - x0, 1.0), 6 * k)), col)
 		if x0 - last_x > 60 * k:  # 붙은 구간은 글자를 겹쳐 쓰지 않는다
-			ci.draw_string(font_b, Vector2(x0, r.position.y - 5 * k), "%d°" % deg, HORIZONTAL_ALIGNMENT_LEFT, -1, int(21 * k), col)
+			ci.draw_string(font_b, Vector2(x0, r.position.y - 5 * k), "%d°" % (180 - deg), HORIZONTAL_ALIGNMENT_LEFT, -1, int(21 * k), col)  # 땅 기준(만들기 화면과 같음)
 			last_x = x0
 	panel(ci, r, k, TRACK, Color(1, 1, 1, 0.18), 6)
 	var b := clampf(best, 0.0, 1.0)

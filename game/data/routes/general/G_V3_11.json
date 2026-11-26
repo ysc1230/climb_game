@@ -1,0 +1,320 @@
+{
+ "bounds": {
+  "x_max": 1.5,
+  "x_min": -1.5,
+  "y_max": 4.55,
+  "y_min": 0.0
+ },
+ "check_swapped": false,
+ "content_version": 1,
+ "crux_steps": {
+  "T_MATCH": 6
+ },
+ "fail_line_y": -0.5,
+ "goal_slots": [
+  "G_V3_11/G01/hand_1"
+ ],
+ "grade": "V3",
+ "holds": [
+  {
+   "hold_id": "H01",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      -0.29,
+      1.5
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H02",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      0.31,
+      1.5
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H03",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      -0.24,
+      1.92
+     ],
+     "rot_deg": 0,
+     "size": "S",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H04",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "matchable": true
+     },
+     "hold_type": "jug",
+     "pos": [
+      0.12,
+      2.35
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "H05",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hold_type": "jug",
+     "pos": [
+      0.54,
+      2.66
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "hand_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F01",
+   "slots": [
+    {
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_chip",
+     "pos": [
+      -0.15,
+      0.1
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F02",
+   "slots": [
+    {
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_chip",
+     "pos": [
+      0.18,
+      0.1
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F03",
+   "slots": [
+    {
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_chip",
+     "pos": [
+      0.25,
+      0.42
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "F04",
+   "slots": [
+    {
+     "allowed": [
+      "LF",
+      "RF"
+     ],
+     "hold_type": "foot_chip",
+     "pos": [
+      -0.22,
+      0.98
+     ],
+     "rot_deg": 0,
+     "size": "M",
+     "slot_id": "foot_1"
+    }
+   ]
+  },
+  {
+   "hold_id": "G01",
+   "slots": [
+    {
+     "allowed": [
+      "LH",
+      "RH"
+     ],
+     "hand_area": {
+      "matchable": true
+     },
+     "hold_type": "jug",
+     "pos": [
+      0.42,
+      3.05
+     ],
+     "rot_deg": 0,
+     "size": "L",
+     "slot_id": "hand_1"
+    }
+   ]
+  }
+ ],
+ "intended_moves": [
+  [
+   "LF",
+   "G_V3_11/F03/foot_1"
+  ],
+  [
+   "RF",
+   "G_V3_11/F03/foot_1"
+  ],
+  [
+   "LH",
+   "G_V3_11/H03/hand_1"
+  ],
+  [
+   "LF",
+   "G_V3_11/F04/foot_1"
+  ],
+  [
+   "RH",
+   "G_V3_11/H04/hand_1"
+  ],
+  [
+   "RF",
+   "G_V3_11/H02/hand_1"
+  ],
+  [
+   "LH",
+   "G_V3_11/H04/hand_1"
+  ],
+  [
+   "RH",
+   "G_V3_11/H05/hand_1"
+  ],
+  [
+   "LF",
+   "G_V3_11/H01/hand_1"
+  ],
+  [
+   "LH",
+   "G_V3_11/G01/hand_1"
+  ],
+  [
+   "RH",
+   "G_V3_11/G01/hand_1"
+  ]
+ ],
+ "mode": "general",
+ "name_ko": "꺾인 곳 매치",
+ "note": "컨셉: 꺾이는 자리가 고비. 10° 벽이 1.7m부터 40°로 꺾인다. 꺾인 곳의 파란 저그(H04)에서 매치(#6)해야 오른손이 H05로 간다. 탑은 큰 저그.",
+ "order": 0,
+ "platforms": [
+  {
+   "foot_slot_keys": [
+    "G_V3_11/F01/foot_1",
+    "G_V3_11/F02/foot_1"
+   ],
+   "platform_id": "P00",
+   "top_y": 0.1,
+   "x_range": [
+    -0.5,
+    0.6
+   ]
+  }
+ ],
+ "required_techniques": [
+  "T_MATCH"
+ ],
+ "route_id": "G_V3_11",
+ "score_gates": [
+  {
+   "slot": "G_V3_11/H04/hand_1",
+   "technique": "T_MATCH"
+  }
+ ],
+ "start_pose": {
+  "angle": 0.0,
+  "pelvis": [
+   0.05,
+   0.75
+  ],
+  "slots": {
+   "LF": "G_V3_11/F01/foot_1",
+   "LH": "G_V3_11/H01/hand_1",
+   "RF": "G_V3_11/F02/foot_1",
+   "RH": "G_V3_11/H02/hand_1"
+  }
+ },
+ "time_medal_seconds": 120,
+ "validation_status": "Draft",
+ "wall_sections": [
+  {
+   "deg": 10.0,
+   "from_y": 0.0
+  },
+  {
+   "deg": 40.0,
+   "from_y": 1.7
+  }
+ ],
+ "score_ref": {
+  "grabs": 11,
+  "quality": 0.802,
+  "spent_per_m": 46.63
+ }
+}

@@ -25,16 +25,16 @@ func test_angle_at_sections_and_blend() -> void:
 		var a := r.angle_at(1.2 - RouteDef.WALL_BLEND + i * RouteDef.WALL_BLEND * 2.0 / 30.0)
 		runner.check(a >= prev - 1e-6, "경계에서 부드럽게 늘어남 %.2f" % a)
 		prev = a
-	runner.check(is_equal_approx(r.wall_deg, 60.0) and r.wall_desc() == "30° → 60°", "가장 큰 각도 %.0f, 설명 %s" % [r.wall_deg, r.wall_desc()])
+	runner.check(is_equal_approx(r.wall_deg, 60.0) and r.wall_desc() == "150° → 120°", "가장 큰 각도 %.0f, 설명 %s" % [r.wall_deg, r.wall_desc()])
 	var three := _route([{"from_y": 0.0, "deg": 50}, {"from_y": 0.8, "deg": 60}, {"from_y": 1.6, "deg": 30}])
 	runner.check(is_equal_approx(three.angle_at(0.4), 50.0) and is_equal_approx(three.angle_at(1.2), 60.0) and is_equal_approx(three.angle_at(2.2), 30.0), "세 구간 50·60·30")
-	runner.check(three.wall_desc() == "50° → 60° → 30°", "세 구간 설명 %s" % three.wall_desc())
+	runner.check(three.wall_desc() == "130° → 120° → 150°", "세 구간 설명 %s" % three.wall_desc())
 
 
 func test_no_sections_uses_grade_angle() -> void:
 	var r := _route([], "V5")
 	runner.check(is_equal_approx(r.angle_at(0.3), GradeInfo.wall_deg("V5")) and is_equal_approx(r.angle_at(3.0), GradeInfo.wall_deg("V5")), "구간 없으면 등급 각도 하나")
-	runner.check(r.wall_desc() == "%d°" % roundi(GradeInfo.wall_deg("V5")), "설명 %s" % r.wall_desc())
+	runner.check(r.wall_desc() == "%d°" % (180 - roundi(GradeInfo.wall_deg("V5"))), "설명 %s" % r.wall_desc())
 	runner.check(r.wall_sections.is_empty(), "구간 없음")
 
 

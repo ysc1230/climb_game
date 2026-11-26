@@ -511,8 +511,7 @@ func _draw_problem_row(r: Rect2, route: RouteDef) -> void:
 	var ty := r.position.y + 48 * k * s
 	var name := _route_name(route)
 	draw_string(font_b, Vector2(x, ty), name, HORIZONTAL_ALIGNMENT_LEFT, w, int(30 * k), CHALK if lock == "" else DIM)
-	var deg := _wall_deg(route)
-	if deg > 0:  # 꺾이는 벽(docs/57)은 "벽 30°→60°"
+	if route.mode == "general" or not route.wall_sections.is_empty():  # 벽 각도(땅 기준), 꺾이는 벽은 "벽 150° → 120°"
 		_chip(Vector2(x + minf(font_b.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, int(30 * k)).x, w) + 14 * k, ty), "벽 " + route.wall_desc(), CREAM)
 	draw_string(font, Vector2(x, ty + 36 * k * s), "필요 기술 " + _tech_names(route.required_techniques), HORIZONTAL_ALIGNMENT_LEFT, w, int(21 * k), DIM)
 	var my := ty + 78 * k * s
@@ -532,11 +531,6 @@ func _draw_problem_row(r: Rect2, route: RouteDef) -> void:
 		var wr := Rect2(Vector2(b.position.x, b.end.y), Vector2(b.size.x, r.end.y - b.end.y))
 		draw_string(font, Vector2(wr.position.x, wr.end.y - 13 * k), "기록 지우기", HORIZONTAL_ALIGNMENT_CENTER, wr.size.x, int(17 * k), DIM)
 		_buttons.append({"rect": wr, "action": "wipe_ask", "arg": route.route_id})
-
-
-## 이 문제를 오를 때 벽 각도(등급이 정함, GradeInfo.wall_deg).
-func _wall_deg(route: RouteDef) -> int:
-	return int(route.wall_deg)
 
 
 ## 작은 테두리 알약 글자(벽 각도 등). pos.y는 옆 글자의 기준선.
