@@ -6,7 +6,7 @@ var runner
 
 
 func _route(sections: Array, grade := "V5") -> RouteDef:
-	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/routes/general/G_V5_01.json"))
+	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://tests/fixtures/G_V5_01.json"))
 	d.grade = grade
 	if sections.is_empty():
 		d.erase("wall_sections")

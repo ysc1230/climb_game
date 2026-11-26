@@ -268,7 +268,7 @@ func test_no_dyno_to_top_or_last_holds() -> void:
 	_charge(s, Tuning.DYNO_DRAG_MAX)
 	var reach: Array = s.dyno_preview().reach
 	runner.check(not reach.is_empty() and reach.all(func(k): return not banned.has(String(k).get_base_dir())), "탑 전 합손 홀드는 닿고 탑은 없음 %s" % [reach])
-	var v6 := ClimbSession.new(RouteDef.load_json("res://data/routes/general/G_V6_02.json"))
+	var v6 := ClimbSession.new(RouteDef.load_json("res://tests/fixtures/G_V6_02.json"))
 	for i in 60:
 		v6.step()
 	_charge(v6, Tuning.DYNO_DRAG_MAX)

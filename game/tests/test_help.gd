@@ -5,7 +5,7 @@ var runner
 
 
 func _r(id := "G_V3_03") -> RouteDef:
-	return RouteDef.load_json(ContentIndex.route_path(id))
+	return RouteDef.load_json("res://tests/fixtures/%s.json" % id)  # 옛 일반 문제(2026-11-26 게임에서 지움)를 시험용으로
 
 
 func test_common_height_bins() -> void:

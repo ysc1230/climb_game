@@ -57,7 +57,7 @@ func test_stuck_foot_turns_with_knee() -> void:
 
 ## 쪼그린 시작 자세(징검다리): 무릎이 바깥으로 벌어진 발은 발끝도 바깥(예전에는 두 발 모두 벽 정면).
 func test_squat_feet_turn_out() -> void:
-	var s := ClimbSession.new(RouteDef.load_json("res://data/routes/general/G_V0_02.json"))
+	var s := ClimbSession.new(RouteDef.load_json("res://tests/fixtures/G_V0_02.json"))
 	var pose := ClimberPose.new()
 	var t := {}
 	for i in 90:
@@ -137,7 +137,7 @@ func test_foot_twist_within_limit() -> void:
 ## 엉덩이에 0.24m까지 다가와 무릎 자리가 하나도 없었고(가장 나은 굽힘도 위반 1.7), 무릎이 안돌림 한계 너머 −86°로 접혔다.
 ## 판정 다리 길이(엉덩이→홀드 접점, 최소 0.24)는 발 길이를 뺀 발목 자리를 모른다. 발끝은 홀드에 둔 채 뒤꿈치를 돌려 다리가 접힐 자리를 낸다.
 func test_stuck_foot_leg_possible_when_hips_sink() -> void:
-	var r := RouteDef.load_json("res://data/routes/general/G_V0_03.json")
+	var r := RouteDef.load_json("res://tests/fixtures/G_V0_03.json")
 	var s: ClimbSession = SessionBot.run(r, r.steps_raw.slice(0, 4)).session
 	var pose := ClimberPose.new()
 	for key in r.slots:

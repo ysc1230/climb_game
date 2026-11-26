@@ -5,7 +5,7 @@ var runner
 
 
 func _session() -> ClimbSession:
-	return ClimbSession.new(RouteDef.load_json("res://data/routes/general/G_V3_03.json"))
+	return ClimbSession.new(RouteDef.load_json("res://tests/fixtures/G_V3_03.json"))
 
 
 func test_records_ten_per_second() -> void:
@@ -59,7 +59,7 @@ func test_ai_ghost_setting() -> void:
 	runner.check(Progress.DISPLAY_DEFAULTS.has("ai_ghost") and not Progress.new().display_on("ai_ghost"), "AI 고스트 설정 있음, 기본 꺼짐")
 	var rows: Array = preload("res://scenes/home.gd").DISPLAY_ROWS.filter(func(r): return r[0] == "ai_ghost")
 	runner.check(rows.size() == 1 and rows[0][1] == "AI 고스트", "설정 줄 이름 'AI 고스트' %s" % [rows])
-	var g := HelpPicker.demo_track(RouteDef.load_json("res://data/routes/general/G_V3_03.json"))
+	var g := HelpPicker.demo_track(RouteDef.load_json("res://tests/fixtures/G_V3_03.json"))
 	runner.check(g != null and g.duration() > 1.0, "봇 기록으로 AI 고스트를 만듦")
 
 
@@ -72,6 +72,6 @@ func test_stored_ai_ghosts_fresh() -> void:
 			continue
 		var g := HelpPicker.stored_track(r)
 		runner.check(g != null and g.duration() > 1.0, "%s AI 고스트 기록 있음(낡았으면 tools/ai_ghost_write.gd)" % r.route_id)
-	var r0 := RouteDef.load_json("res://data/routes/general/G_V3_03.json")
+	var r0 := RouteDef.load_json("res://tests/fixtures/G_V3_03.json")
 	r0.content_version += 1
 	runner.check(HelpPicker.stored_track(r0) == null, "문제 판이 바뀌면 낡은 기록은 안 씀")

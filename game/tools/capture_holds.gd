@@ -61,7 +61,7 @@ func _process(_d: float) -> bool:
 	if frame == 1:
 		var g = root.get_node_or_null("Game")
 		if g != null:
-			g.current_route_id = "G_V3_03"
+			g.current_route_id = "G_V3_11"
 		play = load("res://scenes/play_3d.tscn").instantiate()
 		root.add_child(play)
 		return false

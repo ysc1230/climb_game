@@ -5,7 +5,7 @@ var runner
 
 
 func _route(gates := true) -> RouteDef:
-	var r := RouteDef.load_json("res://data/routes/general/G_V3_03.json")
+	var r := RouteDef.load_json("res://tests/fixtures/G_V3_03.json")
 	r.score_ref = {"spent_per_m": 10.0, "grabs": 18, "quality": 0.8}
 	r.score_gates = [{"technique": &"T_HIGH_STEP", "slot": "G_V3_03/F07/foot_1"}] if gates else []
 	return r
@@ -142,7 +142,7 @@ func test_helped_flag() -> void:
 
 ## 실제 세션을 읽는 기록기: 손 힘 감소만 더하고 회복은 빼지 않는다.
 func test_recorder_counts_spent_not_recovery() -> void:
-	var s := ClimbSession.new(RouteDef.load_json("res://data/routes/general/G_V3_03.json"))
+	var s := ClimbSession.new(RouteDef.load_json("res://tests/fixtures/G_V3_03.json"))
 	var rec := ScoreRecorder.new()
 	rec.tick(s, "")
 	s.rules.stamina[&"LH"] = float(s.rules.stamina[&"LH"]) - 5.0
@@ -157,7 +157,7 @@ func test_recorder_counts_spent_not_recovery() -> void:
 ## 실제 봇: 정답 순서로 오르면 관문을 맞춘다(V3 세 문제).
 func test_bot_hits_gates() -> void:
 	for id in ["G_V3_02", "G_V3_03", "G_V3_04"]:
-		var r := RouteDef.load_json(ContentIndex.route_path(id))
+		var r := RouteDef.load_json("res://tests/fixtures/%s.json" % id)  # 옛 일반 문제(시험용)
 		var rec := ScoreRecorder.new()
 		var bot := SessionBot.run(r, r.intended_moves, {}, rec)
 		var gates: Array = load("res://tools/score_ref.gd").gates(r)

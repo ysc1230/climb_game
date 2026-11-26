@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""작업 5 새 일반 문제 생성기(docs/superpowers/specs/2026-11-19-5-routes-design.md §5.2).
+"""일반 문제 생성기(docs/superpowers/specs/2026-11-19-5-routes-design.md §5.2). 2026-11-26부터 concept_specs.CONCEPTS를 쓴다
+(옛 route_specs.py 문제는 지움).
 
-문제마다 ROUTES의 짧은 표를 game/data/routes/general/<id>.json으로 쓴다. 기존 파일의 score_ref·score_gates는
+문제마다 짧은 표를 game/data/routes/general/<id>.json으로 쓴다. 기존 파일의 score_ref·score_gates는
 tools/score_ref.gd가 따로 쓰므로 그대로 둔다(덮어쓰지 않음).
 사용: python3 tools/routes/gen_routes.py [route_id ...]
 """
@@ -89,10 +90,10 @@ def build(r):
 
 
 sys.path.insert(0, os.path.dirname(__file__))
-from route_specs import ROUTES  # noqa: E402
 
 if __name__ == "__main__":
+    from concept_specs import CONCEPTS  # noqa: E402
     want = sys.argv[1:]
-    for r in ROUTES:
+    for r in CONCEPTS:
         if not want or r["id"] in want:
             build(r)

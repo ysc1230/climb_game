@@ -29,7 +29,7 @@ func _process(_d: float) -> bool:
 	if frame == 1:
 		var g = root.get_node_or_null("Game")
 		if g != null:
-			g.current_route_id = "G_V2_01"
+			g.current_route_id = "G_V2_11"
 			g.progress.look["body"] = body
 		if OS.get_environment("LODT") != "": root.mesh_lod_threshold = float(OS.get_environment("LODT"))
 		play = load("res://scenes/play_3d.tscn").instantiate()

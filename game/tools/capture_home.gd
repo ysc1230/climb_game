@@ -26,7 +26,7 @@ func _process(_d: float) -> bool:
 		if g.progress.level == "":
 			g.progress.level = "intermediate"
 		g.progress.seen_tips.erase("grade_V0")
-		g.progress.cleared["G_V3_03"] = {"content_version": 2, "no_fall": true, "time": true, "flash": true, "best_score": 87, "best_seconds": 74.2}
+		g.progress.cleared["G_V3_11"] = {"content_version": 2, "no_fall": true, "time": true, "flash": true, "best_score": 87, "best_seconds": 74.2}
 		g.home_focus = {"tab": "general", "grade": "V0"}
 		home = load("res://scenes/home.tscn").instantiate()
 		root.add_child(home)
@@ -37,7 +37,7 @@ func _process(_d: float) -> bool:
 		home.queue_redraw()
 	if frame == 25:
 		_shot("cards")
-		home.wipe_ask = "G_V3_03"
+		home.wipe_ask = "G_V3_11"
 		home.queue_redraw()
 	if frame == 35:
 		_shot("wipe")

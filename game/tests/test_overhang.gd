@@ -5,7 +5,7 @@ var runner
 
 
 func _route(deg: float) -> RouteDef:
-	var r := ContentIndex.load_all().route("G_V0_02")
+	var r := RouteDef.load_json("res://tests/fixtures/G_V0_02.json")
 	r.wall_deg = deg
 	return r
 
@@ -25,7 +25,7 @@ func test_grade_sets_wall_angle() -> void:
 	runner.check(is_equal_approx(r.wall_deg, 30.0), "일반 문제는 등급 각도(JSON 각도는 안 씀) %s" % r.wall_deg)
 	runner.check(is_equal_approx(RouteDef.from_dict({"route_id": "M", "mode": "custom", "grade": "V3"}).wall_deg, 20.0), "만든 문제는 예상 등급 각도")
 	runner.check(RouteDef.from_dict({"route_id": "C", "mode": "course", "grade": "V7"}).wall_deg == 0.0, "수업은 수직")
-	runner.check(ContentIndex.load_all().route("G_V7_01").wall_deg == 40.0, "실제 문제도 등급 각도")
+	runner.check(RouteDef.load_json("res://tests/fixtures/G_V7_01.json").wall_deg == 40.0, "실제 문제도 등급 각도")
 
 
 ## 같은 시작 자세에서 45° 벽은 손이 더 무겁다(시작은 바닥에 서 있어 쉬는 자세라 버틴다).

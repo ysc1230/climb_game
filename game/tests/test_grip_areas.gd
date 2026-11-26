@@ -97,7 +97,7 @@ func test_match_needs_matchable_hold() -> void:
 
 func test_routes_mark_match_holds() -> void:
 	for id in ["G_V3_02"]:  # 2026-11-11 남은 콘텐츠
-		var r := RouteDef.load_json(ContentIndex.route_path(id))
+		var r := RouteDef.load_json("res://tests/fixtures/%s.json" % id)  # 옛 일반 문제(시험용)
 		var n := 0
 		for key in r.slots:
 			if r.slots[key].has("hand_area") and r.slots[key].hand_area.matchable:

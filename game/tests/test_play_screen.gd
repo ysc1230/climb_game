@@ -8,7 +8,7 @@ const PlayTest := preload("res://scenes/play_test.gd")
 
 func _make() -> Node2D:
 	var n: Node2D = PlayTest.new()
-	n.route = RouteDef.load_json("res://data/routes/general/G_V3_03.json")
+	n.route = RouteDef.load_json("res://tests/fixtures/G_V3_03.json")
 	n.session = ClimbSession.new(n.route)
 	return n
 
@@ -211,7 +211,7 @@ func test_demo_open_close() -> void:
 ## 바는 골반이 오른 높이인데, 탑을 잡아도 골반은 목표 높이의 70~85%만 올라 깃발에 못 닿았다(V0 첫 문제 71%).
 func test_bar_reaches_flag_on_top() -> void:
 	var n: Node2D = preload("res://scenes/play_test.gd").new()
-	n.route = RouteDef.load_json("res://data/routes/general/G_V0_02.json")
+	n.route = RouteDef.load_json("res://tests/fixtures/G_V0_02.json")
 	n.session = ClimbSession.new(n.route)
 	runner.check(n._height() < n._goal_height(), "시작에서는 깃발 아래")
 	n.session.halted = &"clear"
@@ -222,12 +222,12 @@ func test_bar_reaches_flag_on_top() -> void:
 ## 위쪽 진행 바 표시(2026-11-24 사용자 "1,6번만"): 벽 경사 구간과 떨어졌던 높이를 바 위치(0~1)로.
 ## 바는 시작 골반에서 목표 높이까지라, 구간 시작 높이·떨어진 골반 높이도 같은 기준으로 바꾼다.
 func test_bar_marks_walls_and_falls() -> void:
-	var r := RouteDef.load_json("res://data/routes/general/G_V5_03.json")  # 30° → 1.5m부터 60°
+	var r := RouteDef.load_json("res://tests/fixtures/G_V5_03.json")  # 30° → 1.5m부터 60°
 	var g: float = PlayTest.goal_height_of(r)
 	var m: Dictionary = PlayTest.bar_marks(r, [r.start_pelvis.y + g * 0.5, r.start_pelvis.y - 1.0, r.start_pelvis.y + g * 2.0])
 	runner.check(m.walls.size() == 2 and m.walls[0] == [0.0, 30] and is_equal_approx(m.walls[1][0], (1.5 - r.start_pelvis.y) / g) and m.walls[1][1] == 60, "구간: 처음 30°, 1.5m부터 60° %s" % [m.walls])
 	runner.check(m.falls.size() == 3 and is_equal_approx(m.falls[0], 0.5) and m.falls[1] == 0.0 and m.falls[2] == 1.0, "떨어진 높이 → 바 위치(0~1로 자름) %s" % [m.falls])
-	var one := RouteDef.load_json("res://data/routes/general/G_V4_02.json")
+	var one := RouteDef.load_json("res://tests/fixtures/G_V4_02.json")
 	runner.check(PlayTest.bar_marks(one, []).walls == [[0.0, roundi(one.wall_deg)]], "구간 없는 기운 벽은 각도 하나")
-	var flat := RouteDef.load_json("res://data/routes/general/G_V0_02.json")
+	var flat := RouteDef.load_json("res://tests/fixtures/G_V0_02.json")
 	runner.check(PlayTest.bar_marks(flat, []).walls.is_empty(), "수직 벽은 경사 표시 없음")

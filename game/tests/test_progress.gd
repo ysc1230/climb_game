@@ -294,7 +294,7 @@ func test_control_settings() -> void:
 
 ## 작업 3 저장(판 2): 시도 통계·플래시·최고 점수·도움·문제 판 바뀜·기록 지우기.
 func _v(id := "G_V3_03") -> RouteDef:
-	return RouteDef.load_json(ContentIndex.route_path(id))
+	return RouteDef.load_json("res://tests/fixtures/%s.json" % id)  # 옛 일반 문제(2026-11-26 게임에서 지움)를 시험용으로
 
 
 func test_flash_and_best_score() -> void:

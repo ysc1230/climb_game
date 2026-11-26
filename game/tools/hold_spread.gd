@@ -1,6 +1,6 @@
 extends SceneTree
 ## 홀드 간격 맞추기(docs/44): 간격 규칙을 어긴 홀드 쌍을 서로 밀어 낸다(정상 슬롯은 고정, 시작 홀드도 민다). 결과를 JSON에 쓴다.
-## 사용: godot --headless --path game --script res://tools/hold_spread.gd -- G_V3_02 (파일을 고쳐 쓴다. 이후 route_check로 재생 확인)
+## 사용: godot --headless --path game --script res://tools/hold_spread.gd -- G_V3_11 (파일을 고쳐 쓴다. 이후 route_check로 재생 확인)
 func _init():
 	for id in OS.get_cmdline_user_args():
 		var path := ContentIndex.route_path(id)

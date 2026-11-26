@@ -191,19 +191,12 @@ func test_courses_json_content() -> void:
 # --- ContentIndex ---
 
 func test_index_real_data() -> void:
-	# 2026-11-11: G_V3_02(B안 몸에 맞춰 다시 배치). 2026-11-14: G_V3_03(더미 몸, 하이스텝. 처음 G_V5_01이었으나 체감으로 V3, docs/41).
+	# 2026-11-26 사용자 "기존문제 다 삭제"(옛 22개, tests/fixtures에 시험용으로 일부 남김): 등급마다 컨셉 문제(G_Vn_11)
 	var idx := ContentIndex.load_all()
-	# 2026-11-21 작업 5: 빈 등급을 채움(등급마다 2개 이상), 실금은 V4로(route_id 그대로).
 	runner.check(idx.grades() == (["V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7"] as Array[String]), "등급 %s" % [idx.grades()])
 	for g in idx.grades():
-		runner.check(idx.general(g).size() >= 2, "%s 문제 2개 이상 (%d)" % [g, idx.general(g).size()])
-	var ids_4 := idx.general("V4").map(func(r): return r.route_id)
-	# experiment/overhang: 45° 지붕(G_V4_02, docs/52)이 V4 끝에 더해짐
-	# 2026-11-26 컨셉 문제(order 0)가 등급마다 맨 앞
-	runner.check(ids_4 == ["G_V4_11", "G_V8_01", "G_V4_01", "G_V4_02"], "V4: 컨셉 문제, 실금(order 1) 순 %s" % [ids_4])
-	var ids_g := idx.general("V3").map(func(r): return r.route_id)
-	runner.check(ids_g == ["G_V3_11", "G_V3_02", "G_V3_03", "G_V3_04"], "V3 문제 %s" % [ids_g])
-	runner.check(idx.route("G_V3_02") != null and idx.route("NOPE") == null, "route 조회")
+		runner.check(idx.general(g).size() >= 1 and idx.general(g)[0].route_id == "G_%s_11" % g, "%s 첫 문제는 컨셉 문제 %s" % [g, idx.general(g).map(func(r): return r.route_id)])
+	runner.check(idx.route("G_V3_11") != null and idx.route("G_V3_02") == null and idx.route("NOPE") == null, "route 조회(옛 문제는 없음)")
 	runner.check(idx.general("V9").is_empty(), "없는 등급 빈 배열")
 	runner.check(idx.courses().size() == 10 and idx.course("C_NOPE").is_empty() and idx.route("C_BASIC_T") != null, "수업 10개(기본 4 + 기술 6)")
 	runner.check(idx.errors.is_empty(), "색인 오류 없음 %s" % [idx.errors])
@@ -216,7 +209,7 @@ func test_hold_spacing() -> void:
 		if r.mode == "general":
 			var v := HoldSpacing.violations(r)
 			runner.check(v.is_empty(), "%s 홀드 간격 %s" % [r.route_id, v])
-	var g := RouteDef.load_json(ContentIndex.route_path("G_V0_02"))
+	var g := RouteDef.load_json("res://tests/fixtures/G_V0_02.json")
 	var e := HoldSpacing.ellipse(g, "G_V0_02/H01/hand_1")
 	runner.check(absf(HoldSpacing.radius(e, Vector2.RIGHT) - float(e.a)) < 1e-6 and absf(HoldSpacing.radius(e, Vector2.UP) - float(e.b)) < 1e-6, "타원 반지름 %s" % [e])
 
@@ -224,7 +217,7 @@ func test_hold_spacing() -> void:
 ## 배치 수치(docs/41 §5 도구 A): 정상 제외, 손홀드도 발 디딜 곳으로 센다.
 func test_placement_metrics() -> void:
 	# 2026-11-22 오버행 앱에서 G_V3_03을 손 5·발 4로 다시 배치(docs/52 §9)
-	var m := PlacementMetrics.measure(RouteDef.load_json(ContentIndex.route_path("G_V3_03")))
+	var m := PlacementMetrics.measure(RouteDef.load_json("res://tests/fixtures/G_V3_03.json"))
 	runner.check(m.hand_holds == 5 and m.foot_only == 4 and m.foot_places == 9 and m.unused == 0, "홀드 수 %s" % [m])
 	runner.check(is_equal_approx(m.height, 3.1) and absf(m.hand_per_m - 5 / 3.1) < 0.001, "높이·밀도 %s" % [m])
 	runner.check(PlacementMetrics.low_feet_moves(["LF a 성공 하중발=[&\"RF\"] x", "RH b 성공 하중발=[&\"LF\", &\"RF\"] x", "완등"]) == ([1, 2] as Array[int]), "한 발 이동 세기")

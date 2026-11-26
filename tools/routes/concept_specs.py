@@ -2,9 +2,13 @@
 벽 각도가 계속 바뀌어도돼. 컨셉을 잡고 한번 만들어보자 우선 난이도별 하나씩 만들어").
 등급마다 하나(order 0, 그 등급 목록 맨 앞). 벽 각도는 등급이 아니라 문제가 정한다(walls: (from_y m, 오버행 deg), − = 뒤로 누운 벽).
 탑은 하나(top, 합손 칸). 좌표는 m(x 오른쪽, y 위). 시작 발판 F01·F02는 바닥 받침(y 0.1).
-concept_routes.py가 읽어 game/data/routes/general/<id>.json으로 쓴다(gen_routes.build). route_specs.py의 옛 문제는 손대지 않는다.
+gen_routes.py가 읽어 game/data/routes/general/<id>.json으로 쓴다. 옛 문제(route_specs.py)는 2026-11-26 지웠다(사용자 "기존문제 다 삭제").
 """
-from route_specs import H
+
+
+def H(hid, t, size, x, y, rot=0, allowed=None, matchable=False):
+    return {"hid": hid, "t": t, "size": size, "x": x, "y": y, "rot": rot, "allowed": allowed, "matchable": matchable}
+
 
 
 def TOP(t, size, x, y, rot=0):

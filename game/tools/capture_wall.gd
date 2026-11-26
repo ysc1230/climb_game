@@ -7,7 +7,7 @@ extends SceneTree
 var play: Node
 var frame := 0
 var out := "user://wall.png"
-var route_id := "G_V3_03"
+var route_id := "G_V3_11"
 var gray := false
 var cam_y := NAN
 var args_tags := false

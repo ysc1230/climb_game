@@ -14,7 +14,7 @@ var rig := RigPose.new()
 func _initialize() -> void:
 	var args := OS.get_cmdline_user_args()
 	var body := args[0] if args.size() > 0 else "female"
-	var ids: Array = args.slice(1) if args.size() > 1 else ["G_V0_02", "G_V2_01", "G_V3_02", "C_BODY_T"]
+	var ids: Array = args.slice(1) if args.size() > 1 else ["G_V0_11", "G_V2_11", "G_V3_11", "C_BODY_T"]
 	_setup_rig(body)
 	var idx := ContentIndex.load_all()
 	for id in ids:

@@ -3,7 +3,7 @@ extends RefCounted
 ## 정상(goal) 홀드는 절대 고르지 않는다.
 
 var runner
-const ROUTES := ["res://tests/fixtures/G_V0_01.json", "res://data/routes/general/G_V3_02.json"]  # 2026-11-11 콘텐츠를 지우고 B안 몸으로 바꿈
+const ROUTES := ["res://tests/fixtures/G_V0_01.json", "res://tests/fixtures/G_V3_02.json"]  # 2026-11-11 콘텐츠를 지우고 B안 몸으로 바꿈
 const DROPS := [[&"LH", &"LF"], [&"RF", &"RH"], [&"LH", &"RH", &"LF"], [&"RH"]]
 
 

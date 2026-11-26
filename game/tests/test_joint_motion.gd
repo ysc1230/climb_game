@@ -27,7 +27,7 @@ func _drop(route_id: String, limb: StringName, offset: Vector2) -> Dictionary:
 	rig._last.clear()
 	rig._twist_state.clear()
 	rig._palm_deg.clear()
-	var s := ClimbSession.new(ContentIndex.load_all().route(route_id))
+	var s := ClimbSession.new(RouteDef.load_json("res://tests/fixtures/%s.json" % route_id))
 	var pose := ClimberPose.new()
 	var chk := RigCheck.new()
 	var curl := {"L": 1.0, "R": 1.0}
@@ -94,7 +94,7 @@ func _fall(route_id: String) -> Dictionary:
 	var rig := _model_rig()
 	rig._twist_state.clear()
 	rig._palm_deg.clear()
-	var s := ClimbSession.new(ContentIndex.load_all().route(route_id))
+	var s := ClimbSession.new(RouteDef.load_json("res://tests/fixtures/%s.json" % route_id))
 	var pose := ClimberPose.new()
 	var last := {}
 	for i in 400:

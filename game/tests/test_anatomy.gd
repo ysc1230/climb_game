@@ -3,7 +3,7 @@ extends RefCounted
 ## 실제 세션 무작위 조작 스윕(AnatomySweep)에서 IK가 고를 수 있었는데 불가능한 자세를 보이지 않는지.
 
 var runner
-const ROUTES := ["res://tests/fixtures/G_V0_01.json", "res://data/routes/general/G_V3_02.json"]
+const ROUTES := ["res://tests/fixtures/G_V0_01.json", "res://tests/fixtures/G_V3_02.json"]
 
 const F := Basis.IDENTITY  # 몸 기준 축 = 월드(기울기·yaw 0)
 
@@ -88,7 +88,7 @@ func test_start_poses_clean() -> void:
 ## V3-4 높은 디딤(2026-11-21 사용자 화면): 네 손발을 잡은 채 몸을 왼쪽 위로 끌었다가 오른쪽으로 옮기면 왼팔이 펴져
 ## 골반이 벽에 붙고, 많이 굽은 오른팔 팔꿈치가 들렸다가 벽을 뚫고 가슴 앞 안쪽으로 접혔다. 팔꿈치는 벽 밖에 있어야 한다.
 func test_bent_arm_shift_keeps_elbow_out_of_wall() -> void:
-	var s := ClimbSession.new(ContentIndex.load_all().route("G_V3_04"))
+	var s := ClimbSession.new(RouteDef.load_json("res://tests/fixtures/G_V3_04.json"))
 	var pose := ClimberPose.new()
 	for i in 30:
 		s.step()
@@ -117,7 +117,7 @@ func test_sweep_regression() -> void:
 	var forced := 0
 	var flips := 0
 	# 2026-11-11: 콘텐츠를 지우고 B안 몸으로 바꿈 → 테스트용 사다리 + 남은 문제 G_V3_02.
-	for path in ["res://tests/fixtures/G_V0_01.json", "res://data/routes/general/G_V3_02.json"]:
+	for path in ["res://tests/fixtures/G_V0_01.json", "res://tests/fixtures/G_V3_02.json"]:
 		var sw := AnatomySweep.run(RouteDef.load_json(path), 600, 11)
 		poses += sw.poses
 		all += sw.total()

@@ -1,5 +1,5 @@
 extends SceneTree
-## 쉬운 길 탐색(docs/41 §5 도구 B). 사용: godot --headless --path game --script res://tools/easy_path.gd -- G_V3_03
+## 쉬운 길 탐색(docs/41 §5 도구 B). 사용: godot --headless --path game --script res://tools/easy_path.gd -- G_V3_11
 ## 인자가 없으면 모든 문제. 찾은 길, 재생 측정값, 그 길에서 금지하면 막히는 기술을 출력한다.
 
 const FORBIDS := {&"cross": "크로스", &"match": "매치", &"high_step": "하이스텝"}

@@ -5,7 +5,7 @@ var runner
 
 
 func _route() -> RouteDef:
-	return RouteDef.load_json("res://data/routes/general/G_V3_04.json")
+	return RouteDef.load_json("res://tests/fixtures/G_V3_04.json")
 
 
 func test_gate_steps_from_score_gates() -> void:
