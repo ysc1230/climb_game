@@ -62,6 +62,8 @@ var _bot_ok := -1          # 봇 검사 결과: -1 모름, 0 못 찾음, 1 찾�
 var share_open := false   # 저장·공유 창
 var share_busy := false
 var share_code := ""
+var tut: EditorTutorial     # 만들기 튜토리얼(따라 하기, 2026-11-26). null이면 꺼짐
+var _tut_rect := Rect2()   # 안내 카드(누르면 벽으로 가지 않음)
 
 
 func _ready() -> void:
@@ -79,6 +81,8 @@ func _ready() -> void:
 			game.editing_route_id = draft.route_id
 	elif game != null and (game.progress.cleared.has(draft.route_id) or game.get_flow().is_published(draft.route_id)):
 		draft.freeze()  # 완등·올린 판을 고치면 새 판(§3)
+	if game != null and draft.holds.is_empty() and not game.progress.tutorial_done(EditorTutorial.ID):
+		tut = EditorTutorial.new()  # 처음 새 문제를 열 때 한 번 저절로
 	_name_edit = LineEdit.new()
 	_name_edit.placeholder_text = "문제 이름"
 	_name_edit.max_length = RouteDraft.NAME_MAX
@@ -128,6 +132,10 @@ func _process(delta: float) -> void:
 		_wall_dirty = false
 		_rebuild_ms = Time.get_ticks_msec()
 		view.rebuild(draft)
+	if tut != null and tut.update(draft, _problems, delta) == "done":
+		_tut_end()
+		_say("다 됐어요! [올라 보기]로 직접 올라 보세요. 벽 각도 도구로 벽을 기울일 수도 있어요")
+		_message_t = 7.0
 	if _message_t > 0.0:
 		_message_t -= delta
 		if _message_t <= 0.0:
@@ -228,7 +236,7 @@ func _pinch_mid() -> Vector2:
 
 func _down(pos: Vector2) -> void:
 	_press = {}
-	if share_open or check_open or _hit_button(pos) >= 0 or view == null:
+	if share_open or check_open or _hit_button(pos) >= 0 or view == null or (tut != null and _tut_rect.has_point(pos)):
 		return
 	if _scroll_rect().has_point(pos):
 		_press = {"kind": "scroll"}
@@ -295,6 +303,7 @@ func _up(pos: Vector2) -> void:
 			_preview = {}
 			if off.length() >= 0.005:
 				draft.move(h.id, h.x + off.x, h.y + off.y)
+				_tut_note("move")
 			_changed()
 		queue_redraw()
 		return
@@ -353,6 +362,7 @@ func _dial_end() -> void:
 	_preview = {}
 	if int(p.rot) != 0:
 		draft.rotate(p.id, int(p.rot))
+		_tut_note("rotate")
 	_changed()
 
 
@@ -367,6 +377,7 @@ func _tap_wall(w: Vector2, hit: String) -> void:
 					_say("홀드는 %d개까지 놓을 수 있어요" % RouteDraft.MAX_HOLDS)
 				else:
 					selected = id
+					_tut_note("place_" + ("goal" if sel_type == "goal" else ("foot" if HoldTypes.is_foot(sel_type) else "hand")))
 					_changed()
 		"wall":
 			sel_wall = clampi(floori(w.y), 0, int(draft.max_y()))
@@ -437,7 +448,13 @@ func _do(action: String, arg: String) -> void:
 			_changed()
 		"rot":
 			draft.rotate(selected, int(arg))
+			_tut_note("rotate")
 			_changed()
+		"tut":  # [만드는 법]: 켜기 / 끄기(카드의 [끄기]도 같음)
+			if tut == null:
+				tut = EditorTutorial.new()
+			else:
+				_tut_end()
 		"wdeg":  # 화면 각도(180 − 오버행)로 더하기
 			draft.set_wall(sel_wall, draft.wall_deg_at(sel_wall) - int(arg))
 			_changed()
@@ -629,6 +646,7 @@ func _draw() -> void:
 	_button(Rect2(Vector2(gx, 10 * k), Vector2(48, 52) * k), "◀", "grade", "-1")
 	_text_c(Rect2(Vector2(gx + 48 * k, 10 * k), Vector2(110, 52) * k), "예상 " + draft.grade, 22, CHALK)
 	_button(Rect2(Vector2(gx + 158 * k, 10 * k), Vector2(48, 52) * k), "▶", "grade", "1")
+	_button(Rect2(Vector2(gx + 226 * k, 10 * k), Vector2(140, 52) * k), "만드는 법", "tut", "", 20, false)
 	var x := size.x - 10 * k
 	for b in [["저장", "save", 120], ["봇 검사", "bot", 130], ["올라 보기", "climb", 150], ["되돌리기", "undo", 130]]:
 		x -= b[2] * k
@@ -646,13 +664,16 @@ func _draw() -> void:
 	var nw := _warn.size() + (1 if _bot_ok == 0 else 0)
 	_button(Rect2(Vector2(size.x - 330 * k, size.y - 42 * k), Vector2(320, 40) * k), "점검 · 막는 것 %d · 주의 %d" % [_problems.size(), nw], "check_open", "", 18,
 		not _problems.is_empty() or nw > 0)
+	if tut != null:
+		_draw_tutorial()
 	if share_open:
 		_draw_share(size)
 	if check_open:
 		_draw_check(size)
 	if message != "":
 		var tw := font_b.get_string_size(message, HORIZONTAL_ALIGNMENT_LEFT, -1, int(22 * k)).x + 56 * k
-		var r := Rect2(Vector2(size.x * 0.5 - tw * 0.5, 90 * k), Vector2(tw, 54 * k))
+		var my := _tut_rect.end.y + 10 * k if tut != null else 90 * k
+		var r := Rect2(Vector2(size.x * 0.5 - tw * 0.5, my), Vector2(tw, 54 * k))
 		draw_style_box(_box(Color(NIGHT, 0.94), r.size.y * 0.5, Color(CHALK, 0.24), 1.5), r)
 		draw_string(font_b, Vector2(r.position.x, _baseline(r, 22, font_b)), message, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(22 * k), CHALK)
 
@@ -913,6 +934,57 @@ func _button(r: Rect2, text: String, action: String, arg: String, fs := 22, stro
 		var f: Font = font_b if strong else font_m
 		draw_string(f, Vector2(r.position.x, _baseline(r, fs, f)), text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(fs * k), NIGHT if strong else CHALK)
 	_buttons.append({"rect": r, "action": action, "arg": arg})
+	if tut != null and tut.target() == [action, arg]:
+		_ring(r)
+
+
+# ---------- 만들기 튜토리얼 ----------
+
+
+func _tut_note(ev: String) -> void:
+	if tut != null:
+		tut.note(ev)
+
+
+## 끝내거나 끄면 다시 저절로 열리지 않게 기록한다([만드는 법]으로 다시 볼 수 있음).
+func _tut_end() -> void:
+	tut = null
+	if game != null and not game.progress.tutorial_done(EditorTutorial.ID):
+		game.progress.record_tutorial(EditorTutorial.ID)
+		SaveStore.save(game.progress, game.get_flow().save_path)
+
+
+## 안내 카드(플레이 튜토리얼 카드와 같은 모양): 벽 위 가운데에 단계 칩·할 일·도움말(15초 진행 없을 때)·[끄기].
+func _draw_tutorial() -> void:
+	var wr := _wall_rect()
+	var w := minf(wr.size.x - 24 * k, 860 * k)
+	var bw := 96 * k
+	var tx := 92 * k
+	var tw := w - tx - bw - 26 * k
+	var text := str(tut.current().text)
+	var help := tut.help_text()
+	var th := font_b.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, tw, int(21 * k)).y
+	var hh := font.get_multiline_string_size(help, HORIZONTAL_ALIGNMENT_LEFT, tw, int(18 * k)).y + 8 * k if help != "" else 0.0
+	var r := Rect2(Vector2(wr.get_center().x - w * 0.5, 84 * k), Vector2(w, maxf(th + hh + 28 * k, 64 * k)))
+	_tut_rect = r
+	draw_style_box(_box(Color(NIGHT, 0.95), 18 * k, Color(SHOE, 0.55), 2.0), r)
+	var chip := Rect2(r.position + Vector2(14, 14) * k, Vector2(64, 36) * k)
+	draw_style_box(_box(SHOE, chip.size.y * 0.5), chip)
+	draw_string(font_b, Vector2(chip.position.x, _baseline(chip, 20, font_b)), "%d/%d" % [tut.index + 1, tut.steps.size()], HORIZONTAL_ALIGNMENT_CENTER, chip.size.x, int(20 * k), NIGHT)
+	var y := r.position.y + 14 * k + font_b.get_ascent(int(21 * k))
+	draw_multiline_string(font_b, Vector2(r.position.x + tx, y), text, HORIZONTAL_ALIGNMENT_LEFT, tw, int(21 * k), -1, CHALK)
+	if help != "":
+		draw_multiline_string(font, Vector2(r.position.x + tx, y + th + 8 * k), help, HORIZONTAL_ALIGNMENT_LEFT, tw, int(18 * k), -1, CREAM)
+	if tut.target() == ["name", ""]:
+		_ring(Rect2(_name_edit.position, _name_edit.size))
+	_button(Rect2(Vector2(r.end.x - bw - 12 * k, r.position.y + 12 * k), Vector2(bw, 40 * k)), "끄기", "tut", "", 18)
+
+
+## 튜토리얼이 가리키는 곳: 깜빡이는 노란 고리(밝기는 0.1 단위라 모양 캐시가 커지지 않음).
+func _ring(r: Rect2) -> void:
+	var a := snappedf(0.7 + 0.3 * sin(Time.get_ticks_msec() * 0.006), 0.1)
+	var g := r.grow(5 * k)
+	draw_style_box(_box(Color(0, 0, 0, 0), minf(g.size.y * 0.5, 26 * k), Color(SHOE, a), 3.0), g)
 
 
 func _exit_tree() -> void:
