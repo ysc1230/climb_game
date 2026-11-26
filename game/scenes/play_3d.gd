@@ -769,10 +769,11 @@ static func climber_to_char(t: Dictionary, f: WallProfile, held: Dictionary) -> 
 		if not (t.has(ks[0]) and t.has(ks[1]) and t.has(ks[2])):
 			continue
 		var target: Vector3 = fi * f.point(t[ks[2]])
-		if target.distance_to(out[ks[2]]) < 0.001:
-			continue
 		var l1: float = (t[ks[1]] as Vector3).distance_to(t[ks[0]])
 		var l2: float = (t[ks[2]] as Vector3).distance_to(t[ks[1]])
+		if target.distance_to(out[ks[2]]) < 0.001:  # 이미 제자리: 팔꿈치·무릎이 벽에 들어갔으면만 돌린다(판정 자세에서도 생김)
+			out[ks[1]] = _clear_mid(f, fi, out[ks[0]], target, out[ks[1]], l1, l2, (t[ks[1]] as Vector3).y)
+			continue
 		var root: Vector3 = out[ks[0]]
 		var old_dir: Vector3 = ((out[ks[2]] as Vector3) - (out[ks[1]] as Vector3)).normalized()
 		var to := target - root
@@ -783,13 +784,79 @@ static func climber_to_char(t: Dictionary, f: WallProfile, held: Dictionary) -> 
 			to = target - root
 		if to.length() > l1 + l2 - 0.001:  # 그래도 닿지 않으면 팔·다리를 다 편 끝(홀드 조금 앞)
 			target = root + to.normalized() * (l1 + l2 - 0.001)
-		var mid := LimbIK.two_bone(root, target, out[ks[1]], l1, l2)
+		var mid := _clear_mid(f, fi, root, target, out[ks[1]], l1, l2, (t[ks[1]] as Vector3).y)
 		var new_dir: Vector3 = (target - mid).normalized()
 		if out.has(ks[3]) and old_dir.length() > 0.5 and new_dir.length() > 0.5:
 			out[ks[3]] = target + Quaternion(old_dir, new_dir) * ((out[ks[3]] as Vector3) - (out[ks[2]] as Vector3))
 		out[ks[1]] = mid
 		out[ks[2]] = target
+	# 떠 있는 손발(뻗는 중·딛지 않은 발)도 그 높이의 접힌 벽면에서 판정 깊이만큼 떨어진 곳에 둔다. 통째로 돌리기만 하면
+	# 위로 기운 벽에서 손이 벽 속으로 들어갔다(2026-11-27 사용자 "벽 각도에 맞춰서 벽과 특정 거리를 두고 손을 뻗도록").
+	for limb in PoseSolver.LIMBS:
+		if held.get(limb, false):
+			continue
+		var ks: Array = LIMB_KEYS[limb]
+		if not (t.has(ks[0]) and t.has(ks[1]) and t.has(ks[2])):
+			continue
+		var l1: float = (t[ks[1]] as Vector3).distance_to(t[ks[0]])
+		var l2: float = (t[ks[2]] as Vector3).distance_to(t[ks[1]])
+		var root: Vector3 = out[ks[0]]
+		var target: Vector3 = fi * f.point(t[ks[2]])
+		var to := target - root
+		if to.length() > l1 + l2 - 0.001:
+			target = root + to.normalized() * (l1 + l2 - 0.001)
+		out[ks[1]] = _clear_mid(f, fi, root, target, out[ks[1]], l1, l2, (t[ks[1]] as Vector3).y)
+		out[ks[2]] = target
+		if t.has(ks[3]):  # 손끝·발끝도 접힌 벽을 따라 같은 쪽으로(길이 그대로)
+			var dir: Vector3 = fi * f.point(t[ks[3]]) - fi * f.point(t[ks[2]])
+			if dir.length() > 0.001:
+				out[ks[3]] = target + dir.normalized() * (t[ks[3]] as Vector3).distance_to(t[ks[2]])
 	return out
+
+
+const MID_CLEAR := 0.04        # 팔꿈치·무릎이 벽면에서 떨어져야 하는 거리(m). 이보다 가까우면 IK 방향을 돌린다
+
+
+## 두 마디 IK의 가운데 관절(캐릭터 틀). 원래 방향(pole)의 관절이 벽면에 MID_CLEAR보다 가까우면(위로 기운 벽·천장),
+## 뼈 축을 돌며 8방향을 보고 벽에서 떨어진 것 중 원래 방향에 가장 가까운 것(없으면 가장 먼 것). s: 그 관절의 판정 높이.
+static func _clear_mid(f: WallProfile, fi: Transform3D, root: Vector3, target: Vector3, pole: Vector3, l1: float, l2: float, s: float) -> Vector3:
+	var fr := fi.affine_inverse()
+	var mid := LimbIK.two_bone(root, target, pole, l1, l2)
+	var d0 := _surface_dist(f, fr * mid, s)
+	if d0 >= MID_CLEAR:
+		return mid
+	var axis := (target - root).normalized()
+	var u := axis.cross(Vector3.RIGHT if absf(axis.x) < 0.9 else Vector3.UP).normalized()
+	var v := axis.cross(u)
+	var c := (root + target) * 0.5
+	var want := (mid - c).normalized()
+	var best := mid
+	var best_d := d0
+	var best_dot := -INF
+	for i in 8:
+		var a := TAU * i / 8.0
+		var m := LimbIK.two_bone(root, target, c + (u * cos(a) + v * sin(a)), l1, l2)
+		var d := _surface_dist(f, fr * m, s)
+		var dot := (m - c).normalized().dot(want)
+		if (d >= MID_CLEAR and (best_d < MID_CLEAR or dot > best_dot)) or (best_d < MID_CLEAR and d > best_d):
+			best = m
+			best_d = d
+			best_dot = dot
+	return best
+
+
+## 월드 점 w가 접힌 벽면 앞(+)·뒤(−)로 떨어진 거리(m): 판정 높이 s ±0.6m 벽면 선을 2cm마다 훑어 가장 가까운 곳의 법선 쪽.
+static func _surface_dist(f: WallProfile, w: Vector3, s: float) -> float:
+	var best := INF
+	var signed := 0.0
+	for i in 61:
+		var si := s - 0.6 + 0.02 * i
+		var p := f.point(Vector3(w.x, si, 0.0))
+		var dd := Vector2(w.y - p.y, w.z - p.z).length_squared()
+		if dd < best:
+			best = dd
+			signed = (w - p).dot(f.basis_at(si) * Vector3(0, 0, 1))
+	return signed
 
 
 const PART_LEAN_EXTRA := 0.5   # 벽 방향 범위 밖으로 더 기울여 보는 각(라디안, 약 29°)

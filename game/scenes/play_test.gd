@@ -1315,7 +1315,10 @@ static func bar_marks(r: RouteDef, fall_heights: Array) -> Dictionary:
 	if not r.wall_sections.is_empty():
 		for i in r.wall_sections.size():
 			var w: Dictionary = r.wall_sections[i]
-			walls.append([0.0 if i == 0 else frac.call(float(w.from_y)), roundi(float(w.deg))])
+			var at: float = 0.0 if i == 0 else frac.call(float(w.from_y))
+			if at <= 0.0 and not walls.is_empty():
+				walls.pop_back()  # 시작 높이 아래에서 이미 지난 구간: 시작 높이의 구간이 바 맨 앞 각도(겹쳐 글자가 숨지 않게)
+			walls.append([at, roundi(float(w.deg))])
 	elif r.wall_deg > 0.0:
 		walls.append([0.0, roundi(r.wall_deg)])
 	return {"walls": walls, "falls": fall_heights.map(func(h): return frac.call(float(h)))}

@@ -139,7 +139,7 @@ func _on_platform() -> bool:
 
 
 func _tick() -> bool:
-	ClimbRules.wall_deg = route.angle_at(body.pos.y)  # 꺾이는 벽(docs/57)은 골반 높이의 각도
+	ClimbRules.wall_deg = route.body_angle(body.pos.y)  # 꺾이는 벽(docs/57)은 골반 높이(가슴이 누운 벽이면 그쪽)의 각도
 	ticks += 1
 	var outcome := rules.tick(body, attached, endpoints, _on_platform(), moving, intents, hints)
 	phase_ticks[rules.phase_name()] += 1

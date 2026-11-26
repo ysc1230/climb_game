@@ -175,9 +175,13 @@ func evaluate(pelvis: Vector2, angle_deg: float, attached: Dictionary, endpoints
 	var com := SupportSolver.com_proxy(pelvis, angle_deg, eps, yaw_deg)
 	var contacts := contacts_for(pelvis, angle_deg, attached, feet, yaw_deg)
 	var th := deg_to_rad(clampf(wall_deg, -90.0, 90.0))  # 뒤로 누운 벽(−): 벽면 안 무게가 줄고 벽 밖으로 빠지지 않는다. −90 넘게(화면 270°~300°) 꺾여도 누운 벽과 같다
-	var r := SupportSolver.solve(contacts, com, cos(th), sin(th))
+	var r := SupportSolver.solve(contacts, com, in_plane_load(), sin(th))
 	r["com"] = com
-	r["barn"] = SupportSolver.barn_door(contacts, r.loads, com, contact_meta, cos(th)) if r.status == SupportSolver.Status.FEASIBLE else SupportSolver.barn_door_none()
+	# 기운 벽은 벽 밖으로 빠지는 힘에 버티는 힘(용량)이 준다. 누운 벽은 벽면 안 무게가 cos로 줄어 몸을 돌리는 힘(τ)이 줄고,
+	# 벽을 누르는 무게(sin)만큼 마찰로 버티는 힘이 는다(2026-11-27 고침: 누운 벽도 용량을 cos로 줄여 늘 "문처럼 돌아가요"였다)
+	var cap := cos(th) if th > 0.0 else 1.0 + Tuning.BARN_SLAB_PRESS * sin(-th)
+	var tau := 1.0 if th > 0.0 else cos(th)
+	r["barn"] = SupportSolver.barn_door(contacts, r.loads, com, contact_meta, cap, tau) if r.status == SupportSolver.Status.FEASIBLE else SupportSolver.barn_door_none()
 	return r
 
 
@@ -195,15 +199,16 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 		if intents.has(foot) and not all_hints.has(foot):
 			all_hints[foot] = MoveClassifier.FLAG
 	moves.update(body.pos, body.angle, attached, intents, endpoints, all_hints, body.yaw)
-	# 두 손이 모두 떨어지면 유예·경고 없이 그 틱에 떨어진다(2026-11-20 사용자: "경고 없이 무조건").
-	if no_hands(attached):
+	var rest := resting_on_wall()
+	# 두 손이 모두 떨어지면 유예·경고 없이 그 틱에 떨어진다(2026-11-20 사용자: "경고 없이 무조건"). 누운 벽에 기대 있으면 안 떨어진다
+	if no_hands(attached) and not rest:
 		phase = Phase.GRACE
 		imbalance_cause = &""
 		unsupported_ticks = maxi(unsupported_ticks + 1, 1)
 		return "NO_SUPPORT"
 	var has_hand := _eligible_hand_count(body.pos, body.angle, attached, body.yaw) > 0
 	var result: Dictionary
-	if has_hand or platform_holds(platform, attached):
+	if has_hand or platform_holds(platform, attached) or rest:
 		unsupported_ticks = 0
 		_ctx_attached = attached
 		_ctx_endpoints = endpoints
@@ -229,6 +234,8 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 		if result.status == SupportSolver.Status.UNRESOLVED:
 			return "UNRESOLVED"
 		_apply_phase(result)
+		if rest:
+			_rest_phase()
 	else:
 		unsupported_ticks += 1
 		result = {"status": SupportSolver.Status.INFEASIBLE, "loads": {}, "u": {}, "residual": INF}
@@ -243,12 +250,12 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 		var remain := attached.duplicate()
 		for hand in slipped:
 			remain.erase(hand)
-		if no_hands(remain):  # 마지막 손이 미끄러지면 바로 떨어진다
+		if no_hands(remain) and not rest:  # 마지막 손이 미끄러지면 바로 떨어진다
 			phase = Phase.GRACE
 			imbalance_cause = &""
 			last = {"status": SupportSolver.Status.INFEASIBLE, "loads": {}, "u": {}, "residual": INF}
 			return "NO_SUPPORT"
-		if _eligible_hand_count(body.pos, body.angle, remain, body.yaw) == 0 and not platform_holds(platform, remain):
+		if _eligible_hand_count(body.pos, body.angle, remain, body.yaw) == 0 and not platform_holds(platform, remain) and not rest:
 			if phase != Phase.GRACE:
 				unsupported_ticks += 1
 			phase = Phase.GRACE
@@ -259,6 +266,8 @@ func tick(body: BodyState, attached: Dictionary, endpoints: Dictionary, platform
 			if result.status == SupportSolver.Status.UNRESOLVED:
 				return "UNRESOLVED"
 			_apply_phase(result)
+			if rest:
+				_rest_phase()
 		loaded_feet = _loaded_from(result, loaded_feet)
 		last = result
 	# 무지지·불균형 카운터(docs/04 §4 정확한 카운터 정의)
@@ -402,6 +411,25 @@ static func apply_level(r: ClimbRules, level: String) -> void:
 ## 않은데 떨어지지 않는다"). 두 손을 모두 놓으면 바닥 발판 위에서도 지지 없음(GRACE) → 떨어진다.
 static func platform_holds(platform: bool, attached: Dictionary) -> bool:
 	return platform and (attached.has(PoseSolver.LH) or attached.has(PoseSolver.RH))
+
+
+## 벽면 안으로 끌어내리는 무게(체중 비율): 수직·기운 벽은 cos, 누운 벽은 cos − 마찰 × sin(무게가 벽을 눌러 붙잡힘), 0 이상.
+static func in_plane_load() -> float:
+	var th := deg_to_rad(clampf(wall_deg, -90.0, 90.0))
+	return cos(th) if th >= 0.0 else maxf(0.0, cos(th) - Tuning.SLAB_FRICTION * sin(-th))
+
+
+## 누운 벽에 기대 붙잡히는가(끌어내리는 무게가 SLAB_REST_LOAD 이하): 손을 다 떼도, 균형을 잃어도 떨어지지 않는다.
+static func resting_on_wall() -> bool:
+	return in_plane_load() <= Tuning.SLAB_REST_LOAD
+
+
+## 벽에 기대 있으면 위험 상태가 아니다(예산·원인 지움).
+func _rest_phase() -> void:
+	phase = Phase.STABLE
+	imbalance_cause = &""
+	imbalance_ticks = 0
+	unsupported_ticks = 0
 
 
 ## 붙은 손이 하나도 없는가(Attached·Armed 손 없음). 이때는 바로 떨어진다.

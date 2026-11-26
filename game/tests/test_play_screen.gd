@@ -231,3 +231,21 @@ func test_bar_marks_walls_and_falls() -> void:
 	runner.check(PlayTest.bar_marks(one, []).walls == [[0.0, roundi(one.wall_deg)]], "구간 없는 기운 벽은 각도 하나")
 	var flat := RouteDef.load_json("res://tests/fixtures/G_V0_02.json")
 	runner.check(PlayTest.bar_marks(flat, []).walls.is_empty(), "수직 벽은 경사 표시 없음")
+
+
+## 시작 골반보다 아래에서 시작하는 구간은 바 맨 앞에 겹쳐 그 각도 글자가 숨었다(2026-11-27 사용자 화면: 180°만 보이고 누운 턱은 안 보임).
+## 시작 높이에서 이미 지난 구간은 빼고, 시작 높이의 구간이 바 맨 앞 각도다.
+func test_bar_marks_skip_sections_below_start() -> void:
+	var d := RouteDraft.new()
+	d.route_id = "U_B"
+	d.name = "b"
+	var ids := [d.place("jug", -0.3, 2.0), d.place("jug", 0.3, 2.0), d.place("crimp", -0.15, 0.6, "foot"), d.place("crimp", 0.18, 0.6, "foot")]
+	for i in 4:
+		d.set_start([&"LH", &"RH", &"LF", &"RF"][i], ids[i])
+	d.place("jug", 0.0, 3.4, "top", "L")
+	d.set_wall(0, 0)
+	d.set_wall(1, -90)
+	d.set_wall(2, 16)
+	var r := d.build()
+	var m: Dictionary = PlayTest.bar_marks(r, [])
+	runner.check(r.start_pelvis.y > 1.0 and m.walls.size() == 2 and m.walls[0] == [0.0, -90] and m.walls[1][1] == 16, "시작 %.2fm: 270°부터 %s" % [r.start_pelvis.y, m.walls])

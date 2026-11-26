@@ -59,3 +59,62 @@ func test_official_folds_keep_body() -> void:
 	for id in ["G_V4_11", "G_V6_11", "G_V7_11"]:
 		var r := RouteDef.load_json(ContentIndex.route_path(id))
 		_check_route(id, r, r.intended_moves, ScoreCalc.top_y(r) + 2.5)
+
+
+## 월드 점 w가 접힌 벽면 앞(+)·뒤(−)로 떨어진 거리(m). 벽면 선을 1cm마다 훑어 가장 가까운 곳의 법선 쪽 부호.
+static func _wall_dist(f: WallProfile, w: Vector3, s_lo: float, s_hi: float) -> float:
+	var best := INF
+	var signed := 0.0
+	var s := s_lo
+	while s <= s_hi:
+		var p := f.point(Vector3(w.x, s, 0.0))
+		var d := Vector2(w.y - p.y, w.z - p.z).length()
+		if d < best:
+			best = d
+			signed = (w - p).dot(f.basis_at(s) * Vector3(0, 0, 1))
+		s += 0.01
+	return signed
+
+
+## 2026-11-27 사용자 "벽이 위에 있을때 손이 벽에 파고들고있어. 벽 각도가 저렇게 될 때는 저 각도에 맞춰서 벽과 특정 거리를 두고 손을 뻗도록":
+## 위로 기운 벽(180° → 112° → 148°, 사용자 화면)과 천장(180° → 95°)으로 손을 뻗는 매 틱, 팔·다리 관절(팔꿈치·손목·손끝, 무릎·발목)이
+## 벽면 뒤로 들어가지 않는다(1cm 여유). 고치기 전: 손끝 25~30cm, 팔꿈치 13~26cm.
+func test_free_limbs_stay_out_of_wall() -> void:
+	for walls in [[[0, 0], [1, 68], [2, 32]], [[0, 0], [1, 85]]]:
+		var d := RouteDraft.new()
+		d.route_id = "U_X"
+		d.name = "x"
+		var ids := [d.place("jug", -0.3, 1.5), d.place("jug", 0.3, 1.5), d.place("crimp", -0.15, 0.1, "foot"), d.place("crimp", 0.18, 0.1, "foot")]
+		for i in 4:
+			d.set_start([&"LH", &"RH", &"LF", &"RF"][i], ids[i])
+		for i in 6:
+			d.place("jug", -0.3 if i % 2 == 0 else 0.3, 1.9 + i * 0.4, "hand", "L")
+			d.place("jug", 0.0, 0.5 + i * 0.4, "foot", "M")
+		d.place("jug", 0.0, 4.5, "top", "L")
+		for w in walls:
+			d.set_wall(w[0], w[1])
+		var r := d.build()
+		var f := WallProfile.new(r, -1.5, d.max_y() + 3.0)
+		var cp := ClimberPose.new()
+		var worst := {"d": INF, "at": "", "n": 0}
+		# 발끝은 뺀다: 판정 자세(ClimberPose)에서부터 수직 벽에서도 벽 쪽으로 7~8cm 꺾일 때가 있다(따로 볼 것)
+		var keys := ["elbow_L", "wrist_L", "hand_L", "elbow_R", "wrist_R", "hand_R", "knee_L", "ankle_L", "knee_R", "ankle_R"]
+		var on_tick := func(s: ClimbSession, _res) -> void:
+			worst.n += 1
+			if worst.n % 3 != 0:
+				return
+			var t := cp.compute(s, 1.0 / 20.0)
+			var held := {}
+			for l in PoseSolver.LIMBS:
+				held[l] = s.limbs[l].state in ["Attached", "Armed"]
+			var m: Dictionary = P3.climber_to_char(t, f, held)
+			var fr := f.frame((t.pelvis as Vector3).y)
+			for k in keys:
+				var w: Vector3 = fr * (m[k] as Vector3)
+				var dd := _wall_dist(f, w, -0.5, d.max_y() + 1.0)
+				if dd < worst.d:
+					worst.d = dd
+					worst.at = "%s 틱 %d" % [k, worst.n]
+		SessionBot.run(r, [["LF", "U_X/F06/foot_1"], ["LH", "U_X/H05/hand_1"], ["RH", "U_X/H07/hand_1"], ["LH", "U_X/H09/hand_1"]], {}, null, on_tick)
+		runner.check(worst.n > 200 and worst.d > -0.01, "벽 %s: %d틱, 벽면에 가장 깊이 %.3fm (%s)" % [walls.map(func(w): return 180 - w[1]), worst.n, worst.d, worst.at])
+

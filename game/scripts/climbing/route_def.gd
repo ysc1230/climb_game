@@ -325,6 +325,17 @@ func _check_slot_for(limb: StringName, key: String, where: String) -> void:
 		errors.append("%s: %s는 %s 비허용" % [where, key, limb])
 
 
+## 판정에 쓰는 몸의 벽 각도: 골반 높이의 각도. 가슴(골반 위 CHEST_UP)이 더 누운 벽(−)에 걸치면 그 각도 — 턱 위에 윗몸을 엎드리면
+## 무게가 턱을 누른다(2026-11-27 사용자 화면: 골반은 꺾인 곳 아래 수직, 윗몸은 누운 턱 위인데 수직 벽처럼 떨어짐).
+const CHEST_UP := 0.3
+
+
+func body_angle(pelvis_y: float) -> float:
+	var a := angle_at(pelvis_y)
+	var c := angle_at(pelvis_y + CHEST_UP)
+	return c if c < a and c < 0.0 else a
+
+
 ## 벽면 높이 y(판정 좌표)의 벽 각도(도). 구간 경계 ±WALL_BLEND 안은 smoothstep으로 섞는다. 구간이 없으면 wall_deg.
 func angle_at(y: float) -> float:
 	if wall_sections.is_empty():

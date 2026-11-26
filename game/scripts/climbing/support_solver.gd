@@ -191,7 +191,7 @@ static func barn_door_none() -> Dictionary:
 ## barn door 근사: 하중 접점들이 한 수직선에 몰렸을 때 무게중심이 그 선에서 벗어난 거리 τ가
 ## 접점이 버티는 용량을 넘으면 exceeded. meta: limb → ContactInfo (없으면 손 q=1, 발 inside).
 ## cap_scale: 용량 배율(기운 벽 cosθ, docs/48 R2).
-static func barn_door(contacts: Array, loads: Dictionary, com: Vector2, meta: Dictionary, cap_scale := 1.0) -> Dictionary:
+static func barn_door(contacts: Array, loads: Dictionary, com: Vector2, meta: Dictionary, cap_scale := 1.0, tau_scale := 1.0) -> Dictionary:
 	var out := barn_door_none()
 	var min_x := INF
 	var max_x := -INF
@@ -216,7 +216,7 @@ static func barn_door(contacts: Array, loads: Dictionary, com: Vector2, meta: Di
 	if count == 0 or max_x - min_x >= BARN_MAX_SPREAD:
 		return out
 	out.applies = true
-	out.tau = absf(com.x - sum_x / count)
+	out.tau = absf(com.x - sum_x / count) * tau_scale
 	capacity *= cap_scale
 	out.capacity = capacity
 	out.exceeded = out.tau > capacity

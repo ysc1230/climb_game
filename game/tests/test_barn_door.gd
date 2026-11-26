@@ -125,3 +125,20 @@ func test_cause_cleared_on_grace() -> void:
 	rules.tick(body, feet_only, FREE, false, false)
 	runner.check(rules.phase == ClimbRules.Phase.GRACE, "손 없으면 Grace: %s" % rules.phase_name())
 	runner.check(rules.imbalance_cause == &"", "Grace 진입 시 원인 비움: %s" % rules.imbalance_cause)
+
+
+## 뒤로 누운 벽(2026-11-27 사용자 "벽 각도가 밑에 있을때는 절대 떨어질수없는 각도인데 떨어지게 돼. 중력의 영향을 받지않는것같아"):
+## 벽면 안 무게가 cos만큼 줄어 몸을 돌리는 힘도 준다. 예전에는 버티는 힘(용량)을 cos로 줄여, 누울수록 늘 "몸이 문처럼 돌아가요"였다.
+func test_slab_reduces_barn_door() -> void:
+	var rules := ClimbRules.new()
+	var vert := _eval(rules, FREE)
+	var results := {}
+	for deg in [-60.0, -85.0, -90.0, -119.0]:  # 화면 240°·265°·270°·299°
+		ClimbRules.wall_deg = deg
+		results[deg] = _eval(rules, FREE)
+	ClimbRules.wall_deg = 0.0
+	runner.check(vert.barn.exceeded, "수직 벽에서는 같은 자세가 문처럼 돎 %s" % [vert.barn])
+	for deg in results:
+		var b: Dictionary = results[deg].barn
+		runner.check(not b.exceeded and (not b.applies or b.capacity >= vert.barn.capacity - 1e-6), "%d°: 안 돎, 버티는 힘 줄지 않음 %s" % [180 - int(deg), b])
+	runner.check(results[-60.0].barn.tau < vert.barn.tau * 0.51, "240°: 돌리는 힘 절반 (%.3f / %.3f)" % [results[-60.0].barn.tau, vert.barn.tau])
