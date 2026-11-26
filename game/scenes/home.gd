@@ -19,8 +19,10 @@ const DIM := Color(0.965, 0.95, 0.92, 0.66)
 const SLATE := Color("172431")    # 카드·보조 버튼 면
 const BLOCK_R := 8.0              # 블록 모서리(배율 전)
 const SKEW := 0.22                # 주 버튼 기울기
-const GRADE_TAPE := {"V0": Color("39c46a"), "V1": Color("ffd23f"), "V2": Color("ff8a3d"), "V3": Color("3f8cff"),
-	"V4": Color("ff4b5c"), "V5": Color("9a6bff"), "V6": Color("e9e4da"), "V7": Color("ff5fae")}
+## 2026-11-26 사용자 "v0부터 v10까지 … 빨 주 노 초 파 남 보 갈 검 흰색 순서로"(V0 빨강부터, 남는 V10은 회색).
+const GRADE_TAPE := {"V0": Color("ff4b4b"), "V1": Color("ff8a3d"), "V2": Color("ffd23f"), "V3": Color("39c46a"),
+	"V4": Color("3f8cff"), "V5": Color("4c5fd7"), "V6": Color("9a6bff"), "V7": Color("a0703c"), "V8": Color("141414"),
+	"V9": Color("f4f1ea"), "V10": Color("9aa0a6")}
 const MARGIN := 64.0
 const APP_NAME := "OVERHANG"
 const SLOT_NAMES := {"tutorial": "튜토리얼", "easy": "쉬움", "normal": "보통", "hard": "어려움"}
@@ -443,9 +445,9 @@ func _draw_general(size: Vector2) -> void:
 		var on := g == grade
 		var tc := tape(g)
 		var r := Rect2(Vector2(x, y), Vector2(pw, 60 * k))
-		draw_style_box(_box(tc if on else Color(SLATE, 0.9 if open else 0.55), BLOCK_R * k), r)
+		draw_style_box(_box(tc if on else Color(SLATE, 0.9 if open else 0.55), BLOCK_R * k, tape_edge(g) if on else Color(0, 0, 0, 0), 2.0), r)
 		if not on:
-			draw_rect(Rect2(Vector2(r.position.x + 10 * k, r.end.y - 7 * k), Vector2(r.size.x - 20 * k, 4 * k)), Color(tc, 1.0 if open else 0.35))
+			_tape_bar(Rect2(Vector2(r.position.x + 10 * k, r.end.y - 7 * k), Vector2(r.size.x - 20 * k, 4 * k)), g, 1.0 if open else 0.35)
 		var fc := ink_on(tc) if on else (CHALK if open else DIM)
 		draw_string(font_b, Vector2(r.position.x, _baseline(r, 24, font_b) - 2 * k), g, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(24 * k), fc)
 		if not open:
@@ -458,13 +460,15 @@ func _draw_general(size: Vector2) -> void:
 	var routes: Array[RouteDef] = idx.general(grade)
 	y += 60 * k + 118 * k
 	var big := int(112 * k)
+	if tape_edge(grade).a > 0.0:  # 검정 테이프: 어두운 화면에서 보이게 테두리
+		draw_string_outline(font_b, Vector2(x0 - 4 * k, y), grade, HORIZONTAL_ALIGNMENT_LEFT, -1, big, int(3 * k), tape_edge(grade))
 	draw_string(font_b, Vector2(x0 - 4 * k, y), grade, HORIZONTAL_ALIGNMENT_LEFT, -1, big, tape(grade))
 	var tx := x0 + font_b.get_string_size(grade, HORIZONTAL_ALIGNMENT_LEFT, -1, big).x + 22 * k
 	draw_string(font_b, Vector2(tx, y - 52 * k), GradeInfo.name_of(grade), HORIZONTAL_ALIGNMENT_LEFT, -1, int(36 * k), CHALK)
 	var done := progress.cleared_count(grade, idx)
 	var seg := 34.0 * k
 	for i in routes.size():
-		draw_style_box(_box(tape(grade) if i < done else Color(CHALK, 0.14), 3 * k), Rect2(Vector2(tx + i * (seg + 6 * k), y - 24 * k), Vector2(seg, 10 * k)))
+		draw_style_box(_box(tape(grade) if i < done else Color(CHALK, 0.14), 3 * k, tape_edge(grade) if i < done else Color(0, 0, 0, 0), 1.0), Rect2(Vector2(tx + i * (seg + 6 * k), y - 24 * k), Vector2(seg, 10 * k)))
 	draw_string(font_m, Vector2(tx + routes.size() * (seg + 6 * k) + 8 * k, y - 13 * k), "%d/%d 완등" % [done, routes.size()], HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), DIM)
 	y += 40 * k
 	var lock := progress.grade_lock_text(grade, idx)
@@ -498,7 +502,7 @@ func _draw_problem_row(r: Rect2, route: RouteDef) -> void:
 	var progress: Progress = game.progress
 	var lock := progress.route_lock_text(route, idx)
 	_card(r, lock != "")
-	draw_rect(Rect2(r.position, Vector2(8 * k, r.size.y)), Color(tape(route.grade), 0.35 if lock != "" else 1.0))
+	_tape_bar(Rect2(r.position, Vector2(8 * k, r.size.y)), route.grade, 0.35 if lock != "" else 1.0)
 	var pad := 32.0 * k
 	var x := r.position.x + pad
 	var b := Rect2(Vector2(r.end.x - pad - 164 * k, r.position.y + r.size.y * 0.5 - 30 * k), Vector2(164, 60) * k)
@@ -1107,6 +1111,18 @@ func _card(r: Rect2, dim := false) -> void:
 ## 등급 테이프 색(없으면 노랑).
 static func tape(grade: String) -> Color:
 	return GRADE_TAPE.get(grade, SHOE)
+
+
+## 어두운 테이프(검정)의 테두리 색. 그 밖에는 투명.
+static func tape_edge(grade: String) -> Color:
+	return Color(CHALK, 0.55) if tape(grade).get_luminance() < 0.15 else Color(0, 0, 0, 0)
+
+
+## 테이프 색 띠(검정이면 테두리도).
+func _tape_bar(r: Rect2, grade: String, alpha := 1.0) -> void:
+	draw_rect(r, Color(tape(grade), alpha))
+	if tape_edge(grade).a > 0.0:
+		draw_rect(r, Color(tape_edge(grade), tape_edge(grade).a * alpha), false, maxf(1.0, k))
 
 
 ## 바탕색 위 글자색: 밝은 바탕이면 남색, 어두우면 흰색.

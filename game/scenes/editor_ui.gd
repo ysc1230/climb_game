@@ -64,6 +64,7 @@ var share_busy := false
 var share_code := ""
 var tut: EditorTutorial     # 만들기 튜토리얼(따라 하기, 2026-11-26). null이면 꺼짐
 var _tut_rect := Rect2()   # 안내 카드(누르면 벽으로 가지 않음)
+var _TUT_EDIT: int = EditorTutorial.STEPS.map(func(st): return st.id).find("tool_edit")  # 이 단계 전까지 시작 자리 번호를 보인다
 
 
 func _ready() -> void:
@@ -82,7 +83,7 @@ func _ready() -> void:
 	elif game != null and (game.progress.cleared.has(draft.route_id) or game.get_flow().is_published(draft.route_id)):
 		draft.freeze()  # 완등·올린 판을 고치면 새 판(§3)
 	if game != null and draft.holds.is_empty() and not game.progress.tutorial_done(EditorTutorial.ID):
-		tut = EditorTutorial.new()  # 처음 새 문제를 열 때 한 번 저절로
+		tut = EditorTutorial.new()  # 처음 새 문제를 열 때 한 번 저절로(begin은 3D가 생긴 뒤 _tut_start)
 	_name_edit = LineEdit.new()
 	_name_edit.placeholder_text = "문제 이름"
 	_name_edit.max_length = RouteDraft.NAME_MAX
@@ -98,6 +99,8 @@ func _ready() -> void:
 		view.logic.cam_y = 1.6
 		view.rebuild(draft)
 	_changed(false)
+	if tut != null:
+		_tut_start()
 
 
 func _layout() -> void:
@@ -132,10 +135,15 @@ func _process(delta: float) -> void:
 		_wall_dirty = false
 		_rebuild_ms = Time.get_ticks_msec()
 		view.rebuild(draft)
-	if tut != null and tut.update(draft, _problems, delta) == "done":
-		_tut_end()
-		_say("다 됐어요! [올라 보기]로 직접 올라 보세요. 벽 각도 도구로 벽을 기울일 수도 있어요")
-		_message_t = 7.0
+	if tut != null:
+		tut.typing = _name_edit.has_focus()
+		match tut.update(draft, _problems, delta):
+			"next":
+				_tut_focus()
+			"done":
+				_tut_end()
+				_say("내 문제가 만들어졌어요! [올라 보기]로 직접 올라 보세요")
+				_message_t = 7.0
 	if _message_t > 0.0:
 		_message_t -= delta
 		if _message_t <= 0.0:
@@ -303,7 +311,6 @@ func _up(pos: Vector2) -> void:
 			_preview = {}
 			if off.length() >= 0.005:
 				draft.move(h.id, h.x + off.x, h.y + off.y)
-				_tut_note("move")
 			_changed()
 		queue_redraw()
 		return
@@ -362,7 +369,6 @@ func _dial_end() -> void:
 	_preview = {}
 	if int(p.rot) != 0:
 		draft.rotate(p.id, int(p.rot))
-		_tut_note("rotate")
 	_changed()
 
 
@@ -372,12 +378,15 @@ func _tap_wall(w: Vector2, hit: String) -> void:
 			if hit != "":
 				selected = "" if hit == selected else hit  # 고른 홀드를 다시 누르면 해제(끌면 화면 이동)
 			else:
+				if tut != null and not _tut_place_ok(w):
+					return
+				if tut != null and tut.mark(draft) != null and w.distance_to(tut.mark(draft)) <= EditorTutorial.MARK_R:
+					w = tut.mark(draft)  # 원 안을 누르면 원 가운데에
 				var id := draft.place(sel_type, w.x, w.y)
 				if id == "":
 					_say("홀드는 %d개까지 놓을 수 있어요" % RouteDraft.MAX_HOLDS)
 				else:
 					selected = id
-					_tut_note("place_" + ("goal" if sel_type == "goal" else ("foot" if HoldTypes.is_foot(sel_type) else "hand")))
 					_changed()
 		"wall":
 			sel_wall = clampi(floori(w.y), 0, int(draft.max_y()))
@@ -388,6 +397,12 @@ func _tap_wall(w: Vector2, hit: String) -> void:
 					selected = ""
 				_changed()
 		"start":
+			var want: Dictionary = tut.start_want(draft) if tut != null else {}
+			if not want.is_empty() and hit != "":
+				if hit != want.hold:
+					_say("노란 고리가 있는 홀드를 누르세요")
+					return
+				start_limb = want.limb
 			if hit != "":
 				if draft.set_start(start_limb, hit):
 					_changed()
@@ -417,6 +432,8 @@ func _hit_button(pos: Vector2) -> int:
 
 
 func _do(action: String, arg: String) -> void:
+	if action != "save":
+		_tut_note("%s:%s" % [action, arg])  # 튜토리얼: 누른 버튼(저장은 된 뒤에)
 	match action:
 		"exit":
 			if not draft.holds.is_empty():  # 빈 초안은 남기지 않는다
@@ -448,11 +465,11 @@ func _do(action: String, arg: String) -> void:
 			_changed()
 		"rot":
 			draft.rotate(selected, int(arg))
-			_tut_note("rotate")
 			_changed()
 		"tut":  # [만드는 법]: 켜기 / 끄기(카드의 [끄기]도 같음)
 			if tut == null:
 				tut = EditorTutorial.new()
+				_tut_start()
 			else:
 				_tut_end()
 		"wdeg":  # 화면 각도(180 − 오버행)로 더하기
@@ -472,6 +489,7 @@ func _do(action: String, arg: String) -> void:
 			if not MyRoutes.save(draft):
 				_say("저장하지 못했어요")
 			else:
+				_tut_note("save:")
 				share_open = true
 				share_code = str(game.progress.shared.get(draft.route_id, {}).get("code", "")) if game != null else ""
 		"share_close":
@@ -954,13 +972,82 @@ func _tut_end() -> void:
 		SaveStore.save(game.progress, game.get_flow().save_path)
 
 
-## 안내 카드(플레이 튜토리얼 카드와 같은 모양): 벽 위 가운데에 단계 칩·할 일·도움말(15초 진행 없을 때)·[끄기].
+func _tut_start() -> void:
+	tut.begin(draft)
+	_tut_focus()
+
+
+## 누를 곳(원·홀드)이 화면 밖이거나 안내 카드 밑이면 그 높이로 간다.
+func _tut_focus() -> void:
+	if tut == null or view == null:
+		return
+	var p = _tut_spot()
+	var wr := _wall_rect()
+	if p != null and not Rect2(wr.position + Vector2(0, 140 * k), wr.size - Vector2(0, 140 * k)).has_point(view.world_to_screen(p)):
+		view.logic.cam_y = clampf(p.y, 0.8, draft.max_y())
+
+
+## 지금 누를 벽 위 자리: 원 가운데 또는 가리키는 홀드. 없으면 null.
+func _tut_spot() -> Variant:
+	var t := tut.target()
+	if t.size() == 2 and t[0] == "hold":
+		var h := draft.hold(tut.spot_hold(draft, int(t[1])))
+		return null if h.is_empty() else Vector2(h.x, h.y)
+	return tut.mark(draft)
+
+
+## 시작 자리 단계: 맞는 종류(손·발)로 노란 원 안에만 놓는다.
+func _tut_place_ok(w: Vector2) -> bool:
+	if not tut.mark_strict():
+		return true
+	var kind := "foot" if HoldTypes.is_foot(sel_type) else ("goal" if sel_type == "goal" else "hand")
+	if kind != tut.place_kind():
+		_say("먼저 오른쪽 위 [%s]에서 종류를 고르세요" % ("발홀드" if tut.place_kind() == "foot" else "손홀드"))
+		return false
+	if w.distance_to(tut.mark(draft)) > EditorTutorial.MARK_R:
+		_say("노란 원 안을 누르세요")
+		return false
+	return true
+
+
+## 벽 위 안내: 시작 자리 번호(1~4, 편집 단계 전까지), 지금 누를 노란 원(번호·"탑") 또는 홀드 고리. 모두 깜빡인다.
+func _draw_tut_wall() -> void:
+	var t := tut.target()
+	var a := _pulse()
+	if tut.index < _TUT_EDIT:
+		for i in 4:
+			var id := tut.spot_hold(draft, i)
+			var p: Vector2 = EditorTutorial.SPOTS[i]
+			if id != "" and view.in_view(p) and t != ["hold", i]:
+				_outlined(view.world_to_screen(p) + Vector2(26, 8) * k, str(i + 1), 18, 0.0, HORIZONTAL_ALIGNMENT_LEFT)
+	var m = tut.mark(draft)
+	if m != null and view.in_view(m):
+		var c: Vector2 = view.world_to_screen(m)
+		var r: float = (view.world_to_screen(m + Vector2(EditorTutorial.MARK_R, 0)) - c).length()
+		draw_circle(c, r, Color(SHOE, 0.16))
+		draw_arc(c, r, 0, TAU, 48, Color(SHOE, a), 4.0 * k)
+		var label := "탑" if int(t[1]) < 0 else str(int(t[1]) + 1)
+		draw_string_outline(font_b, c + Vector2(-40 * k, 11 * k), label, HORIZONTAL_ALIGNMENT_CENTER, 80 * k, int(30 * k), int(6 * k), NIGHT)
+		draw_string(font_b, c + Vector2(-40 * k, 11 * k), label, HORIZONTAL_ALIGNMENT_CENTER, 80 * k, int(30 * k), SHOE)
+	elif t.size() == 2 and t[0] == "hold":
+		var p = _tut_spot()
+		if p != null and view.in_view(p):
+			var c: Vector2 = view.world_to_screen(p)
+			var r: float = (view.world_to_screen(p + Vector2(0.1, 0)) - c).length()
+			draw_arc(c, r * 1.8, 0, TAU, 40, Color(SHOE, a), 4.5 * k)
+			_outlined(c + Vector2(r * 1.8 + 8 * k, 8 * k), str(int(t[1]) + 1), 20, 0.0, HORIZONTAL_ALIGNMENT_LEFT)
+
+
+## 안내 카드(플레이 튜토리얼 카드와 같은 모양): 벽 위 가운데에 단계 칩·할 일·도움말(15초 진행 없을 때)·[다음](자유 단계)·[끄기].
 func _draw_tutorial() -> void:
+	_draw_tut_wall()
 	var wr := _wall_rect()
 	var w := minf(wr.size.x - 24 * k, 860 * k)
+	var free := tut.target() == ["tut_next", ""]
 	var bw := 96 * k
+	var nw := 110 * k if free else 0.0
 	var tx := 92 * k
-	var tw := w - tx - bw - 26 * k
+	var tw := w - tx - bw - nw - 36 * k
 	var text := str(tut.current().text)
 	var help := tut.help_text()
 	var th := font_b.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, tw, int(21 * k)).y
@@ -978,13 +1065,18 @@ func _draw_tutorial() -> void:
 	if tut.target() == ["name", ""]:
 		_ring(Rect2(_name_edit.position, _name_edit.size))
 	_button(Rect2(Vector2(r.end.x - bw - 12 * k, r.position.y + 12 * k), Vector2(bw, 40 * k)), "끄기", "tut", "", 18)
+	if free:
+		_button(Rect2(Vector2(r.end.x - bw - nw - 22 * k, r.position.y + 12 * k), Vector2(nw, 40 * k)), "다음", "tut_next", "", 19, true)
 
 
 ## 튜토리얼이 가리키는 곳: 깜빡이는 노란 고리(밝기는 0.1 단위라 모양 캐시가 커지지 않음).
 func _ring(r: Rect2) -> void:
-	var a := snappedf(0.7 + 0.3 * sin(Time.get_ticks_msec() * 0.006), 0.1)
 	var g := r.grow(5 * k)
-	draw_style_box(_box(Color(0, 0, 0, 0), minf(g.size.y * 0.5, 26 * k), Color(SHOE, a), 3.0), g)
+	draw_style_box(_box(Color(0, 0, 0, 0), minf(g.size.y * 0.5, 26 * k), Color(SHOE, _pulse()), 3.0), g)
+
+
+func _pulse() -> float:
+	return snappedf(0.7 + 0.3 * sin(Time.get_ticks_msec() * 0.006), 0.1)
 
 
 func _exit_tree() -> void:

@@ -1,97 +1,175 @@
 class_name EditorTutorial
 extends RefCounted
 ## 만들기 튜토리얼(2026-11-26 사용자 "만들기도 튜토리얼을 만들어줘", docs/52 "어떻게 문제를 만드는지 직관적이지 않다").
-## 따라 하기: 단계마다 실제로 해야 넘어가고, 다 하면 지금 초안이 막는 것 없는 첫 문제가 된다.
-## 놓기·옮기기·돌리기는 만들기 화면이 note()로 알리는 사건으로, 나머지는 초안 상태로 본다(이미 돼 있으면 바로 넘어감).
-## target: 노란 고리로 가리킬 버튼 [action, arg]("name"은 이름 칸). 화면이 매 프레임 update()를 부른다.
+## 사용자 "한 스텝씩 어디를 클릭하며 진행해야 문제가 만들어지는지 … 중간에 원하는 홀드들을 추가하도록 한 뒤 … 최종적으로 본인 문제를":
+## 한 단계에 누를 곳 하나(버튼·벽의 노란 원·홀드)를 가리킨다. 시작 자리 네 개는 정해 둔 원(SPOTS)에 놓아 시작 자세가 늘 되게 하고,
+## 그 뒤 자유롭게 놓기 → 카드 [다음] → 탑·이름·점검·저장으로 끝난다.
+## goal: ["ev", 사건] 만들기 화면이 note()로 알린 "action:arg"(버튼) / ["spot", i] 원 i에 그 종류 홀드 / ["start", 손발, i] 원 i 홀드를 시작으로 /
+## ["top"] / ["name"] 이름 있고 쓰는 중 아님 / ["check"] 막는 것 없음. 상태 목표는 이미 돼 있으면 바로 넘어간다.
+## target: 노란 고리로 가리킬 곳. 버튼 [action, arg], ["mark", i](원, −1은 탑 원), ["hold", i](원 i의 홀드), ["name", ""](이름 칸).
 
 const ID := "EDITOR_T"      # Progress.tutorials 키(처음 새 문제를 열 때 한 번 저절로)
 const HELP_SECONDS := 15.0
+const MARK_R := 0.25         # 원을 누른 것으로 보는 거리(m). 안이면 원 가운데에 놓는다
+## 시작 자리 원: 왼손·오른손(60cm 간격), 그 1.3m 아래 왼발·오른발. 이 배치는 시작 자세가 되고 간격도 지킨다(테스트).
+const SPOTS: Array[Vector2] = [Vector2(-0.3, 1.7), Vector2(0.3, 1.7), Vector2(-0.3, 0.4), Vector2(0.3, 0.4)]
+const SPOT_KIND := ["hand", "hand", "foot", "foot"]
+const LIMBS: Array[StringName] = [&"LH", &"RH", &"LF", &"RF"]
 
 const STEPS := [
-	{"id": "place", "target": ["list", "hand"],
-		"text": "손홀드를 하나 골라 가운데 벽의 빈 곳을 눌러 보세요. 그 자리에 놓여요.",
-		"help": "오른쪽 판 위 [손홀드]를 누르고 저그 같은 종류를 고른 뒤 벽을 누르세요."},
-	{"id": "move", "target": [],
-		"text": "놓은 홀드를 손가락으로 끌어 옮겨 보세요.",
-		"help": "노란 고리가 있는 홀드가 고른 홀드예요. 벽 어디서 끌어도 그 홀드가 따라와요."},
-	{"id": "rotate", "target": ["rot", "5"],
-		"text": "오른쪽 아래 원을 돌리거나 +5° 버튼을 눌러 홀드를 돌려 보세요. 잡는 방향이 바뀌어요.",
-		"help": "홀드를 눌러 먼저 고르세요. 원의 손잡이를 끌면 바로 돌아가요."},
-	{"id": "spots", "target": ["list", "foot"],
-		"text": "시작 자리를 만들어요. 손홀드를 하나 더 놓아 두 손홀드를 60cm쯤 떼고, 그보다 1.3m쯤 아래에 발홀드 두 개를 놓으세요.",
-		"help": "[발홀드]를 누르고 종류를 고른 뒤 손홀드 아래 벽을 누르세요. 손홀드 2개, 발홀드 2개가 필요해요. 왼쪽 높이 막대의 눈금이 1m예요."},
-	{"id": "start", "target": ["tool", "start"],
-		"text": "왼쪽 [시작홀드 설정]을 누르고 왼손 → 오른손 → 왼발 → 오른발 차례로 홀드를 누르세요.",
-		"help": "하나를 정하면 다음 손발로 저절로 넘어가요. 손은 손홀드에만 정할 수 있어요."},
-	{"id": "top", "target": ["list", "goal"],
-		"text": "[탑]을 골라 위쪽에 놓으세요. 두 손으로 탑을 잡으면 완등이에요.",
-		"help": "빈 벽을 위로 끌거나 왼쪽 높이 막대를 누르면 위쪽 벽이 보여요."},
-	{"id": "name", "target": ["name", ""],
-		"text": "위쪽 이름 칸을 눌러 문제 이름을 쓰세요.",
-		"help": "[나가기] 오른쪽의 \"문제 이름\" 칸이에요."},
-	{"id": "check", "target": ["check_open", ""],
-		"text": "아래 [점검]을 눌러 막는 것을 고치세요. 막는 것이 0이 되면 끝이에요.",
-		"help": "점검 창의 [보기]를 누르면 고칠 홀드로 가요. \"옮기면 시작 자세가 돼요\"라는 말대로 옮겨 보세요."},
+	{"id": "list_hand", "goal": ["ev", "list:hand"], "target": ["list", "hand"],
+		"text": "오른쪽 위 [손홀드]를 누르세요.", "help": "오른쪽 판 맨 위 세 버튼 중 왼쪽이에요. 노란 고리가 깜빡이는 곳을 누르면 돼요."},
+	{"id": "type_jug", "goal": ["ev", "type:jug"], "target": ["type", "jug"],
+		"text": "[저그]를 누르세요. 크고 잡기 쉬운 손홀드예요.", "help": "손홀드 종류 목록의 첫 번째 버튼이에요."},
+	{"id": "spot0", "goal": ["spot", 0], "target": ["mark", 0],
+		"text": "벽의 노란 원 1을 누르세요. 왼손으로 시작할 홀드가 놓여요.", "help": "원 안 아무 데나 누르면 원 가운데에 놓여요."},
+	{"id": "spot1", "goal": ["spot", 1], "target": ["mark", 1],
+		"text": "노란 원 2를 누르세요. 오른손으로 시작할 홀드예요.", "help": "원 1 오른쪽, 같은 높이예요."},
+	{"id": "list_foot", "goal": ["ev", "list:foot"], "target": ["list", "foot"],
+		"text": "이제 발 차례예요. 오른쪽 위 [발홀드]를 누르세요.", "help": "[손홀드] 오른쪽 버튼이에요."},
+	{"id": "type_foot", "goal": ["ev", "type:foot_big"], "target": ["type", "foot_big"],
+		"text": "[큰 발판]을 누르세요.", "help": "발홀드 종류 목록의 두 번째 버튼이에요."},
+	{"id": "spot2", "goal": ["spot", 2], "target": ["mark", 2],
+		"text": "노란 원 3을 누르세요. 왼발로 시작할 발판이에요.", "help": "손홀드보다 1.3m 아래예요. 안 보이면 빈 벽을 위로 끌어요."},
+	{"id": "spot3", "goal": ["spot", 3], "target": ["mark", 3],
+		"text": "노란 원 4를 누르세요. 오른발로 시작할 발판이에요.", "help": "원 3 오른쪽, 같은 높이예요."},
+	{"id": "tool_start", "goal": ["ev", "tool:start"], "target": ["tool", "start"],
+		"text": "왼쪽 [시작홀드 설정]을 누르세요. 어느 손발이 어디서 시작할지 정해요.", "help": "왼쪽 도구 판의 네 번째 버튼이에요."},
+	{"id": "start_lh", "goal": ["start", &"LH", 0], "target": ["hold", 0],
+		"text": "[왼손]이 골라져 있어요. 노란 고리가 있는 홀드 1을 누르세요.", "help": "벽에서 깜빡이는 고리 안의 홀드를 누르세요."},
+	{"id": "start_rh", "goal": ["start", &"RH", 1], "target": ["hold", 1],
+		"text": "다음은 오른손이에요. 홀드 2를 누르세요.", "help": "하나를 정하면 다음 손발로 저절로 넘어가요."},
+	{"id": "start_lf", "goal": ["start", &"LF", 2], "target": ["hold", 2],
+		"text": "왼발이에요. 발판 3을 누르세요.", "help": "벽에서 깜빡이는 고리 안의 발판을 누르세요."},
+	{"id": "start_rf", "goal": ["start", &"RF", 3], "target": ["hold", 3],
+		"text": "오른발이에요. 발판 4를 누르세요.", "help": "벽에서 깜빡이는 고리 안의 발판을 누르세요."},
+	{"id": "tool_edit", "goal": ["ev", "tool:edit"], "target": ["tool", "edit"],
+		"text": "시작 자리가 다 됐어요. 왼쪽 [편집]을 누르세요.", "help": "왼쪽 도구 판의 첫 번째 버튼이에요."},
+	{"id": "free", "goal": ["ev", "tut_next:"], "target": ["tut_next", ""],
+		"text": "이제 원하는 홀드를 놓아 길을 만드세요. 목록에서 종류를 고르고 벽을 누르면 놓여요. 다 놓았으면 [다음]을 누르세요.",
+		"help": "놓은 홀드는 끌어서 옮기고 오른쪽 아래 원으로 돌려요. 위쪽 벽은 빈 곳을 아래로 끌거나 왼쪽 높이 막대를 누르면 보여요."},
+	{"id": "list_goal", "goal": ["ev", "list:goal"], "target": ["list", "goal"],
+		"text": "이제 끝 홀드예요. 오른쪽 위 [탑]을 누르세요.", "help": "[발홀드] 오른쪽 버튼이에요."},
+	{"id": "top", "goal": ["top"], "target": ["mark", -1],
+		"text": "노란 원을 누르면 탑이 놓여요(가장 높은 홀드 위). 다른 곳을 눌러도 돼요. 두 손으로 탑을 잡으면 완등이에요.",
+		"help": "원이 안 보이면 빈 벽을 아래로 끌어 위쪽을 보세요."},
+	{"id": "name", "goal": ["name"], "target": ["name", ""],
+		"text": "위쪽 [문제 이름] 칸을 누르고 이름을 쓰세요. 다 쓰면 키보드를 닫으세요.", "help": "[나가기] 오른쪽 칸이에요."},
+	{"id": "check", "goal": ["check"], "target": ["check_open", ""],
+		"text": "아래 [점검]을 누르세요. 막는 것을 고쳐 0개가 되면 넘어가요.",
+		"help": "점검 창의 [보기]를 누르면 고칠 홀드로 가요. 빨간 홀드는 다른 홀드와 너무 가까운 거예요."},
+	{"id": "save", "goal": ["ev", "save:"], "target": ["save", ""],
+		"text": "다 만들었어요! 위쪽 [저장]을 누르면 내 문제로 저장돼요.", "help": "오른쪽 위 맨 끝 버튼이에요."},
 ]
 
 var steps: Array = STEPS
 var index := 0
 var done := false
+var typing := false          # 이름 칸에 쓰는 중(만들기 화면이 매 프레임 알려 줌)
 var _events: Array = []
 var _idle := 0.0
+
+
+## 시작한다: 이미 시작 자리가 다 정해진 문제면 [편집]부터, 이미 된 단계는 넘긴다.
+func begin(d: RouteDraft) -> void:
+	if not d.start.values().has(""):
+		index = steps.map(func(s): return s.id).find("tool_edit")
+	_skip(d, [])
 
 
 func current() -> Dictionary:
 	return steps[index] if index < steps.size() else {}
 
 
-## 만들기 화면 사건: "place_hand" / "place_foot" / "place_goal" / "move" / "rotate".
+## 만들기 화면 사건: 버튼은 "action:arg"(예 "list:hand", "tut_next:", "save:").
 func note(ev: String) -> void:
 	_events.append(ev)
 
 
 ## 매 프레임. 반환: "" / "next"(다음 단계) / "done"(마지막 단계까지 끝).
-func update(draft: RouteDraft, problems: Array, dt: float) -> String:
+func update(d: RouteDraft, problems: Array, dt: float) -> String:
 	if done:
 		return ""
 	var evs := _events
 	_events = []
-	if not _met(str(current().id), draft, problems, evs):
+	if not _met(current().goal, d, problems, evs):
 		_idle += dt
 		return ""
 	index += 1
 	_idle = 0.0
-	done = index >= steps.size()
+	_skip(d, problems)
 	return "done" if done else "next"
 
 
 func help_text() -> String:
-	return str(current().get("help", "")) if not done and _idle >= HELP_SECONDS else ""
+	return str(current().help) if not done and _idle >= HELP_SECONDS else ""
 
 
 func target() -> Array:
-	return current().get("target", []) if not done else []
+	return current().target if not done else []
 
 
-func _met(id: String, d: RouteDraft, problems: Array, evs: Array) -> bool:
-	match id:
-		"place":
-			return evs.has("place_hand")
-		"move":
-			return evs.has("move")
-		"rotate":
-			return evs.has("rotate")
-		"spots":
-			var hands := d.holds.filter(func(h): return h.type != "goal" and RouteDraft.is_hand_type(h.type)).size()
-			var feet := d.holds.filter(func(h): return HoldTypes.is_foot(h.type)).size()
-			return hands >= 2 and feet >= 2
+## 지금 단계의 노란 원(벽 좌표). 없으면 null.
+func mark(d: RouteDraft) -> Variant:
+	var t := target()
+	if t.size() == 2 and t[0] == "mark":
+		return top_mark(d) if int(t[1]) < 0 else SPOTS[int(t[1])]
+	return null
+
+
+## 원 안만 놓을 수 있는가(시작 자리). 탑 원은 다른 곳도 된다.
+func mark_strict() -> bool:
+	return str(current().get("goal", [""])[0]) == "spot"
+
+
+## 원 단계에서 놓아야 하는 종류("hand"/"foot"), 아니면 "".
+func place_kind() -> String:
+	return SPOT_KIND[int(current().goal[1])] if mark_strict() else ""
+
+
+## 시작홀드 단계: {limb, hold}(원 홀드 id). 아니면 {}.
+func start_want(d: RouteDraft) -> Dictionary:
+	var g: Array = current().get("goal", [])
+	if g.is_empty() or g[0] != "start":
+		return {}
+	return {"limb": g[1], "hold": spot_hold(d, int(g[2]))}
+
+
+## 원 i 가운데(5cm 안)에 있는 그 종류 홀드 id. 없으면 "".
+func spot_hold(d: RouteDraft, i: int) -> String:
+	for h in d.holds:
+		if h.type != "goal" and Vector2(h.x, h.y).distance_to(SPOTS[i]) < 0.05 and (SPOT_KIND[i] == "foot") == HoldTypes.is_foot(h.type):
+			return h.id
+	return ""
+
+
+## 탑 원: 가장 높은 홀드 0.6m 위(같은 x). 홀드가 없으면 가운데 2.5m.
+static func top_mark(d: RouteDraft) -> Vector2:
+	var best := Vector2(0, 1.9)
+	for h in d.holds:
+		if h.type != "goal" and h.y > best.y:
+			best = Vector2(h.x, h.y)
+	return Vector2(best.x, minf(best.y + 0.6, d.max_y()))
+
+
+func _skip(d: RouteDraft, problems: Array) -> void:
+	while index < steps.size() and current().goal[0] != "ev" and _met(current().goal, d, problems, []):
+		index += 1
+	done = index >= steps.size()
+
+
+func _met(g: Array, d: RouteDraft, problems: Array, evs: Array) -> bool:
+	match str(g[0]):
+		"ev":
+			return evs.has(g[1])
+		"spot":
+			return spot_hold(d, int(g[1])) != ""
 		"start":
-			return not d.start.values().has("")
+			return d.start[g[1]] != "" and d.start[g[1]] == spot_hold(d, int(g[2]))
 		"top":
 			return not d.goal_hold().is_empty()
 		"name":
-			return d.name.strip_edges() != ""
+			return d.name.strip_edges() != "" and not typing
 		"check":
 			return problems.is_empty()
 	return false
