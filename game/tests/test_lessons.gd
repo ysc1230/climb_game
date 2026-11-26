@@ -95,3 +95,18 @@ func test_arm_lesson() -> void:
 	d.drag(&"RH", "C_ARM_T/G01/goal_right")
 	d.wait(200)
 	runner.check(d.results.size() == 7 and d.results[-1] == "done" and d.restarts == 0, "A7 정상을 잡으면 끝 %s" % [d.results])
+
+
+## 튜토리얼 잠금(2026-11-27 사용자 "가이드중인 스텝외에는 선택이 안되도록"): 팔 힘 수업 A1은 아무것도 못 움직이고, A2는 왼발만.
+## A2의 목표 손(LH, 팔 힘을 재는 손)으로 잠그면 왼발을 뗄 수 없어 수업이 멈췄다(0.42).
+func test_arm_lesson_locks() -> void:
+	var d = Driver.new(_route("C_ARM_T"))
+	runner.check(d.t.lock_limb() == &"none" and d.t.filter_input(d.s, [{"type": "drag_start", "limb": &"LF"}, {"type": "body_start"}]).size() == 1,
+		"A1: 손발 패드는 모두 막고 몸통은 둠")
+	d.t.index = 1
+	var left: Array = d.t.filter_input(d.s, [{"type": "drag_start", "limb": &"LF"}, {"type": "drag_start", "limb": &"RH"}, {"type": "drag_start", "limb": &"LH"}])
+	runner.check(d.t.lock_limb() == &"LF" and left.size() == 1 and left[0].limb == &"LF", "A2: 왼발만 %s" % [left])
+	d.t.index = 3
+	runner.check(d.t.lock_limb() == &"LH" and d.s.only_slots.is_empty(), "A4: 목표 손(잡기)")
+	d.t.filter_input(d.s, [])
+	runner.check(d.s.only_slots == {&"LH": "C_ARM_T/S01/hand_1"}, "A4: 왼손은 작은 노란 홀드만 %s" % [d.s.only_slots])

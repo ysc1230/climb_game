@@ -1032,13 +1032,17 @@ func _dyno_tick() -> String:
 	return ""
 
 
+## 줄어드는 원(반지름 비율 left)을 지금 누르면 잡는가: 노란 구간 안, 그리고 바깥 경계보다 DYNO_EARLY_GRACE만큼 이른 것까지.
+static func dyno_in_zone(left: float, zone: Vector2) -> bool:
+	return left >= zone.x and left <= zone.y + Tuning.DYNO_EARLY_GRACE
+
+
 ## 가운데 원을 눌렀다: 원이 성공 구간 안이면 두 손이 같이 잡고, 밖이면 놓친다(다음 틱에 떨어짐).
 func _dyno_press() -> void:
 	var ring := dyno_ring()
 	if ring.is_empty():
 		return
-	var z: Vector2 = ring.zone
-	if float(ring.left) >= z.x and float(ring.left) <= z.y:
+	if dyno_in_zone(float(ring.left), ring.zone):
 		_dyno_catch(str(ring.target))
 	else:
 		dyno.window = 1

@@ -855,11 +855,9 @@ func _apply(cmds: Array) -> void:
 			"cam_zoom":
 				cam_zoom = clampf(cam_zoom * float(c.ratio), CAM_ZOOM_RANGE.x, CAM_ZOOM_RANGE.y)
 	cmds = cmds.filter(func(c): return not str(c.type) in ["cam_start", "cam_orbit", "cam_zoom"])
-	# 튜토리얼: 이 단계가 가리키는 손발만 움직이고, 그 손발은 가리키는 홀드만 잡는다(2026-11-27 사용자 "가이드중인 스텝외에는 선택이 안되도록")
-	var lock := _tutorial_limb()
-	if lock != &"":
-		cmds = cmds.filter(func(c): return not (PoseSolver.LIMBS.has(c.get("limb", &"")) and c.limb != lock))
-	session.only_slots = {lock: _tutorial_goal_key()} if lock != &"" and _tutorial_goal_key() != "" else {}
+	# 튜토리얼: 이 단계가 가리키는 손발만 움직이고, 그 손발은 가리키는 홀드만 잡는다(TutorialRunner.filter_input)
+	if tutorial != null:
+		cmds = tutorial.filter_input(session, cmds)
 	if tilt != null and not tilt_drag:  # 기울이기만: 가운데 끌기 명령은 버린다(다이노 두 번 누르기는 그대로)
 		cmds = cmds.filter(func(c): return not str(c.type) in ["body_start", "body_move", "body_end"])
 	var was_dragging := {}
@@ -1247,8 +1245,8 @@ func _draw_pads(size: Vector2) -> void:
 		draw_string_outline(font_b, p.center + Vector2(-p.radius, 10 * ui_k), label, HORIZONTAL_ALIGNMENT_CENTER, p.radius * 2, fs, int(6 * ui_k), Color(UI_NIGHT, 0.75))
 		draw_string(font_b, p.center + Vector2(-p.radius, 10 * ui_k), label, HORIZONTAL_ALIGNMENT_CENTER, p.radius * 2, fs, Color.WHITE)
 		# 튜토리얼: 지금 움직일 팔다리의 패드를 금색으로 깜빡여 강조(기획 §7)
-		var target: bool = _tutorial_limb() == limb
-		if target:
+		var target: bool = _tutorial_limb() == limb  # 게이지 강조: 목표 손(팔 힘 수업은 재는 손)
+		if tutorial != null and tutorial.lock_limb() == limb:  # 고리: 지금 움직일 수 있는 손발(TutorialRunner.lock_limb)
 			var pl := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * 1.4)
 			draw_arc(p.center, p.radius + 8 * ui_k, 0, TAU, 48, Color(1.0, 0.82, 0.3, 0.45 + 0.5 * pl), 6 * ui_k)
 		# 손 패드 바로 위 팔 힘 게이지(기획 §5)
@@ -1751,7 +1749,7 @@ func _draw_dyno() -> void:
 			var big := DYNO_RING_R * ui_k
 			var z: Vector2 = ring.zone
 			var left: float = ring.left
-			var inside := left >= z.x and left <= z.y
+			var inside := ClimbSession.dyno_in_zone(left, z)  # 판정과 같이: 원 선이 노란 구간에 닿아 보이면 초록
 			draw_circle(c, big, Color(0, 0, 0, 0.4))
 			draw_arc(c, big * (z.x + z.y) * 0.5, 0, TAU, 72, Color("ffd166", 0.75 if inside else 0.5), big * (z.y - z.x), true)
 			draw_arc(c, big, 0, TAU, 72, Color(1, 1, 1, 0.8), 4 * ui_k, true)

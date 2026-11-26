@@ -59,16 +59,21 @@ func tick() -> String:
 	return act
 
 
+## play_test._apply처럼 튜토리얼 잠금을 거쳐 넣는다(가리키는 손발·홀드만).
+func _in(cmds: Array) -> void:
+	s.apply_input(t.filter_input(s, cmds))
+
+
 ## 패드를 누르기만 한다(붙은 손발 → Armed).
 func arm(limb: StringName) -> void:
-	s.apply_input([{"type": "arm", "limb": limb}])
+	_in([{"type": "arm", "limb": limb}])
 
 
 ## 패드 사이 가운데를 누르고 delta만큼 끈다(놓지 않음 — 다른 손가락으로 손발을 끌 때 몸통 목표 유지). frames 틱에 나눠 끈다.
 func body_drag(delta: Vector2, frames := 40) -> void:
-	s.apply_input([{"type": "body_start"}])
+	_in([{"type": "body_start"}])
 	for i in frames:
-		s.apply_input([{"type": "body_move", "delta": delta / frames}])
+		_in([{"type": "body_move", "delta": delta / frames}])
 		if tick() != "":
 			return
 
@@ -94,10 +99,10 @@ func wait(max_ticks: int) -> int:
 
 ## 떼어 끌고 허공(target)까지 옮긴 뒤 그 자리에서 놓는다(잡을 후보가 없어야 함). 결과가 나오면 멈춘다.
 func drag_to_air(limb: StringName, target: Vector2) -> bool:
-	s.apply_input([{"type": "detach", "limb": limb}])
+	_in([{"type": "detach", "limb": limb}])
 	for i in 300:
 		var req: Vector2 = s.limbs[limb].req
-		s.apply_input([{"type": "move", "limb": limb, "delta": (target - req).limit_length(DRAG_SPEED * DT)}])
+		_in([{"type": "move", "limb": limb, "delta": (target - req).limit_length(DRAG_SPEED * DT)}])
 		var act := tick()
 		if act != "":
 			return true
@@ -105,21 +110,21 @@ func drag_to_air(limb: StringName, target: Vector2) -> bool:
 			break
 	if not s.limbs[limb].cand.is_empty():
 		return false
-	s.apply_input([{"type": "release", "limb": limb, "speed": 0.0}])
+	_in([{"type": "release", "limb": limb, "speed": 0.0}])
 	return true
 
 
 ## 떼어 끌고, 후보가 그 키가 되면 홀드 가운데까지(팔이 더 못 가면 거기서) 가져가 놓는다(SessionBot과 같음). 결과가 나오면 멈춘다.
 func drag(limb: StringName, key: String) -> bool:
-	s.apply_input([{"type": "detach", "limb": limb}])
+	_in([{"type": "detach", "limb": limb}])
 	for i in 300:
 		var req: Vector2 = s.limbs[limb].req
-		s.apply_input([{"type": "move", "limb": limb, "delta": (s.route.slot_pos(key) - req).limit_length(DRAG_SPEED * DT)}])
+		_in([{"type": "move", "limb": limb, "delta": (s.route.slot_pos(key) - req).limit_length(DRAG_SPEED * DT)}])
 		var act := tick()
 		var now: Vector2 = s.limbs[limb].req
 		var settled := now.distance_to(s.route.slot_pos(key)) < 0.03 or now.distance_to(req) < 0.0005
 		if s.limbs[limb].cand.get("key", "") == key and settled:
-			s.apply_input([{"type": "release", "limb": limb, "speed": 0.0}])
+			_in([{"type": "release", "limb": limb, "speed": 0.0}])
 			return true
 		if act != "":
 			return true
@@ -128,12 +133,12 @@ func drag(limb: StringName, key: String) -> bool:
 
 ## 떼어 그 슬롯 쪽으로 끌다가 더 못 가면(닿지 않음) 그 자리에서 놓는다. 후보가 생겨도 놓는다(잡히면 잡힘). 결과가 나오면 멈춘다.
 func reach_and_release(limb: StringName, key: String) -> void:
-	s.apply_input([{"type": "detach", "limb": limb}])
+	_in([{"type": "detach", "limb": limb}])
 	for i in 300:
 		var req: Vector2 = s.limbs[limb].req
-		s.apply_input([{"type": "move", "limb": limb, "delta": (s.route.slot_pos(key) - req).limit_length(DRAG_SPEED * DT)}])
+		_in([{"type": "move", "limb": limb, "delta": (s.route.slot_pos(key) - req).limit_length(DRAG_SPEED * DT)}])
 		if tick() != "":
 			return
 		if s.limbs[limb].req.distance_to(s.route.slot_pos(key)) < 0.03 or i >= 30 and s.limbs[limb].req.distance_to(req) < 0.0005:
 			break
-	s.apply_input([{"type": "release", "limb": limb, "speed": 0.0}])
+	_in([{"type": "release", "limb": limb, "speed": 0.0}])

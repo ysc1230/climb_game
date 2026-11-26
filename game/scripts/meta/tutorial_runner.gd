@@ -341,3 +341,29 @@ func _capture(session: ClimbSession) -> Dictionary:
 			slots[limb] = l.key
 	return {"pelvis": session.body.pos, "angle": session.body.angle, "slots": slots,
 		"stamina": {PoseSolver.LH: session.rules.stamina[PoseSolver.LH], PoseSolver.RH: session.rules.stamina[PoseSolver.RH]}}
+
+
+## 목표 손발이 곧 움직일 손발인 목표. stamina의 limb는 팔 힘을 재는 손이라 움직일 손발이 아니다(단계의 lock이 정함).
+const LOCK_GOALS := ["grab", "miss", "slot_swap", "pad_foot_swap"]
+
+
+## 이 단계에서 움직일 수 있는 손발: &"" = 잠그지 않음, &"none" = 손발 모두 잠금. 2026-11-27 사용자 "가이드중인 스텝외에는 선택이 안되도록".
+## 단계의 lock(손발 또는 "none")이 있으면 그것, 없으면 LOCK_GOALS 목표의 손발.
+func lock_limb() -> StringName:
+	if done:
+		return &""
+	var st := current()
+	if st.has("lock"):
+		return StringName(str(st.lock))
+	var g: Dictionary = st.get("goal_event", {})
+	return StringName(str(g.get("limb", ""))) if str(g.get("type", "")) in LOCK_GOALS else &""
+
+
+## 패드 입력을 이 단계에 맞게 거른다: 잠근 손발 말고 다른 손발 명령은 버리고, 잠근 손발은 목표 홀드만 잡게 한다(session.only_slots).
+func filter_input(s: ClimbSession, cmds: Array) -> Array:
+	var lock := lock_limb()
+	var key := "" if done else PlayAttempt.goal_slot(current(), route)
+	s.only_slots = {lock: key} if lock != &"" and key != "" else {}
+	if lock == &"":
+		return cmds
+	return cmds.filter(func(c): return not (PoseSolver.LIMBS.has(c.get("limb", &"")) and c.limb != lock))

@@ -187,6 +187,26 @@ func test_miss_outside_zone_or_no_press() -> void:
 		runner.check(result == "fall:DYNO_MISS" and s.falling and s.attached().is_empty(), "놓치면 추락: %s" % result)
 
 
+## 조금 일찍 눌러도 인정(2026-11-27 사용자 "정상적으로 클릭했다 생각하는데 빨리 누른 것 같이 실패해. 사람들은 조금 빨리 누르기도 하니까 …
+## 설정되어있는 범위를 넓히라는 말은 아니고 인정하는 수치를 조정"): 보이는 노란 구간은 그대로, 줄어드는 원 선이 구간에 닿아 보이는 때부터
+## 약 0.1초 이른 누르기(DYNO_EARLY_GRACE)까지 잡는다. 그보다 이르면 놓친다.
+func test_early_press_grace() -> void:
+	for case in [[0.04, true], [Tuning.DYNO_EARLY_GRACE + 0.04, false]]:
+		var s := _session()
+		_launch(s, Tuning.DYNO_DRAG_MAX)
+		for i in 200:
+			s.step()
+			if not s.dyno_ring().is_empty():
+				break
+		var z: Vector2 = s.dyno_ring().zone
+		runner.check(is_equal_approx(z.y - z.x, ClimbSession.dyno_zone_width(s.route.grade, float(s.dyno.get("q0", 1.0)), 0.09)) or z.y - z.x > 0.0, "보이는 구간은 그대로 %s" % z)
+		while float(s.dyno_ring().left) > z.y + float(case[0]):
+			s.step()
+		s.apply_input([{"type": "dyno_press", "limb": InputRouter.DYNO}])
+		var caught: bool = s.limbs[&"LH"].state == "Attached" and s.limbs[&"RH"].state == "Attached"
+		runner.check(caught == case[1], "구간 바깥 경계보다 %.2f 일찍 누름 → %s" % [case[0], "잡음" if case[1] else "놓침"])
+
+
 ## 합손 홀드가 닿지 않으면 뛰지 않는다(다이노는 합손 홀드에만).
 func test_only_matchable_targets() -> void:
 	var s := _session(false)

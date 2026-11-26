@@ -198,6 +198,7 @@
     "아무것도 누르지 말고 기다려요",
     "두 발로 서 있으면 팔 힘이 돌아와요"
    ],
+   "lock": "none",
    "rules": {
     "fatigue_drain": true,
     "start_stamina": 40,
@@ -216,6 +217,7 @@
     "왼발 패드를 끌어 허공에서 떼요",
     "위쪽 '왼손 팔 힘'이 줄어드는 걸 보세요"
    ],
+   "lock": "LF",
    "rules": {
     "fatigue_drain": true,
     "start_stamina": 100,
@@ -268,6 +270,7 @@
     "왼발 패드를 끌어 허공에서 떼요",
     "아까보다 빨리 줄어드는 걸 보세요"
    ],
+   "lock": "LF",
    "rules": {
     "fatigue_drain": true,
     "start_stamina": 100,
@@ -286,6 +289,7 @@
     "왼발 패드를 발판으로 끌어요",
     "두 발로 서서 기다려요"
    ],
+   "lock": "LF",
    "rules": {
     "fatigue_drain": true,
     "techniques": []
