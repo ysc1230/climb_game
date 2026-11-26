@@ -125,6 +125,12 @@ static func contact_point(slot: Dictionary, limb: StringName, endpoint: Vector2,
 		var t := absf(s) / hw
 		best_d = d
 		best = {"point": p, "quality": 1.0 - t * t}
+	if best.is_empty() and area.get("matchable", false) and not taken.is_empty():
+		# 좁은 합손 홀드(크림프·포켓 큰 것 등, 2026-11-26 사용자 합손 크기): 빈 구간이 없으면 두 손을 겹쳐 잡는다
+		var sf := clampf(s0, -hw, hw)
+		var pf: Vector2 = slot.pos + area.dir * sf
+		if endpoint.distance_to(pf) <= max_dist:
+			best = {"point": pf, "quality": 1.0 - pow(absf(sf) / hw, 2)}
 	return best
 
 

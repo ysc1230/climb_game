@@ -243,7 +243,7 @@ func _do(action: String, arg: String) -> void:
 			return
 		"play_mine":
 			if not game.play_custom(arg):
-				make_msg = "이 문제는 아직 올라 볼 수 없어요(만들기 화면에서 막는 것을 확인해 주세요)"
+				make_msg = "이 문제는 아직 올라 볼 수 없어요(만들기 화면의 [점검]에서 고칠 것을 확인해 주세요)"
 		"mine_delete_ask":
 			mine_delete = arg
 		"mine_delete_yes":

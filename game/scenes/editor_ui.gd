@@ -1,7 +1,8 @@
 extends Node2D
 ## 문제 만들기 화면 UI(작업 6 §2, docs/superpowers/specs/2026-11-19-6-editor-design.md). 휴대폰 가로 기준.
 ## 위 줄: 나가기 · 이름 · 예상 등급 · 되돌리기 · 올라 보기 · 봇 검사 · 저장. 왼쪽: 도구, 높이 스크롤바. 가운데: 3D 벽(EditorView).
-## 오른쪽: 홀드 목록·고른 홀드(돌리기·벽 각도 도구는 아래에 조절 원). 아래: 홀드 수·높이·막는 것.
+## 오른쪽: 홀드 종류 → 쓰임(손·발·탑)·고른 홀드(돌리기·벽 각도 도구는 아래에 조절 원). 아래: 홀드 수·높이·고칠 것.
+## 2026-11-26 사용자 "명칭들이 직관적이지 않아", "홀드 종류가 기준이 된 후에 손 발 탑을 선택", "합손 … 노란 불이 들어오면 당연히 합손인줄".
 ## 초안(RouteDraft)을 고치고, 고칠 때마다 3D를 다시 만들고 저장 상태·막는 것을 다시 센다. 끄는 동안은 그 홀드만 옮겨 그린다(실시간).
 ## 2026-11-25 사용자: 옮기기는 고른 홀드를 화면 어디서든 끌어서, 돌리기는 오른쪽 아래 조절 원으로, 벽 각도 탭(180°~90°, 1m·1°),
 ## 두 손가락 시점, 100m까지 높아지는 벽, 왼쪽 높이 스크롤바(눈금 8개 이하).
@@ -19,9 +20,13 @@ const WARN := Color(1, 0.75, 0.6)
 const GOOD := Color("7cc443")
 ## 2026-11-25 사용자 "놓기 옮기기 돌리기를 하나로 하고 벽 각도는 따로", "시작 지정이 아니라 시작홀드 설정".
 ## 편집: 빈 벽을 누르면 고른 종류를 놓고, 홀드를 누르면 고르고(다시 누르면 해제), 끌면 고른 홀드를 옮기고, 오른쪽 아래 원으로 돌린다.
-const TOOLS := [["edit", "편집"], ["wall", "벽 각도"], ["erase", "지우기"], ["start", "시작홀드 설정"]]
+const TOOLS := [["edit", "홀드 놓기"], ["wall", "벽 각도"], ["erase", "홀드 지우기"], ["start", "시작홀드 설정"]]
 const LIMB_NAMES := {&"LH": "왼손", &"RH": "오른손", &"LF": "왼발", &"RF": "오른발"}
-const LIST := {"hand": ["jug", "crimp", "sloper", "pinch", "pocket"], "foot": ["foot_chip", "foot_big"], "goal": ["goal"]}
+const TYPES := ["jug", "crimp", "sloper", "pinch", "pocket", "foot_chip", "foot_big"]
+const ROLES := [["hand", "손으로"], ["foot", "발로"], ["top", "탑으로"]]
+const ROLE_KO := {"hand": "손", "foot": "발", "top": "탑"}
+const SIZE_KO := {"S": "작게", "M": "보통", "L": "크게"}
+const ZOOM_FOCUS := 3.0   # 점검 창 [보기]: 이 높이(m)만 보이게 조금 다가간다
 const PICK_R := 0.13      # 홀드를 누른 것으로 보는 거리(m)
 const DRAG_PX := 14.0     # 이보다 움직이면 누르기가 아니라 끌기
 
@@ -35,8 +40,8 @@ var k := 1.0
 var draft: RouteDraft
 var tool := "edit"
 var start_limb: StringName = &"LH"
-var list_tab := "hand"
 var sel_type := "jug"
+var sel_role := "hand"    # 놓을 쓰임: hand | foot | top
 var selected := ""
 var message := ""
 var _message_t := 0.0
@@ -253,6 +258,7 @@ func _down(pos: Vector2) -> void:
 	var dl := _dial()
 	if tool in ["edit", "wall"] and pos.distance_to(dl[0]) <= dl[1] * 1.25:
 		_press = {"kind": "dial", "first": true}
+		view.hold_cam = tool == "wall"  # 각도를 돌리는 동안 카메라(땅)는 그대로, 벽만 돈다
 		_dial_to(pos)
 		return
 	if not _wall_rect().has_point(pos):
@@ -321,6 +327,7 @@ func _up(pos: Vector2) -> void:
 func _cancel_press() -> void:
 	if _press.get("kind", "") == "dial" and tool == "wall":
 		_wall_dirty = false
+		view.hold_cam = false
 		_changed()
 	elif not _preview.is_empty() and view != null:
 		view.preview_hold(_preview.id, Vector2.ZERO, 0)
@@ -344,13 +351,13 @@ func _dial_to(pos: Vector2) -> void:
 	var a := rad_to_deg(atan2(v.x, -v.y))
 	if tool == "edit":
 		var h := draft.hold(selected)
-		if h.is_empty() or h.type == "goal":
+		if h.is_empty():
 			return
 		var d := posmod(int(round(a / 5.0)) * 5 - int(h.rot), 360)
 		_preview = {"id": selected, "off": Vector2.ZERO, "rot": d}
 		view.preview_hold(selected, Vector2.ZERO, d)
 	else:
-		var deg := clampi(int(round(a)), 0, 90)
+		var deg := clampi(int(round(a)), RouteDraft.WALL_DEG_MIN, RouteDraft.WALL_DEG_MAX)
 		if deg != draft.wall_deg_at(sel_wall):
 			draft.set_wall(sel_wall, deg, _press.get("first", false))
 			_press.first = false
@@ -361,6 +368,7 @@ func _dial_to(pos: Vector2) -> void:
 func _dial_end() -> void:
 	if tool == "wall":
 		_wall_dirty = false
+		view.hold_cam = false
 		_changed()
 		return
 	if _preview.is_empty():
@@ -382,7 +390,7 @@ func _tap_wall(w: Vector2, hit: String) -> void:
 					return
 				if tut != null and tut.mark(draft) != null and w.distance_to(tut.mark(draft)) <= EditorTutorial.MARK_R:
 					w = tut.mark(draft)  # 원 안을 누르면 원 가운데에
-				var id := draft.place(sel_type, w.x, w.y)
+				var id := draft.place(sel_type, w.x, w.y, sel_role)
 				if id == "":
 					_say("홀드는 %d개까지 놓을 수 있어요" % RouteDraft.MAX_HOLDS)
 				else:
@@ -409,7 +417,7 @@ func _tap_wall(w: Vector2, hit: String) -> void:
 					var order := [&"LH", &"RH", &"LF", &"RF"]
 					start_limb = order[(order.find(start_limb) + 1) % 4]
 				else:
-					_say("손 시작은 손홀드에만 정할 수 있어요")
+					_say("손 시작은 [손으로] 놓은 홀드에만 정할 수 있어요")
 	queue_redraw()
 
 
@@ -453,16 +461,26 @@ func _do(action: String, arg: String) -> void:
 			_preview = {}
 		"limb":
 			start_limb = StringName(arg)
-		"list":
-			list_tab = arg
-			sel_type = LIST[arg][0]
-			tool = "edit"
-		"type":
+		"type":  # 종류를 먼저 고른다. 발판은 발로만, 발판에서 손홀드 종류로 오면 손으로
+			var was_foot := HoldTypes.is_foot(sel_type)
 			sel_type = arg
+			var roles := RouteDraft.roles_for(arg)
+			if not roles.has(sel_role) or (was_foot and not HoldTypes.is_foot(arg)):
+				sel_role = roles[0]
 			tool = "edit"
+		"role":
+			if RouteDraft.roles_for(sel_type).has(arg):
+				sel_role = arg
+				tool = "edit"
+			else:
+				_say("%s 발로만 쓸 수 있어요" % _eun(HoldTypes.name_ko(sel_type)))
 		"size":
-			draft.set_size(selected, arg)
-			_changed()
+			var h := draft.hold(selected)
+			if h.get("role", "") == "top" and not HoldTypes.can_match(h.type, arg):
+				_say("탑은 두 손으로 잡아야 해서 합손 되는 크기만 돼요. " + _match_hint(h.type))
+			else:
+				draft.set_size(selected, arg)
+				_changed()
 		"rot":
 			draft.rotate(selected, int(arg))
 			_changed()
@@ -479,8 +497,12 @@ func _do(action: String, arg: String) -> void:
 			draft.remove_wall(sel_wall)
 			_changed()
 		"match":
-			draft.set_matchable(selected, not bool(draft.hold(selected).get("matchable", false)))
-			_changed()
+			var h := draft.hold(selected)
+			if not HoldTypes.can_match(h.type, h.size):
+				_say(_match_hint(h.type))
+			else:
+				draft.set_matchable(selected, not bool(h.get("matchable", false)))
+				_changed()
 		"delete":
 			draft.remove(selected)
 			selected = ""
@@ -499,15 +521,15 @@ func _do(action: String, arg: String) -> void:
 			check_open = true
 		"check_close":
 			check_open = false
-		"goto":  # 점검 창 [보기]: 그 홀드를 고르고(편집) 그 높이로
+		"goto":  # 점검 창 [보기]: 그 홀드를 고르고(홀드 놓기) 그 높이로 조금 다가가며 간다(2026-11-26 사용자)
 			check_open = false
 			var h := draft.hold(arg)
 			if not h.is_empty():
 				tool = "edit"
 				selected = arg
-				view.logic.cam_y = clampf(h.y, 0.8, draft.max_y())
+				_fly_to(h.y)
 			elif arg.is_valid_float():
-				view.logic.cam_y = clampf(arg.to_float(), 0.8, draft.max_y())
+				_fly_to(arg.to_float())
 		"publish":
 			_publish(arg)
 		"copy":
@@ -528,6 +550,31 @@ func _do(action: String, arg: String) -> void:
 				_bot_thread.start(func() -> Dictionary: return {"ok": PathExplorer.explore(r, {}, false, 5000).ok})
 				_say("봇이 길을 찾는 중… (최대 5초)")
 	queue_redraw()
+
+
+## 카메라를 높이 y로 0.5초 동안 옮기며 보이는 높이를 ZOOM_FOCUS까지 줄인다(이미 가까우면 그대로).
+func _fly_to(y: float) -> void:
+	var tw := create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_method(func(v: float) -> void: view.logic.cam_y = v, view.logic.cam_y, clampf(y, 0.8, draft.max_y()), 0.5)
+	tw.tween_property(view, "zoom_h", minf(view.zoom_h, ZOOM_FOCUS), 0.5)
+
+
+## 그 종류의 합손 되는 크기 안내(예 "크림프는 큰 것만 합손이 돼요").
+static func _match_hint(type: String) -> String:
+	var names := {"S": "작은 것", "M": "보통", "L": "큰 것"}
+	var ok: Array = HoldTypes.SIZES.filter(func(sz): return HoldTypes.can_match(type, sz)).map(func(sz): return names[sz])
+	var who := _eun(HoldTypes.name_ko(type))
+	if ok.is_empty():
+		return "%s 합손이 안 돼요" % who
+	if ok.size() == HoldTypes.SIZES.size():
+		return "%s 모든 크기가 합손이 돼요" % who
+	return "%s %s만 합손이 돼요" % [who, "·".join(ok)]
+
+
+## 받침에 맞는 은/는을 붙인다(저그는, 작은 발판은).
+static func _eun(w: String) -> String:
+	var c := w.unicode_at(w.length() - 1)
+	return w + ("은" if c >= 0xAC00 and c <= 0xD7A3 and (c - 0xAC00) % 28 != 0 else "는")
 
 
 ## 올리기(§3·§4): 서버에 문제 JSON을 올리고 공유 코드를 받는다. vis: "link" 친구에게 코드로 / "public" 모두에게 공개.
@@ -572,7 +619,7 @@ func _check_items() -> Array:
 						miss.append(LIMB_NAMES[l])
 				out.append({"level": "block", "text": "시작홀드를 정해 주세요: %s 자리가 비었어요. [시작홀드 설정]에서 손발을 고르고 홀드를 누르세요." % "·".join(miss), "hold": ""})
 			RouteDraft.P_GOAL:
-				out.append({"level": "block", "text": "탑 홀드를 놓아 주세요. [편집]에서 오른쪽 목록의 [탑]을 고르고 벽을 누르세요.", "hold": ""})
+				out.append({"level": "block", "text": "탑 홀드를 놓아 주세요. [홀드 놓기]에서 오른쪽의 종류와 [탑으로]를 고르고 벽을 누르세요.", "hold": ""})
 			RouteDraft.P_POSE:
 				var fix := draft.start_fix()
 				if not fix.is_empty():
@@ -592,7 +639,7 @@ func _check_items() -> Array:
 	if _bot_ok == 0:
 		out.append({"level": "warn", "text": "봇이 길을 못 찾았어요. 직접 도움 없이 완등하면 올릴 수 있어요.", "hold": ""})
 	if out.is_empty():
-		out.append({"level": "ok", "text": "막는 것도 주의할 것도 없어요. [올라 보기]로 직접 올라 보세요.", "hold": ""})
+		out.append({"level": "ok", "text": "고칠 것도 살펴볼 것도 없어요. [올라 보기]로 직접 올라 보세요.", "hold": ""})
 	return out
 
 
@@ -603,7 +650,7 @@ func _draw_check(size: Vector2) -> void:
 	var x := box.position.x + 30 * k
 	var y := box.position.y + 52 * k
 	_text(Vector2(x, y), "점검", 28, CHALK)
-	_text(Vector2(x + 100 * k, y), "빨강: 이것 때문에 저장·올라 보기를 못 해요 · 주황: 만들 수는 있지만 문제가 될 수 있어요", 17, DIM)
+	_text(Vector2(x + 100 * k, y), "빨강: 고쳐야 저장·올라 보기를 할 수 있어요 · 주황: 그대로 둬도 되지만 살펴보세요", 17, DIM)
 	y += 30 * k
 	var row_h := 72 * k
 	var rows := int((box.end.y - 90 * k - y) / row_h)
@@ -662,11 +709,11 @@ func _draw() -> void:
 	_button(Rect2(Vector2(10, 10) * k, Vector2(130, 52) * k), "나가기", "exit", "")
 	var gx := 470 * k
 	_button(Rect2(Vector2(gx, 10 * k), Vector2(48, 52) * k), "◀", "grade", "-1")
-	_text_c(Rect2(Vector2(gx + 48 * k, 10 * k), Vector2(110, 52) * k), "예상 " + draft.grade, 22, CHALK)
+	_text_c(Rect2(Vector2(gx + 48 * k, 10 * k), Vector2(110, 52) * k), "난이도 " + draft.grade, 20, CHALK)
 	_button(Rect2(Vector2(gx + 158 * k, 10 * k), Vector2(48, 52) * k), "▶", "grade", "1")
 	_button(Rect2(Vector2(gx + 226 * k, 10 * k), Vector2(140, 52) * k), "만드는 법", "tut", "", 20, false)
 	var x := size.x - 10 * k
-	for b in [["저장", "save", 120], ["봇 검사", "bot", 130], ["올라 보기", "climb", 150], ["되돌리기", "undo", 130]]:
+	for b in [["저장", "save", 120], ["봇으로 확인", "bot", 150], ["올라 보기", "climb", 140], ["되돌리기", "undo", 120]]:
 		x -= b[2] * k
 		_button(Rect2(Vector2(x, 10 * k), Vector2(b[2], 52) * k), b[0], b[1], "", 22, b[1] == "climb" and _problems.is_empty())
 		x -= 10 * k
@@ -676,11 +723,11 @@ func _draw() -> void:
 	_draw_scrollbar()
 	draw_rect(Rect2(Vector2(0, size.y - 44 * k), Vector2(size.x, 44 * k)), Color(NIGHT, 0.86))
 	draw_line(Vector2(0, size.y - 44 * k), Vector2(size.x, size.y - 44 * k), HAIR, 1.5 * k)
-	var st := "홀드 %d/%d · 벽 %sm · 판 %d · " % [draft.holds.size(), RouteDraft.MAX_HOLDS, String.num(draft.wall_limit()), draft.version]
-	st += "막는 것 없음 — 올라 볼 수 있어요" if _problems.is_empty() else _problems[0]
+	var st := "홀드 %d/%d · 벽 높이 %sm · 버전 %d · " % [draft.holds.size(), RouteDraft.MAX_HOLDS, String.num(draft.wall_limit()), draft.version]
+	st += "고칠 것 없음 — [올라 보기]를 할 수 있어요" if _problems.is_empty() else _problems[0]
 	_text(Vector2(16 * k, size.y - 14 * k), st, 19, CHALK if _problems.is_empty() else WARN)
 	var nw := _warn.size() + (1 if _bot_ok == 0 else 0)
-	_button(Rect2(Vector2(size.x - 330 * k, size.y - 42 * k), Vector2(320, 40) * k), "점검 · 막는 것 %d · 주의 %d" % [_problems.size(), nw], "check_open", "", 18,
+	_button(Rect2(Vector2(size.x - 330 * k, size.y - 42 * k), Vector2(320, 40) * k), "점검 · 고칠 것 %d · 살펴볼 것 %d" % [_problems.size(), nw], "check_open", "", 18,
 		not _problems.is_empty() or nw > 0)
 	if tut != null:
 		_draw_tutorial()
@@ -737,9 +784,9 @@ func _draw_wall_overlay(_size: Vector2) -> void:
 			draw_arc(c, r * 1.35, 0, TAU, 32, SHOE, 3.5 * k)
 		if start_of.has(h.id):
 			_outlined(c + Vector2(-60 * k, -r * 1.3), start_of[h.id], 18, 120 * k)
-		if h.type == "goal":
+		if h.role == "top":
 			_outlined(c + Vector2(-60 * k, -r * 1.6), "탑", 20, 120 * k)
-		elif h.id == selected and RouteDraft.is_hand_type(h.type):
+		if h.id == selected and h.role != "foot":
 			# 잡는 힘 방향(손이 버티는 쪽): rot 0 = 위
 			var tip: Vector2 = w2s.call(hp + HoldTypes.rotate(Vector2(0, 1), rot) * 0.16)
 			draw_line(c, tip, SHOE, 3.5 * k)
@@ -803,40 +850,43 @@ func _draw_panel(size: Vector2) -> void:
 	if tool == "wall":
 		_draw_wall_panel(size, x, w)
 		return
+	# 1) 홀드 종류 2) 쓰임(손으로·발로·탑으로): 종류가 먼저, 그 종류가 못 쓰는 쓰임은 흐리게
 	var y := 84 * k
-	var tw := (w - 20 * k) / 3.0
-	for i in 3:
-		var t: Array = [["hand", "손홀드"], ["foot", "발홀드"], ["goal", "탑"]][i]
-		_button(Rect2(Vector2(x + i * (tw + 10 * k), y), Vector2(tw, 46 * k)), t[1], "list", t[0], 20, list_tab == t[0])
-	y += 58 * k
-	var cw := (w - 10 * k) / 2.0
-	var types: Array = LIST[list_tab]
-	for i in types.size():
-		var r := Rect2(Vector2(x + (i % 2) * (cw + 10 * k), y + int(i / 2) * 58 * k), Vector2(cw, 50 * k))
-		_button(r, HoldTypes.name_ko(types[i]), "type", types[i], 20, sel_type == types[i] and tool == "edit")
-	y += ceili(types.size() / 2.0) * 58 * k + 10 * k
+	_text(Vector2(x, y + 16 * k), "홀드 종류", 16, DIM)
+	y += 24 * k
+	var cw := (w - 20 * k) / 3.0
+	for i in TYPES.size():
+		var r := Rect2(Vector2(x + (i % 3) * (cw + 10 * k), y + int(i / 3) * 54 * k), Vector2(cw, 46 * k))
+		_button(r, HoldTypes.name_ko(TYPES[i]), "type", TYPES[i], 18, sel_type == TYPES[i] and tool == "edit")
+	y += ceili(TYPES.size() / 3.0) * 54 * k + 2 * k
+	_text(Vector2(x, y + 16 * k), "어떻게 쓸까요", 16, DIM)
+	y += 24 * k
+	var roles := RouteDraft.roles_for(sel_type)
+	for i in ROLES.size():
+		var ro: Array = ROLES[i]
+		_button(Rect2(Vector2(x + i * (cw + 10 * k), y), Vector2(cw, 46 * k)), ro[1], "role", ro[0], 19, sel_role == ro[0] and tool == "edit", not roles.has(ro[0]))
+	y += 56 * k
 	var h := draft.hold(selected)
 	if h.is_empty():
-		_wrap(Vector2(x, y + 20 * k), "목록에서 종류를 고르고 벽을 누르면 놓여요. 놓인 홀드를 누르면 고르고, 끌면 옮기고, 아래 원으로 돌려요. 다시 누르면 고르기를 풀어요.", w, 17, DIM)
+		_wrap(Vector2(x, y + 20 * k), "종류와 쓰임을 고르고 벽을 누르면 놓여요. 놓인 홀드를 누르면 고르고, 끌면 옮기고, 아래 원으로 돌려요. 다시 누르면 고르기를 풀어요.", w, 17, DIM)
 		return
 	var rot := int(h.rot) + (int(_preview.get("rot", 0)) if _preview.get("id", "") == selected else 0)
-	_text(Vector2(x, y + 24 * k), "고른 홀드: %s" % HoldTypes.name_ko(h.type) + ("" if h.type == "goal" else " · 방향 %d°" % posmod(rot, 360)), 21, CHALK)
-	y += 40 * k
-	if h.type == "goal":
-		_button(Rect2(Vector2(x, y), Vector2(w, 46 * k)), "지우기", "delete", "", 20)
-		return
+	_text(Vector2(x, y + 22 * k), "고른 홀드: %s · %s · 방향 %d°" % [HoldTypes.name_ko(h.type), ROLE_KO[h.role], posmod(rot, 360)], 20, CHALK)
+	y += 34 * k
 	if tool != "edit":
 		return
 	var sw := (w - 20 * k) / 3.0
 	for i in 3:
-		var s: String = HoldTypes.SIZES[i]
-		_button(Rect2(Vector2(x + i * (sw + 10 * k), y), Vector2(sw, 46 * k)), "크기 " + s, "size", s, 20, h.size == s)
+		var sz: String = HoldTypes.SIZES[i]
+		_button(Rect2(Vector2(x + i * (sw + 10 * k), y), Vector2(sw, 46 * k)), SIZE_KO[sz], "size", sz, 19, h.size == sz, h.role == "top" and not HoldTypes.can_match(h.type, sz))
 	y += 56 * k
-	# 아래: 왼쪽 합손·지우기, 오른쪽 돌리기 원, 맨 아래 돌리기 버튼(원을 끄는 동안 홀드가 바로 돈다)
+	# 아래: 왼쪽 합손(켜면 노란 불)·지우기, 오른쪽 돌리기 원, 맨 아래 돌리기 버튼(원을 끄는 동안 홀드가 바로 돈다)
 	var lw := w - 170 * k
-	if RouteDraft.is_hand_type(h.type):
-		_button(Rect2(Vector2(x, y + 10 * k), Vector2(lw, 46 * k)), "합손 " + ("켜짐" if h.matchable else "꺼짐"), "match", "", 19, h.matchable)
-	_button(Rect2(Vector2(x, y + 66 * k), Vector2(lw, 46 * k)), "지우기", "delete", "", 20)
+	if h.role == "hand":
+		_button(Rect2(Vector2(x, y + 10 * k), Vector2(lw, 46 * k)), "합손", "match", "", 20, h.matchable, not HoldTypes.can_match(h.type, h.size))
+	elif h.role == "top":
+		_wrap(Vector2(x, y + 30 * k), "탑은 두 손으로 잡으면 끝나요", lw, 16, DIM)
+	_button(Rect2(Vector2(x, y + 66 * k), Vector2(lw, 46 * k)), "이 홀드 지우기", "delete", "", 19)
 	var bw := (w - 30 * k) / 4.0
 	var btn_y := size.y - 44 * k - 58 * k
 	for i in 4:
@@ -855,26 +905,28 @@ func _draw_wall_panel(size: Vector2, x: float, w: float) -> void:
 	var btn_y := size.y - 44 * k - 58 * k
 	var bw := (w - 30 * k) / 4.0
 	_text(Vector2(x, y + 24 * k), "벽 각도", 24, CHALK)
-	_wrap(Vector2(x, y + 58 * k), "벽을 눌러 높이를 고른 뒤 원을 돌리세요. 그 높이부터 위가 기울어요. 180°는 수직, 90°는 천장이에요.", w, 17, DIM)
+	_wrap(Vector2(x, y + 58 * k), "벽을 눌러 높이를 고른 뒤 원을 돌리세요. 그 높이부터 위가 기울어요(땅 기준). 90°는 천장, 180°는 수직, 270°는 뒤로 누운 벽, 300°까지 돼요.", w, 17, DIM)
 	var deg := draft.wall_deg_at(sel_wall)
 	_text(Vector2(x, c.y - r - 30 * k), "%dm부터 %d°" % [sel_wall, 180 - deg], 22, CHALK)
 	if sel_wall > 0 and draft.walls.any(func(wl): return int(wl.from_y) == sel_wall):
-		_button(Rect2(Vector2(x, c.y - r - 100 * k), Vector2(w, 44 * k)), "이 높이의 꺾임 지우기", "wdel", "", 18)
+		_button(Rect2(Vector2(x, c.y - r - 100 * k), Vector2(w, 44 * k)), "이 높이 꺾임 없애기(아래 벽과 같게)", "wdel", "", 18)
 	for i in 4:
 		var b: Array = [["-10°", "-10"], ["-1°", "-1"], ["+1°", "1"], ["+10°", "10"]][i]
 		_button(Rect2(Vector2(x + i * (bw + 10 * k), btn_y), Vector2(bw, 46 * k)), b[0], "wdeg", b[1], 19)
-	draw_line(c, c + Vector2(0, r * 0.9), Color(CHALK, 0.5), 5.0 * k)  # 아래 벽(곧게 아래로)과 위 벽 사이 각이 화면 각도
+	draw_line(c, c + Vector2(0, r * 0.9), Color(CHALK, 0.5), 5.0 * k)  # 땅에 수직인 아래쪽과 벽 사이 각이 화면 각도
 	_draw_dial(c, r, true, deg)
+	for t in [90, 180, 270]:  # 눈금 이름(화면 각도)
+		var d := Vector2(sin(deg_to_rad(180 - t)), -cos(deg_to_rad(180 - t)))
+		draw_string(font_m, c + d * (r + 18 * k) + Vector2(-30 * k, 6 * k), "%d°" % t, HORIZONTAL_ALIGNMENT_CENTER, 60 * k, int(14 * k), DIM)
 
 
-## 조절 원: 눈금(돌리기 45°, 벽 각도 0~90° 15°마다)과 손잡이(위 0, 시계 방향 + ang도).
+## 조절 원: 눈금(돌리기 45°, 벽 각도는 오버행 −120~90°(화면 300~90°) 15°마다)과 손잡이(위 0, 시계 방향 + ang도).
 func _draw_dial(c: Vector2, r: float, on: bool, ang: float) -> void:
 	var col := Color(CHALK, 0.7) if on else Color(CHALK, 0.25)
 	draw_circle(c, r, Color(NIGHT, 0.7))
 	draw_arc(c, r, 0, TAU, 48, col, 3.0 * k)
-	for t in range(0, 360, 45 if tool == "edit" else 15):
-		if tool == "wall" and t > 90:
-			break
+	var ticks := range(0, 360, 45) if tool == "edit" else range(RouteDraft.WALL_DEG_MIN, RouteDraft.WALL_DEG_MAX + 1, 15)
+	for t in ticks:
 		var d := Vector2(sin(deg_to_rad(t)), -cos(deg_to_rad(t)))
 		draw_line(c + d * r * 0.86, c + d * r, col, 2.0 * k)
 	if on:
@@ -944,13 +996,14 @@ func _outlined(pos: Vector2, s: String, fs: int, w: float, align := HORIZONTAL_A
 	draw_string(font_b, Vector2(x0, pos.y), s, HORIZONTAL_ALIGNMENT_LEFT, -1, px, CHALK)
 
 
-## 버튼(홈과 같음): 주(strong, 고른 것·누를 다음 것) = 노란 알약 + 남색 굵은 글자, 보조 = 반투명 남색 알약 + 가는 테두리 + 분필색 글자.
-func _button(r: Rect2, text: String, action: String, arg: String, fs := 22, strong := false) -> void:
+## 버튼(홈과 같음): 주(strong, 고른 것·켜진 것·누를 다음 것) = 노란 알약 + 남색 굵은 글자, 보조 = 반투명 남색 알약 + 가는 테두리 + 분필색 글자.
+## dim: 지금은 안 되는 것(흐린 테두리·글자). 눌리면 왜 안 되는지 알려 준다.
+func _button(r: Rect2, text: String, action: String, arg: String, fs := 22, strong := false, dim := false) -> void:
 	var radius := r.size.y * 0.5 if r.size.y <= 72 * k else 22 * k
-	draw_style_box(_box(SHOE if strong else Color(NIGHT, 0.72), radius, Color(0, 0, 0, 0) if strong else Color(CHALK, 0.26), 1.5), r)
+	draw_style_box(_box(SHOE if strong else Color(NIGHT, 0.5 if dim else 0.72), radius, Color(0, 0, 0, 0) if strong else Color(CHALK, 0.1 if dim else 0.26), 1.5), r)
 	if text != "":
 		var f: Font = font_b if strong else font_m
-		draw_string(f, Vector2(r.position.x, _baseline(r, fs, f)), text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(fs * k), NIGHT if strong else CHALK)
+		draw_string(f, Vector2(r.position.x, _baseline(r, fs, f)), text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, int(fs * k), NIGHT if strong else Color(CHALK, 0.32 if dim else 1.0))
 	_buttons.append({"rect": r, "action": action, "arg": arg})
 	if tut != null and tut.target() == [action, arg]:
 		_ring(r)
@@ -1000,9 +1053,8 @@ func _tut_spot() -> Variant:
 func _tut_place_ok(w: Vector2) -> bool:
 	if not tut.mark_strict():
 		return true
-	var kind := "foot" if HoldTypes.is_foot(sel_type) else ("goal" if sel_type == "goal" else "hand")
-	if kind != tut.place_kind():
-		_say("먼저 오른쪽 위 [%s]에서 종류를 고르세요" % ("발홀드" if tut.place_kind() == "foot" else "손홀드"))
+	if sel_role != tut.place_kind():
+		_say("먼저 오른쪽 %s를 누르세요" % ("[큰 발판]" if tut.place_kind() == "foot" else "[저그]와 [손으로]"))
 		return false
 	if w.distance_to(tut.mark(draft)) > EditorTutorial.MARK_R:
 		_say("노란 원 안을 누르세요")

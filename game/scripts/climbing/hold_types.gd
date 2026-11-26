@@ -26,6 +26,11 @@ static func is_foot(type: String) -> bool:
 	return has(type) and types()[type].limb == "foot"
 
 
+## 그 크기에서 두 손이 같이 잡을 수 있는 종류인가(hold_types.json match_sizes, 2026-11-26 사용자: 저그 모두, 슬로퍼 보통·큰, 크림프·핀치·포켓 큰).
+static func can_match(type: String, size: String) -> bool:
+	return has(type) and (types()[type].get("match_sizes", []) as Array).has(size)
+
+
 static func name_ko(type: String) -> String:
 	return str(types().get(type, {}).get("name_ko", type))
 
@@ -56,13 +61,14 @@ static func field_error(s: Dictionary, hand: bool) -> String:
 	var rot = s.get("rot_deg", 0)
 	if not (rot is float or rot is int) or int(rot) != rot or int(rot) % 5 != 0 or rot < 0 or rot > 355:
 		return "rot_deg는 0~355, 5의 배수: %s" % rot
-	if is_foot(type) == hand:
-		return "%s는 %s 홀드" % [type, "발" if is_foot(type) else "손"]
+	if hand and is_foot(type):
+		return "%s는 발 홀드" % type
 	return ""
 
 
 ## 슬롯 사전에 종류 필드와 그에서 만든 영역·그립 방식을 채운다. s: 슬롯 JSON(이미 field_error 통과).
-static func fill(slot: Dictionary, s: Dictionary) -> void:
+## hand: 손 칸인가. 손홀드 종류를 발 칸(발로만 딛는 홀드)에 놓으면 그 반폭의 발 영역이 된다.
+static func fill(slot: Dictionary, s: Dictionary, hand := true) -> void:
 	var type := str(s.hold_type)
 	var t: Dictionary = types()[type]
 	var size := str(s.get("size", "M"))
@@ -74,13 +80,14 @@ static func fill(slot: Dictionary, s: Dictionary) -> void:
 	slot.fatigue_mult = float(t.get("fatigue", 1.0))
 	slot.foot_share = float(t.get("foot_share", 1.0))
 	slot.window = t.get("window", [])
-	if t.limb == "foot":
-		slot.foot_area = {"up": rotate(Vector2(0, 1), rot), "half_height": float(t.half_height[i]), "half_width": float(t.half_width[i])}
+	if t.limb == "foot" or not hand:
+		var hh := float(t.half_height[i]) if t.has("half_height") else clampf(float(t.half_width[i]) * 0.6, 0.03, 0.08)
+		slot.foot_area = {"up": rotate(Vector2(0, 1), rot), "half_height": hh, "half_width": float(t.half_width[i])}
 		slot.grip_modes = [{"mode": &"pull", "axis": Vector2(0, 1), "half_angle": 65.0}]
 		return
 	var hw := float(t.half_width[i])
 	var ha: Dictionary = s.get("hand_area", {})
-	slot.hand_area = {"dir": rotate(Vector2(1, 0), rot), "half_width": hw, "matchable": bool(ha.get("matchable", false)) and not t.get("no_match", false)}
+	slot.hand_area = {"dir": rotate(Vector2(1, 0), rot), "half_width": hw, "matchable": bool(ha.get("matchable", false)) and can_match(type, size)}
 	var half := float(t.half_angle) + (0.0 if t.get("fixed_size", false) else float(data().size_half_angle[size]))
 	var modes: Array = []
 	for m in t.modes:

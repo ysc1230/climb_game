@@ -38,11 +38,68 @@ func test_snap_and_clamp() -> void:
 	runner.check(is_equal_approx(d.hold(id).x, RouteDraft.WALL_HALF) and d.hold(id).y >= 0.05, "벽 밖은 가장자리로 %s" % [d.hold(id)])
 
 
-func test_goal_is_single() -> void:
+## 2026-11-26 사용자 "탑홀드는 무조건 하나로 해야해. 그리고 탑홀드 종류는 제각각이야", 탑은 합손 되는 크기만(사용자 고름).
+func test_top_is_one_hold_of_any_type() -> void:
 	var d := RouteDraft.new()
-	d.place("goal", 0.0, 3.0)
-	d.place("goal", 0.3, 3.2)
-	runner.check(d.holds.filter(func(h): return h.type == "goal").size() == 1 and is_equal_approx(d.goal_hold().x, 0.3), "탑은 하나, 다시 놓으면 옮김")
+	var a := d.place("crimp", 0.0, 3.0, "top")
+	runner.check(d.hold(a).role == "top" and d.hold(a).size == "L" and d.hold(a).matchable, "크림프 탑은 합손 되는 큰 것 %s" % [d.hold(a)])
+	var b := d.place("sloper", 0.3, 3.2, "top")
+	var tops := d.holds.filter(func(h): return h.role == "top")
+	runner.check(b == a and tops.size() == 1 and d.goal_hold().type == "sloper" and is_equal_approx(d.goal_hold().x, 0.3), "탑은 하나: 다시 놓으면 그 탑이 옮겨지고 종류가 바뀜 %s" % [tops])
+	runner.check(d.place("foot_chip", 0.0, 2.0, "top") == "" and d.place("foot_big", 0.0, 2.0, "hand") == "", "발판은 탑·손이 될 수 없음")
+	d.set_size(a, "S")
+	runner.check(d.goal_hold().size == "M", "탑은 합손 안 되는 크기로 못 줄임(슬로퍼 작은 것) %s" % d.goal_hold().size)
+	runner.check(d.place("goal", 0.0, 3.5) == a and d.goal_hold().type == "jug", "예전 이름 goal은 저그 탑")
+
+
+## 2026-11-26 사용자 "손홀드 발홀드 탑이 기준이 아니라 홀드 종류가 기준이 된 후에 손 발 탑을 선택".
+func test_type_then_role() -> void:
+	var d := _draft()
+	var f := d.place("jug", -0.6, 0.9, "foot")
+	var r := d.build()
+	var slot: Dictionary = r.slots.get("U_TEST/%s/foot_1" % f, {})
+	runner.check(r.errors.is_empty() and not slot.is_empty() and not slot.has("hand_area") and not slot.allowed.has(&"LH"), "저그를 발로: 발만 딛는 칸 %s %s" % [r.errors, slot])
+	runner.check(not d.set_start(&"LH", f) and d.set_start(&"LF", f), "발로 놓은 홀드는 발 시작만")
+	runner.check(RouteDraft.roles_for("crimp") == ["hand", "foot", "top"] and RouteDraft.roles_for("foot_big") == ["foot"], "종류마다 쓰임")
+
+
+## 합손 켜기는 그 종류·크기가 될 때만, 크기를 바꿔 안 되면 꺼진다(2026-11-26 사용자 "홀드 크기에 따라 합손이 불가능한 경우").
+func test_matchable_follows_size() -> void:
+	var d := RouteDraft.new()
+	var c := d.place("crimp", 0.0, 2.0)
+	d.set_matchable(c, true)
+	runner.check(not d.hold(c).matchable, "크림프 보통은 합손 못 켬")
+	d.set_size(c, "L")
+	d.set_matchable(c, true)
+	runner.check(d.hold(c).matchable, "크림프 큰 것은 켬")
+	d.set_size(c, "M")
+	runner.check(not d.hold(c).matchable, "작게 바꾸면 꺼짐")
+
+
+## 탑 하나(합손 칸 하나)를 두 손으로 잡아 완등한다: 탑이 될 수 있는 종류마다 가장 작은 탑 크기로, 봇이 길을 찾고 세션 재생으로 확인.
+## 좁은 탑(포켓·크림프 큰 것)은 두 손이 겹쳐 잡는다.
+func test_bot_finishes_on_one_top() -> void:
+	for type in ["jug", "crimp", "sloper", "pinch", "pocket"]:
+		var d := RouteDraft.new()
+		d.route_id = "U_TOP"
+		d.name = "탑"
+		var ids := [d.place("jug", -0.3, 1.5), d.place("jug", 0.3, 1.5), d.place("foot_chip", -0.15, 0.1), d.place("foot_chip", 0.18, 0.1)]
+		for i in 4:
+			d.set_start([&"LH", &"RH", &"LF", &"RF"][i], ids[i])
+		d.place(type, 0.0, 1.7, "top", "S")
+		var r := d.build()
+		runner.check(r.errors.is_empty() and r.goal_slots.size() == 1 and r.slots[r.goal_slots[0]].hand_area.matchable, "%s 탑 칸 하나, 합손 %s" % [type, r.errors])
+		var res := PathExplorer.explore(r, {}, false, 8000)
+		runner.check(res.ok, "%s %s 탑을 두 손으로 잡아 완등 %s" % [type, d.goal_hold().size, res.log])
+
+
+## 0.37까지의 초안: 탑(goal 종류)은 큰 저그 탑으로, 손·발 종류는 손·발 쓰임으로 읽는다.
+func test_old_draft_roles() -> void:
+	var old := {"route_id": "U_OLD", "holds": [{"id": "G01", "type": "goal", "x": 0.0, "y": 3.0}, {"id": "H01", "type": "crimp", "size": "M", "x": 0.2, "y": 1.5, "matchable": true},
+		{"id": "F02", "type": "foot_big", "x": 0.0, "y": 0.3}]}
+	var d := RouteDraft.from_dict(old)
+	runner.check(d.goal_hold().type == "jug" and d.goal_hold().size == "L" and d.goal_hold().role == "top", "예전 탑 → 큰 저그 탑 %s" % [d.goal_hold()])
+	runner.check(d.hold("H01").role == "hand" and not d.hold("H01").matchable and d.hold("F02").role == "foot", "손·발 쓰임, 안 되는 합손은 끔 %s" % [d.holds])
 
 
 func test_max_holds_and_undo() -> void:
@@ -67,7 +124,7 @@ func test_builds_valid_route() -> void:
 	var d := _draft()
 	var r := d.build()
 	runner.check(r.errors.is_empty(), "문제로 읽힘 %s" % [r.errors])
-	runner.check(r.mode == "custom" and r.name_ko == "시험 문제" and r.goal_slots.size() == 2, "custom·이름·탑 두 칸")
+	runner.check(r.mode == "custom" and r.name_ko == "시험 문제" and r.goal_slots.size() == 1, "custom·이름·탑 한 칸")
 	runner.check(int(d.to_route_dict().get("schema", 0)) == RouteDraft.SCHEMA, "schema 판")
 	var p := d.problems()
 	runner.check(p.is_empty(), "문제 없음 %s" % [p])
@@ -84,6 +141,9 @@ func test_problems_listed() -> void:
 	var a := d.place("jug", -0.3, 1.6)  # 손홀드 H01 바로 위: 간격 규칙 위반
 	runner.check(d.problems().has(RouteDraft.P_SPACING) and d.bad_holds().has(a), "간격 위반 홀드 표시 %s" % [d.bad_holds()])
 	d.remove(a)
+	d.place("crimp", 0.75, 1.0)
+	d.place("crimp", 0.75, 1.13)  # 2026-11-26 사용자 "홀드간 거리는 거의 겹치지만 않으면": 붙어 있지 않으면 된다
+	runner.check(not d.problems().has(RouteDraft.P_SPACING), "겹치지 않으면 가까워도 됨 %s" % [d.spacing_details()])
 	var far := _draft()
 	far.move(far.start[&"LH"], -0.9, 3.5)
 	runner.check(far.problems().has(RouteDraft.P_POSE), "손이 너무 멀면 시작 자세 못 만듦 %s" % [far.problems()])
@@ -153,6 +213,9 @@ func test_wall_angle_sections() -> void:
 	runner.check(d.walls.size() == 20 and d.build(Vector2(0, 0.75)).wall_sections.size() == 19, "아래와 같은 각의 경계는 남겨 두고(끄는 중 이웃이 사라지지 않게) 문제로 바꿀 때 합침")
 	d.set_wall(30, 120)
 	runner.check(d.wall_deg_at(30.0) == 90, "90°(천장)까지 (%d)" % d.wall_deg_at(30.0))
+	d.set_wall(40, -150)  # 2026-11-26 사용자 "벽각도는 90도부터 300도까지": 화면 300° = 오버행 −120
+	runner.check(d.wall_deg_at(40.0) == -120 and is_equal_approx(d.build(Vector2(0, 0.75)).angle_at(45.0), -120.0), "300°(뒤로 120°)까지 (%d)" % d.wall_deg_at(40.0))
+	d.remove_wall(40)
 	var r := d.build(Vector2(0, 0.75))
 	runner.check(is_equal_approx(r.angle_at(12.5), 12.0) and is_equal_approx(r.angle_at(35.0), 90.0), "플레이 벽도 같은 각 (%.1f, %.1f)" % [r.angle_at(12.5), r.angle_at(35.0)])
 	d.remove_wall(30)
@@ -200,6 +263,38 @@ func test_start_fix_suggestion() -> void:
 	d.move(fix.hold, h.x + fix.move.x, h.y + fix.move.y)
 	runner.check(d.start_pose().ok, "말한 대로 옮기면 시작 자세가 됨")
 	runner.check(d.start_fix().is_empty(), "이미 되면 빈 값")
+
+
+## 뒤로 누운 벽(화면 180°~300°, 2026-11-26 사용자 "90도부터 300도까지 … 땅 기준"): 시작 자세가 되고 탑까지 오른다.
+func test_slab_walls_climbable() -> void:
+	for deg in [-30, -90, -120]:
+		var d := RouteDraft.new()
+		d.route_id = "U_SLAB"
+		d.name = "슬랩"
+		var ids := [d.place("jug", -0.3, 1.5), d.place("jug", 0.3, 1.5), d.place("foot_chip", -0.15, 0.1), d.place("foot_chip", 0.18, 0.1)]
+		for i in 4:
+			d.set_start([&"LH", &"RH", &"LF", &"RF"][i], ids[i])
+		d.place("jug", 0.0, 1.7, "top")
+		d.set_wall(0, deg)
+		runner.check(d.problems().is_empty(), "화면 %d°: 막는 것 없음 %s" % [180 - deg, d.problems()])
+		runner.check(PathExplorer.explore(d.build(), {}, false, 8000).ok, "화면 %d°: 탑까지" % (180 - deg))
+
+
+## 2026-11-26 사용자 "무게중심 때문에 시작 홀드 설정이 안 되는 경우가 있는데 여유롭게": 자세 계산이 고른 골반에서 못 버티면
+## 가까운 골반을 찾아 버티는 자리로 시작한다(발이 손 아래 한쪽으로 치우친 배치).
+func test_start_balance_lenient() -> void:
+	var d := RouteDraft.new()
+	d.route_id = "U_BAL"
+	d.name = "균형"
+	var ids := [d.place("jug", -0.3, 1.7), d.place("jug", 0.3, 1.7), d.place("foot_big", -0.4, 0.7), d.place("foot_big", -0.1, 0.7)]
+	for i in 4:
+		d.set_start([&"LH", &"RH", &"LF", &"RF"][i], ids[i])
+	d.place("jug", 0.0, 3.0, "top")
+	var g := d.start_pose(false)
+	runner.check(g.ok and not SessionBot.start_ok(d.build(g.pelvis, g.angle)), "재현: 자세 계산의 골반에서는 못 버팀")
+	var p := d.start_pose()
+	runner.check(p.balanced and not d.problems().has(RouteDraft.P_POSE), "버티는 골반을 찾아 시작 자세가 됨 %s" % [d.problems()])
+	runner.check(SessionBot.start_ok(d.build()), "문제의 시작 골반도 그 자리")
 
 
 ## 만들 수는 있지만 문제가 있을 수 있는 것: 손이 닿기 어려운 먼 홀드, 천장에 가까운 구간, 탑보다 높은 홀드, 아주 높은 벽.

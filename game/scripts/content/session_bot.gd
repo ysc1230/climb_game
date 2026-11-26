@@ -52,6 +52,17 @@ static func run(p_route: RouteDef, steps: Array, forbid := {}, recorder: ScoreRe
 	return bot
 
 
+## 시작 자세에서 버티는가: run()의 시작 단계만(유예가 지나고 안정될 때까지, 이동·완등 대기 없이). 만들기 화면 점검용(run의 약 1/10).
+static func start_ok(p_route: RouteDef) -> bool:
+	var bot := SessionBot.new()
+	bot.route = p_route
+	bot.session = ClimbSession.new(p_route)
+	for i in START_MIN_TICKS:
+		if not bot._tick().is_empty():
+			return false
+	return bot._settle().is_empty()
+
+
 func ok() -> bool:
 	return failure.is_empty() and cleared
 

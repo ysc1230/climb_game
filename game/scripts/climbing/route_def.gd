@@ -103,7 +103,7 @@ func _read(d: Dictionary) -> void:
 	wall_sections = []
 	if mode in ["general", "custom"]:
 		for w in d.get("wall_sections", []):
-			wall_sections.append({"from_y": float(w.get("from_y", 0.0)), "deg": clampf(float(w.get("deg", 0.0)), 0.0, 90.0)})  # 90 = 천장(만들기 화면 벽 각도, 2026-11-25)
+			wall_sections.append({"from_y": float(w.get("from_y", 0.0)), "deg": clampf(float(w.get("deg", 0.0)), -120.0, 90.0)})  # 90 = 천장, −120 = 뒤로 120°(만들기 화면 90~300°, 2026-11-26)
 		wall_sections.sort_custom(func(a, b): return a.from_y < b.from_y)
 		if not wall_sections.is_empty():
 			wall_deg = wall_sections.reduce(func(m, w): return maxf(m, w.deg), 0.0)
@@ -175,7 +175,7 @@ func _read_slot(s: Dictionary, allowed: Array[StringName]) -> Dictionary:
 		if err != "":
 			errors.append("슬롯 %s: %s" % [s.get("slot_id", "?"), err])
 		else:
-			HoldTypes.fill(slot, s)
+			HoldTypes.fill(slot, s, hand)
 			if hand and not fa.has("half_width"):
 				slot.foot_area.half_width = maxf(0.04, float(slot.hand_area.half_width))
 	return slot
@@ -192,8 +192,12 @@ func _validate() -> void:
 		if used.has(key):
 			errors.append("시작 자세 슬롯 중복 %s" % key)
 		used[key] = true
-	if goal_slots.size() != 2 or goal_slots[0] == goal_slots[1]:
-		errors.append("정상 슬롯은 서로 다른 2개여야 함")
+	# 정상: 서로 다른 칸 둘(일반 문제) 또는 두 손이 같이 잡는 합손 칸 하나(만든 문제의 탑 하나, 2026-11-26 사용자 "탑홀드는 무조건 하나")
+	if goal_slots.size() == 1:
+		if slots.has(goal_slots[0]) and not slots[goal_slots[0]].get("hand_area", {}).get("matchable", false):
+			errors.append("정상 칸 하나는 합손 칸이어야 함")
+	elif goal_slots.size() != 2 or goal_slots[0] == goal_slots[1]:
+		errors.append("정상 슬롯은 서로 다른 2개(또는 합손 칸 1개)여야 함")
 	for key in goal_slots:
 		if not slots.has(key) or not (slots[key].allowed.has(PoseSolver.LH) and slots[key].allowed.has(PoseSolver.RH)):
 			errors.append("정상 슬롯 %s 없음 또는 양손 비허용" % key)

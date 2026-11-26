@@ -435,7 +435,7 @@ func _hold_mesh(name: String) -> Mesh:
 static func hold_variant(key: String, slot: Dictionary, is_goal: bool) -> String:
 	var h := absi(hash(key))
 	var type := str(slot.get("hold_type", ""))
-	if is_goal:
+	if is_goal and type in ["", "goal"]:  # 만든 문제의 탑은 고른 종류 모양(색은 탑 금색)
 		type = "goal"
 	elif type == "":
 		type = "foot_chip"
@@ -462,7 +462,7 @@ static func surface_role(mesh: Mesh, si: int) -> int:
 
 ## 보이는 길이(잡는 방향): 손 2·반폭 + 2·두께, 발 2·발 반폭 + 0.02. 메시 원래 길이로 나눈 균일 배율.
 static func hold_view_scale(slot: Dictionary, mesh: Mesh, is_goal: bool) -> float:
-	if is_goal:
+	if is_goal and str(slot.get("hold_type", "")) in ["", "goal"]:
 		return 1.25
 	var target: float
 	if slot.has("hand_area"):

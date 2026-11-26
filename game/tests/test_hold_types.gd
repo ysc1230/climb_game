@@ -67,9 +67,25 @@ func test_pinch_has_three_modes() -> void:
 		"핀치 = pull + 옆 둘 %s" % [s.grip_modes])
 
 
-func test_pocket_never_matchable() -> void:
-	runner.check(not _one("pocket", "M", 0, {"hand_area": {"matchable": true}}).hand_area.matchable, "포켓은 합손 불가")
-	runner.check(_one("jug", "L", 0, {"hand_area": {"matchable": true}}).hand_area.matchable, "저그는 matchable대로")
+## 합손은 종류·크기마다(2026-11-26 사용자 "저그는 어느 사이즈든 … 크림프는 가장 큰 홀드만", "포켓은 큰건 되게", "슬로퍼는 보통·큰것만").
+func test_match_by_type_and_size() -> void:
+	var table := {"jug": ["S", "M", "L"], "crimp": ["L"], "sloper": ["M", "L"], "pinch": ["L"], "pocket": ["L"], "foot_chip": [], "foot_big": []}
+	for type in table:
+		for size in HoldTypes.SIZES:
+			runner.check(HoldTypes.can_match(type, size) == table[type].has(size), "%s %s 합손 %s" % [type, size, table[type].has(size)])
+	runner.check(not _one("crimp", "M", 0, {"hand_area": {"matchable": true}}).hand_area.matchable, "크림프 보통은 켜도 합손 안 됨")
+	runner.check(_one("crimp", "L", 0, {"hand_area": {"matchable": true}}).hand_area.matchable, "크림프 큰 것은 합손")
+	runner.check(_one("pocket", "L", 0, {"hand_area": {"matchable": true}}).hand_area.matchable, "포켓 큰 것은 합손")
+	runner.check(not _one("jug", "S").hand_area.matchable, "켜지 않으면 합손 아님")
+
+
+## 손홀드 종류도 발로 딛게 놓을 수 있다(2026-11-26 사용자 "홀드 종류가 기준이 된 후에 손 발 탑을 선택"). 발판은 손으로 못 잡는다.
+func test_hand_type_as_foot() -> void:
+	var s := _slot("jug", "L")
+	s.allowed = ["LF", "RF"]
+	var f := _one("jug", "L", 0, {"allowed": ["LF", "RF"]})
+	runner.check(not f.has("hand_area") and is_equal_approx(f.foot_area.half_width, 0.12) and f.foot_area.half_height > 0.0, "저그를 발로: 발 영역(반폭 0.12) %s" % [f])
+	runner.check(not _route([_slot("foot_big").merged({"allowed": ["LH", "RH"]}, true)]).errors.is_empty(), "발판은 손 칸이 될 수 없음")
 
 
 func test_foot_rotation_and_share() -> void:

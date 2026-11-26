@@ -95,7 +95,8 @@ func _search() -> Array:
 
 
 func _is_goal(keys: Dictionary) -> bool:
-	return route.goal_slots.has(keys.get(PoseSolver.LH, "")) and route.goal_slots.has(keys.get(PoseSolver.RH, "")) and keys[PoseSolver.LH] != keys[PoseSolver.RH]
+	return route.goal_slots.has(keys.get(PoseSolver.LH, "")) and route.goal_slots.has(keys.get(PoseSolver.RH, "")) \
+		and (keys[PoseSolver.LH] != keys[PoseSolver.RH] or route.goal_slots.size() == 1)  # 탑 하나는 두 손이 같은 칸
 
 
 ## 이 접점들로 몸이 스스로 자리 잡는 자세(세션의 자동 자세와 같은 PoseSolver.find_target). 안 되면 Vector3(INF).
@@ -156,6 +157,8 @@ func _slot_free(key: String, limb: StringName, others: Dictionary) -> bool:
 	if route.goal_slots.has(key):
 		if not hand:
 			return false
+		if route.goal_slots.size() == 1:  # 탑 하나(합손 칸): 두 손이 같이 잡는다
+			return true
 		for o in others:
 			if others[o] == key:
 				return false

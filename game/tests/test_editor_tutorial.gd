@@ -21,17 +21,17 @@ func test_follow_every_click_makes_own_route() -> void:
 	var d := RouteDraft.new()
 	var t := EditorTutorial.new()
 	t.begin(d)
-	runner.check(_id(t) == "list_hand" and t.target() == ["list", "hand"], "처음: [손홀드] 가리킴")
-	runner.check(not _go(t, d, "type:jug"), "다른 버튼은 넘어가지 않음")
-	runner.check(_go(t, d, "list:hand") and _id(t) == "type_jug" and t.target() == ["type", "jug"], "[손홀드] → [저그]")
-	runner.check(_go(t, d, "type:jug") and _id(t) == "spot0", "[저그] → 노란 원 1")
+	runner.check(_id(t) == "type_jug" and t.target() == ["type", "jug"], "처음: [저그] 가리킴(종류가 먼저)")
+	runner.check(not _go(t, d, "role:hand"), "다른 버튼은 넘어가지 않음")
+	runner.check(_go(t, d, "type:jug") and _id(t) == "role_hand" and t.target() == ["role", "hand"], "[저그] → [손으로]")
+	runner.check(_go(t, d, "role:hand") and _id(t) == "spot0", "[손으로] → 노란 원 1")
 	runner.check(t.mark(d) == EditorTutorial.SPOTS[0] and t.mark_strict() and t.place_kind() == "hand", "원 1: 손홀드 자리, 그 안만")
 	for i in 2:
 		var m: Vector2 = t.mark(d)
 		d.place("jug", m.x, m.y)
 		runner.check(_go(t, d), "원 %d에 놓으면 다음" % (i + 1))
-	runner.check(_id(t) == "list_foot", "손 둘 → [발홀드]")
-	runner.check(_go(t, d, "list:foot") and _go(t, d, "type:foot_big") and t.place_kind() == "foot", "[발홀드] → [큰 발판] → 발 자리")
+	runner.check(_id(t) == "type_foot", "손 둘 → [큰 발판]")
+	runner.check(_go(t, d, "type:foot_big") and t.place_kind() == "foot", "[큰 발판] → 발 자리")
 	for i in 2:
 		var m: Vector2 = t.mark(d)
 		d.place("foot_big", m.x, m.y)
@@ -49,10 +49,10 @@ func test_follow_every_click_makes_own_route() -> void:
 	d.place("crimp", -0.1, 2.5)
 	d.place("jug", 0.2, 3.1)
 	runner.check(not _go(t, d) and t.target() == ["tut_next", ""], "놓는 동안은 그대로, [다음] 가리킴")
-	runner.check(_go(t, d, "tut_next:") and _go(t, d, "list:goal") and _id(t) == "top", "[다음] → [탑] → 탑 자리")
+	runner.check(_go(t, d, "tut_next:") and _id(t) == "type_top" and _go(t, d, "type:jug") and _go(t, d, "role:top") and _id(t) == "top", "[다음] → 탑 종류 [저그] → [탑으로] → 탑 자리")
 	var top: Vector2 = t.mark(d)
 	runner.check(top.is_equal_approx(Vector2(0.2, 3.7)) and not t.mark_strict(), "탑 원: 가장 높은 홀드 0.6m 위, 다른 곳도 됨 (%s)" % top)
-	d.place("goal", top.x, top.y)
+	d.place("jug", top.x, top.y, "top")
 	runner.check(_go(t, d) and _id(t) == "name", "탑 → 이름")
 	d.set_name("내 문제")
 	t.typing = true
@@ -83,8 +83,8 @@ func test_spot_already_filled_skips() -> void:
 	var t := EditorTutorial.new()
 	t.begin(d)
 	d.place("jug", EditorTutorial.SPOTS[0].x, EditorTutorial.SPOTS[0].y)
-	_go(t, d, "list:hand")
-	runner.check(_go(t, d, "type:jug") and _id(t) == "spot1", "원 1이 차 있으면 원 2로 (%s)" % _id(t))
+	_go(t, d, "type:jug")
+	runner.check(_go(t, d, "role:hand") and _id(t) == "spot1", "원 1이 차 있으면 원 2로 (%s)" % _id(t))
 
 
 func test_top_mark_without_holds() -> void:
@@ -100,7 +100,7 @@ func test_help_after_idle() -> void:
 	runner.check(t.help_text() == "", "14초엔 도움말 없음")
 	t.update(d, [], 1.5)
 	runner.check(t.help_text() != "", "15초 넘으면 도움말")
-	_go(t, d, "list:hand")
+	_go(t, d, "type:jug")
 	runner.check(t.help_text() == "", "다음 단계는 도움말 숨김")
 	for s in t.steps:
 		runner.check(str(s.text) != "" and str(s.help) != "", "%s 문구·도움말 있음" % s.id)

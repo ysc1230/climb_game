@@ -4,7 +4,7 @@ extends RefCounted
 ## 홀드 목록·시작 네 자리·탑 하나를 들고, 일반 문제와 같은 JSON(mode "custom")으로 바꾼다.
 ## 놓기·옮기기는 1cm, 돌리기는 5°에 맞물린다. 되돌리기는 최근 UNDO_MAX단계.
 
-const SCHEMA := 1                 # 공유 문제 JSON 판(§6). 앱이 모르는 더 새 판이면 열지 않는다
+const SCHEMA := 2                 # 공유 문제 JSON 판(§6). 앱이 모르는 더 새 판이면 열지 않는다. 2(0.38): 탑 칸 하나(합손), 발로만 쓰는 손홀드 종류
 const MAX_HOLDS := 300           # 2026-11-25 사용자 "100m로 제한하고 홀드는 300개"
 const NAME_MAX := 20
 const UNDO_MAX := 30
@@ -15,12 +15,16 @@ const WALL_H_MIN := 4.5
 const WALL_H_MAX := 100.0
 const EXTEND := 2.0
 const Y_MIN := 0.05
-const GOAL_HALF := 0.2            # 탑 두 칸의 간격 절반(일반 문제와 같음)
 const GRADES := ["V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7"]
 const P_NAME := "문제 이름을 적어 주세요"
 const P_START := "시작 자리(두 손·두 발)를 정해 주세요"
 const P_GOAL := "탑 홀드를 놓아 주세요"
-const P_SPACING := "빨간 홀드가 다른 홀드와 너무 가까워요"
+const P_SPACING := "빨간 홀드가 다른 홀드와 겹쳐요"
+## 간격: 2026-11-26 사용자 "홀드간 거리는 거의 겹치지만 않으면 되도록" — 보이는 타원 가장자리 사이가 이보다 좁을 때만 막는다(일반 문제는 docs/44 그대로).
+const MIN_GAP := 0.01
+## 벽 각도(오버행, 화면은 180 − 각): 90 천장 … 0 수직 … −120(화면 300°, 2026-11-26 사용자 "90도부터 300도까지").
+const WALL_DEG_MIN := -120
+const WALL_DEG_MAX := 90
 const P_POSE := "시작 자세를 만들 수 없어요(손발이 너무 멀거나 가까워요) — [점검]에서 고칠 곳을 보세요"
 const P_ROUTE := "문제 데이터 오류"
 
@@ -28,14 +32,27 @@ var route_id := ""
 var name := ""
 var grade := "V0"
 var version := 1
-var holds: Array = []             # [{id, type, size, rot, x, y, matchable}]
+var holds: Array = []             # [{id, type, size, rot, x, y, matchable, role}] role: "hand" | "foot" | "top"(하나)
 var start := {&"LH": "", &"RH": "", &"LF": "", &"RF": ""}  # limb → 홀드 id
-## 벽 각도 구간 [{from_y: m, deg}] from_y 오름차순, 첫 구간 0m. deg = 오버행(0 수직 … 90 천장, 플레이의 wall_sections와 같음),
-## 화면에는 180 − deg(2026-11-25 사용자 "180도(평면)부터 90도까지", "최소 단위 1m와 1도, 횟수 제한 없음").
+## 벽 각도 구간 [{from_y: m, deg}] from_y 오름차순, 첫 구간 0m. deg = 오버행(땅 기준: 0 수직, 90 천장, − 뒤로 누움. 플레이의 wall_sections와 같음),
+## 화면에는 180 − deg(2026-11-25 사용자 "최소 단위 1m와 1도, 횟수 제한 없음", 2026-11-26 "90도부터 300도까지 … 땅 기준").
 var walls: Array = [{"from_y": 0, "deg": 0}]
 var _next := 1
 var _undo: Array = []
 var _frozen := false              # 완등·올린 판: 다음 고침에서 판을 올린다
+var _pose_key := ""               # start_pose(균형) 결과를 다시 쓰는 열쇠(시작 홀드·벽 각도)
+var _pose := {}
+## 버티는 골반을 찾을 때 옮겨 보는 거리(가까운 것부터, 좌우 0.3m·위아래 0.2m까지)
+static var _POSE_OFFSETS: Array = _pose_offsets()
+
+
+static func _pose_offsets() -> Array:
+	var out: Array = []
+	for dx in [-0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3]:
+		for dy in [-0.2, -0.1, 0.0, 0.1, 0.2]:
+			out.append(Vector2(dx, dy))
+	out.sort_custom(func(a, b): return a.length() < b.length())
+	return out
 
 
 func hold(id: String) -> Dictionary:
@@ -47,31 +64,67 @@ func hold(id: String) -> Dictionary:
 
 func goal_hold() -> Dictionary:
 	for h in holds:
-		if h.type == "goal":
+		if h.role == "top":
 			return h
 	return {}
 
 
-static func is_hand_type(type: String) -> bool:
-	return HoldTypes.has(type) and not HoldTypes.is_foot(type)
+## 손으로 잡을 수 있는 홀드인가(손·탑 쓰임). 발로 놓은 홀드는 발만 딛는다.
+static func is_hand_hold(h: Dictionary) -> bool:
+	return h.get("role", "hand") != "foot"
 
 
-## 종류 type을 (x, y)에 놓는다. 탑은 하나라 이미 있으면 옮긴다. 반환: 홀드 id, 못 놓으면 "".
-func place(type: String, x: float, y: float, size := "M", rot := 0) -> String:
-	if not HoldTypes.has(type):
+## 종류가 쓰일 수 있는 쓰임(2026-11-26 사용자 "홀드 종류가 기준이 된 후에 손 발 탑을 선택"): 발판은 발만,
+## 손홀드 종류는 손·발, 합손 되는 크기가 있으면 탑도.
+static func roles_for(type: String) -> Array:
+	if not HoldTypes.has(type) or type == "goal":
+		return []
+	if HoldTypes.is_foot(type):
+		return ["foot"]
+	var out := ["hand", "foot"]
+	if HoldTypes.SIZES.any(func(sz): return HoldTypes.can_match(type, sz)):
+		out.append("top")
+	return out
+
+
+## 탑은 두 손으로 잡아 끝나므로 합손 되는 크기만(사용자 고름). size가 안 되면 되는 가장 작은 크기.
+static func top_size(type: String, size: String) -> String:
+	if HoldTypes.can_match(type, size):
+		return size
+	for sz in HoldTypes.SIZES:
+		if HoldTypes.can_match(type, sz):
+			return sz
+	return size
+
+
+## 종류 type을 쓰임 role(비우면 종류대로 손·발)로 (x, y)에 놓는다. 탑은 하나라 이미 있으면 그 탑을 옮기고 종류를 바꾼다.
+## "goal"은 0.37까지의 탑 이름: 큰 저그 탑. 반환: 홀드 id, 못 놓으면 "".
+func place(type: String, x: float, y: float, role := "", size := "M", rot := 0) -> String:
+	if type == "goal":
+		type = "jug"
+		role = "top"
+		size = "L"
+	if role == "":
+		role = "foot" if HoldTypes.is_foot(type) else "hand"
+	if not roles_for(type).has(role):
 		return ""
-	if type == "goal" and not goal_hold().is_empty():
+	if role == "top":
+		size = top_size(type, size)
 		var g := goal_hold()
-		move(g.id, x, y)
-		return g.id
+		if not g.is_empty():
+			_push()
+			g.type = type
+			g.size = size
+			g.x = _sx(x)
+			g.y = _sy(y)
+			return g.id
 	if holds.size() >= MAX_HOLDS:
 		return ""
 	_push()
-	var prefix := "G" if type == "goal" else ("F" if HoldTypes.is_foot(type) else "H")
-	var id := "G01" if type == "goal" else "%s%02d" % [prefix, _next]
-	if type != "goal":
+	var id := "G01" if role == "top" else "%s%02d" % ["F" if role == "foot" else "H", _next]
+	if role != "top":
 		_next += 1
-	holds.append({"id": id, "type": type, "size": size, "rot": _snap_rot(rot), "x": _sx(x), "y": _sy(y), "matchable": false})
+	holds.append({"id": id, "type": type, "size": size, "rot": _snap_rot(rot), "x": _sx(x), "y": _sy(y), "matchable": role == "top", "role": role})
 	return id
 
 
@@ -91,23 +144,26 @@ func rotate(id: String, deg: int) -> void:
 
 func set_rot(id: String, deg: int) -> void:
 	var h := hold(id)
-	if h.is_empty() or h.type == "goal":
+	if h.is_empty():
 		return
 	_push()
 	h.rot = _snap_rot(deg)
 
 
+## 크기를 바꾼다. 그 크기에서 합손이 안 되면 합손을 끈다. 탑은 합손 되는 크기로만.
 func set_size(id: String, size: String) -> void:
 	var h := hold(id)
-	if h.is_empty() or not HoldTypes.SIZES.has(size) or h.type == "goal":
+	if h.is_empty() or not HoldTypes.SIZES.has(size) or (h.role == "top" and not HoldTypes.can_match(h.type, size)):
 		return
 	_push()
 	h.size = size
+	h.matchable = h.matchable and HoldTypes.can_match(h.type, size)
 
 
+## 합손 켜기·끄기: 손 쓰임이고 그 종류·크기가 될 때만 켠다(탑은 늘 합손).
 func set_matchable(id: String, on: bool) -> void:
 	var h := hold(id)
-	if h.is_empty() or not is_hand_type(h.type) or h.type == "goal":
+	if h.is_empty() or h.role != "hand" or (on and not HoldTypes.can_match(h.type, h.size)):
 		return
 	_push()
 	h.matchable = on
@@ -131,7 +187,7 @@ func max_y() -> float:
 ## from_y m부터 위로 벽 각도(오버행 deg, 0~90). 아래와 같은 각이 돼도 경계는 남긴다(다이얼을 끄는 중 이웃 경계가 사라지지 않게).
 func set_wall(from_y: int, deg: int, push := true) -> void:
 	from_y = clampi(from_y, 0, int(WALL_H_MAX) - 1)
-	deg = clampi(deg, 0, 90)
+	deg = clampi(deg, WALL_DEG_MIN, WALL_DEG_MAX)
 	if push:
 		_push()
 	var i := 0
@@ -172,12 +228,12 @@ func remove(id: String) -> void:
 			start[l] = ""
 
 
-## 시작 자리. 손은 손홀드만(탑 제외), 발은 탑이 아닌 아무 홀드. 같은 홀드를 다른 손발이 쓰고 있었으면 그쪽을 비운다.
+## 시작 자리. 손은 손 쓰임 홀드만(탑 제외), 발은 탑이 아닌 아무 홀드. 같은 홀드를 다른 손발이 쓰고 있었으면 그쪽을 비운다.
 func set_start(limb: StringName, id: String) -> bool:
 	var h := hold(id)
-	if h.is_empty() or h.type == "goal":
+	if h.is_empty() or h.role == "top":
 		return false
-	if PoseSolver.is_hand(limb) and not is_hand_type(h.type):
+	if PoseSolver.is_hand(limb) and h.role != "hand":
 		return false
 	_push()
 	for l in start:
@@ -237,10 +293,8 @@ static func _snap_rot(deg: int) -> int:
 
 # ---------- 문제 JSON ----------
 
-func _key(h: Dictionary, side := "") -> String:
-	if h.type == "goal":
-		return "%s/G01/goal_%s" % [route_id, side]
-	return "%s/%s/%s" % [route_id, h.id, "foot_1" if HoldTypes.is_foot(h.type) else "hand_1"]
+func _key(h: Dictionary) -> String:
+	return "%s/%s/%s" % [route_id, h.id, "foot_1" if h.role == "foot" else "hand_1"]
 
 
 ## 일반 문제와 같은 형식(mode "custom", schema). pelvis: 시작 골반(비우면 start_pose()로 계산).
@@ -248,18 +302,12 @@ func to_route_dict(pelvis := Vector2.INF, angle := 0.0) -> Dictionary:
 	var hs: Array = []
 	var goal_slots: Array = []
 	for h in holds:
-		if h.type == "goal":
-			var slots: Array = []
-			for side in ["left", "right"]:
-				var x: float = h.x + (-GOAL_HALF if side == "left" else GOAL_HALF)
-				slots.append({"slot_id": "goal_" + side, "pos": [snappedf(x, 0.001), h.y], "allowed": ["LH", "RH"], "hold_type": "goal", "size": "M", "rot_deg": 0})
-				goal_slots.append(_key(h, side))
-			hs.append({"hold_id": "G01", "slots": slots})
-			continue
-		var foot := HoldTypes.is_foot(h.type)
+		var foot: bool = h.role == "foot"
 		var s := {"slot_id": "foot_1" if foot else "hand_1", "pos": [h.x, h.y], "allowed": ["LF", "RF"] if foot else ["LH", "RH"],
 			"hold_type": h.type, "size": h.size, "rot_deg": h.rot}
-		if h.matchable:
+		if h.role == "top":  # 탑 하나: 두 손이 같은 칸을 잡으면 완등(합손 칸)
+			goal_slots.append(_key(h))
+		if h.matchable and not foot:
 			s["hand_area"] = {"matchable": true}
 		hs.append({"hold_id": h.id, "slots": [s]})
 	var st := {}
@@ -282,7 +330,7 @@ func to_route_dict(pelvis := Vector2.INF, angle := 0.0) -> Dictionary:
 	# 두 시작 발이 바닥 가까이(발판 높이 ≤ 0.15m)면 바닥 받침(일반 문제의 시작 발판과 같음)
 	var lf := hold(start[&"LF"])
 	var rf := hold(start[&"RF"])
-	if not lf.is_empty() and not rf.is_empty() and HoldTypes.is_foot(lf.type) and HoldTypes.is_foot(rf.type) and lf.y <= 0.15 and rf.y <= 0.15:
+	if not lf.is_empty() and not rf.is_empty() and lf.role == "foot" and rf.role == "foot" and lf.y <= 0.15 and rf.y <= 0.15:
 		d.platforms = [{"platform_id": "P00", "foot_slot_keys": [_key(lf), _key(rf)], "top_y": 0.1,
 			"x_range": [snappedf(minf(lf.x, rf.x) - 0.35, 0.01), snappedf(maxf(lf.x, rf.x) + 0.35, 0.01)]}]
 	return d
@@ -301,14 +349,37 @@ func build(pelvis := Vector2.INF, angle := 0.0) -> RouteDef:
 	return RouteDef.from_dict(to_route_dict(pelvis, angle))
 
 
-## 시작 네 자리에서 몸이 자리 잡는 골반 {ok, pelvis, angle}(PoseSolver.find_target, 여러 출발점).
-func start_pose() -> Dictionary:
+## 시작 네 자리에서 몸이 자리 잡는 골반 {ok, pelvis, angle, balanced}(PoseSolver.find_target, 여러 출발점).
+## balance: 그 골반에서 실제로 버티는지(SessionBot.start_ok)도 보고, 안 되면 골반을 가까운 곳부터 옮겨 버티는 자리를 찾는다
+## (2026-11-26 사용자 "무게중심 때문에 시작 홀드 설정이 안 되는 경우가 있는데 여유롭게": 450가지 배치에서 못 버틴 85개가 모두 0.3m 안에 버티는 자리가 있었다).
+## 시작 홀드·벽 각도가 같으면 지난 결과를 쓴다.
+func start_pose(balance := true) -> Dictionary:
 	var att := {}
 	for l in start:
 		var h := hold(start[l])
 		if h.is_empty():
-			return {"ok": false, "pelvis": Vector2(0, 0.75), "angle": 0.0}
+			return {"ok": false, "pelvis": Vector2(0, 0.75), "angle": 0.0, "balanced": false}
 		att[l] = Vector2(h.x, h.y)
+	var key := str([att, walls]) if balance else ""
+	if balance and key == _pose_key:
+		return _pose.duplicate()
+	var pose := _geometric_pose(att)
+	if balance:
+		pose.balanced = false
+		if pose.ok:
+			for o in _POSE_OFFSETS:
+				var q: Vector2 = pose.pelvis + o
+				if SessionBot.start_ok(build(q, pose.angle if o == Vector2.ZERO else 0.0)):
+					pose.pelvis = q
+					pose.angle = pose.angle if o == Vector2.ZERO else 0.0
+					pose.balanced = true
+					break
+		_pose_key = key
+		_pose = pose.duplicate()
+	return pose
+
+
+func _geometric_pose(att: Dictionary) -> Dictionary:
 	var cx: float = (att[&"LH"].x + att[&"RH"].x + att[&"LF"].x + att[&"RF"].x) / 4.0
 	var fy: float = minf(att[&"LF"].y, att[&"RF"].y)
 	var hy: float = minf(att[&"LH"].y, att[&"RH"].y)
@@ -338,7 +409,7 @@ func problems() -> Array:
 		var r := build(pose.pelvis, pose.angle)
 		if not r.errors.is_empty():
 			out.append(P_ROUTE)
-		elif not pose.ok or SessionBot.run(r, []).failed_step == SessionBot.START_FAILED:
+		elif not pose.balanced:
 			out.append(P_POSE)
 	if not bad_holds().is_empty():
 		out.append(P_SPACING)
@@ -349,7 +420,7 @@ func problems() -> Array:
 ## 옮겨 보며 시작 자세(start_pose)가 되는 가장 작은 이동을 찾는다. {limb, hold, move(m), text}. 이미 되거나 못 찾으면 {}.
 ## 점검 창을 열 때만 부른다(최대 192번 자세 계산, 약 0.2초).
 func start_fix() -> Dictionary:
-	if start.values().has("") or start_pose().ok:
+	if start.values().has("") or start_pose(false).ok:
 		return {}
 	var dirs := [[Vector2(0, -1), "아래로"], [Vector2(0, 1), "위로"], [Vector2(-1, 0), "왼쪽으로"], [Vector2(1, 0), "오른쪽으로"],
 		[Vector2(-1, -1), "왼쪽 아래로"], [Vector2(1, -1), "오른쪽 아래로"], [Vector2(-1, 1), "왼쪽 위로"], [Vector2(1, 1), "오른쪽 위로"]]
@@ -363,7 +434,7 @@ func start_fix() -> Dictionary:
 				var mv: Vector2 = (dv[0] as Vector2).normalized() * step * 0.1
 				h.x = _sx(x0 + mv.x)
 				h.y = _sy(y0 + mv.y)
-				var ok: bool = start_pose().ok
+				var ok: bool = start_pose(false).ok
 				h.x = x0
 				h.y = y0
 				if ok:
@@ -378,7 +449,7 @@ const ROOF_DEG := 70    # 이보다 기운(화면 110° 이하) 구간은 발 �
 ## 만들 수는 있지만 문제가 있을 수 있는 것 [{text, hold, y}](점검 창). 가벼운 계산만(고칠 때마다 센다).
 func warnings() -> Array:
 	var out: Array = []
-	var hands := holds.filter(func(h): return is_hand_type(h.type) or h.type == "goal")
+	var hands := holds.filter(func(h): return is_hand_hold(h))
 	var base := -INF
 	for l in [&"LH", &"RH"]:
 		if start[l] != "":
@@ -392,17 +463,17 @@ func warnings() -> Array:
 				best = minf(best, Vector2(o.x, o.y).distance_to(Vector2(h.x, h.y)))
 		if best > FAR_HAND and best < INF:
 			var tip := " 합손 홀드라 다이노로는 닿을 수 있어요." if h.get("matchable", false) else ""
-			out.append({"text": "%s(%.1fm)가 아래 손홀드에서 %.1fm 떨어져 닿기 어려워요(%.1fm 안이 좋아요).%s" % [HoldTypes.name_ko(h.type), h.y, best, FAR_HAND, tip], "hold": h.id, "y": h.y})
+			out.append({"text": "%s(%.1fm)가 아래 손으로 잡는 홀드에서 %.1fm 떨어져 닿기 어려워요(%.1fm 안이 좋아요).%s" % [HoldTypes.name_ko(h.type), h.y, best, FAR_HAND, tip], "hold": h.id, "y": h.y})
 	for w in walls:
 		if int(w.deg) >= ROOF_DEG and float(w.from_y) < wall_limit():
 			out.append({"text": "%dm부터 %d°: 천장에 가까워 발을 딛기 어려워요(토훅·힐훅은 아직 없어요)." % [int(w.from_y), 180 - int(w.deg)], "hold": "", "y": float(w.from_y)})
 	var g := goal_hold()
 	if not g.is_empty():
-		var above := holds.filter(func(h): return h.type != "goal" and h.y > g.y + 0.3)
+		var above := holds.filter(func(h): return h.role != "top" and h.y > g.y + 0.3)
 		if not above.is_empty():
 			out.append({"text": "탑보다 높은 홀드 %d개는 쓰이지 않아요." % above.size(), "hold": above[0].id, "y": above[0].y})
 	if wall_limit() > 20.0:
-		out.append({"text": "벽이 20m 넘게 높아요. 봇 검사(5초)가 끝까지 못 볼 수 있어요.", "hold": "", "y": -1.0})
+		out.append({"text": "벽이 20m 넘게 높아요. [봇으로 확인](5초)이 끝까지 못 볼 수 있어요.", "hold": "", "y": -1.0})
 	return out
 
 
@@ -415,16 +486,13 @@ func spacing_details() -> Array:
 	if d.goal_slots.is_empty():
 		d.goal_slots = ["x", "y"]  # 탑 없이도 간격은 본다(읽기 오류는 무시)
 	var r := RouteDef.from_dict(d)
-	for line in HoldSpacing.violations(r):
+	for line in HoldSpacing.violations(r, 0.0, MIN_GAP):
 		var p := String(line).split(" ")  # "H03 ↔ H05 간격 0.050m < 0.120m"
 		var a := hold(p[0])
 		var b := hold(p[2])
 		if a.is_empty() or b.is_empty():
 			continue
-		var gap := p[4].to_float()
-		var now := "겹쳐 있어요" if gap <= 0.005 else "너무 가까워요(지금 %.2fm)" % gap
-		out.append({"hold": p[0], "other": p[2], "text": "%s·%s 사이가 %s. %.2fm 넘게 떼어 놓으세요." % [
-			HoldTypes.name_ko(a.type), HoldTypes.name_ko(b.type), now, p[6].to_float()]})
+		out.append({"hold": p[0], "other": p[2], "text": "%s·%s가 겹쳐 있어요. 조금 떼어 놓으세요." % [HoldTypes.name_ko(a.type), HoldTypes.name_ko(b.type)]})
 	return out
 
 
@@ -462,15 +530,27 @@ static func from_dict(d: Dictionary) -> RouteDraft:
 	r.version = int(d.get("version", 1))
 	r._next = int(d.get("next", 1))
 	for h in d.get("holds", []):
-		if h is Dictionary and HoldTypes.has(str(h.get("type", ""))):
-			r.holds.append({"id": str(h.id), "type": str(h.type), "size": str(h.get("size", "M")), "rot": int(h.get("rot", 0)),
-				"x": float(h.x), "y": float(h.y), "matchable": bool(h.get("matchable", false))})
+		if not (h is Dictionary and HoldTypes.has(str(h.get("type", "")))):
+			continue
+		var t := str(h.type)
+		var size := str(h.get("size", "M"))
+		var role := str(h.get("role", "foot" if HoldTypes.is_foot(t) else "hand"))
+		if t == "goal":  # 0.37까지의 탑
+			t = "jug"
+			size = "L"
+			role = "top"
+		if not roles_for(t).has(role):
+			role = roles_for(t)[0]
+		if role == "top":
+			size = top_size(t, size)
+		var m := role == "top" or (role == "hand" and bool(h.get("matchable", false)) and HoldTypes.can_match(t, size))
+		r.holds.append({"id": str(h.id), "type": t, "size": size, "rot": int(h.get("rot", 0)), "x": float(h.x), "y": float(h.y), "matchable": m, "role": role})
 	# 벽 각도 탭 전(0.27까지)의 초안은 등급이 각도를 정했다: 그 각도 한 구간으로
 	r.walls = [{"from_y": 0, "deg": int(GradeInfo.wall_deg(r.grade))}]
 	if d.get("walls") is Array and not d.walls.is_empty():
 		r.walls = []
 		for w in d.walls:
-			r.walls.append({"from_y": int(w.get("from_y", 0)), "deg": clampi(int(w.get("deg", 0)), 0, 90)})
+			r.walls.append({"from_y": int(w.get("from_y", 0)), "deg": clampi(int(w.get("deg", 0)), WALL_DEG_MIN, WALL_DEG_MAX)})
 		r.walls.sort_custom(func(a, b): return a.from_y < b.from_y)
 		r.walls[0].from_y = 0
 	var st: Dictionary = d.get("start", {})

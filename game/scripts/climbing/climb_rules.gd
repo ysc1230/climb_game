@@ -164,7 +164,7 @@ func evaluate(pelvis: Vector2, angle_deg: float, attached: Dictionary, endpoints
 		eps[limb] = attached[limb]
 	var com := SupportSolver.com_proxy(pelvis, angle_deg, eps, yaw_deg)
 	var contacts := contacts_for(pelvis, angle_deg, attached, feet, yaw_deg)
-	var th := deg_to_rad(wall_deg)
+	var th := deg_to_rad(clampf(wall_deg, -90.0, 90.0))  # 뒤로 누운 벽(−): 벽면 안 무게가 줄고 벽 밖으로 빠지지 않는다. −90 넘게(화면 270°~300°) 꺾여도 누운 벽과 같다
 	var r := SupportSolver.solve(contacts, com, cos(th), sin(th))
 	r["com"] = com
 	r["barn"] = SupportSolver.barn_door(contacts, r.loads, com, contact_meta, cos(th)) if r.status == SupportSolver.Status.FEASIBLE else SupportSolver.barn_door_none()
@@ -276,7 +276,7 @@ func _apply_fatigue(result: Dictionary, attached: Dictionary, platform: bool, mo
 			var w := foot_weight(body.pos, body.angle, body.yaw, foot, attached[foot]) if body != null else 1.0
 			var share := float(contact_meta[foot].foot_share) if contact_meta.has(foot) else 1.0  # 작은 발판 0.85(작업 4)
 			foot_support += ((1.0 - Tuning.FOOT_LOAD_BLEND) + Tuning.FOOT_LOAD_BLEND * w) * share
-	foot_support *= cos(deg_to_rad(wall_deg))  # 기운 벽: 발이 받는 몫이 줄어 손이 더 지친다(45°면 두 발 1.41 → 쉬지 못함)
+	foot_support *= cos(deg_to_rad(clampf(wall_deg, 0.0, 90.0)))  # 기운 벽: 발이 받는 몫이 줄어 손이 더 지친다(45°면 두 발 1.41 → 쉬지 못함). 누운 벽은 줄지 않는다
 	var strain := barn_strain(result)
 	var still := phase == Phase.STABLE and speed <= Fatigue.STABLE_SPEED and not moving and strain <= 1.0
 	rest_confirm_ticks = rest_confirm_ticks + 1 if still else 0

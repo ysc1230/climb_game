@@ -31,8 +31,9 @@ static func radius(e: Dictionary, u: Vector2) -> float:
 	return 1.0 / sqrt(pow(v.x / float(e.a), 2) + pow(v.y / float(e.b), 2))
 
 
-## 규칙을 어기는 홀드 쌍마다 한 줄. 빈 배열이면 통과.
-static func violations(route: RouteDef) -> PackedStringArray:
+## 규칙을 어기는 홀드 쌍마다 한 줄. 빈 배열이면 통과. need_mul: 가장자리 사이가 큰 반지름의 몇 배 이상(일반 문제 2),
+## min_gap: 그와 별개로 최소 가장자리 사이(m). 만들기 화면은 (0, 0.01): 겹치지만 않으면 된다(2026-11-26 사용자).
+static func violations(route: RouteDef, need_mul := 2.0, min_gap := 0.0) -> PackedStringArray:
 	var out: PackedStringArray = []
 	var keys: Array = route.slots.keys()
 	# 홀드마다 타원은 한 번만. 반지름은 긴 반축(rmax)을 넘지 않아, 중심 거리가 rmax로 잡은 한계 이상인 쌍은 어길 수 없다
@@ -50,13 +51,13 @@ static func violations(route: RouteDef) -> PackedStringArray:
 				continue
 			var pa: Vector2 = route.slot_pos(a)
 			var pb: Vector2 = route.slot_pos(b)
-			if pa.distance_to(pb) >= rmax[a] + rmax[b] + 2.0 * maxf(rmax[a], rmax[b]):
+			if pa.distance_to(pb) >= rmax[a] + rmax[b] + maxf(need_mul * maxf(rmax[a], rmax[b]), min_gap):
 				continue
 			var u := (pb - pa).normalized()
 			var ra := radius(el[a], u)
 			var rb := radius(el[b], u)
 			var gap := pa.distance_to(pb) - ra - rb
-			var need := 2.0 * maxf(ra, rb)
+			var need := maxf(need_mul * maxf(ra, rb), min_gap)
 			if gap < need - 0.0005:
 				out.append("%s ↔ %s 간격 %.3fm < %.3fm" % [a.get_slice("/", 1), b.get_slice("/", 1), gap, need])
 	return out
