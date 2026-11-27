@@ -22,24 +22,25 @@ const SLIP_DRAIN := 6.0          # 잡은 뒤 못 잡는 자세: 손 힘 빠지�
 
 
 ## 손 limb이 힘 축 axis인 면을 hold에서 잡는 방식. 못 잡으면 &"".
-static func kind(limb: StringName, axis: Vector2, hold: Vector2, pelvis: Vector2, angle: float, yaw: float) -> StringName:
+## margin(m): 경계 안쪽으로 이만큼 여유(봇 계획용: 몸이 조금 움직여도 계속 잡히는 것만, 2026-11-28).
+static func kind(limb: StringName, axis: Vector2, hold: Vector2, pelvis: Vector2, angle: float, yaw: float, margin := 0.0) -> StringName:
 	if axis.y >= UP:
 		return &"pull"
 	var sh := PoseSolver.joint_position(pelvis, angle, limb, yaw)
 	if axis.y <= -UP:
-		return &"undercling" if hold.y <= sh.y + UNDER_ABOVE else &""
+		return &"undercling" if hold.y <= sh.y + UNDER_ABOVE - margin else &""
 	var s := PoseSolver.side_sign(limb)
-	if (hold.x - pelvis.x) * s < -SIDE_X:
+	if (hold.x - pelvis.x) * s < -SIDE_X + margin:
 		return &""  # 몸을 가로질러 반대편: 못 잡는다
 	if axis.x * s > 0.0:
 		return &"sidepull"
-	return &"gaston" if absf(hold.y - sh.y) <= GASTON_BAND else &""
+	return &"gaston" if absf(hold.y - sh.y) <= GASTON_BAND - margin else &""
 
 
 ## 그 손으로 잡을 수 있는 그립 방식이 하나라도 있는가(손 칸, grip_modes마다).
-static func any_ok(slot: Dictionary, limb: StringName, pelvis: Vector2, angle: float, yaw: float) -> bool:
+static func any_ok(slot: Dictionary, limb: StringName, pelvis: Vector2, angle: float, yaw: float, margin := 0.0) -> bool:
 	for gm in slot.get("grip_modes", []):
-		if kind(limb, gm.axis, slot.pos, pelvis, angle, yaw) != &"":
+		if kind(limb, gm.axis, slot.pos, pelvis, angle, yaw, margin) != &"":
 			return true
 	return false
 

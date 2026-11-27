@@ -251,3 +251,21 @@ func test_editor_picks_volume_slots() -> void:
 	runner.check(ui._volume_slot_at(Vector2(0.0, 1.6), &"LH") == "", "앞면 가운데는 모서리 아님")
 	runner.check(ui._volume_slot_at(Vector2(0.1, 0.4), &"LF") == w + "/face" and ui._volume_slot_at(Vector2(0.1, 0.4), &"LH") == "", "발은 삼각 면, 손은 안 됨")
 	ui.free()
+
+
+## 볼륨이 셋인 문제도 [봇으로 확인](25초) 안에 길을 찾는다(2026-11-28: 옮기는 동안 계속 잡은 옆 모서리 사이드풀이 몸이 움직여 풀려
+## 떨어지는 길만 세웠다 → 계획은 잡는 방향 경계 안쪽 8cm만).
+func test_bot_with_volumes() -> void:
+	var d := _draft()
+	for f in [[-0.2, 0.55], [0.2, 0.55], [-0.2, 0.95], [0.2, 0.95]]:
+		d.place("crimp", f[0], f[1], "foot", "L")
+	d.holds = d.holds.filter(func(h): return h.role != "top")
+	d.place_volume("box", 0.0, 2.05, "M")
+	d.place_volume("wedge", -0.6, 2.6, "M", 0)
+	d.place_volume("wedge", 0.62, 0.95, "M", 180)
+	d.place("jug", -0.25, 2.65, "hand", "M")
+	d.place("jug", 0.3, 2.85, "hand", "M")
+	d.place("jug", 0.0, 3.3, "top", "L")
+	runner.check(d.problems().is_empty(), "막는 것 없음 %s" % [d.problems()])
+	var ex := PathExplorer.explore(d.build(), {}, false, 25000)
+	runner.check(ex.ok, "봇이 25초 안에 탑까지 %s" % [ex.log.slice(-1)])

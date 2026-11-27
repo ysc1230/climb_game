@@ -98,6 +98,7 @@ func _search() -> Array:
 ## 가파르면 시간 안에 탑까지 못 갔다(첫 길이 재생에서 막히면 다시 찾을 시간이 없었다). 가장 싼 길은 아니어도 된다.
 const STEP_UP := 0.4
 const PLAN_DIR_MARGIN := 4.0  # 계획하는 손발 방향은 관절 한계 안쪽 이만큼(도)
+const PLAN_GRIP_MARGIN := 0.08  # 계획하는 손의 잡는 방향(옆면·언더·개스턴) 경계 안쪽 이만큼(m)
 
 
 func _togo(keys: Dictionary) -> float:
@@ -168,6 +169,9 @@ func _moves_from(rest: Dictionary, limb: StringName, pose: Vector3) -> Dictionar
 	for l in rest:
 		meta[l] = _contact(rest[l], l, att[l])
 	var pel := Vector2(p3.x, p3.y)
+	for h in rest:  # 옮기는 동안 계속 잡고 있을 손도 여유 있게 잡히는가(볼륨 옆 모서리 사이드풀이 몸이 움직이며 풀려 떨어졌다)
+		if PoseSolver.is_hand(h) and route.slots[rest[h]].has("hand_area") and not GripDir.any_ok(route.slots[rest[h]], h, pel, p3.z, 0.0, PLAN_GRIP_MARGIN):
+			return none
 	var c := _hold_cost(rest, att, meta, pel, p3.z)
 	if c.is_empty():
 		return none
@@ -180,7 +184,7 @@ func _moves_from(rest: Dictionary, limb: StringName, pose: Vector3) -> Dictionar
 			continue  # 관절 방향 경계에 딱 걸친 수는 뺀다(2026-11-28: 골반 1cm·0.75° 차이로 실제로는 막혔다)
 		# 홀드 방향(GripDir): 세션이 못 잡는 면(어깨 위 언더, 반대쪽 옆면 등)은 길에 넣지 않는다(2026-11-28 볼륨 아래 모서리를
 		# 언더로 잡는 길을 세우고 재생에서 막혀 탐색을 다 썼다)
-		if PoseSolver.is_hand(limb) and slot.has("hand_area") and not GripDir.any_ok(slot, limb, pel, p3.z, 0.0):
+		if PoseSolver.is_hand(limb) and slot.has("hand_area") and not GripDir.any_ok(slot, limb, pel, p3.z, 0.0, PLAN_GRIP_MARGIN):
 			continue
 		if GateCheck.forbidden(forbid, limb, key, slot.pos, pel, p3.z, rest, att):
 			continue
