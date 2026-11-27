@@ -901,8 +901,8 @@ static func climber_to_char(t: Dictionary, f: WallProfile, held: Dictionary, vol
 			out[k] = t[k]
 	var hands := PoseSolver.LIMBS.filter(func(l): return PoseSolver.is_hand(l) and held.get(l, false))
 	var feet := PoseSolver.LIMBS.filter(func(l): return not PoseSolver.is_hand(l) and held.get(l, false))
-	for part in [[UPPER_KEYS, hands], [LOWER_KEYS, feet]]:
-		var rot := _part_basis(t, f, fi, pel, part[1])
+	for part in [[UPPER_KEYS, hands, TORSO_KEYS], [LOWER_KEYS, feet, []]]:
+		var rot := _part_basis(t, f, fi, pel, part[1], part[2])
 		for k in part[0]:
 			if t.has(k):
 				out[k] = pel + rot * ((t[k] as Vector3) - (t.pelvis as Vector3))
@@ -995,11 +995,11 @@ static func _clear_mid(f: WallProfile, fi: Transform3D, root: Vector3, target: V
 
 
 ## 월드 점 w가 접힌 벽면 앞(+)·뒤(−)로 떨어진 거리(m): 판정 높이 s ±0.6m 벽면 선을 2cm마다 훑어 가장 가까운 곳의 법선 쪽.
-static func _surface_dist(f: WallProfile, w: Vector3, s: float) -> float:
+static func _surface_dist(f: WallProfile, w: Vector3, s: float, step := 0.02) -> float:
 	var best := INF
 	var signed := 0.0
-	for i in 61:
-		var si := s - 0.6 + 0.02 * i
+	for i in int(1.2 / step) + 1:
+		var si := s - 0.6 + step * i
 		var p := f.point(Vector3(w.x, si, 0.0))
 		var dd := Vector2(w.y - p.y, w.z - p.z).length_squared()
 		if dd < best:
@@ -1016,7 +1016,15 @@ const PART_LEAN_STEPS := 16
 
 ## 윗몸·아랫몸을 돌릴 방향(캐릭터 틀 기준 회전): 골반 높이 ~ 잡은 손발 높이의 벽 방향(앞뒤로 PART_LEAN_EXTRA 더) 중, 잡은 손발 끝이
 ## 팔·다리 길이 안에 들고(못 닿는 거리 합이 가장 작고) 펼친 자세와 가장 가까운 것. 잡은 손발이 없으면 골반 높이.
-static func _part_basis(t: Dictionary, f: WallProfile, fi: Transform3D, pel: Vector3, limbs: Array) -> Basis:
+## clear: 벽면에서 TORSO_CLEAR 넘게 떨어져야 하는 점(윗몸: 가슴·머리). 손이 닿는 것과 함께 본다(벌점 TORSO_WEIGHT/m).
+## 2026-11-28 벽 모양 점검: 1m부터 천장인 벽에서 천장 아래 선 머리가 천장 속 34cm, 지그재그·무작위 벽에서 9~16cm.
+## 능선(앞으로 튀어나온 꺾임)은 이것만으로 다 풀리지 않는다(판정 자세가 꺾인 벽을 모르는 구조, docs/52).
+const TORSO_KEYS := ["chest", "head"]
+const TORSO_CLEAR := 0.06
+const TORSO_WEIGHT := 5.0
+
+
+static func _part_basis(t: Dictionary, f: WallProfile, fi: Transform3D, pel: Vector3, limbs: Array, clear: Array = []) -> Basis:
 	var sp: float = (t.pelvis as Vector3).y
 	if limbs.is_empty():
 		return fi.basis * f.basis_at(sp)
@@ -1040,6 +1048,12 @@ static func _part_basis(t: Dictionary, f: WallProfile, fi: Transform3D, pel: Vec
 			var target: Vector3 = fi * f.point(t[ks[2]])
 			var reach: float = (t[ks[1]] as Vector3).distance_to(t[ks[0]]) + (t[ks[2]] as Vector3).distance_to(t[ks[1]])
 			cost += maxf(0.0, root.distance_to(target) - reach + 0.01) * 10.0 + end.distance_to(target)
+		if not clear.is_empty():
+			var fr := fi.affine_inverse()
+			for k in clear:
+				if t.has(k):
+					var w: Vector3 = fr * (pel + rot * ((t[k] as Vector3) - (t.pelvis as Vector3)))
+					cost += maxf(0.0, TORSO_CLEAR - _surface_dist(f, w, (t[k] as Vector3).y, 0.05)) * TORSO_WEIGHT
 		if cost < best_cost - 1e-6:
 			best_cost = cost
 			best = rot
