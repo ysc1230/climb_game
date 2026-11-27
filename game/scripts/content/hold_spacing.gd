@@ -35,7 +35,8 @@ static func radius(e: Dictionary, u: Vector2) -> float:
 ## min_gap: 그와 별개로 최소 가장자리 사이(m). 만들기 화면은 (0, 0.01): 겹치지만 않으면 된다(2026-11-26 사용자).
 static func violations(route: RouteDef, need_mul := 2.0, min_gap := 0.0) -> PackedStringArray:
 	var out: PackedStringArray = []
-	var keys: Array = route.slots.keys()
+	# 볼륨 모서리는 홀드가 아니다: 모서리에 걸친 홀드는 RouteDraft.volume_issues가 본다
+	var keys: Array = route.slots.keys().filter(func(k): return not route.slots[k].get("hold_type", &"") in [&"volume", &"volume_face"])
 	# 홀드마다 타원은 한 번만. 반지름은 긴 반축(rmax)을 넘지 않아, 중심 거리가 rmax로 잡은 한계 이상인 쌍은 어길 수 없다
 	# (만들기 화면 홀드 300개에서 쌍마다 타원을 다시 만들면 0.27초, 2026-11-25).
 	# 높이 순으로 놓고 위로 그 한계 안의 것만 본다(모든 쌍 4만 5천 개 대신 가까운 것만, 2026-11-26 최적화).

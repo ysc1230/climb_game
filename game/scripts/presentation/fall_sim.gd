@@ -341,7 +341,21 @@ func _clamp(pts: Dictionary) -> Dictionary:
 
 
 func _clamp_point(p: Vector3) -> Vector3:
-	return Vector3(p.x, maxf(p.y, _mat), maxf(p.z, wall_at(p.y)))
+	var q := Vector3(p.x, maxf(p.y, _mat), maxf(p.z, wall_at(p.y)))
+	for v in _volumes:  # 볼륨을 뚫고 떨어지지 않게 겉면 앞으로(관절 두께만큼)
+		q = _fold.volume_push(v, q, VOLUME_GAP)
+	return q
+
+
+const VOLUME_GAP := 0.06
+var _volumes: Array = []
+var _fold: WallProfile
+
+
+## 볼륨(2026-11-28): start 뒤에 부른다. 관절이 볼륨 속이면 겉면 앞으로 민다.
+func set_volumes(f: WallProfile, vols: Array) -> void:
+	_fold = f
+	_volumes = vols if f != null else []
 
 
 ## 높이 y의 벽면 z(수직 벽은 _wall 그대로).

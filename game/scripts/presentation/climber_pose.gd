@@ -110,12 +110,13 @@ func compute(session, delta: float) -> Dictionary:
 		_lift_hold[limb] = maxi(0, int(_lift_hold[limb]) - 1)
 	_twist_hold = maxi(0, _twist_hold - 1)
 	var want := _choose(session, body, attached, up)
-	var target_depth: float = want.depth
+	var floor_z := volume_floor(session.route, body.pos, up)  # 볼륨 위의 몸통은 볼륨 앞으로(2026-11-28)
+	var target_depth: float = maxf(want.depth, floor_z)
 	if is_nan(depth):
 		depth = target_depth
 		twist = float(want.twist)
 	else:
-		depth = move_toward(depth, target_depth, DEPTH_SPEED * delta)
+		depth = maxf(move_toward(depth, target_depth, DEPTH_SPEED * delta), floor_z)
 		twist = move_toward(twist, float(want.twist), TWIST_SPEED * delta)
 	var yaw := _yaw(body, twist)
 	var frame := Anatomy.body_basis(body.angle, yaw)
@@ -211,6 +212,8 @@ var surface_depth := {}
 ## 붙은 발은 발끝(앞꿈치)이 홀드 윗면(surface_top[슬롯 키], 홀드 중심에서 위로)에 얹히게 발목을 둔다(2026-11-15 사용자:
 ## "위쪽 홀드에 발을 딛으면 허공에 딛은 것처럼 보인다" — 발목을 홀드 중심에 두니 발끝이 홀드 아래 벽 속으로 들어갔다).
 var surface_top := {}
+## 볼륨 면 칸(발 비비기) 키 → 볼륨: 딛은 발끝은 그 자리의 면 깊이에(2026-11-28)
+var face_volume := {}
 const STRETCH_WEIGHT := 30.0  # 깊이 고르기: 닿지 않는 1m당 벌점(1cm = 0.3). 돌림 한계 벌점이 세진 뒤(2026-11-25) 머리 위로 끈 손이 1.1cm 늘어났다
 const TOE_IN_HOLD := 0.5   # 발끝 깊이 = 홀드 겉면 깊이 × 이 비율(윗면 가운데쯤)
 ## 딛은 발의 발끝 방향(직전 프레임, 발목 자리를 정함). 무릎을 따라 FOOT_TURN_SPEED로 돈다: 발끝은 홀드 위 그대로, 뒤꿈치가 돈다
@@ -277,6 +280,9 @@ func _end(session, limb: StringName, lift: float, pelvis_depth: float) -> Vector
 	var near := 1.0 if stuck else ReachMarker.lift_scale(ReachMarker.nearest_slot_dist(session.route, limb, e2, session.occupied()))
 	var z := Tuning.CONTACT_DEPTH if stuck else Tuning.CONTACT_DEPTH + (Tuning.FREE_ENDPOINT_LIFT + lift) * near
 	var key = session.limbs[limb].key
+	if stuck and not PoseSolver.is_hand(limb) and face_volume.has(key):
+		var ft := Vector3(e2.x, e2.y, Volumes.depth_at(face_volume[key], e2) + 0.03)
+		return ft - _foot_dir.get(limb, Anatomy.FOOT_WANT.normalized()) * Anatomy.FOOT_LENGTH
 	if stuck and not PoseSolver.is_hand(limb) and surface_depth.has(key) and surface_top.has(key):
 		var toe := Vector3(e2.x, e2.y + float(surface_top[key]), float(surface_depth[key]) * TOE_IN_HOLD)
 		return toe - _foot_dir.get(limb, Anatomy.FOOT_WANT.normalized()) * Anatomy.FOOT_LENGTH
@@ -291,7 +297,34 @@ func _end(session, limb: StringName, lift: float, pelvis_depth: float) -> Vector
 		z = maxf(Tuning.CONTACT_DEPTH, minf(z, pelvis_depth - FREE_FOOT_FRONT))
 	if not stuck and PoseSolver.is_hand(limb):
 		z = lerpf(z, pelvis_depth - HANG_FRONT, float(_hang.get(limb, 0.0)))
+	if not stuck:  # 볼륨 위를 지나는 떠 있는 손발은 겉면 앞으로(2026-11-28: 볼륨을 가로질러 뻗는 손목이 볼륨 속 21cm)
+		var vz := Volumes.mount_depth(session.route.volumes, e2)
+		if vz > 0.0:
+			z = maxf(z, vz + VOLUME_FREE_CLEAR)
 	return Vector3(e2.x, e2.y, z)
+
+
+const VOLUME_FREE_CLEAR := 0.08  # 떠 있는 손목·발목이 볼륨 겉면에서 떨어지는 거리
+const VOLUME_BODY_CLEAR := 0.17  # 골반·가슴 중심이 볼륨 겉면에서 떨어지는 거리(몸통 두께 절반 남짓)
+const VOLUME_BODY_R := 0.12      # 몸통·머리 반지름: 볼륨 옆 이만큼 안도 볼륨 위로 본다
+
+
+## 몸통이 볼륨 위에 있으면 골반 깊이 하한(볼륨 겉면 + 몸통 두께). 골반에서 머리까지·좌우 0.15m를 본다. 볼륨이 없으면 0.
+static func volume_floor(route, pos: Vector2, up: Vector3) -> float:
+	if route.volumes.is_empty():
+		return 0.0
+	var u := Vector2(up.x, up.y)
+	var f := 0.0
+	for h in [0.0, CHEST_UP * 0.5, CHEST_UP, HEAD_UP]:
+		for dx in [-0.15, 0.0, 0.15]:
+			var p: Vector2 = pos + u * float(h) + Vector2(float(dx), 0.0)
+			for v in route.volumes:
+				if Volumes.contains(v, p, VOLUME_BODY_R):  # 옆에 붙어도 몸통·머리 두께만큼은 걸친다
+					var hs := Volumes.side(v) * 0.5
+					var c := Volumes.center(v)
+					var q := Vector2(clampf(p.x, c.x - hs, c.x + hs), clampf(p.y, c.y - hs, c.y + hs))
+					f = maxf(f, Volumes.depth_at(v, q) + VOLUME_BODY_CLEAR)
+	return f
 
 
 ## 목표 골반 깊이와 떠 있는 말단의 추가 깊이. 지금 목표가 그대로 가능하면 유지한다(떨림 방지, 2026-11-08 사용자 보고:

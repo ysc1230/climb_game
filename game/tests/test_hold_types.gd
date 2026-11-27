@@ -128,6 +128,8 @@ func test_hold_meshes_by_type() -> void:
 		for v in P3.TYPE_VARIANTS[type]:
 			runner.check(names.has(v), "메시 %s 있음" % v)
 	for type in HoldTypes.types():
+		if type in ["volume", "volume_face"]:
+			continue  # 볼륨 모서리·면은 홀드 메시 없이 볼륨 몸체로 그린다(play_3d._add_volume_edge·_add_volume_face)
 		var s := _one(type)
 		runner.check(P3.hold_variant("k1", s, false).begins_with(type + "_") or type == "goal", "%s 슬롯은 %s 메시" % [type, P3.hold_variant("k1", s, false)])
 	runner.check(P3.hold_variant("k1", {}, true) == "goal_0", "탑은 goal_0")

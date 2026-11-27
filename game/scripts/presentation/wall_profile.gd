@@ -143,12 +143,34 @@ func nearest_s(p: Vector3) -> float:
 
 ## 월드 점 p가 가장 가까운 벽면에서 gap보다 가깝거나 벽 뒤면 벽면 법선 쪽으로 gap까지 민다(시점 카메라가 벽을 뚫지 않게).
 ## 밀면 자리가 바뀌므로 두 번 맞춘다. 벽 판 폭 밖도 같은 면으로 본다(옆으로 돌아도 벽 뒤로 못 감).
-func push_in_front(p: Vector3, gap: float) -> Vector3:
+func push_in_front(p: Vector3, gap: float, volumes: Array = []) -> Vector3:
 	for i in 2:
 		var f := frame(nearest_s(p))
 		var lz := (f.affine_inverse() * p).z
 		if lz >= gap:
 			break
 		p += f.basis.z * (gap - lz)
+	for v in volumes:  # 볼륨 앞으로도(2026-11-28: 볼륨 가까이 돌려 보면 카메라가 볼륨 속)
+		p = volume_push(v, p, gap)
 	return p
+
+
+## 볼륨 v의 틀(가운데 높이의 벽 틀, 원점 = 바닥 가운데). 볼륨은 벽이 꺾이는 곳에 걸치지 않아(RouteDraft.volume_issues) 곧은 틀이다.
+func volume_frame(v: Dictionary) -> Transform3D:
+	return Transform3D(basis_at(float(v.y)), point(Vector3(float(v.x), float(v.y), 0.0)))
+
+
+## 월드 점 p가 볼륨 v 속(겉면 + gap 안, 바닥 옆으로 gap만큼 넓혀)이면 겉면 법선 쪽(벽 틀 z)으로 겉면 + gap까지 민다.
+func volume_push(v: Dictionary, p: Vector3, gap: float) -> Vector3:
+	var fr := volume_frame(v)
+	var l := fr.affine_inverse() * p
+	var q := Vector2(float(v.x) + l.x, float(v.y) + l.y)
+	if not Volumes.contains(v, q, gap) or l.z < -0.05:
+		return p
+	var hs := Volumes.side(v) * 0.5
+	var c := Volumes.center(v)
+	var dz := Volumes.depth_at(v, Vector2(clampf(q.x, c.x - hs, c.x + hs), clampf(q.y, c.y - hs, c.y + hs))) + gap
+	if l.z >= dz:
+		return p
+	return fr * Vector3(l.x, l.y, dz)
 

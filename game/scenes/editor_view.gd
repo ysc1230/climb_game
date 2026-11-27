@@ -53,7 +53,7 @@ func rebuild(d: RouteDraft) -> void:
 	logic.route = d.layout_route()
 	var key := str([d.walls, d.max_y()])
 	# 벽 장식(볼륨)은 벽 가장자리(|x| ≥ 1.2m)에 홀드와 0.71m 넘게 떨어져 놓인다: 그 안에 들 수 있는 가장자리 홀드가 바뀌면 다시 놓는다
-	var deco := str(d.holds.filter(func(h): return absf(h.x) > 0.49).map(func(h): return [h.x, h.y]))
+	var deco := str(d.holds.filter(func(h): return absf(h.x) > 0.49).map(func(h): return [h.x, h.y])) + str(d.volumes)  # 볼륨도 벽과 함께 다시
 	var refold := fold == null or key != _wall_key
 	if refold or deco != _deco_key:
 		if refold:
@@ -65,6 +65,8 @@ func rebuild(d: RouteDraft) -> void:
 		_deco_key = deco
 		_rebuild_wall()
 	_sync_holds()
+	for n in volume_nodes.values():  # 끌던 볼륨 미리보기를 되돌린다(메시는 월드 좌표)
+		(n as Node3D).transform = Transform3D()
 
 
 ## 벽(접힌 띠·옆벽·방·매트·볼륨)을 다시 만든다. 홀드는 그대로 두고 _sync_holds가 새 벽에 다시 놓는다.
@@ -106,7 +108,8 @@ func _sync_holds() -> void:
 
 func _sig(key: String) -> String:
 	var sl: Dictionary = logic.route.slots[key]
-	return str([sl.pos, sl.get("hold_type", ""), sl.get("size", ""), sl.get("rot_deg", 0), sl.has("hand_area"), sl.get("hand_area", {}).get("matchable", false), logic.route.goal_slots.has(key)])
+	return str([sl.pos, sl.get("hold_type", ""), sl.get("size", ""), sl.get("rot_deg", 0), sl.has("hand_area"), sl.get("hand_area", {}).get("matchable", false), logic.route.goal_slots.has(key),
+		Volumes.at(logic.route.volumes, sl.pos)])  # 볼륨이 바뀌면 그 면의 홀드를 다시 붙인다
 
 
 ## 끄는 동안: 홀드 id를 벽 좌표로 off만큼 옮기고 rot_deg만큼 더 돌린 모습(시계 방향 +, 초안의 rot와 같음)으로 그린다.
@@ -117,6 +120,18 @@ func preview_hold(id: String, off: Vector2, rot_deg: float) -> void:
 			continue
 		var t: Transform3D = hold_nodes[key][1]
 		(hold_nodes[key][0] as Node3D).transform = _wall_xform(Transform3D(Basis(Vector3.BACK, -deg_to_rad(rot_deg)) * t.basis, t.origin + Vector3(off.x, off.y, 0.0)))
+
+
+## 볼륨을 끄는 동안: 볼륨 id와 그 면의 홀드(holds: 홀드 id 목록)를 벽 좌표로 off만큼 옮긴 모습(벽 평면을 따라 평행 이동).
+func preview_volume(id: String, off: Vector2, holds: Array) -> void:
+	if volume_nodes.has(id):
+		var y: float = logic.cam_y
+		for v in logic.route.volumes:
+			if v.id == id:
+				y = float(v.y)
+		(volume_nodes[id] as Node3D).transform = Transform3D(Basis(), fold.basis_at(y) * Vector3(off.x, off.y, 0.0))
+	for h in holds:
+		preview_hold(h, off, 0.0)
 
 
 ## 두 손가락 끌기 → 시점(벽면 정면 기준 좌우·위아래).
@@ -152,7 +167,7 @@ func _update_camera() -> void:
 		_eye_at = target
 		_glide = false
 	camera.position = _eye_at + Basis(Vector3.UP, cam_yaw) * Basis(Vector3.RIGHT, cam_pitch) * Vector3(0, 0, dist)
-	camera.position = fold.push_in_front(camera.position, CAM_WALL_GAP)
+	camera.position = fold.push_in_front(camera.position, CAM_WALL_GAP, logic.route.volumes)
 	camera.position.y = maxf(camera.position.y, CAM_MIN_Y)  # 올려다볼 때 매트 아래로 내려가지 않게
 	camera.look_at(_eye_at, Vector3.UP)
 	for w in _wings:

@@ -17,6 +17,8 @@ var wall_deg := 0.0      # 벽 기울기(도, 0 수직, + 오버행). 실험(exp
 ## 꺾이는 벽(docs/57, 2026-11-24 사용자 "하나의 문제에 여러 각도"): [{from_y, deg}] 오름차순. 비면 wall_deg 하나.
 ## from_y는 벽면을 따라 잰 높이(판정 y). 첫 구간은 그 아래(매트 쪽)까지. 있으면 wall_deg = 가장 큰 구간 각도.
 var wall_sections: Array = []
+## 볼륨(2026-11-28, Volumes): [{id, shape, x, y, size, rot}]. 모서리 칸은 holds에 들어 있다(hold_type volume). 표현·몸 깊이가 쓴다.
+var volumes: Array = []
 ## 구간 경계 ±이 거리(m) 안에서 각도를 부드럽게 바꾼다(힘 계산·벽 모양이 갑자기 꺾이지 않게).
 const WALL_BLEND := 0.15
 ## 벽 꾸밈(표현만, 2026-11-25): "gym" 실내 암장(기본) / "rock" 자연 암벽.
@@ -107,6 +109,9 @@ func _read(d: Dictionary) -> void:
 		wall_sections.sort_custom(func(a, b): return a.from_y < b.from_y)
 		if not wall_sections.is_empty():
 			wall_deg = wall_sections.reduce(func(m, w): return maxf(m, w.deg), 0.0)
+	for v in d.get("volumes", []):
+		if v is Dictionary:
+			volumes.append(Volumes.make(str(v.get("id", "")), str(v.get("shape", "box")), float(v.get("x", 0.0)), float(v.get("y", 1.0)), str(v.get("size", "M")), int(v.get("rot", 0))))
 	name_ko = str(d.get("name_ko", ""))
 	for t in d.get("required_techniques", []):
 		required_techniques.append(StringName(t))
@@ -146,7 +151,7 @@ static func _vec(a, fallback: Vector2) -> Vector2:
 ## 발은 모든 홀드를 딛는다(2026-11-13 사용자): 손홀드 슬롯에도 LF·RF를 더하고, 발 영역은 손 영역 폭을 따른다.
 func _read_slot(s: Dictionary, allowed: Array[StringName]) -> Dictionary:
 	var hand := allowed.any(func(l): return PoseSolver.is_hand(l))
-	if hand:
+	if hand and not bool(s.get("no_feet", false)):  # no_feet: 아래를 보는 볼륨 모서리(디딜 윗면이 없음, 2026-11-28)
 		for f in [PoseSolver.LF, PoseSolver.RF]:
 			if not allowed.has(f):
 				allowed.append(f)

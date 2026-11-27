@@ -139,6 +139,10 @@ func _moves(keys: Dictionary, pose: Vector3) -> Array:
 			var msig := "%s|%s>%s" % [rsig, limb, key]
 			if banned.has(msig) or not PoseSolver.can_reach(pel, p3.z, limb, slot.pos, 0.0):
 				continue
+			# 홀드 방향(GripDir): 세션이 못 잡는 면(어깨 위 언더, 반대쪽 옆면 등)은 길에 넣지 않는다(2026-11-28 볼륨 아래 모서리를
+			# 언더로 잡는 길을 세우고 재생에서 막혀 탐색을 다 썼다)
+			if PoseSolver.is_hand(limb) and slot.has("hand_area") and not GripDir.any_ok(slot, limb, pel, p3.z, 0.0):
+				continue
 			if GateCheck.forbidden(forbid, limb, key, slot.pos, pel, p3.z, rest, att):
 				continue
 			var att4 := att.duplicate()

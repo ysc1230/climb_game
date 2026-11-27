@@ -4,7 +4,7 @@ extends RefCounted
 ## 홀드 목록·시작 네 자리·탑 하나를 들고, 일반 문제와 같은 JSON(mode "custom")으로 바꾼다.
 ## 놓기·옮기기는 1cm, 돌리기는 5°에 맞물린다. 되돌리기는 최근 UNDO_MAX단계.
 
-const SCHEMA := 2                 # 공유 문제 JSON 판(§6). 앱이 모르는 더 새 판이면 열지 않는다. 2(0.38): 탑 칸 하나(합손), 발로만 쓰는 손홀드 종류
+const SCHEMA := 3                 # 공유 문제 JSON 판(§6). 앱이 모르는 더 새 판이면 열지 않는다. 2(0.38): 탑 칸 하나(합손), 발로만 쓰는 손홀드 종류. 3(0.46): 볼륨
 const MAX_HOLDS := 300           # 2026-11-25 사용자 "100m로 제한하고 홀드는 300개"
 const NAME_MAX := 20
 const UNDO_MAX := 30
@@ -37,6 +37,8 @@ var start := {&"LH": "", &"RH": "", &"LF": "", &"RF": ""}  # limb → 홀드 id
 ## 벽 각도 구간 [{from_y: m, deg}] from_y 오름차순, 첫 구간 0m. deg = 오버행(땅 기준: 0 수직, 90 천장, − 뒤로 누움. 플레이의 wall_sections와 같음),
 ## 화면에는 180 − deg(2026-11-25 사용자 "최소 단위 1m와 1도, 횟수 제한 없음", 2026-11-26 "90도부터 300도까지 … 땅 기준").
 var walls: Array = [{"from_y": 0, "deg": 0}]
+## 볼륨 [Volumes.make 사전](2026-11-28): 면에 놓은 홀드는 그 면에 붙고, 모서리는 잡고 딛는 칸이 된다.
+var volumes: Array = []
 var _next := 1
 var _undo: Array = []
 var _frozen := false              # 완등·올린 판: 다음 고침에서 판을 올린다
@@ -102,6 +104,8 @@ static func top_size(type: String, size: String) -> String:
 ## 종류 type을 쓰임 role(비우면 종류대로 손·발)로 (x, y)에 놓는다. 탑은 하나라 이미 있으면 그 탑을 옮기고 종류를 바꾼다.
 ## "goal"은 0.37까지의 탑 이름: 큰 저그 탑. 반환: 홀드 id, 못 놓으면 "".
 func place(type: String, x: float, y: float, role := "", size := "M", rot := 0) -> String:
+	if type == "volume":
+		return ""  # 볼륨 모서리는 볼륨이 만든다(place_volume)
 	if type == "goal":
 		type = "jug"
 		role = "top"
@@ -269,7 +273,7 @@ func _push() -> void:
 
 
 func _state() -> Dictionary:
-	return {"holds": holds.duplicate(true), "start": start.duplicate(), "next": _next, "walls": walls.duplicate(true)}
+	return {"holds": holds.duplicate(true), "start": start.duplicate(), "next": _next, "walls": walls.duplicate(true), "volumes": volumes.duplicate(true)}
 
 
 func _load_state(s: Dictionary) -> void:
@@ -277,6 +281,71 @@ func _load_state(s: Dictionary) -> void:
 	start = s.start
 	_next = s.next
 	walls = s.walls
+	volumes = s.get("volumes", [])
+
+
+# ---------- 볼륨 ----------
+
+func volume(id: String) -> Dictionary:
+	for v in volumes:
+		if v.id == id:
+			return v
+	return {}
+
+
+## 볼륨을 (x, y)에 놓는다(바닥이 벽 안에 들게 가운데를 옮김). 반환: id, 못 놓으면 "".
+func place_volume(shape: String, x: float, y: float, size := "M", rot := 0) -> String:
+	if volumes.size() >= Volumes.MAX:
+		return ""
+	_push()
+	var v := Volumes.make("V%02d" % _next, shape, x, y, size, rot)
+	_next += 1
+	_clamp_volume(v)
+	volumes.append(v)
+	return v.id
+
+
+## 볼륨을 옮긴다. 그 면에 붙은 홀드(바닥 안의 홀드)도 같이 옮긴다(2026-11-28: 볼륨만 옮기면 홀드가 허공에 남는다).
+func move_volume(id: String, x: float, y: float) -> void:
+	var v := volume(id)
+	if v.is_empty():
+		return
+	_push()
+	var on := holds.filter(func(h): return Volumes.contains(v, Vector2(h.x, h.y)))
+	var before := Volumes.center(v)
+	v.x = x
+	v.y = y
+	_clamp_volume(v)
+	var dv := Volumes.center(v) - before
+	for h in on:
+		h.x = _sx(h.x + dv.x)
+		h.y = _sy(h.y + dv.y)
+
+
+## 모양·크기·방향을 바꾼다(가운데 그대로, 벽 밖으로 나가면 안으로).
+func set_volume(id: String, shape: String, size: String, rot: int) -> void:
+	var v := volume(id)
+	if v.is_empty():
+		return
+	_push()
+	var n := Volumes.make(id, shape, v.x, v.y, size, rot)
+	for k in n:
+		v[k] = n[k]
+	_clamp_volume(v)
+
+
+func remove_volume(id: String) -> void:
+	var v := volume(id)
+	if v.is_empty():
+		return
+	_push()
+	volumes.erase(v)
+
+
+func _clamp_volume(v: Dictionary) -> void:
+	var h := Volumes.side(v) * 0.5
+	v.x = snappedf(clampf(float(v.x), -WALL_HALF + h, WALL_HALF - h), 0.01)
+	v.y = snappedf(clampf(float(v.y), Y_MIN + h, maxf(Y_MIN + h, max_y() - h)), 0.01)
 
 
 static func _sx(x: float) -> float:
@@ -311,6 +380,16 @@ func to_route_dict(pelvis := Vector2.INF, angle := 0.0) -> Dictionary:
 		if h.matchable:
 			s["hand_area"] = {"matchable": true}
 		hs.append({"hold_id": h.id, "slots": [s]})
+	for v in volumes:  # 볼륨 모서리: 손발이 잡고 딛는 칸(합손)
+		var es: Array = []
+		for e in Volumes.edges(v):
+			es.append({"slot_id": e.slot_id, "pos": [snappedf(e.pos.x, 0.001), snappedf(e.pos.y, 0.001)], "allowed": ["LH", "RH"],
+				"hold_type": "volume", "size": v.size, "rot_deg": e.rot, "hand_area": {"matchable": true}, "no_feet": e.slot_id == "edge_b"})
+		var fc := Volumes.face(v)
+		if not fc.is_empty():  # 위를 보는 면: 발 비비기(발만)
+			es.append({"slot_id": "face", "pos": [snappedf(fc.pos.x, 0.001), snappedf(fc.pos.y, 0.001)], "allowed": ["LF", "RF"],
+				"hold_type": "volume_face", "size": v.size, "rot_deg": 0})
+		hs.append({"hold_id": v.id, "slots": es})
 	var st := {}
 	for l in start:
 		var h := hold(start[l])
@@ -326,7 +405,7 @@ func to_route_dict(pelvis := Vector2.INF, angle := 0.0) -> Dictionary:
 		"check_swapped": false, "time_medal_seconds": 120, "goal_slots": goal_slots, "platforms": [],
 		"start_pose": {"angle": angle, "pelvis": [snappedf(pelvis.x, 0.001), snappedf(pelvis.y, 0.001)], "slots": st},
 		"intended_moves": [], "required_techniques": [], "crux_steps": {}, "holds": hs,
-		"wall_sections": _wall_sections(),
+		"wall_sections": _wall_sections(), "volumes": volumes.duplicate(true),
 	}
 	# 두 시작 발이 바닥 가까이(발판 높이 ≤ 0.15m)면 바닥 받침(일반 문제의 시작 발판과 같음)
 	var lf := hold(start[&"LF"])
@@ -353,7 +432,7 @@ func build(pelvis := Vector2.INF, angle := 0.0) -> RouteDef:
 ## 3D 미리보기·간격·막는 것이 같이 쓰는 문제(골반 (0, 0.75), 읽기 오류는 골반과 무관). 홀드·시작·벽이 그대로면 지난 것을 쓴다
 ## (홀드 300개면 한 번 읽는 데 약 5ms, 고칠 때마다 세 번 읽던 것을 한 번으로, 2026-11-26 최적화). 받은 쪽은 고치지 않는다.
 func layout_route() -> RouteDef:
-	var key := str([holds, start, walls, route_id, name, grade])
+	var key := str([holds, start, walls, route_id, name, grade, volumes])
 	if key != _layout_key:
 		_layout_key = key
 		_layout = build(Vector2(0, 0.75))
@@ -416,7 +495,7 @@ func problems() -> Array:
 	if goal_hold().is_empty():
 		out.append(P_GOAL)
 	if not out.has(P_START) and not out.has(P_GOAL):
-		if not layout_route().errors.is_empty():
+		if Array(layout_route().errors).any(func(e): return not String(e).begins_with("name_ko")):  # 이름은 P_NAME이 알린다(둘 다 뜨면 헷갈림)
 			out.append(P_ROUTE)
 		elif not start_pose().balanced:
 			out.append(P_POSE)
@@ -425,6 +504,40 @@ func problems() -> Array:
 	var wi := wall_issue()
 	if not wi.is_empty():
 		out.append(wi.text)
+	for vi in volume_issues():
+		if not out.has(vi.text):
+			out.append(vi.text)
+	return out
+
+
+const HOLD_EDGE := 0.06  # 홀드 중심이 볼륨 모서리에서 이보다 가까우면 반쯤 걸친다(면에도 벽에도 안 붙음)
+
+
+## 볼륨 배치의 막는 것 [{text, y, volume?, hold?}](2026-11-28 트집 잡힐 배치): 볼륨끼리 겹침, 벽이 꺾이는 곳(각도 경계)에 걸침,
+## 홀드가 볼륨 모서리에 반쯤 걸침.
+func volume_issues() -> Array:
+	var out: Array = []
+	for i in volumes.size():
+		var v: Dictionary = volumes[i]
+		var c := Volumes.center(v)
+		var h := Volumes.side(v) * 0.5
+		for j in range(i + 1, volumes.size()):
+			var w: Dictionary = volumes[j]
+			var dd := (Volumes.center(w) - c).abs()
+			var hw := h + Volumes.side(w) * 0.5
+			if dd.x < hw - 0.005 and dd.y < hw - 0.005:
+				out.append({"text": "볼륨 둘이 %.1fm에서 겹쳐요. 떼어 놓으세요" % c.y, "y": c.y, "volume": v.id})
+		for k in range(1, walls.size()):
+			var fy := float(walls[k].from_y)
+			if fy > c.y - h + 0.005 and fy < c.y + h - 0.005 and int(walls[k].deg) != int(walls[k - 1].deg):
+				out.append({"text": "볼륨이 벽이 꺾이는 곳(%dm)에 걸쳐요. 위나 아래로 옮기세요" % int(fy), "y": c.y, "volume": v.id})
+				break
+		for hd in holds:
+			var d := (Vector2(hd.x, hd.y) - c).abs()
+			var inside := d.x <= h + HOLD_EDGE and d.y <= h + HOLD_EDGE
+			var clear_in := d.x <= h - HOLD_EDGE and d.y <= h - HOLD_EDGE
+			if inside and not clear_in:
+				out.append({"text": "%s가 볼륨 모서리에 걸쳐요. 볼륨 면 안쪽이나 바깥으로 옮기세요" % HoldTypes.name_ko(hd.type), "y": hd.y, "hold": hd.id})
 	return out
 
 
@@ -588,7 +701,7 @@ func to_dict() -> Dictionary:
 	for l in start:
 		st[String(l)] = start[l]
 	return {"schema": SCHEMA, "route_id": route_id, "name": name, "grade": grade, "version": version, "holds": holds.duplicate(true), "start": st, "next": _next,
-		"walls": walls.duplicate(true)}
+		"walls": walls.duplicate(true), "volumes": volumes.duplicate(true)}
 
 
 static func from_dict(d: Dictionary) -> RouteDraft:
@@ -622,6 +735,9 @@ static func from_dict(d: Dictionary) -> RouteDraft:
 			r.walls.append({"from_y": int(w.get("from_y", 0)), "deg": clampi(int(w.get("deg", 0)), WALL_DEG_MIN, WALL_DEG_MAX)})
 		r.walls.sort_custom(func(a, b): return a.from_y < b.from_y)
 		r.walls[0].from_y = 0
+	for v in d.get("volumes", []):
+		if v is Dictionary and r.volumes.size() < Volumes.MAX:
+			r.volumes.append(Volumes.make(str(v.get("id", "V%02d" % (r.volumes.size() + 90))), str(v.get("shape", "box")), float(v.get("x", 0.0)), float(v.get("y", 1.0)), str(v.get("size", "M")), int(v.get("rot", 0))))
 	var st: Dictionary = d.get("start", {})
 	for l in r.start:
 		r.start[l] = str(st.get(String(l), ""))

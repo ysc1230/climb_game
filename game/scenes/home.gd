@@ -660,7 +660,8 @@ func _draw_dict(size: Vector2) -> void:
 
 
 ## 홀드 사전(작업 4 §4.4): 종류마다 카드 — 이름, 손 힘 빠짐(또는 발 몫), 버티는 방향, 특징. 색은 용도(손·발)대로.
-const HOLD_DICT_ORDER := ["jug", "crimp", "sloper", "pinch", "pocket", "foot_chip", "foot_big"]
+## 2026-11-28: 만들기에서 없앤 발판 두 종류 대신 볼륨 모서리·볼륨 면(만들기에 있는 것만 보인다)
+const HOLD_DICT_ORDER := ["jug", "crimp", "sloper", "pinch", "pocket", "volume", "volume_face"]
 
 
 func _draw_hold_dict(size: Vector2) -> void:

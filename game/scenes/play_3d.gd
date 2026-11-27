@@ -325,6 +325,10 @@ func _build_wall() -> void:
 		var wing := _mesh(_fold_strip(inner if side < 0 else outer, outer if side < 0 else inner, -1.0, top + 0.5, 0.15), wm, true)  # 장식이라 꺾임을 성기게
 		wall_root.add_child(wing)
 		_wings.append(wing)
+	# 만든 문제의 볼륨(2026-11-28): 잡고 딛는 덩어리. 장식 볼륨과 달리 벽 안에 놓인다
+	volume_nodes.clear()
+	for v in logic.route.volumes:
+		_add_route_volume(v)
 	# 볼륨: 벽에 붙은 삼각기둥·상자(볼트). 벽 가장자리, 홀드와 겹치지 않는 자리에만(deco_spots)
 	var k := 0
 	if logic.route.wall_style == "rock":
@@ -505,9 +509,145 @@ func _build_holds() -> void:
 		_add_hold(key)
 
 
+# ---------- 볼륨(2026-11-28) ----------
+
+var volume_nodes := {}  # 볼륨 id → MeshInstance3D(월드 좌표 메시)
+## 홀드 쓰임 색(손 초록·발 보라·탑 금색)과 헷갈리지 않는 회청·모래색(2026-11-28: 보라 볼륨이 발 홀드처럼 보였다)
+const VOLUME_COLORS := [Color("5f7790"), Color("7d8794"), Color("9a8466"), Color("6b7f99")]
+
+
+func _add_route_volume(v: Dictionary) -> void:
+	var vc: Color = VOLUME_COLORS[absi(hash(str(v.id))) % VOLUME_COLORS.size()]
+	var m := _toon(vc, vc.darkened(0.5))
+	m.set_shader_parameter("speckle", true)
+	var node := _mesh(volume_mesh(fold, v), m, true)
+	wall_root.add_child(node)
+	volume_nodes[v.id] = node
+
+
+## 볼륨 메시(월드 좌표): 바닥 네 모서리와 겉면 네 모서리(깊이 Volumes.depth_at)를 접힌 벽에 놓고 겉면·옆면을 잇는다.
+## 면마다 바깥을 보도록 감는 방향을 맞춘다(삼각의 얇은 쪽처럼 넓이 없는 면은 뺀다).
+static func volume_mesh(f: WallProfile, v: Dictionary) -> ArrayMesh:
+	var c := Volumes.center(v)
+	var h := Volumes.side(v) * 0.5
+	var corners := [c + Vector2(-h, -h), c + Vector2(h, -h), c + Vector2(h, h), c + Vector2(-h, h)]
+	var base: Array = corners.map(func(p): return f.point(Vector3(p.x, p.y, 0.0)))
+	var top: Array = corners.map(func(p): return f.point(Vector3(p.x, p.y, Volumes.depth_at(v, p))))
+	var mid := f.point(Vector3(c.x, c.y, Volumes.depth_at(v, c) * 0.5))
+	var faces: Array = [top]
+	for i in 4:
+		faces.append([base[i], base[(i + 1) % 4], top[(i + 1) % 4], top[i]])
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	st.set_smooth_group(-1)
+	for poly in faces:
+		var p0: Vector3 = poly[0]
+		var n: Vector3 = ((poly[1] as Vector3) - p0).cross((poly[2] as Vector3) - p0)
+		if n.length() < 1e-6:
+			n = ((poly[2] as Vector3) - p0).cross((poly[3] as Vector3) - p0)
+		if n.length() < 1e-6:
+			continue  # 넓이 없는 면
+		var cen: Vector3 = ((poly[0] as Vector3) + poly[1] + poly[2] + poly[3]) * 0.25
+		var pts: Array = poly if n.dot(cen - mid) < 0.0 else [poly[3], poly[2], poly[1], poly[0]]  # Godot 앞면은 시계 방향
+		for tri in [[0, 1, 2], [0, 2, 3]]:
+			var a: Vector3 = pts[tri[0]]
+			var b: Vector3 = pts[tri[1]]
+			var d: Vector3 = pts[tri[2]]
+			if (b - a).cross(d - a).length() < 1e-8:
+				continue
+			for q in [a, b, d]:
+				st.add_vertex(q)
+	st.generate_normals()
+	return st.commit()
+
+
+## 볼륨 면 칸(발 비비기): 메시 없이 면 위에 얇은 빛판, 발끝은 딛은 자리의 면 깊이(ClimberPose.face_volume).
+func _add_volume_face(key: String) -> void:
+	var vid := key.get_slice("/", 1)
+	var v: Dictionary = {}
+	for w in logic.route.volumes:
+		if w.id == vid:
+			v = w
+	if v.is_empty():
+		return
+	var c := Volumes.center(v)
+	var dz := Volumes.depth_at(v, c)
+	var face := Basis(Quaternion(Vector3(0, 0, 1), Volumes.normal_at(v, c)))
+	var node := Node3D.new()
+	var t := Transform3D(face, Vector3(c.x, c.y, dz))
+	_on_wall(node, t.origin, t.basis)
+	wall_root.add_child(node)
+	hold_nodes[key] = [node, t]
+	climber_pose.surface_depth[key] = dz
+	climber_pose.surface_top[key] = 0.0
+	climber_pose.face_volume[key] = v
+	if not build_glows:
+		return
+	var plate := BoxMesh.new()
+	var sd := Volumes.side(v) * 0.9
+	plate.size = Vector3(sd, sd, 0.01)
+	var glow := MeshInstance3D.new()
+	glow.mesh = plate
+	var gm := _overlay(Color(1, 1, 1, 0.0))
+	gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glow.material_override = gm
+	_on_wall(glow, Vector3(c.x, c.y, dz + 0.01), face)
+	glow.visible = false
+	wall_root.add_child(glow)
+	hold_glows[key] = glow
+
+
+## 볼륨 모서리 칸: 홀드 메시 대신 모서리를 따라 빛나는 띠(잡을 수 있을 때·튜토리얼 목표)와 손발 깊이(모서리 깊이).
+func _add_volume_edge(key: String) -> void:
+	var slot: Dictionary = logic.route.slots[key]
+	var vid := key.get_slice("/", 1)
+	var sid := key.get_slice("/", 2)
+	var v: Dictionary = {}
+	for w in logic.route.volumes:
+		if w.id == vid:
+			v = w
+	if v.is_empty():
+		return
+	var e: Dictionary = {}
+	for x in Volumes.edges(v):
+		if x.slot_id == sid:
+			e = x
+	if e.is_empty():
+		return
+	var p: Vector2 = slot.pos
+	var along_x := sid in ["edge_t", "edge_b"]
+	var node := Node3D.new()
+	var t := Transform3D(Basis(), Vector3(p.x, p.y, float(e.depth)))
+	_on_wall(node, t.origin)
+	wall_root.add_child(node)
+	hold_nodes[key] = [node, t]
+	climber_pose.surface_depth[key] = float(e.depth)  # 손은 모서리 겉(앞면 깊이)을 감싼다
+	climber_pose.surface_top[key] = 0.0              # 발끝은 모서리 위(윗면)에
+	if not build_glows:
+		return
+	var bar := BoxMesh.new()
+	var len := Volumes.side(v)
+	bar.size = Vector3(len, 0.05, 0.05) if along_x else Vector3(0.05, len, 0.05)
+	var glow := MeshInstance3D.new()
+	glow.mesh = bar
+	var gm := _overlay(Color(1, 1, 1, 0.0))
+	gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glow.material_override = gm
+	_on_wall(glow, Vector3(p.x, p.y, float(e.depth)))
+	glow.visible = false
+	wall_root.add_child(glow)
+	hold_glows[key] = glow
+
+
 ## 홀드 하나(메시·재질·빛)를 벽에 놓는다.
 func _add_hold(key: String) -> void:
 	var slot: Dictionary = logic.route.slots[key]
+	if slot.get("hold_type", &"") == &"volume":
+		_add_volume_edge(key)
+		return
+	if slot.get("hold_type", &"") == &"volume_face":
+		_add_volume_face(key)
+		return
 	var is_goal: bool = logic.route.goal_slots.has(key)
 	var hand: bool = slot.has("hand_area")
 	# 발 쓰임(칸 foot_1)은 손으로도 잡히지만(2026-11-26 모든 홀드는 손·발 홀드) 발 홀드 색으로
@@ -524,11 +664,15 @@ func _add_hold(key: String) -> void:
 	var p: Vector2 = slot.pos
 	var tilt := 0.0 if str(slot.get("hold_type", "")) != "" else deg_to_rad(rng.randf_range(-8, 8))  # 종류 홀드는 rot_deg 그대로
 	var sc := hold_view_scale(slot, mesh, is_goal) * rng.randf_range(0.95, 1.05)
-	var hb := Basis(Vector3.BACK, ang + tilt)
-	_on_wall(hold, Vector3(p.x, p.y, 0.0), hb.scaled(Vector3.ONE * sc))
+	# 볼륨 면에 놓인 홀드: 그 면 깊이에, 면 기울기대로 붙인다(2026-11-28)
+	var vol := Volumes.at(logic.route.volumes, p)
+	var mz := 0.0 if vol.is_empty() else Volumes.depth_at(vol, p)
+	var face := Basis() if vol.is_empty() else Basis(Quaternion(Vector3(0, 0, 1), Volumes.normal_at(vol, p)))
+	var hb := face * Basis(Vector3.BACK, ang + tilt)
+	_on_wall(hold, Vector3(p.x, p.y, mz), hb.scaled(Vector3.ONE * sc))
 	wall_root.add_child(hold)
-	hold_nodes[key] = [hold, Transform3D(hb.scaled(Vector3.ONE * sc), Vector3(p.x, p.y, 0.0))]
-	climber_pose.surface_depth[key] = mesh.get_aabb().end.z * sc  # 홀드 겉면(손발을 여기 얹는다)
+	hold_nodes[key] = [hold, Transform3D(hb.scaled(Vector3.ONE * sc), Vector3(p.x, p.y, mz))]
+	climber_pose.surface_depth[key] = mz + mesh.get_aabb().end.z * sc  # 홀드 겉면(손발을 여기 얹는다)
 	climber_pose.surface_top[key] = mesh.get_aabb().end.y * sc  # 홀드 윗면(발끝을 여기 얹는다)
 	if not build_glows:
 		return
@@ -537,7 +681,7 @@ func _add_hold(key: String) -> void:
 	var gm := _overlay(Color(1, 1, 1, 0.0))
 	gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	glow.material_override = gm
-	_on_wall(glow, Vector3(p.x, p.y, 0.004), hb.scaled(Vector3.ONE * sc * 1.18))
+	_on_wall(glow, Vector3(p.x, p.y, mz + 0.004), hb.scaled(Vector3.ONE * sc * 1.18))
 	glow.visible = false
 	wall_root.add_child(glow)
 	hold_glows[key] = glow
@@ -702,6 +846,7 @@ func _fall_targets(delta: float) -> Dictionary:
 			pins["wrist_" + s] = at
 		fall_sim = FallSim.new()
 		fall_sim.start(_to_world(_last_t), fold.basis_at(_char_s) * (req.vel as Vector3), pins, MAT_TOP_Y, WALL_Z, 0.0, fold.world_profile(WALL_Z))
+		fall_sim.set_volumes(fold, logic.route.volumes)  # 떨어지는 몸이 볼륨을 뚫지 않게(2026-11-28)
 		logic.fall_request = {}
 	if fall_sim != null:
 		if logic.fall_skip:
@@ -732,7 +877,7 @@ func _fall_targets(delta: float) -> Dictionary:
 	var held := {}
 	for limb in PoseSolver.LIMBS:
 		held[limb] = logic.session.limbs[limb].state in ["Attached", "Armed"]
-	return climber_to_char(t, fold, held)
+	return climber_to_char(t, fold, held, logic.route.volumes)
 
 
 const UPPER_KEYS := ["spine", "chest", "neck", "head", "head_top", "shoulder_L", "elbow_L", "wrist_L", "hand_L", "shoulder_R", "elbow_R", "wrist_R", "hand_R"]
@@ -746,7 +891,7 @@ const LIMB_KEYS := {&"LH": ["shoulder_L", "elbow_L", "wrist_L", "hand_L"], &"RH"
 ## 가장 잘 닿는 벽 방향(골반 높이 ~ 손발 높이 사이). 잡은 손발 끝(손목·발목)은 실제 홀드 자리로 옮기고 팔꿈치·무릎을
 ## 두 마디 IK로 다시 푼다. 점마다 접으면 크게 꺾이는 벽에서 몸이 찌그러지고 손가락이 늘어났다(2026-11-27 사용자
 ## "거의 누워있는 벽에서 무게중심에 따라 캐릭터가 엄청 찌그러져", "다음 홀드를 향해 뻗으면 손가락이 엄청 늘어지는").
-static func climber_to_char(t: Dictionary, f: WallProfile, held: Dictionary) -> Dictionary:
+static func climber_to_char(t: Dictionary, f: WallProfile, held: Dictionary, vols: Array = []) -> Dictionary:
 	var sp: float = (t.pelvis as Vector3).y
 	var fi := f.frame(sp).affine_inverse()
 	var pel: Vector3 = fi * f.point(t.pelvis)
@@ -772,7 +917,7 @@ static func climber_to_char(t: Dictionary, f: WallProfile, held: Dictionary) -> 
 		var l1: float = (t[ks[1]] as Vector3).distance_to(t[ks[0]])
 		var l2: float = (t[ks[2]] as Vector3).distance_to(t[ks[1]])
 		if target.distance_to(out[ks[2]]) < 0.001:  # 이미 제자리: 팔꿈치·무릎이 벽에 들어갔으면만 돌린다(판정 자세에서도 생김)
-			out[ks[1]] = _clear_mid(f, fi, out[ks[0]], target, out[ks[1]], l1, l2, (t[ks[1]] as Vector3).y)
+			out[ks[1]] = _clear_mid(f, fi, out[ks[0]], target, out[ks[1]], l1, l2, (t[ks[1]] as Vector3).y, vols)
 			continue
 		var root: Vector3 = out[ks[0]]
 		var old_dir: Vector3 = ((out[ks[2]] as Vector3) - (out[ks[1]] as Vector3)).normalized()
@@ -784,7 +929,7 @@ static func climber_to_char(t: Dictionary, f: WallProfile, held: Dictionary) -> 
 			to = target - root
 		if to.length() > l1 + l2 - 0.001:  # 그래도 닿지 않으면 팔·다리를 다 편 끝(홀드 조금 앞)
 			target = root + to.normalized() * (l1 + l2 - 0.001)
-		var mid := _clear_mid(f, fi, root, target, out[ks[1]], l1, l2, (t[ks[1]] as Vector3).y)
+		var mid := _clear_mid(f, fi, root, target, out[ks[1]], l1, l2, (t[ks[1]] as Vector3).y, vols)
 		var new_dir: Vector3 = (target - mid).normalized()
 		if out.has(ks[3]) and old_dir.length() > 0.5 and new_dir.length() > 0.5:
 			out[ks[3]] = target + Quaternion(old_dir, new_dir) * ((out[ks[3]] as Vector3) - (out[ks[2]] as Vector3))
@@ -805,7 +950,7 @@ static func climber_to_char(t: Dictionary, f: WallProfile, held: Dictionary) -> 
 		var to := target - root
 		if to.length() > l1 + l2 - 0.001:
 			target = root + to.normalized() * (l1 + l2 - 0.001)
-		out[ks[1]] = _clear_mid(f, fi, root, target, out[ks[1]], l1, l2, (t[ks[1]] as Vector3).y)
+		out[ks[1]] = _clear_mid(f, fi, root, target, out[ks[1]], l1, l2, (t[ks[1]] as Vector3).y, vols)
 		out[ks[2]] = target
 		if t.has(ks[3]):  # 손끝·발끝도 접힌 벽을 따라 같은 쪽으로(길이 그대로)
 			var dir: Vector3 = fi * f.point(t[ks[3]]) - fi * f.point(t[ks[2]])
@@ -819,10 +964,14 @@ const MID_CLEAR := 0.04        # 팔꿈치·무릎이 벽면에서 떨어져야 
 
 ## 두 마디 IK의 가운데 관절(캐릭터 틀). 원래 방향(pole)의 관절이 벽면에 MID_CLEAR보다 가까우면(위로 기운 벽·천장),
 ## 뼈 축을 돌며 8방향을 보고 벽에서 떨어진 것 중 원래 방향에 가장 가까운 것(없으면 가장 먼 것). s: 그 관절의 판정 높이.
-static func _clear_mid(f: WallProfile, fi: Transform3D, root: Vector3, target: Vector3, pole: Vector3, l1: float, l2: float, s: float) -> Vector3:
+static func _clear_mid(f: WallProfile, fi: Transform3D, root: Vector3, target: Vector3, pole: Vector3, l1: float, l2: float, s: float, vols: Array = []) -> Vector3:
 	var fr := fi.affine_inverse()
 	var mid := LimbIK.two_bone(root, target, pole, l1, l2)
-	var d0 := _surface_dist(f, fr * mid, s)
+	# 볼륨이 있는 자리는 볼륨 겉면을 벽면으로 본다(2026-11-28: 상자 위 모서리를 잡은 팔꿈치가 상자 속 20cm). 벽 x는 캐릭터·월드 x와 같다
+	var gap := func(m: Vector3) -> float:
+		var w := fr * m
+		return _surface_dist(f, w, s) - Volumes.depth_near(vols, Vector2(w.x, s), 0.05)
+	var d0: float = gap.call(mid)
 	if d0 >= MID_CLEAR:
 		return mid
 	var axis := (target - root).normalized()
@@ -836,7 +985,7 @@ static func _clear_mid(f: WallProfile, fi: Transform3D, root: Vector3, target: V
 	for i in 8:
 		var a := TAU * i / 8.0
 		var m := LimbIK.two_bone(root, target, c + (u * cos(a) + v * sin(a)), l1, l2)
-		var d := _surface_dist(f, fr * m, s)
+		var d: float = gap.call(m)
 		var dot := (m - c).normalized().dot(want)
 		if (d >= MID_CLEAR and (best_d < MID_CLEAR or dot > best_dot)) or (best_d < MID_CLEAR and d > best_d):
 			best = m
@@ -1207,7 +1356,7 @@ func _update_camera() -> void:
 	camera.position = look + Basis(Vector3.UP, yaw) * Basis(Vector3.RIGHT, th * 0.25 + float(logic.cam_pitch)) * Vector3(0, 0, dist * float(logic.cam_zoom))
 	if free_cam:
 		# 돌리거나 기운 벽에서 카메라가 벽면을 뚫고 뒤(빈 공간)를 보지 않게 벽면 앞으로 밀고, 매트 아래로 내려가지 않게
-		camera.position = fold.push_in_front(camera.position, CAM_WALL_GAP)
+		camera.position = fold.push_in_front(camera.position, CAM_WALL_GAP, logic.route.volumes)
 		camera.position.y = maxf(camera.position.y, CAM_MIN_Y)
 		camera.look_at(look, Vector3.UP)
 	else:
@@ -1216,23 +1365,28 @@ func _update_camera() -> void:
 
 ## 벽 접촉 면(z = CONTACT_DEPTH, 접힌 벽)의 판정 좌표 → 화면 픽셀. 기술 UI의 홀드 강조·탭 변환용.
 func world_to_screen(p: Vector2) -> Vector2:
-	return camera.unproject_position(fold.point(Vector3(p.x, p.y, CONTACT_DEPTH)))
+	return camera.unproject_position(fold.point(Vector3(p.x, p.y, CONTACT_DEPTH + Volumes.mount_depth(logic.route.volumes, p))))
 
 
 ## 화면 픽셀 → 카메라 광선과 접촉 면의 교점(판정 벽 좌표). 꺾이는 벽은 그 높이의 접평면과 몇 번 교차해 맞춘다.
 func screen_to_wall(s: Vector2) -> Vector2:
 	var y: float = logic.cam_y
 	var hit := Vector2(0, y)
-	for i in 4:
+	var zv := 0.0
+	for i in 6:
 		var gi := fold.frame(y).affine_inverse()
 		var o := gi * camera.project_ray_origin(s)
 		var n := gi.basis * camera.project_ray_normal(s)
 		if absf(n.z) < 0.0001:
 			return Vector2(o.x, y + o.y)
-		var t := (CONTACT_DEPTH - o.z) / n.z
-		hit = Vector2(o.x + n.x * t, y + o.y + n.y * t)
-		if absf(hit.y - y) < 0.002:
+		var t := (CONTACT_DEPTH + zv - o.z) / n.z
+		var nh := Vector2(o.x + n.x * t, y + o.y + n.y * t)
+		var nz := Volumes.mount_depth(logic.route.volumes, nh)  # 볼륨 겉면을 누르면 그 면(2026-11-28)
+		if absf(nh.y - hit.y) < 0.002 and absf(nh.x - hit.x) < 0.002 and absf(nz - zv) < 0.002:
+			hit = nh
 			break
+		hit = nh
+		zv = nz
 		y = hit.y
 	return hit
 

@@ -23,7 +23,9 @@ const GOOD := Color("7cc443")
 const TOOLS := [["edit", "홀드 놓기"], ["wall", "벽 각도"], ["erase", "홀드 지우기"], ["start", "시작홀드 설정"]]
 const LIMB_NAMES := {&"LH": "왼손", &"RH": "오른손", &"LF": "왼발", &"RF": "오른발"}
 ## 2026-11-27 사용자 "크고작은 발판홀드는 없애. 홀드종류를 선택한 뒤 손 발 탑 홀드로 사용할지 선택": 발판 종류는 고를 수 없다(옛 문제에서는 그대로 읽음)
-const TYPES := ["jug", "crimp", "sloper", "pinch", "pocket"]
+const TYPES := ["jug", "crimp", "sloper", "pinch", "pocket", "volume"]  # volume: 볼륨(2026-11-28, 면에 홀드·모서리 잡기)
+const SHAPE_KO := {"box": "상자", "wedge": "삼각"}
+const THICK_KO := {0: "위", 90: "오른쪽", 180: "아래", 270: "왼쪽"}
 const ROLES := [["hand", "손으로"], ["foot", "발로"], ["top", "탑으로"]]
 const ROLE_KO := {"hand": "손", "foot": "발", "top": "탑"}
 const SIZE_KO := {"S": "작게", "M": "보통", "L": "크게"}
@@ -44,6 +46,8 @@ var start_limb: StringName = &"LH"
 var sel_type := "jug"
 var sel_role := "hand"    # 놓을 쓰임: hand | foot | top
 var sel_size := "M"       # 놓을 크기(2026-11-26 사용자 "홀드종류 먼저 선택 손 발 탑홀드 선택하고 크기 선택")
+var sel_shape := "box"    # 놓을 볼륨 모양
+var sel_vrot := 0         # 놓을 삼각 볼륨의 두꺼운 쪽(0 위 · 90 오른쪽 · 180 아래 · 270 왼쪽)
 var selected := ""
 var message := ""
 var _message_t := 0.0
@@ -128,7 +132,7 @@ func _changed(rebuild := true) -> void:
 		_bot_ok = -1
 	_problems = draft.problems()
 	_warn = draft.warnings()
-	_bad = draft.bad_holds()
+	_bad = draft.bad_holds() + draft.volume_issues().map(func(i): return str(i.get("hold", ""))).filter(func(id): return id != "")  # 볼륨 모서리에 걸친 홀드도 빨간 고리
 	queue_redraw()
 
 
@@ -271,7 +275,7 @@ func _down(pos: Vector2) -> void:
 	if not _wall_rect().has_point(pos):
 		return
 	var w: Vector2 = view.screen_to_wall(pos)
-	_press = {"kind": "wall", "pos": pos, "wall": w, "hold": _hold_at(w), "moved": false}
+	_press = {"kind": "wall", "pos": pos, "wall": w, "hold": _hold_at(w), "volume": _volume_at(w), "moved": false}
 
 
 func _drag(pos: Vector2, rel: Vector2) -> void:
@@ -287,9 +291,21 @@ func _drag(pos: Vector2, rel: Vector2) -> void:
 		_press.moved = true
 		if tool == "edit" and selected == "" and _press.hold != "" and _tut_edit_ok():
 			selected = _press.hold  # 고른 홀드가 없으면 끌기 시작한 홀드를 옮긴다
+		elif tool == "edit" and selected == "" and sel_type == "volume" and _press.volume != "" and _tut_edit_ok():
+			selected = _press.volume
 	if not _press.moved:
 		return
-	if tool == "edit" and selected != "" and _tut_edit_ok():
+	var vol := draft.volume(selected)
+	if tool == "edit" and not vol.is_empty() and _tut_edit_ok():
+		# 고른 볼륨을 끈다: 그 면의 홀드도 같이(벽 밖·바닥 아래로는 안 감)
+		var hs := Volumes.side(vol) * 0.5
+		var c := Volumes.center(vol)
+		var to: Vector2 = c + view.screen_to_wall(pos) - _press.wall
+		to = Vector2(clampf(to.x, -RouteDraft.WALL_HALF + hs, RouteDraft.WALL_HALF - hs), clampf(to.y, RouteDraft.Y_MIN + hs, maxf(RouteDraft.Y_MIN + hs, draft.max_y() - hs)))
+		_preview = {"id": selected, "off": to - c, "rot": 0, "volume": true}
+		view.preview_volume(selected, _preview.off, draft.holds.filter(func(h): return Volumes.contains(vol, Vector2(h.x, h.y))).map(func(h): return h.id))
+		queue_redraw()
+	elif tool == "edit" and selected != "" and _tut_edit_ok():
 		# 고른 홀드를 손가락이 움직인 만큼 옮겨 그린다(어디서 끌든, 벽 밖·놓을 수 있는 높이 밖으로는 안 감)
 		var h := draft.hold(selected)
 		var to: Vector2 = Vector2(h.x, h.y) + view.screen_to_wall(pos) - _press.wall
@@ -319,11 +335,17 @@ func _up(pos: Vector2) -> void:
 		return
 	if p.moved:
 		if not _preview.is_empty():
-			var h := draft.hold(_preview.id)
 			var off: Vector2 = _preview.off
-			_preview = {}
-			if off.length() >= 0.005:
-				draft.move(h.id, h.x + off.x, h.y + off.y)
+			if _preview.get("volume", false):
+				var v := draft.volume(_preview.id)
+				_preview = {}
+				if off.length() >= 0.005:
+					draft.move_volume(v.id, float(v.x) + off.x, float(v.y) + off.y)
+			else:
+				var h := draft.hold(_preview.id)
+				_preview = {}
+				if off.length() >= 0.005:
+					draft.move(h.id, h.x + off.x, h.y + off.y)
 			_changed()
 		queue_redraw()
 		return
@@ -398,6 +420,22 @@ func _tap_wall(w: Vector2, hit: String) -> void:
 		"edit":
 			if hit != "":
 				selected = "" if hit == selected else hit  # 고른 홀드를 다시 누르면 해제(끌면 화면 이동)
+				if selected != "" and sel_type == "volume":  # 볼륨을 고른 채 홀드를 누르면 오른쪽 판도 그 홀드 종류로
+					sel_type = draft.hold(selected).type
+					if not RouteDraft.roles_for(sel_type).has(sel_role):
+						sel_role = RouteDraft.roles_for(sel_type)[0]
+			elif sel_type == "volume":
+				# 볼륨: 놓인 볼륨을 누르면 고르고(다시 누르면 해제), 빈 벽을 누르면 놓는다. 볼륨 위에 홀드를 놓으려면 홀드 종류를 고른다
+				var vid := _volume_at(w)
+				if vid != "":
+					selected = "" if vid == selected else vid
+				else:
+					var nid := draft.place_volume(sel_shape, w.x, w.y, sel_size, sel_vrot)
+					if nid == "":
+						_say("볼륨은 %d개까지 놓을 수 있어요" % Volumes.MAX)
+					else:
+						selected = nid
+						_changed()
 			else:
 				if tut != null and not _tut_place_ok(w):
 					return
@@ -417,6 +455,12 @@ func _tap_wall(w: Vector2, hit: String) -> void:
 				if selected == hit:
 					selected = ""
 				_changed()
+			elif _volume_at(w) != "":  # 볼륨은 지워도 그 면의 홀드는 벽에 남는다
+				var vid := _volume_at(w)
+				draft.remove_volume(vid)
+				if selected == vid:
+					selected = ""
+				_changed()
 		"start":
 			var want: Dictionary = tut.start_want(draft) if tut != null else {}
 			if not want.is_empty() and hit != "":
@@ -432,6 +476,11 @@ func _tap_wall(w: Vector2, hit: String) -> void:
 				else:
 					_say("탑은 시작홀드가 될 수 없어요")
 	queue_redraw()
+
+
+## 벽 좌표 w의 볼륨 id(가장 앞으로 나온 것), 없으면 "".
+func _volume_at(w: Vector2) -> String:
+	return str(Volumes.at(draft.volumes, w).get("id", ""))
 
 
 func _hold_at(w: Vector2) -> String:
@@ -460,7 +509,7 @@ func _tut_allows(action: String, arg: String) -> bool:
 	var t := tut.target()
 	if t.size() == 2 and t[0] == action and str(t[1]) == arg:
 		return true
-	return _tut_edit_ok() and (action in ["type", "role", "size", "match", "rot", "delete", "undo"] or (action == "tool" and arg == "edit"))
+	return _tut_edit_ok() and (action in ["type", "role", "size", "match", "rot", "delete", "undo", "shape", "vrot"] or (action == "tool" and arg == "edit"))
 
 
 ## 튜토리얼에서 홀드를 마음대로 고쳐도 되는 단계(자유롭게 놓기, 점검: 막는 것을 고친다). 튜토리얼이 아니면 늘 된다.
@@ -493,6 +542,25 @@ func _do(action: String, arg: String) -> void:
 			_preview = {}
 		"limb":
 			start_limb = StringName(arg)
+		"type" when arg == "volume" or sel_type == "volume":  # 볼륨 ↔ 홀드: 고른 것은 놓는다(다른 쪽 크기 버튼이 바꾸지 않게)
+			if (arg == "volume") != (not draft.volume(selected).is_empty()):
+				selected = ""
+			sel_type = arg
+			if arg != "volume" and not RouteDraft.roles_for(arg).has(sel_role):
+				sel_role = RouteDraft.roles_for(arg)[0]
+			tool = "edit"
+		"shape":
+			sel_shape = arg
+			var v := draft.volume(selected)
+			if not v.is_empty():
+				draft.set_volume(selected, arg, v.size, int(v.rot))
+				_changed()
+		"vrot":
+			var v := draft.volume(selected)
+			sel_vrot = posmod((int(v.rot) if not v.is_empty() else sel_vrot) + int(arg), 360)
+			if not v.is_empty():
+				draft.set_volume(selected, v.shape, v.size, sel_vrot)
+				_changed()
 		"type":  # 종류를 먼저 고른다. 발판 ↔ 다른 종류로 바뀌면 그 종류의 기본 쓰임(발판은 발로)
 			var was_foot := HoldTypes.is_foot(sel_type)
 			sel_type = arg
@@ -506,6 +574,11 @@ func _do(action: String, arg: String) -> void:
 				tool = "edit"
 			else:
 				_say("%s 탑이 될 수 없어요(두 손으로 같이 잡을 수 없어요)" % _eun(HoldTypes.name_ko(sel_type)))
+		"size" when not draft.volume(selected).is_empty():
+			sel_size = arg
+			var v := draft.volume(selected)
+			draft.set_volume(selected, v.shape, arg, int(v.rot))
+			_changed()
 		"size":  # 놓을 크기. 고른 홀드가 있으면 그 홀드도
 			sel_size = arg
 			var h := draft.hold(selected)
@@ -537,7 +610,10 @@ func _do(action: String, arg: String) -> void:
 				draft.set_matchable(selected, not bool(h.get("matchable", false)))
 				_changed()
 		"delete":
-			draft.remove(selected)
+			if not draft.volume(selected).is_empty():
+				draft.remove_volume(selected)
+			else:
+				draft.remove(selected)
 			selected = ""
 			_changed()
 		"save":
@@ -557,10 +633,16 @@ func _do(action: String, arg: String) -> void:
 		"goto":  # 점검 창 [보기]: 그 홀드를 고르고(홀드 놓기) 그 높이로 조금 다가가며 간다(2026-11-26 사용자)
 			check_open = false
 			var h := draft.hold(arg)
+			var gv := draft.volume(arg)
 			if not h.is_empty():
 				tool = "edit"
 				selected = arg
 				_fly_to(h.y)
+			elif not gv.is_empty():
+				tool = "edit"
+				sel_type = "volume"
+				selected = arg
+				_fly_to(float(gv.y))
 			elif arg.is_valid_float():
 				_fly_to(arg.to_float())
 		"publish":
@@ -664,6 +746,11 @@ func _check_items() -> Array:
 			RouteDraft.P_SPACING:
 				for v in draft.spacing_details():
 					out.append({"level": "block", "text": v.text, "hold": v.hold})
+			_ when draft.volume_issues().any(func(i): return i.text == p):
+				for vi in draft.volume_issues():
+					if vi.text == p:
+						out.append({"level": "block", "text": p, "hold": str(vi.get("hold", vi.get("volume", ""))), "y": float(vi.y)})
+						break
 			_ when p == draft.wall_issue().get("text", ""):
 				out.append({"level": "block", "text": p, "hold": "", "y": float(draft.wall_issue().y)})
 			_:
@@ -758,7 +845,7 @@ func _draw() -> void:
 	_draw_scrollbar()
 	draw_rect(Rect2(Vector2(0, size.y - 44 * k), Vector2(size.x, 44 * k)), Color(NIGHT, 0.86))
 	draw_line(Vector2(0, size.y - 44 * k), Vector2(size.x, size.y - 44 * k), HAIR, 1.5 * k)
-	var st := "홀드 %d/%d · 벽 높이 %sm · 버전 %d · " % [draft.holds.size(), RouteDraft.MAX_HOLDS, String.num(draft.wall_limit()), draft.version]
+	var st := "홀드 %d/%d · %s벽 높이 %sm · 버전 %d · " % [draft.holds.size(), RouteDraft.MAX_HOLDS, "볼륨 %d/%d · " % [draft.volumes.size(), Volumes.MAX] if not draft.volumes.is_empty() else "", String.num(draft.wall_limit()), draft.version]
 	st += "고칠 것 없음 — [올라 보기]를 할 수 있어요" if _problems.is_empty() else _problems[0]
 	_text(Vector2(16 * k, size.y - 14 * k), st, 19, CHALK if _problems.is_empty() else WARN)
 	var nw := _warn.size() + (1 if _bot_ok == 0 else 0)
@@ -803,6 +890,20 @@ func _draw_wall_overlay(_size: Vector2) -> void:
 			_wall_line(Vector2(-RouteDraft.WALL_HALF, y), Vector2(RouteDraft.WALL_HALF, y), SHOE, 4.0)
 		if view.in_view(Vector2(RouteDraft.WALL_HALF, sel_wall + 0.5)):
 			_outlined(w2s.call(Vector2(RouteDraft.WALL_HALF, sel_wall + 0.5)) + Vector2(10 * k, 6 * k), "%dm부터 %d°" % [sel_wall, 180 - draft.wall_deg_at(sel_wall)], 18, 0.0, HORIZONTAL_ALIGNMENT_LEFT)
+	# 볼륨 테두리: 고른 것은 노랑, 막는 것이 있는 것은 빨강(겉면 네 모서리)
+	var bad_vols := draft.volume_issues().map(func(i): return str(i.get("volume", "")))
+	for v in draft.volumes:
+		var sel: bool = v.id == selected
+		if not (sel or bad_vols.has(v.id)) or float(v.y) < lo - 1.0 or float(v.y) > hi + 1.0:
+			continue
+		var c := Volumes.center(v) + (_preview.off as Vector2 if _preview.get("id", "") == v.id else Vector2.ZERO)
+		var hs := Volumes.side(v) * 0.5
+		var pts := [c + Vector2(-hs, -hs), c + Vector2(hs, -hs), c + Vector2(hs, hs), c + Vector2(-hs, hs)]
+		if not pts.all(func(q): return view.in_view(q)):
+			continue
+		var sc := PackedVector2Array(pts.map(func(q): return w2s.call(q)))
+		sc.append(sc[0])
+		draw_polyline(sc, SHOE if sel else RED, (4.0 if sel else 3.0) * k, true)
 	var start_of := {}
 	for l in draft.start:
 		if draft.start[l] != "":
@@ -898,8 +999,11 @@ func _draw_panel(size: Vector2) -> void:
 	var cw := (w - 20 * k) / 3.0
 	for i in TYPES.size():
 		var r := Rect2(Vector2(x + (i % 3) * (cw + 10 * k), y + int(i / 3) * 54 * k), Vector2(cw, 46 * k))
-		_button(r, HoldTypes.name_ko(TYPES[i]), "type", TYPES[i], 18, sel_type == TYPES[i] and tool == "edit")
+		_button(r, "볼륨" if TYPES[i] == "volume" else HoldTypes.name_ko(TYPES[i]), "type", TYPES[i], 18, sel_type == TYPES[i] and tool == "edit")
 	y += ceili(TYPES.size() / 3.0) * 54 * k + 2 * k
+	if sel_type == "volume":
+		_draw_volume_panel(size, x, w, y, cw)
+		return
 	_text(Vector2(x, y + 16 * k), "어떻게 쓸까요", 16, DIM)
 	y += 24 * k
 	var roles := RouteDraft.roles_for(sel_type)
@@ -940,6 +1044,39 @@ func _draw_panel(size: Vector2) -> void:
 		_button(Rect2(Vector2(x + i * (bw + 10 * k), btn_y), Vector2(bw, 46 * k)), b[0], "rot", b[1], 19)
 	var dl := _dial()
 	_draw_dial(dl[0], dl[1], true, rot)
+
+
+## 볼륨을 고른 오른쪽 판(2026-11-28): 모양·크기(고른 볼륨이 있으면 그 볼륨도), 고른 볼륨의 정보·방향 돌리기·지우기.
+func _draw_volume_panel(_size: Vector2, x: float, w: float, y: float, cw: float) -> void:
+	var v := draft.volume(selected)
+	_text(Vector2(x, y + 16 * k), "모양", 16, DIM)
+	y += 24 * k
+	var shape: String = v.shape if not v.is_empty() else sel_shape
+	for i in Volumes.SHAPES.size():
+		var sh: String = Volumes.SHAPES[i]
+		_button(Rect2(Vector2(x + i * (cw + 10 * k), y), Vector2(cw, 46 * k)), SHAPE_KO[sh], "shape", sh, 19, shape == sh and tool == "edit")
+	y += 56 * k
+	_text(Vector2(x, y + 16 * k), "크기", 16, DIM)
+	y += 24 * k
+	var cur: String = v.size if not v.is_empty() else sel_size
+	for i in 3:
+		var sz: String = HoldTypes.SIZES[i]
+		_button(Rect2(Vector2(x + i * (cw + 10 * k), y), Vector2(cw, 46 * k)), SIZE_KO[sz], "size", sz, 19, cur == sz and tool == "edit")
+	y += 56 * k
+	var rot := int(v.rot) if not v.is_empty() else sel_vrot
+	if shape == "wedge":
+		_text(Vector2(x, y + 16 * k), "두꺼운 쪽: %s" % THICK_KO[rot], 16, DIM)
+		y += 24 * k
+		_button(Rect2(Vector2(x, y), Vector2(cw * 1.5, 46 * k)), "↺ 90°", "vrot", "-90", 19)
+		_button(Rect2(Vector2(x + cw * 1.5 + 10 * k, y), Vector2(cw * 1.5, 46 * k)), "↻ 90°", "vrot", "90", 19)
+		y += 56 * k
+	if v.is_empty():
+		_wrap(Vector2(x, y + 20 * k), "모양·크기를 고르고 빈 벽을 누르면 볼륨이 놓여요. 볼륨 모서리는 손으로 잡고 발로 딛어요. 볼륨 위에 홀드를 놓으려면 홀드 종류를 고르고 볼륨을 누르세요. 놓인 볼륨은 [볼륨]을 고른 채 누르면 골라지고, 끌면 위의 홀드와 같이 옮겨져요.", w, 17, DIM)
+		return
+	var on := draft.holds.filter(func(h): return Volumes.contains(v, Vector2(h.x, h.y))).size()
+	_text(Vector2(x, y + 22 * k), "고른 볼륨: %s · %s · 위 홀드 %d개" % [SHAPE_KO[v.shape], SIZE_KO[v.size], on], 20, CHALK)
+	y += 34 * k
+	_button(Rect2(Vector2(x, y + 10 * k), Vector2(w - 170 * k, 46 * k)), "이 볼륨 지우기", "delete", "", 19)
 
 
 ## 벽 각도 도구의 오른쪽 판: 설명, 고른 높이, 아래에 조절 원과 버튼(끄는 동안 3D 벽이 바로 접힌다).
