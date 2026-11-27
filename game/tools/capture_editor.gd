@@ -18,13 +18,13 @@ func _sample() -> RouteDraft:
 	d.route_id = "U_CAPTURE01"
 	d.name = "첫 문제"
 	d.grade = "V2"
-	var f1 := d.place("foot_chip", -0.15, 0.1)
-	var f2 := d.place("foot_chip", 0.18, 0.1)
+	var f1 := d.place("crimp", -0.15, 0.1, "foot")
+	var f2 := d.place("crimp", 0.18, 0.1, "foot")
 	var h1 := d.place("jug", -0.3, 1.5)
 	var h2 := d.place("jug", 0.3, 1.5)
-	d.place("foot_big", -0.25, 0.55)
-	d.place("foot_big", 0.3, 0.6)
-	d.place("crimp", -0.35, 1.95, "L", 90)
+	d.place("jug", -0.25, 0.55, "foot", "S")
+	d.place("jug", 0.3, 0.6, "foot", "S")
+	d.place("crimp", -0.35, 1.95, "hand", "L", 90)
 	d.place("pinch", 0.35, 2.05)
 	d.place("sloper", 0.0, 2.5)
 	d.place("jug", 0.05, 1.55)  # 일부러 너무 가깝게(빨간 표시 확인)

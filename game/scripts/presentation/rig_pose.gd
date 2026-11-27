@@ -129,6 +129,8 @@ func solve(joints: Dictionary, roll_deg: float, yaw_deg: float = 0.0, free_feet 
 		var name: String = entry[0]
 		if not rest_basis.has(name):
 			continue
+		if not (joints.has(entry[2]) and joints.has(entry[3])):
+			continue  # 관절이 빠진 뼈는 건너뛴다(멈추지 않게)
 		var parent: String = entry[1]
 		var from_p: Vector3 = joints[entry[2]]
 		var dir: Vector3 = (joints[entry[3]] - from_p)

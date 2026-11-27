@@ -265,7 +265,8 @@ func test_hip_lift_limit() -> void:
 
 
 func _unit_rig() -> RigPose:
-	var j := {"pelvis": Vector3(0, 1, 0.28), "spine": Vector3(0, 1.22, 0.28), "chest": Vector3(0, 1.44, 0.28)}
+	# 목·머리도: 가슴 뼈(가슴 → 목)가 있어야 "허리·가슴은 그대로" 검사가 실제로 돈다(2026-11-28: 없어서 테스트마다 'chest' 오류)
+	var j := {"pelvis": Vector3(0, 1, 0.28), "spine": Vector3(0, 1.22, 0.28), "chest": Vector3(0, 1.44, 0.28), "neck": Vector3(0, 1.6, 0.28), "head": Vector3(0, 1.75, 0.28)}
 	for s in ["L", "R"]:
 		var sx := -1.0 if s == "L" else 1.0
 		j["hip_" + s] = Vector3(sx * 0.10, 1.0, 0.28)
@@ -352,7 +353,7 @@ func test_thigh_twist_continuous_when_straightening() -> void:
 ## docs/37 2단계: 허벅지가 옆으로 45° 넘게 벌어지면 골반 뼈만 그 다리 쪽이 올라간다(최대 15°). 허리 뼈는 그대로.
 func test_pelvis_tilt() -> void:
 	var rig := _unit_rig()
-	var j := {"pelvis": Vector3(0, 1, 0.28), "spine": Vector3(0, 1.22, 0.28), "chest": Vector3(0, 1.44, 0.28),
+	var j := {"pelvis": Vector3(0, 1, 0.28), "spine": Vector3(0, 1.22, 0.28), "chest": Vector3(0, 1.44, 0.28), "neck": Vector3(0, 1.6, 0.28), "head": Vector3(0, 1.75, 0.28),
 		"hip_L": Vector3(-0.1, 1, 0.28), "knee_L": Vector3(-0.1, 0.6, 0.2), "ankle_L": Vector3(-0.1, 0.25, 0.28), "toe_L": Vector3(-0.1, 0.2, 0.13),
 		"hip_R": Vector3(0.1, 1, 0.28), "knee_R": Vector3(0.1, 0.6, 0.2), "ankle_R": Vector3(0.1, 0.25, 0.28), "toe_R": Vector3(0.1, 0.2, 0.13)}
 	runner.check(absf(RigPose.pelvis_tilt_deg(j, Basis.IDENTITY)) < 0.01, "다리가 아래면 기울기 0")
