@@ -721,7 +721,7 @@ func _update_reach_rings() -> void:
 			var gd := ReachMarker.grip_guide(logic.session, limb)  # 손: 잡을 자리 안내 색(초록·주황·빨강)
 			(r.material_override as StandardMaterial3D).albedo_color = Color(ReachMarker.GUIDE_COLORS[gd.level], 0.95) if not gd.is_empty() else Color(1, 1, 1, 0.8)
 			var p := ReachMarker.ring_point(l)
-			_on_wall(r, Vector3(p.x, p.y, CONTACT_DEPTH + 0.01), Basis(Vector3.RIGHT, PI / 2.0))
+			_on_wall(r, Vector3(p.x, p.y, CONTACT_DEPTH + 0.01 + Volumes.depth_near(logic.route.volumes, p, 0.02)), Basis(Vector3.RIGHT, PI / 2.0))  # 볼륨 겉면 위에(2026-11-28: 볼륨 속에 숨었다)
 
 
 func _update_hold_glow() -> void:
@@ -1262,7 +1262,7 @@ func _look_target() -> Variant:
 		var l: Dictionary = logic.session.limbs[limb]
 		if l.state == "Dragging":
 			var p: Vector2 = l.pos
-			best = char_root.transform.affine_inverse() * fold.point(Vector3(p.x, p.y, CONTACT_DEPTH))  # 캐릭터 틀 좌표
+			best = char_root.transform.affine_inverse() * fold.point(Vector3(p.x, p.y, CONTACT_DEPTH + Volumes.depth_near(logic.route.volumes, p, 0.02)))  # 캐릭터 틀 좌표
 			break
 	return best
 
@@ -1429,7 +1429,7 @@ func _update_foot_marks() -> void:
 		var loaded: bool = logic.session.rules.loaded_feet.has(foot)
 		var p: Vector2 = l.pos
 		for m in foot_marks[foot]:
-			_on_wall(m, Vector3(p.x, p.y - 0.09, Tuning.CONTACT_DEPTH))
+			_on_wall(m, Vector3(p.x, p.y - 0.09, Tuning.CONTACT_DEPTH + Volumes.depth_near(logic.route.volumes, p, 0.02)))
 		foot_marks[foot][0].visible = attached and loaded
 		foot_marks[foot][1].visible = attached and not loaded
 		var flag: bool = l.state == "Flag" or (l.state == "Dragging" and logic.session.rules.flag_ready.has(foot))
