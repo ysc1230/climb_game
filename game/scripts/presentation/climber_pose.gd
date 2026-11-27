@@ -159,6 +159,7 @@ func compute(session, delta: float) -> Dictionary:
 			else:
 				t["toe_" + s] = end + fd * Anatomy.FOOT_LENGTH
 				_foot_dir[limb] = fd
+			t["toe_" + s] = _toe_out(end, t["toe_" + s])
 	return t
 
 
@@ -231,6 +232,23 @@ const FOOT_ON_SURFACE := 0.03
 const PIVOT_OK := 0.05     # 가장 나은 굽힘의 위반이 이 아래면 무릎 자리가 있다
 const PIVOT_YAWS := [0.0, 45.0, -45.0, 90.0, -90.0]
 const PIVOT_PITCHES := [0.0, 30.0, 60.0]
+
+
+## 발끝이 벽면(z = 0) 뒤로 가면 발 길이는 그대로 두고 발끝을 벽면 앞 TOE_WALL_Z로 세운다(2026-11-28: 수직 벽에서도
+## 딛은 발·떠 있는 발의 발끝이 벽 속 7~13cm였다). 판정은 그대로(표현만).
+const TOE_WALL_Z := 0.01
+
+
+static func _toe_out(ankle: Vector3, toe: Vector3) -> Vector3:
+	if toe.z >= TOE_WALL_Z:
+		return toe
+	var v := toe - ankle
+	var l := v.length()
+	var z := minf(TOE_WALL_Z - ankle.z, l)
+	var xy := Vector2(v.x, v.y)
+	var r := sqrt(maxf(l * l - z * z, 0.0))
+	xy = xy.normalized() * r if xy.length() > 1e-6 else Vector2(0, -r)
+	return ankle + Vector3(xy.x, xy.y, z)
 
 
 ## 홀드 윗면에 발끝을 얹은 발(_end가 발끝 기준으로 발목을 놓는다).

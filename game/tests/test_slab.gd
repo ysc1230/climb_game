@@ -76,3 +76,36 @@ func test_random_moves_never_fall() -> void:
 				res = ""
 			falls += 1 if res.begins_with("fall:") else 0
 		runner.check(falls == 0, "%s: 무작위 12번 중 떨어짐 %d" % [walls.map(func(w): return 180 - w[1]), falls])
+
+
+## 90° 천장(2026-11-28): 실제 천장처럼 발을 걸어(토훅·힐훅) 몸을 당겨 버틴다. 예전에는 천장에서 발이 받는 힘이 0이라
+## 손 하나를 떼면 남은 손이 체중 91%를 들고 문처럼 돌아 첫 손 옮기기에서 떨어졌다. 45°까지는 그대로(공식 문제).
+func test_roof_climbable() -> void:
+	var d := RouteDraft.new()
+	d.route_id = "U_R"
+	d.name = "r"
+	var ids := [d.place("jug", -0.25, 2.3, "hand", "L"), d.place("jug", 0.25, 2.3, "hand", "L"), d.place("jug", -0.2, 1.4, "foot", "L"), d.place("jug", 0.2, 1.4, "foot", "L")]
+	for i in 4:
+		d.set_start([&"LH", &"RH", &"LF", &"RF"][i], ids[i])
+	var a := d.place("jug", -0.25, 2.75, "hand", "L")
+	var b := d.place("jug", 0.25, 2.75, "hand", "L")
+	var c := d.place("jug", -0.2, 1.85, "foot", "L")
+	var e := d.place("jug", 0.2, 1.85, "foot", "L")
+	d.place("jug", 0.0, 3.2, "top", "L")
+	d.set_wall(0, 0)
+	d.set_wall(2, 90)
+	var R := "U_R/"
+	var bot := SessionBot.run(d.build(), [["LH", R + a + "/hand_1"], ["RH", R + b + "/hand_1"], ["LF", R + c + "/foot_1"], ["RF", R + e + "/foot_1"], ["LH", R + "G01/hand_1"], ["RH", R + "G01/hand_1"]])
+	runner.check(bot.ok(), "천장에서 손발을 옮겨 탑까지 %s" % bot.failure)
+	var att := {&"LH": Vector2(-0.3, 1.8), &"LF": Vector2(-0.2, 0.5), &"RF": Vector2(0.2, 0.5)}
+	for deg in [45.0, 90.0]:
+		ClimbRules.wall_deg = deg
+		var rules := ClimbRules.new()
+		rules.feet_eligible.assign([&"LF", &"RF"])
+		rules.loaded_feet.assign([&"LF", &"RF"])
+		var r := rules.evaluate(Vector2(0.0, 1.0), 0.0, att, {&"RH": Vector2(0.2, 1.2)}, false, [&"LF", &"RF"])
+		if deg == 45.0:
+			runner.check(absf(r.u[&"LH"] - 0.48) < 0.01, "45°는 그대로(한 손 부담 %.2f)" % r.u[&"LH"])
+		else:
+			runner.check(r.status == SupportSolver.Status.FEASIBLE and r.u[&"LH"] < 0.8 and not r.barn.exceeded and r.u[&"LF"] > 0.05, "90°: 한 손 + 두 발 버팀 %s" % [r.u])
+	ClimbRules.wall_deg = 0.0

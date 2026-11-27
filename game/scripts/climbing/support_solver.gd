@@ -33,6 +33,9 @@ const RECOVER_HAND_LOAD_RATIO := 0.35
 ## 벽 기울기(docs/48 R2, 오버행 실험): 벽 밖으로 빠지는 힘(sinθ BW)은 손이 당겨 버티고, 발은 몸 버티기로
 ## 자기가 받는 위쪽 힘(벽면 안) × FOOT_OUT_SHARE까지만 받는다. 손발 모두 벽면 안 하중 + 벽 밖 힘 ≤ 최대 하중.
 const FOOT_OUT_SHARE := 0.25
+## 가파른 오버행·천장의 발 걸기(토훅·힐훅): 45°까지 0, 90°에서 발마다 체중의 이만큼 벽 밖 힘을 더 받는다(2026-11-28: 천장에서는
+## 위쪽 힘이 0이라 발이 아무것도 못 받아 손을 하나도 못 옮겼다 — 한 손이 체중 91%, 문처럼 돎). 공식 문제(45°까지)는 그대로.
+const FOOT_HOOK := 0.12
 
 # 무게중심 대리점 가중치(docs/04 §4, 게임용)
 const W_TORSO := 0.60
@@ -95,8 +98,9 @@ static func solve(contacts: Array, com: Vector2, in_load := 1.0, out_load := 0.0
 			mz[i * 3 + j] = (r.x * d.y - r.y * d.x) * sp
 	rows.append_array([fx, fy, mz])
 	rhs.append_array([0.0, sp * in_load, 0.0])
+	var hook := FOOT_HOOK * clampf((rad_to_deg(atan2(out_load, maxf(in_load, 0.0))) - 45.0) / 45.0, 0.0, 1.0) if tilt else 0.0
 	if tilt:
-		# 벽 밖 힘 합 = out_load, 발: o ≤ FOOT_OUT_SHARE × (발이 받는 위쪽 힘). Σcoef로 재면 두 발이 옆으로 마주 밀어
+		# 벽 밖 힘 합 = out_load, 발: o ≤ FOOT_OUT_SHARE × (발이 받는 위쪽 힘) + 걸기(hook). Σcoef로 재면 두 발이 옆으로 마주 밀어
 		# 하중을 부풀려 벽 밖 몫을 늘릴 수 있다(위쪽 힘 합은 무게 cosθ를 넘지 못함)
 		var osum := _zeros(n)
 		for i in k:
@@ -112,7 +116,7 @@ static func solve(contacts: Array, com: Vector2, in_load := 1.0, out_load := 0.0
 			for j in 3:
 				fr[i * 3 + j] = -FOOT_OUT_SHARE * (dirs[i][j] as Vector2).y * sp
 			rows.append(fr)
-			rhs.append(0.0)
+			rhs.append(sp * hook)
 	# 용량: Σcoef (+ o) + slack = max_load
 	for i in k:
 		var cap := _zeros(n)

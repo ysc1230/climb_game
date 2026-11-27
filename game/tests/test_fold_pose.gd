@@ -81,7 +81,7 @@ static func _wall_dist(f: WallProfile, w: Vector3, s_lo: float, s_hi: float) -> 
 ## 팔·다리 관절(팔꿈치·손목·손끝, 무릎·발목)과 몸통(가슴·목·머리, 능선에서 13cm 박혔음)이
 ## 벽면 뒤로 들어가지 않는다(1cm 여유). 고치기 전: 손끝 25~30cm, 팔꿈치 13~26cm.
 func test_free_limbs_stay_out_of_wall() -> void:
-	for walls in [[[0, 0], [1, 68], [2, 32]], [[0, 0], [1, 85]], [[0, 0], [1, 60], [2, -60], [3, 60]]]:
+	for walls in [[[0, 0]], [[0, 0], [1, 68], [2, 32]], [[0, 0], [1, 85]], [[0, 0], [1, 60], [2, -60], [3, 60]]]:
 		var d := RouteDraft.new()
 		d.route_id = "U_X"
 		d.name = "x"
@@ -98,8 +98,8 @@ func test_free_limbs_stay_out_of_wall() -> void:
 		var f := WallProfile.new(r, -1.5, d.max_y() + 3.0)
 		var cp := ClimberPose.new()
 		var worst := {"d": INF, "at": "", "n": 0}
-		# 발끝은 뺀다: 판정 자세(ClimberPose)에서부터 수직 벽에서도 벽 쪽으로 7~8cm 꺾일 때가 있다(따로 볼 것)
-		var keys := ["elbow_L", "wrist_L", "hand_L", "elbow_R", "wrist_R", "hand_R", "knee_L", "ankle_L", "knee_R", "ankle_R", "chest", "neck", "head"]
+		# 발끝도(2026-11-28: 판정 자세에서부터 수직 벽에서도 벽 쪽으로 7~8cm 꺾였다)
+		var keys := ["elbow_L", "wrist_L", "hand_L", "elbow_R", "wrist_R", "hand_R", "knee_L", "ankle_L", "toe_L", "knee_R", "ankle_R", "toe_R", "chest", "neck", "head"]
 		var on_tick := func(s: ClimbSession, _res) -> void:
 			worst.n += 1
 			if worst.n % 3 != 0:
