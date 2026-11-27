@@ -138,7 +138,7 @@ func test_body_stays_out_of_volume() -> void:
 				if gap < worst.body:
 					worst.body = gap
 					worst.body_at = "%s 틱 %d" % [k, worst.n]
-		for k in ["elbow_L", "elbow_R", "knee_L", "knee_R"]:
+		for k in ["elbow_L", "elbow_R", "knee_L", "knee_R", "toe_L", "toe_R"]:
 			var pm: Vector3 = t[k]
 			if Volumes.contains(v, Vector2(pm.x, pm.y), 0.04):
 				var gm := pm.z - Volumes.depth(v)

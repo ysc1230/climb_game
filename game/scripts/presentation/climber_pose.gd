@@ -159,7 +159,8 @@ func compute(session, delta: float) -> Dictionary:
 			else:
 				t["toe_" + s] = end + fd * Anatomy.FOOT_LENGTH
 				_foot_dir[limb] = fd
-			t["toe_" + s] = _toe_out(end, t["toe_" + s])
+			var tz: Vector3 = t["toe_" + s]
+			t["toe_" + s] = _toe_out(end, tz, TOE_WALL_Z + Volumes.depth_near(session.route.volumes, Vector2(tz.x, tz.y), 0.03))  # 볼륨 겉면 앞으로도
 	return t
 
 
@@ -239,12 +240,12 @@ const PIVOT_PITCHES := [0.0, 30.0, 60.0]
 const TOE_WALL_Z := 0.01
 
 
-static func _toe_out(ankle: Vector3, toe: Vector3) -> Vector3:
-	if toe.z >= TOE_WALL_Z:
+static func _toe_out(ankle: Vector3, toe: Vector3, floor_z := TOE_WALL_Z) -> Vector3:
+	if toe.z >= floor_z:
 		return toe
 	var v := toe - ankle
 	var l := v.length()
-	var z := minf(TOE_WALL_Z - ankle.z, l)
+	var z := clampf(floor_z - ankle.z, -l, l)
 	var xy := Vector2(v.x, v.y)
 	var r := sqrt(maxf(l * l - z * z, 0.0))
 	xy = xy.normalized() * r if xy.length() > 1e-6 else Vector2(0, -r)
