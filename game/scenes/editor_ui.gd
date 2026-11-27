@@ -928,6 +928,27 @@ func _draw_wall_overlay(_size: Vector2) -> void:
 			_wall_line(Vector2(-RouteDraft.WALL_HALF, y), Vector2(RouteDraft.WALL_HALF, y), SHOE, 4.0)
 		if view.in_view(Vector2(RouteDraft.WALL_HALF, sel_wall + 0.5)):
 			_outlined(w2s.call(Vector2(RouteDraft.WALL_HALF, sel_wall + 0.5)) + Vector2(10 * k, 6 * k), "%dm부터 %d°" % [sel_wall, 180 - draft.wall_deg_at(sel_wall)], 18, 0.0, HORIZONTAL_ALIGNMENT_LEFT)
+	# [볼륨]을 고른 동안: 잡는 모서리(초록 = 손발, 주황 = 아래 모서리 손만)와 발 비비기 면(보라)을 벽 위에 보인다(글로만 알리던 것)
+	if sel_type == "volume" and tool == "edit":
+		for v in draft.volumes:
+			if float(v.y) < lo - 1.0 or float(v.y) > hi + 1.0:
+				continue
+			var off: Vector2 = _preview.off if _preview.get("id", "") == v.id else Vector2.ZERO
+			var hs := Volumes.side(v) * 0.5
+			for e in Volumes.edges(v):
+				var n: Vector2 = HoldTypes.rotate(Vector2(0, 1), float(e.rot))
+				var along := Vector2(-n.y, n.x) * hs * 0.92
+				var a0: Vector2 = e.pos + off - along
+				var a1: Vector2 = e.pos + off + along
+				if view.in_view(a0) and view.in_view(a1):
+					draw_line(w2s.call(a0), w2s.call(a1), Color(GOOD if e.slot_id != "edge_b" else WARN, 0.85), 4.0 * k, true)
+			var fc := Volumes.face(v)
+			if not fc.is_empty():
+				var q := [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)].map(func(c): return Volumes.center(v) + off + c * hs * 0.8)
+				if q.all(func(c): return view.in_view(c)):
+					var sc := PackedVector2Array(q.map(func(c): return w2s.call(c)))
+					sc.append(sc[0])
+					draw_polyline(sc, Color("c4b0d6", 0.8), 2.5 * k, true)
 	# 볼륨 테두리: 고른 것은 노랑, 막는 것이 있는 것은 빨강(겉면 네 모서리)
 	var bad_vols := draft.volume_issues().map(func(i): return str(i.get("volume", "")))
 	for v in draft.volumes:
@@ -1120,7 +1141,7 @@ func _draw_volume_panel(_size: Vector2, x: float, w: float, y: float, cw: float)
 		_button(Rect2(Vector2(x + cw * 1.5 + 10 * k, y), Vector2(cw * 1.5, 46 * k)), "↻ 90°", "vrot", "90", 19)
 		y += 56 * k
 	if v.is_empty():
-		_wrap(Vector2(x, y + 20 * k), "모양·크기를 고르고 빈 벽을 누르면 볼륨이 놓여요. 볼륨 모서리는 손으로 잡고 발로 딛어요. 볼륨 위에 홀드를 놓으려면 홀드 종류를 고르고 볼륨을 누르세요. 놓인 볼륨은 [볼륨]을 고른 채 누르면 골라지고, 끌면 위의 홀드와 같이 옮겨져요.", w, 17, DIM)
+		_wrap(Vector2(x, y + 20 * k), "모양·크기를 고르고 빈 벽을 누르면 놓여요. 초록 모서리는 손발, 주황(아래)은 손만, 보라 면은 발을 비벼 딛어요. 볼륨 위 홀드는 홀드 종류를 고르고 볼륨을 누르세요. 놓인 볼륨은 [볼륨]을 고른 채 누르면 골라지고, 끌면 위 홀드와 같이 옮겨져요.", w, 17, DIM)
 		return
 	var on := draft.holds.filter(func(h): return Volumes.contains(v, Vector2(h.x, h.y))).size()
 	_text(Vector2(x, y + 22 * k), "고른 볼륨: %s · %s · 위 홀드 %d개" % [SHAPE_KO[v.shape], SIZE_KO[v.size], on], 20, CHALK)
