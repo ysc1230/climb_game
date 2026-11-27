@@ -40,8 +40,9 @@ var _ticks := 0
 var _seen_seq := 0
 
 
-static func run(p_route: RouteDef, steps: Array, forbid := {}, recorder: ScoreRecorder = null, on_tick := Callable()) -> SessionBot:
+static func run(p_route: RouteDef, steps: Array, forbid := {}, recorder: ScoreRecorder = null, on_tick := Callable(), assist := false) -> SessionBot:
 	var bot := SessionBot.new()
+	bot.shift_assist = assist
 	bot.route = p_route
 	bot.recorder = recorder
 	bot.on_tick = on_tick
@@ -161,11 +162,37 @@ func _pad_move(limb: StringName, key: String) -> String:
 	var target := route.slot_pos(key)
 	_last_end.erase(limb)
 	_input([{"type": "detach", "limb": limb}])
+	var r := _reach(limb, key, target, Vector2.ZERO)
+	if r.done:
+		return r.err
+	if shift_assist:
+		# 사람처럼 몸통을 그쪽으로 끌며 한 번 더(게임 안내 "몸을 더 가까이 옮겨보세요"). 가운데를 누른 채 손발을 끌고, 끝나면 뗀다
+		var to := target - session.body.pos
+		_input([{"type": "body_start", "limb": InputRouter.BODY}])
+		r = _reach(limb, key, target, to.normalized() * minf(ASSIST_SHIFT, to.length()))
+		_input([{"type": "body_end", "limb": InputRouter.BODY}])
+		if r.done:
+			return r.err
+	var reason := GripCheck.reject_reason(route.slots, limb, session.limbs[limb].pos, session.limbs[limb].req, session.body.pos, session.body.angle, session.attached(), session.occupied(), session.rules.feet_eligible, session.body.yaw)
+	return "%d틱 안에 후보가 되지 않음(%s), 거리 %.3fm" % [CANDIDATE_TICKS, reason, PoseSolver.limb_distance(session.body.pos, session.body.angle, limb, target, session.body.yaw)]
+
+
+## 길 찾기 재생(만들기 [봇으로 확인])만 켠다: 손발이 닿지 않으면 몸통을 그쪽으로 ASSIST_SHIFT까지 끌며 한 번 더(2026-11-28: 가파른
+## 오버행에서 봇 계획은 닿는다고 보고 실제 몸은 관절 한계로 못 닿아 길을 못 찾았다). 정답 순서 검사·점수 기준값은 끈 채 그대로.
+var shift_assist := false
+const ASSIST_SHIFT := 0.3
+
+
+## limb을 target(슬롯 key)으로 CANDIDATE_TICKS 동안 끈다. shift: 처음 40틱 동안 몸통을 그만큼 끈다(누른 채).
+## {done: 끝났나(잡음·오류·완등), err: 오류 문구}. 못 잡으면 done = false.
+func _reach(limb: StringName, key: String, target: Vector2, shift: Vector2) -> Dictionary:
 	for i in CANDIDATE_TICKS:
+		if shift != Vector2.ZERO and i < 40:
+			_input([{"type": "body_move", "limb": InputRouter.BODY, "delta": shift / 40.0}])
 		_drag(limb, target)
 		var err := _tick()
 		if not err.is_empty() or cleared:
-			return err
+			return {"done": true, "err": err}
 		var l0: Dictionary = session.limbs[limb]
 		# 후보가 된 뒤에도 홀드 가운데 쪽으로 계속 끌다가, 가운데에 닿거나(0.03m) 말단이 더 못 가면 놓는다.
 		# 사람이 홀드 위로 손을 가져가 놓는 것과 같게 한다(v7 잡기 영역이 넓어져 가장자리에서 바로 놓으면 과하게 뻗은 잡기가 됨).
@@ -177,10 +204,9 @@ func _pad_move(limb: StringName, key: String) -> String:
 			_input([{"type": "release", "limb": limb, "speed": 0.0}])
 			var l: Dictionary = session.limbs[limb]
 			if l.state != "Attached" or l.key != key:
-				return "놓았지만 붙지 않음(%s %s)" % [l.state, l.key]
-			return ""
-	var reason := GripCheck.reject_reason(route.slots, limb, session.limbs[limb].pos, session.limbs[limb].req, session.body.pos, session.body.angle, session.attached(), session.occupied(), session.rules.feet_eligible, session.body.yaw)
-	return "%d틱 안에 후보가 되지 않음(%s), 거리 %.3fm" % [CANDIDATE_TICKS, reason, PoseSolver.limb_distance(session.body.pos, session.body.angle, limb, target, session.body.yaw)]
+				return {"done": true, "err": "놓았지만 붙지 않음(%s %s)" % [l.state, l.key]}
+			return {"done": true, "err": ""}
+	return {"done": false, "err": ""}
 
 
 ## 버튼 기술: 선택을 열고 고른 뒤 실행기가 유지 단계(yaw)에 들어가거나 끝날 때까지 틱.

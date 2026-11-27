@@ -154,7 +154,7 @@ func test_body_stays_out_of_volume() -> void:
 					if gap < worst.d:
 						worst.d = gap
 						worst.at = "%s 틱 %d" % [key, worst.n]
-	var bot := SessionBot.run(r, steps, {}, null, on_tick)
+	var bot := SessionBot.run(r, steps, {}, null, on_tick, true)  # 길 찾기 재생과 같이 몸 옮기기 도움
 	runner.check(ex.ok and bot.ok() and worst.body < INF and worst.body > 0.10 and worst.d > 0.04 and worst.mid > -0.06,
 		"%d틱 완등 %s, 몸통 중심이 볼륨 겉면에서 %.3fm(%s), 떠 있는 손목·발목 %.3fm(%s), 팔꿈치·무릎 %.3fm(%s)" % [worst.n, bot.ok(), worst.body, worst.body_at, worst.d, worst.at, worst.mid, worst.mid_at])
 

@@ -356,3 +356,24 @@ func test_explorer_uses_angle_per_height() -> void:
 	var r := d.build()
 	runner.check(r.wall_deg == 90.0 and r.angle_at(1.7) == 0.0, "재현 조건: 가장 가파른 구간 90°, 오르는 곳은 수직")
 	runner.check(PathExplorer.explore(r, {}, false, 8000).ok, "수직인 곳만 오르면 봇이 길을 찾음")
+
+
+## 가파른 오버행에서도 [봇으로 확인]이 길을 찾는다(2026-11-28: 계획이 관절 한계 경계의 수를 세워 재생에서 막히고, 다익스트라라
+## 다시 찾을 시간이 없었다 → 방향 여유 4°, 남은 높이 추정(A*), 세 접점 결과 재사용, 못 닿으면 몸을 옮겨 한 번 더).
+func test_explorer_steep_overhang() -> void:
+	var d := RouteDraft.new()
+	d.route_id = "U_R"
+	d.name = "r"
+	var ids := [d.place("jug", -0.3, 1.5), d.place("jug", 0.3, 1.5), d.place("crimp", -0.15, 0.1, "foot"), d.place("crimp", 0.18, 0.1, "foot")]
+	for i in 4:
+		d.set_start([&"LH", &"RH", &"LF", &"RF"][i], ids[i])
+	for f in [[-0.2, 0.55], [0.2, 0.55], [-0.2, 0.95], [0.2, 0.95]]:
+		d.place("crimp", f[0], f[1], "foot", "L")
+	for y in [1.95, 2.4, 2.85, 3.3]:
+		d.place("jug", -0.3, y, "hand", "L")
+		d.place("jug", 0.3, y, "hand", "L")
+	d.place("jug", 0.0, 3.75, "top", "L")
+	d.set_wall(0, 0)
+	d.set_wall(2, 45)
+	var ex := PathExplorer.explore(d.build(), {}, false, 25000)
+	runner.check(ex.ok, "2m부터 45° 오버행: 봇이 탑까지 %s" % [ex.log.slice(-1)])

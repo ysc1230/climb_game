@@ -39,7 +39,7 @@ static func explore(p_route: RouteDef, forbid := {}, pull_only := false, time_li
 			log.append("탐색 %d: 길을 찾지 못함(펼친 상태 %d)" % [attempt + 1, ex.expanded])
 			return {"ok": false, "steps": [], "bot": null, "tries": attempt + 1, "expanded": ex.expanded, "log": log}
 		var steps: Array = path.map(func(e): return [e.limb, e.key])
-		var bot := SessionBot.run(p_route, steps, forbid)
+		var bot := SessionBot.run(p_route, steps, forbid, null, Callable(), forbid.is_empty())  # 금지 기술 검사가 아닐 때만 몸 옮기기 도움
 		if bot.ok():
 			log.append("탐색 %d: 이동 %d개 길을 재생으로 확인(펼친 상태 %d)" % [attempt + 1, steps.size(), ex.expanded])
 			return {"ok": true, "steps": steps, "bot": bot, "tries": attempt + 1, "expanded": ex.expanded, "log": log}
@@ -84,14 +84,33 @@ func _search() -> Array:
 			var nk := keys.duplicate()
 			nk[mv.limb] = mv.key
 			var ns := _sig(nk)
-			var nd: float = top[0] + mv.cost
+			var nd: float = float(dist[sig]) + mv.cost
 			if nd < dist.get(ns, INF):
 				dist[ns] = nd
 				states[ns] = nk
 				seeds[ns] = mv.pose
 				prev[ns] = [sig, mv]
-				_push(heap, [nd, ns])
+				_push(heap, [nd + _togo(nk), ns])
 	return []
+
+
+## 남은 높이 추정(A*, 2026-11-28): 낮은 손에서 탑까지 STEP_UP마다 한 수. 예전엔 비용만 보고 고르게 넓혀(다익스트라) 홀드가 많거나
+## 가파르면 시간 안에 탑까지 못 갔다(첫 길이 재생에서 막히면 다시 찾을 시간이 없었다). 가장 싼 길은 아니어도 된다.
+const STEP_UP := 0.4
+const PLAN_DIR_MARGIN := 4.0  # 계획하는 손발 방향은 관절 한계 안쪽 이만큼(도)
+
+
+func _togo(keys: Dictionary) -> float:
+	if route.goal_slots.is_empty():
+		return 0.0
+	var gy := INF
+	for g in route.goal_slots:
+		gy = minf(gy, route.slot_pos(g).y)
+	var low := INF
+	for h in [PoseSolver.LH, PoseSolver.RH]:
+		if keys.has(h) and route.slots.has(keys[h]):
+			low = minf(low, route.slot_pos(keys[h]).y)
+	return 0.0 if not is_finite(low) else W_MOVE * maxf(0.0, gy - low) / STEP_UP
 
 
 func _is_goal(keys: Dictionary) -> bool:
@@ -120,36 +139,56 @@ func _moves(keys: Dictionary, pose: Vector3) -> Array:
 			continue
 		var rest := keys.duplicate()
 		rest.erase(limb)
-		var p3 := _settle(rest, pose)
-		if not is_finite(p3.x):
-			continue
-		var att := _att(rest)
-		var meta := {}
-		for l in rest:
-			meta[l] = _contact(rest[l], l, att[l])
-		var pel := Vector2(p3.x, p3.y)
-		var c := _hold_cost(rest, att, meta, pel, p3.z)
-		if c.is_empty():
-			continue
 		var rsig := _sig(rest)
-		for key in route.slots:
-			if key == keys[limb] or not _slot_free(key, limb, rest):
-				continue
-			var slot: Dictionary = route.slots[key]
+		var ck := "%s|%s|%d,%d,%d" % [rsig, limb, roundi(pose.x * 10.0), roundi(pose.y * 10.0), roundi(pose.z / 10.0)]  # 출발 자세가 다르면 따로(크로스처럼 몸 자리에 따라 되는 수)
+		if not _move_cache.has(ck):
+			_move_cache[ck] = _moves_from(rest, limb, pose)
+		var m: Dictionary = _move_cache[ck]
+		for key in m.keys:
 			var msig := "%s|%s>%s" % [rsig, limb, key]
-			if banned.has(msig) or not PoseSolver.can_reach(pel, p3.z, limb, slot.pos, 0.0):
+			if key == keys[limb] or banned.has(msig):
 				continue
-			# 홀드 방향(GripDir): 세션이 못 잡는 면(어깨 위 언더, 반대쪽 옆면 등)은 길에 넣지 않는다(2026-11-28 볼륨 아래 모서리를
-			# 언더로 잡는 길을 세우고 재생에서 막혀 탐색을 다 썼다)
-			if PoseSolver.is_hand(limb) and slot.has("hand_area") and not GripDir.any_ok(slot, limb, pel, p3.z, 0.0):
-				continue
-			if GateCheck.forbidden(forbid, limb, key, slot.pos, pel, p3.z, rest, att):
-				continue
-			var att4 := att.duplicate()
-			att4[limb] = slot.pos
-			if PoseSolver.is_valid(pel, p3.z, att4, 0.0):
-				out.append({"limb": limb, "key": key, "cost": W_MOVE + c[0], "sig": msig, "pose": p3})
+			out.append({"limb": limb, "key": key, "cost": W_MOVE + m.cost, "sig": msig, "pose": m.pose})
 	return out
+
+
+## 남은 세 접점 rest로 자리 잡은 자세에서 limb이 갈 수 있는 슬롯 {pose, cost, keys}. 같은 세 접점은 여러 상태가 같이 쓰니
+## 처음 한 번만 잰다(2026-11-28: 상태마다 자리 잡기·힘 계산을 다시 해 한 상태 5.6ms, 가파른 벽에서 시간 안에 탑까지 못 갔다).
+## 출발 자세(골반 10cm·각도 10° 단위)가 다르면 따로 잰다: 처음 것만 쓰면 크로스 수업에서 길이 없어졌다.
+var _move_cache := {}
+
+
+func _moves_from(rest: Dictionary, limb: StringName, pose: Vector3) -> Dictionary:
+	var none := {"pose": pose, "cost": 0.0, "keys": []}
+	var p3 := _settle(rest, pose)
+	if not is_finite(p3.x):
+		return none
+	var att := _att(rest)
+	var meta := {}
+	for l in rest:
+		meta[l] = _contact(rest[l], l, att[l])
+	var pel := Vector2(p3.x, p3.y)
+	var c := _hold_cost(rest, att, meta, pel, p3.z)
+	if c.is_empty():
+		return none
+	var ok: Array = []
+	for key in route.slots:
+		if not _slot_free(key, limb, rest):
+			continue
+		var slot: Dictionary = route.slots[key]
+		if not PoseSolver.can_reach(pel, p3.z, limb, slot.pos, 0.0) or not PoseSolver.direction_ok(pel, p3.z, limb, slot.pos, 0.0, PLAN_DIR_MARGIN):
+			continue  # 관절 방향 경계에 딱 걸친 수는 뺀다(2026-11-28: 골반 1cm·0.75° 차이로 실제로는 막혔다)
+		# 홀드 방향(GripDir): 세션이 못 잡는 면(어깨 위 언더, 반대쪽 옆면 등)은 길에 넣지 않는다(2026-11-28 볼륨 아래 모서리를
+		# 언더로 잡는 길을 세우고 재생에서 막혀 탐색을 다 썼다)
+		if PoseSolver.is_hand(limb) and slot.has("hand_area") and not GripDir.any_ok(slot, limb, pel, p3.z, 0.0):
+			continue
+		if GateCheck.forbidden(forbid, limb, key, slot.pos, pel, p3.z, rest, att):
+			continue
+		var att4 := att.duplicate()
+		att4[limb] = slot.pos
+		if PoseSolver.is_valid(pel, p3.z, att4, 0.0):
+			ok.append(key)
+	return {"pose": p3, "cost": c[0], "keys": ok}
 
 
 ## 슬롯을 limb이 쓸 수 있는가(허용·점유 규칙: 손이 잡은 홀드는 발이 못 딛고 그 반대도, 합손·합발은 파란 홀드만).

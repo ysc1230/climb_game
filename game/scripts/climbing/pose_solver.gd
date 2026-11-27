@@ -62,10 +62,11 @@ static func dir_range(limb: StringName) -> Vector2:
 	return Tuning.HAND_DIR_RANGE_DEG if is_hand(limb) else Tuning.FOOT_DIR_RANGE_DEG
 
 
-static func direction_ok(pelvis: Vector2, angle_deg: float, limb: StringName, point: Vector2, yaw_deg: float = 0.0) -> bool:
+## margin: 범위 안쪽으로 이만큼(도) 여유(봇 계획용: 경계에 딱 걸친 수는 실제 몸이 조금만 달라도 막힌다).
+static func direction_ok(pelvis: Vector2, angle_deg: float, limb: StringName, point: Vector2, yaw_deg: float = 0.0, margin := 0.0) -> bool:
 	var a := limb_angle(pelvis, angle_deg, limb, point, yaw_deg)
 	var r := dir_range(limb)
-	return a >= r.x - 0.001 and a <= r.y + 0.001
+	return a >= r.x + margin - 0.001 and a <= r.y - margin + 0.001
 
 
 ## 깊이 차(골반 Z − 말단 Z)가 dz일 때의 벽면 2D 거리 범위.

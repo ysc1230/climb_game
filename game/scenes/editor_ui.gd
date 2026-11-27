@@ -31,7 +31,7 @@ const ROLE_KO := {"hand": "손", "foot": "발", "top": "탑"}
 const SIZE_KO := {"S": "작게", "M": "보통", "L": "크게"}
 const ZOOM_FOCUS := 3.0   # 점검 창 [보기]: 이 높이(m)만 보이게 조금 다가간다
 const PICK_R := 0.13      # 홀드를 누른 것으로 보는 거리(m)
-const BOT_MS := 15000     # [봇으로 확인] 길 찾기 시간 한도
+const BOT_MS := 25000     # [봇으로 확인] 길 찾기 시간 한도(가파른 벽 13~16초)
 const DRAG_PX := 14.0     # 이보다 움직이면 누르기가 아니라 끌기
 
 var view                  # EditorView
