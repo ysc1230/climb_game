@@ -664,6 +664,8 @@ func _check_items() -> Array:
 			RouteDraft.P_SPACING:
 				for v in draft.spacing_details():
 					out.append({"level": "block", "text": v.text, "hold": v.hold})
+			_ when p == draft.wall_issue().get("text", ""):
+				out.append({"level": "block", "text": p, "hold": "", "y": float(draft.wall_issue().y)})
 			_:
 				var errs: Array = draft.build().errors
 				out.append({"level": "block", "text": p + (": " + str(errs[0]) if not errs.is_empty() else ""), "hold": ""})

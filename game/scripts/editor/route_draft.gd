@@ -422,7 +422,50 @@ func problems() -> Array:
 			out.append(P_POSE)
 	if not bad_holds().is_empty():
 		out.append(P_SPACING)
+	var wi := wall_issue()
+	if not wi.is_empty():
+		out.append(wi.text)
 	return out
+
+
+const LOW_ROOF_DEG := 75   # 이보다 기운(화면 105° 이하) 구간은 천장: 바닥에서 LOW_ROOF_Y 넘게 떠야 매달린다
+const LOW_ROOF_Y := 0.9
+
+
+## 만들 수 없는 벽 모양 {text, y(그 구간 높이)}, 없으면 {}(2026-11-27 벽 모양 점검: 1m마다 각도를 이으면 생긴다).
+## 구간마다 곧은 벽이라 꺾이는 점만 본다(월드 y, z = 벽면 선 ∫(cos a, sin a), 화면 WallProfile과 같음).
+## 바닥 밑으로 내려감(270°보다 더 꺾인 구간이 길 때), 바닥에 붙은 천장, 이웃하지 않은 구간끼리 가로지름.
+func wall_issue() -> Dictionary:
+	var top := wall_limit()
+	var secs := walls.filter(func(w): return float(w.from_y) < top)
+	if secs.is_empty():
+		return {}
+	var pts: Array = [Vector2.ZERO]  # (월드 y, z), 구간 경계마다
+	var froms: Array = []
+	for i in secs.size():
+		var s0: float = 0.0 if i == 0 else float(secs[i].from_y)
+		var s1: float = float(secs[i + 1].from_y) if i + 1 < secs.size() else top
+		var a := deg_to_rad(float(secs[i].deg))
+		pts.append(pts[-1] + Vector2(cos(a), sin(a)) * (s1 - s0))
+		froms.append(int(s0))
+		var deg := int(secs[i].deg)
+		if pts[-1].x < -0.01:
+			return {"text": "벽이 %dm 구간(%d°)에서 바닥 밑으로 내려가요. 270°보다 더 꺾인 구간을 줄여 주세요" % [froms[i], 180 - deg], "y": float(froms[i])}
+		if deg >= LOW_ROOF_DEG and minf(pts[-2].x, pts[-1].x) < LOW_ROOF_Y:
+			return {"text": "%dm 구간 천장(%d°)이 바닥에서 너무 낮아요. 벽을 %.1fm 넘게 올린 뒤에 천장을 만들어 주세요" % [froms[i], 180 - deg, LOW_ROOF_Y], "y": float(froms[i])}
+	for i in pts.size() - 1:
+		for j in range(i + 2, pts.size() - 1):
+			if _seg_cross(pts[i], pts[i + 1], pts[j], pts[j + 1]):
+				return {"text": "벽의 %dm 구간과 %dm 구간이 서로 겹쳐요. 꺾인 각도를 줄여 주세요" % [froms[i], froms[j]], "y": float(froms[j])}
+	return {}
+
+
+static func _seg_cross(a: Vector2, b: Vector2, c: Vector2, d: Vector2) -> bool:
+	var d1 := (b - a).cross(c - a)
+	var d2 := (b - a).cross(d - a)
+	var d3 := (d - c).cross(a - c)
+	var d4 := (d - c).cross(b - c)
+	return d1 * d2 < -1e-9 and d3 * d4 < -1e-9
 
 
 ## 시작 자세가 안 될 때 고칠 곳(2026-11-25 사용자 "얼마나 가까워야 하는지 모르겠어"): 시작 홀드 하나를 8방향으로 0.1m씩(0.6m까지)

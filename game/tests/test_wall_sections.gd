@@ -106,3 +106,14 @@ func test_camera_never_grazes_wall() -> void:
 	runner.check(not PT.cam_view_ok(r, 0.0, deg_to_rad(-35.0), 1.0), "60° 구간을 위에서 내려다보기는 안 됨")
 	var ceil := _route([{"from_y": 0.0, "deg": 30}, {"from_y": 1.5, "deg": 90}])
 	runner.check(PT.cam_view_ok(ceil, 0.0, 0.0, 1.0), "90° 천장이 있어도 처음 시점은 됨")
+
+
+## 아래로 꺾이는 구간(270°보다 더, 2026-11-27 벽 모양 점검)이 있으면 벽면 높이가 오르내린다: 높이로 벽면 자리를 찾으면(이분 탐색)
+## 엉뚱한 벽면을 잡아, 벽에 바짝 붙은 카메라를 밀어내지 못했다. 가장 가까운 벽면을 본다.
+func test_push_in_front_on_descending_wall() -> void:
+	var r := _route([{"from_y": 0.0, "deg": 0}, {"from_y": 2.0, "deg": -120}, {"from_y": 3.0, "deg": 0}])
+	var f := WallProfile.new(r, -1.0, 6.0)
+	var near := Vector3(0.0, 1.85, 0.1)  # 아래 수직 벽 앞 0.1m(너무 가까움). 예전엔 높이 1.85의 위쪽 벽면(s 3.27)을 잡아 그대로 뒀다
+	var p := f.push_in_front(near, 0.3)
+	runner.check(absf(p.y - 1.85) < 0.05 and p.z >= 0.29, "아래 수직 벽 앞으로 밀림 %s" % p)
+	runner.check(absf(f.nearest_s(Vector3(0.0, 1.85, 0.2)) - 1.85) < 0.03, "가장 가까운 벽면 높이 %.2f" % f.nearest_s(Vector3(0.0, 1.85, 0.2)))

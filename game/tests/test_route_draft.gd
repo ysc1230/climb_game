@@ -278,7 +278,12 @@ func test_slab_walls_climbable() -> void:
 		for i in 4:
 			d.set_start([&"LH", &"RH", &"LF", &"RF"][i], ids[i])
 		d.place("jug", 0.0, 1.7, "top")
-		d.set_wall(0, deg)
+		if deg > -120:
+			d.set_wall(0, deg)
+		else:  # 300°는 아래로 꺾여 바닥부터면 바닥 밑으로 간다(2026-11-27 벽 모양 점검): 1m 수직 위에서 1m만, 그 위는 다시 수직
+			d.set_wall(0, 0)
+			d.set_wall(1, deg)
+			d.set_wall(2, 0)
 		runner.check(d.problems().is_empty(), "화면 %d°: 막는 것 없음 %s" % [180 - deg, d.problems()])
 		runner.check(PathExplorer.explore(d.build(), {}, false, 8000).ok, "화면 %d°: 탑까지" % (180 - deg))
 
@@ -315,3 +320,39 @@ func test_warnings() -> void:
 	runner.check(d.warnings().any(func(x): return String(x.text).contains("천장")), "70° 넘는 구간(110° 이하)")
 	d.place("jug", 0.5, 5.0)
 	runner.check(d.warnings().any(func(x): return String(x.text).contains("탑보다 높은")), "탑보다 높은 홀드")
+
+
+## 벽 모양(2026-11-27 사용자 "사람들이 어떻게 만들지 몰라 되게 다양한 case의 벽을 만들어서 하나씩 테스트해봐"): 1m마다 각도를 이어
+## 만들 수 없는 벽 — 바닥 밑으로 내려감(300° 연속), 자기 자신을 가로지름(천장↔300° 번갈아), 바닥에 붙은 천장(바닥부터 90°) — 은 막는다.
+## 가파른·누운·계단·지그재그처럼 실제로 있을 수 있는 벽은 막지 않는다.
+func test_wall_shape_problems() -> void:
+	var make := func(walls: Array) -> RouteDraft:
+		var d := RouteDraft.new()
+		for m in walls.size():
+			d.set_wall(m, walls[m])
+		d.place("jug", 0.0, 5.0, "top")
+		return d
+	for bad in [[[0, -120, -120, -120, -120, -120], "바닥"], [[0, 90, -120, 90, -120, 90, -120], "구간"], [[-120, -120, 0], "바닥"], [[90, 90, 0], "천장"]]:
+		var iss: Dictionary = make.call(bad[0]).wall_issue()
+		runner.check(not iss.is_empty() and str(iss.text).contains(bad[1]) and make.call(bad[0]).problems().has(iss.text), "%s: 막음 %s" % [bad[0].map(func(w): return 180 - w), iss])
+	for ok in [[0], [0, 90, 90, 90, 90, 90], [0, 60, -60, 60, -60, 60], [0, 15, 30, 45, 60, 75, 90], [0, -20, -40, -60, -80, -100],
+			[0, -90, 0, -90, 0, -90], [0, 90, 0, 90, 0, 90], [0, 90, 90, -90, -90, 0], [-60, 0], [45, 45, 0], [0, 0, 0, -120]]:
+		runner.check(make.call(ok).wall_issue().is_empty(), "%s: 막지 않음 %s" % [ok.map(func(w): return 180 - w), make.call(ok).wall_issue()])
+
+
+
+## 봇 길 찾기는 자세마다 그 높이의 벽 각도로 판정한다(2026-11-27 벽 모양 점검: 탐색이 문제의 가장 가파른 각도 하나로 모든 자세를
+## 판정해, 천장 구간이 하나만 있어도 바닥 수직 구간에서 바로 포기했다 — 만들기 [봇으로 확인]).
+func test_explorer_uses_angle_per_height() -> void:
+	var d := RouteDraft.new()
+	d.route_id = "U_R"
+	d.name = "r"
+	var ids := [d.place("jug", -0.3, 1.5), d.place("jug", 0.3, 1.5), d.place("crimp", -0.15, 0.1, "foot"), d.place("crimp", 0.18, 0.1, "foot")]
+	for i in 4:
+		d.set_start([&"LH", &"RH", &"LF", &"RF"][i], ids[i])
+	d.place("jug", 0.0, 1.7, "top")
+	d.set_wall(0, 0)
+	d.set_wall(3, 90)  # 탑보다 위의 천장: 오르는 곳은 모두 수직
+	var r := d.build()
+	runner.check(r.wall_deg == 90.0 and r.angle_at(1.7) == 0.0, "재현 조건: 가장 가파른 구간 90°, 오르는 곳은 수직")
+	runner.check(PathExplorer.explore(r, {}, false, 8000).ok, "수직인 곳만 오르면 봇이 길을 찾음")

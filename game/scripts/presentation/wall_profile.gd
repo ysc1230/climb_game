@@ -122,11 +122,30 @@ func world_profile(z: float) -> PackedVector2Array:
 	return out
 
 
-## 월드 점 p가 그 높이의 벽면에서 gap보다 가깝거나 벽 뒤면 벽면 법선 쪽으로 gap까지 민다(시점 카메라가 벽을 뚫지 않게).
-## 밀면 높이가 바뀌므로 두 번 맞춘다. 벽 판 폭 밖도 같은 면으로 본다(옆으로 돌아도 벽 뒤로 못 감).
+## 월드 점 p에서 (y, z) 단면으로 가장 가까운 벽면 선의 높이 s. 벽이 아래로 꺾이면(270°보다 더) 높이로는 자리가 여럿이라
+## s_at_world_y(이분 탐색)가 엉뚱한 벽면을 잡는다(2026-11-27 벽 모양 점검). 10cm마다 훑고 그 둘레를 1cm마다.
+func nearest_s(p: Vector3) -> float:
+	var n := _ang.size()
+	var best := 0
+	var bd := INF
+	for i in range(0, n, 10):
+		var d := Vector2(_oy[i] - p.y, _oz[i] - p.z).length_squared()
+		if d < bd:
+			bd = d
+			best = i
+	for i in range(maxi(0, best - 10), mini(n, best + 11)):
+		var d := Vector2(_oy[i] - p.y, _oz[i] - p.z).length_squared()
+		if d < bd:
+			bd = d
+			best = i
+	return s0 + best * STEP
+
+
+## 월드 점 p가 가장 가까운 벽면에서 gap보다 가깝거나 벽 뒤면 벽면 법선 쪽으로 gap까지 민다(시점 카메라가 벽을 뚫지 않게).
+## 밀면 자리가 바뀌므로 두 번 맞춘다. 벽 판 폭 밖도 같은 면으로 본다(옆으로 돌아도 벽 뒤로 못 감).
 func push_in_front(p: Vector3, gap: float) -> Vector3:
 	for i in 2:
-		var f := frame(s_at_world_y(p.y))
+		var f := frame(nearest_s(p))
 		var lz := (f.affine_inverse() * p).z
 		if lz >= gap:
 			break

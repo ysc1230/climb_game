@@ -717,7 +717,7 @@ func _fall_targets(delta: float) -> Dictionary:
 		t["up"] = up
 		_fall_angle = rad_to_deg(atan2(-up.x, up.y))
 		# 카메라가 떨어지는 몸을 따라 내려가 매트가 보이게(벽면 높이)
-		var want := maxf(fold.s_at_world_y((tw.pelvis as Vector3).y) + 0.12 * logic.PLAY_H, 1.4)
+		var want := maxf(fold.nearest_s(tw.pelvis) + 0.12 * logic.PLAY_H, 1.4)  # 아래로 꺾이는 벽에서도 몸 가까운 벽면
 		logic.cam_y = lerpf(logic.cam_y, want, 1.0 - exp(-6.0 * delta))
 		if fall_sim.done():
 			logic.on_fall_scene_done()

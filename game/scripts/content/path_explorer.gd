@@ -187,6 +187,7 @@ func _att(keys: Dictionary) -> Dictionary:
 
 ## 그 자세로 버틸 수 있으면 [비용, 하중 받는 발 수], 아니면 [].
 func _hold_cost(keys: Dictionary, att: Dictionary, meta: Dictionary, p: Vector2, a: float) -> Array:
+	ClimbRules.wall_deg = route.body_angle(p.y)  # 꺾이는 벽: 그 자세 높이의 각도(세션과 같음). 예전엔 가장 가파른 구간 하나로 모두 판정
 	var feet := PoseSolver.supporting_feet(p, a, att, [], 0.0)
 	var rules := ClimbRules.new()
 	rules.contact_meta = meta
