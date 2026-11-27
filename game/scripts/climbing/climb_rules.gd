@@ -296,6 +296,8 @@ func _apply_fatigue(result: Dictionary, attached: Dictionary, platform: bool, mo
 			var share := float(contact_meta[foot].foot_share) if contact_meta.has(foot) else 1.0  # 작은 발판 0.85(작업 4)
 			foot_support += ((1.0 - Tuning.FOOT_LOAD_BLEND) + Tuning.FOOT_LOAD_BLEND * w) * share
 	foot_support *= cos(deg_to_rad(clampf(wall_deg, 0.0, 90.0)))  # 기운 벽: 발이 받는 몫이 줄어 손이 더 지친다(45°면 두 발 1.41 → 쉬지 못함). 누운 벽은 줄지 않는다
+	if resting_on_wall():  # 누운 벽에 기대 있으면 벽이 몸을 받친다: 두 발로 선 만큼(하중이 0이라 발 몫도 0으로 쳐 손이 빨리 지쳤다, 2026-11-28)
+		foot_support = maxf(foot_support, 2.0)
 	var strain := barn_strain(result)
 	var still := phase == Phase.STABLE and speed <= Fatigue.STABLE_SPEED and not moving and strain <= 1.0
 	rest_confirm_ticks = rest_confirm_ticks + 1 if still else 0

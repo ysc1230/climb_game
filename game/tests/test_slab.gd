@@ -109,3 +109,19 @@ func test_roof_climbable() -> void:
 		else:
 			runner.check(r.status == SupportSolver.Status.FEASIBLE and r.u[&"LH"] < 0.8 and not r.barn.exceeded and r.u[&"LF"] > 0.05, "90°: 한 손 + 두 발 버팀 %s" % [r.u])
 	ClimbRules.wall_deg = 0.0
+
+
+## 누운 벽에 기대 있으면 손이 쉰다(2026-11-28 벽 모양 재점검: 하중이 0이라 발이 받치는 몫도 0으로 쳐 "팔로만 매달림"처럼 손 힘이
+## 초당 20씩 빠졌다 — 턱 계단에서 봇이 1~2수 만에 손 힘 소진).
+func test_resting_hands_recover() -> void:
+	var src: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/routes/general/G_V0_11.json"))
+	src.wall_sections = [{"from_y": 0.0, "deg": -90.0}]
+	var s := ClimbSession.new(RouteDef.from_dict(src))
+	for i in 30:
+		s.step()
+	s.rules.stamina[&"LH"] = 60.0
+	s.rules.stamina[&"RH"] = 60.0
+	s.apply_input([{"type": "detach", "limb": &"RH"}])  # 한 손을 떼고 버팀(예전엔 남은 손이 빨리 지침)
+	for i in 180:
+		s.step()
+	runner.check(ClimbRules.resting_on_wall() and s.rules.stamina[&"LH"] >= 55.0, "누운 벽에 기대 다른 손을 끄는 3초: 남은 손 힘 %.1f(60에서, 다른 손이 움직이는 동안이라 조금 빠짐)" % s.rules.stamina[&"LH"])
