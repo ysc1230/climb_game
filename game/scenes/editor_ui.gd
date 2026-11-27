@@ -31,6 +31,7 @@ const ROLE_KO := {"hand": "손", "foot": "발", "top": "탑"}
 const SIZE_KO := {"S": "작게", "M": "보통", "L": "크게"}
 const ZOOM_FOCUS := 3.0   # 점검 창 [보기]: 이 높이(m)만 보이게 조금 다가간다
 const PICK_R := 0.13      # 홀드를 누른 것으로 보는 거리(m)
+const BOT_MS := 15000     # [봇으로 확인] 길 찾기 시간 한도
 const DRAG_PX := 14.0     # 이보다 움직이면 누르기가 아니라 끌기
 
 var view                  # EditorView
@@ -468,14 +469,41 @@ func _tap_wall(w: Vector2, hit: String) -> void:
 					_say("노란 고리가 있는 홀드를 누르세요")
 					return
 				start_limb = want.limb
+			if hit == "" and want.is_empty():
+				hit = _volume_slot_at(w, start_limb)  # 볼륨 모서리·면도 시작 자리(2026-11-28)
 			if hit != "":
 				if draft.set_start(start_limb, hit):
 					_changed()
 					var order := [&"LH", &"RH", &"LF", &"RF"]
 					start_limb = order[(order.find(start_limb) + 1) % 4]
+				elif draft.hold(hit).get("role", "") == "face":
+					_say("볼륨 면은 발로만 딛어요")
+				elif draft.hold(hit).get("no_feet", false):
+					_say("볼륨 아래 모서리는 발로 딛을 수 없어요")
 				else:
 					_say("탑은 시작홀드가 될 수 없어요")
 	queue_redraw()
+
+
+## 시작 자리로 고를 볼륨 모서리·면 id("V05/edge_t"): 모서리 선에서 9cm 안이면 그 모서리, 발이면 위를 보는 삼각 면 안. 없으면 "".
+func _volume_slot_at(w: Vector2, limb: StringName) -> String:
+	var best := ""
+	var bd := 0.09
+	for v in draft.volumes:
+		var h := Volumes.side(v) * 0.5
+		for e in Volumes.edges(v):
+			var n: Vector2 = HoldTypes.rotate(Vector2(0, 1), float(e.rot))
+			var along := Vector2(-n.y, n.x)
+			var q: Vector2 = w - e.pos
+			var d := Vector2(absf(q.dot(n)), maxf(0.0, absf(q.dot(along)) - h)).length()
+			if d < bd:
+				bd = d
+				best = "%s/%s" % [v.id, e.slot_id]
+	if best == "" and not PoseSolver.is_hand(limb):
+		for v in draft.volumes:
+			if not Volumes.face(v).is_empty() and Volumes.contains(v, w):
+				return "%s/face" % v.id
+	return best
 
 
 ## 벽 좌표 w의 볼륨 id(가장 앞으로 나온 것), 없으면 "".
@@ -509,7 +537,7 @@ func _tut_allows(action: String, arg: String) -> bool:
 	var t := tut.target()
 	if t.size() == 2 and t[0] == action and str(t[1]) == arg:
 		return true
-	return _tut_edit_ok() and (action in ["type", "role", "size", "match", "rot", "delete", "undo", "shape", "vrot"] or (action == "tool" and arg == "edit"))
+	return _tut_edit_ok() and (action in ["type", "role", "size", "match", "rot", "delete", "undo", "shape", "vrot", "vtop"] or (action == "tool" and arg == "edit"))
 
 
 ## 튜토리얼에서 홀드를 마음대로 고쳐도 되는 단계(자유롭게 놓기, 점검: 막는 것을 고친다). 튜토리얼이 아니면 늘 된다.
@@ -555,6 +583,15 @@ func _do(action: String, arg: String) -> void:
 			if not v.is_empty():
 				draft.set_volume(selected, arg, v.size, int(v.rot))
 				_changed()
+		"vtop":  # 고른 볼륨의 위 모서리를 탑으로(다시 누르면 풀림)
+			var tid := selected + "/edge_t"
+			if draft.top_edge == tid:
+				draft.top_edge = ""
+				_changed()
+			elif draft.set_top_edge(tid):
+				_changed()
+			else:
+				_say("위 모서리가 없는 볼륨이에요(삼각은 두꺼운 쪽이 위일 때)")
 		"vrot":
 			var v := draft.volume(selected)
 			sel_vrot = posmod((int(v.rot) if not v.is_empty() else sel_vrot) + int(arg), 360)
@@ -662,8 +699,9 @@ func _do(action: String, arg: String) -> void:
 			elif _bot_thread == null:
 				var r := draft.build()
 				_bot_thread = Thread.new()
-				_bot_thread.start(func() -> Dictionary: return {"ok": PathExplorer.explore(r, {}, false, 5000).ok})
-				_say("봇이 길을 찾는 중… (최대 5초)")
+				# 2026-11-28: 홀드 12개 문제도 3~6초가 걸려 5초면 시간만 모자라 "못 찾음"이 됐다
+				_bot_thread.start(func() -> Dictionary: return {"ok": PathExplorer.explore(r, {}, false, BOT_MS).ok})
+				_say("봇이 길을 찾는 중… (최대 %d초)" % (BOT_MS / 1000))
 	queue_redraw()
 
 
@@ -904,6 +942,17 @@ func _draw_wall_overlay(_size: Vector2) -> void:
 		var sc := PackedVector2Array(pts.map(func(q): return w2s.call(q)))
 		sc.append(sc[0])
 		draw_polyline(sc, SHOE if sel else RED, (4.0 if sel else 3.0) * k, true)
+	# 볼륨 모서리·면 시작 자리와 모서리 탑의 이름표(홀드 목록에 없어 따로)
+	var vlabels := {}
+	for l in draft.start:
+		if String(draft.start[l]).contains("/"):
+			vlabels[draft.start[l]] = LIMB_NAMES[l]
+	if draft.top_edge != "":
+		vlabels[draft.top_edge] = "탑"
+	for id in vlabels:
+		var vh := draft.hold(id)
+		if not vh.is_empty() and view.in_view(Vector2(vh.x, vh.y)):
+			_outlined(w2s.call(Vector2(vh.x, vh.y)) + Vector2(-60 * k, -22 * k), vlabels[id], 18, 120 * k)
 	var start_of := {}
 	for l in draft.start:
 		if draft.start[l] != "":
@@ -1077,6 +1126,8 @@ func _draw_volume_panel(_size: Vector2, x: float, w: float, y: float, cw: float)
 	_text(Vector2(x, y + 22 * k), "고른 볼륨: %s · %s · 위 홀드 %d개" % [SHAPE_KO[v.shape], SIZE_KO[v.size], on], 20, CHALK)
 	y += 34 * k
 	_button(Rect2(Vector2(x, y + 10 * k), Vector2(w - 170 * k, 46 * k)), "이 볼륨 지우기", "delete", "", 19)
+	var is_top: bool = draft.top_edge == str(v.id) + "/edge_t"
+	_button(Rect2(Vector2(x, y + 66 * k), Vector2(w - 170 * k, 46 * k)), "위 모서리를 탑으로", "vtop", "", 19, is_top, draft.hold(v.id + "/edge_t").is_empty())
 
 
 ## 벽 각도 도구의 오른쪽 판: 설명, 고른 높이, 아래에 조절 원과 버튼(끄는 동안 3D 벽이 바로 접힌다).

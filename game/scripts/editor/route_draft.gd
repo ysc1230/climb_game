@@ -39,6 +39,7 @@ var start := {&"LH": "", &"RH": "", &"LF": "", &"RF": ""}  # limb → 홀드 id
 var walls: Array = [{"from_y": 0, "deg": 0}]
 ## 볼륨 [Volumes.make 사전](2026-11-28): 면에 놓은 홀드는 그 면에 붙고, 모서리는 잡고 딛는 칸이 된다.
 var volumes: Array = []
+var top_edge := ""                # 탑이 볼륨 모서리면 그 id("V05/edge_t"), 아니면 ""(탑 홀드)
 var _next := 1
 var _undo: Array = []
 var _frozen := false              # 완등·올린 판: 다음 고침에서 판을 올린다
@@ -62,17 +63,61 @@ static func _pose_offsets() -> Array:
 
 
 func hold(id: String) -> Dictionary:
+	if id.contains("/"):
+		return _volume_slot(id)
 	for h in holds:
 		if h.id == id:
 			return h
 	return {}
 
 
+## 볼륨 모서리·면을 시작 자리·탑으로 쓸 때의 홀드 모양 사전("V05/edge_t", "V06/face"). 저장하지 않고 볼륨에서 만든다.
+## role: "edge"(손발, 아래 모서리는 손만 → no_feet) | "face"(발만). 없으면 {}.
+func _volume_slot(id: String) -> Dictionary:
+	var v := volume(id.get_slice("/", 0))
+	if v.is_empty():
+		return {}
+	var sid := id.get_slice("/", 1)
+	for e in Volumes.edges(v):
+		if e.slot_id == sid:
+			return {"id": id, "type": "volume", "size": v.size, "rot": e.rot, "x": e.pos.x, "y": e.pos.y, "matchable": true, "role": "edge",
+				"no_feet": sid == "edge_b"}
+	var f := Volumes.face(v)
+	if sid == "face" and not f.is_empty():
+		return {"id": id, "type": "volume_face", "size": v.size, "rot": 0, "x": f.pos.x, "y": f.pos.y, "matchable": false, "role": "face"}
+	return {}
+
+
 func goal_hold() -> Dictionary:
+	if top_edge != "":
+		return hold(top_edge)
 	for h in holds:
 		if h.role == "top":
 			return h
 	return {}
+
+
+## 볼륨의 모서리(합손)를 탑으로. 탑은 하나라 탑 홀드가 있으면 지운다. 아래 모서리·면은 안 된다.
+func set_top_edge(id: String) -> bool:
+	var h := hold(id)
+	if h.get("role", "") != "edge" or h.get("no_feet", false):
+		return false
+	_push()
+	holds = holds.filter(func(x): return x.role != "top")
+	for l in start:
+		if start[l] == id:
+			start[l] = ""
+	top_edge = id
+	return true
+
+
+## 볼륨이 없어지거나 모양이 바뀌어 사라진 모서리·면은 시작·탑에서 뺀다.
+func _drop_dangling() -> void:
+	for l in start:
+		if String(start[l]).contains("/") and hold(start[l]).is_empty():
+			start[l] = ""
+	if top_edge != "" and hold(top_edge).is_empty():
+		top_edge = ""
 
 
 ## 손 쓰임 홀드인가(손·탑). 발 쓰임도 손으로 잡히지만(2026-11-26) 길 점검(먼 손홀드)은 손 쓰임만 본다.
@@ -116,6 +161,9 @@ func place(type: String, x: float, y: float, role := "", size := "M", rot := 0) 
 		return ""
 	if role == "top":
 		size = top_size(type, size)
+		if top_edge != "":  # 탑 홀드를 놓으면 모서리 탑은 풀린다(탑은 하나)
+			_push()
+			top_edge = ""
 		var g := goal_hold()
 		if not g.is_empty():
 			_push()
@@ -237,8 +285,11 @@ func remove(id: String) -> void:
 ## 시작 자리. 손발 모두 탑이 아닌 아무 홀드(2026-11-26 "모든 홀드들이 손홀드이자 발홀드"). 같은 홀드를 다른 손발이 쓰고 있었으면 그쪽을 비운다.
 func set_start(limb: StringName, id: String) -> bool:
 	var h := hold(id)
-	if h.is_empty() or h.role == "top":
+	if h.is_empty() or h.role == "top" or id == top_edge:
 		return false
+	var hand := PoseSolver.is_hand(limb)
+	if (hand and h.role == "face") or (not hand and h.get("no_feet", false)):
+		return false  # 볼륨 면은 발만, 아래 모서리는 손만
 	_push()
 	for l in start:
 		if start[l] == id:
@@ -273,7 +324,7 @@ func _push() -> void:
 
 
 func _state() -> Dictionary:
-	return {"holds": holds.duplicate(true), "start": start.duplicate(), "next": _next, "walls": walls.duplicate(true), "volumes": volumes.duplicate(true)}
+	return {"holds": holds.duplicate(true), "start": start.duplicate(), "next": _next, "walls": walls.duplicate(true), "volumes": volumes.duplicate(true), "top_edge": top_edge}
 
 
 func _load_state(s: Dictionary) -> void:
@@ -282,6 +333,7 @@ func _load_state(s: Dictionary) -> void:
 	_next = s.next
 	walls = s.walls
 	volumes = s.get("volumes", [])
+	top_edge = s.get("top_edge", "")
 
 
 # ---------- 볼륨 ----------
@@ -332,6 +384,7 @@ func set_volume(id: String, shape: String, size: String, rot: int) -> void:
 	for k in n:
 		v[k] = n[k]
 	_clamp_volume(v)
+	_drop_dangling()
 
 
 func remove_volume(id: String) -> void:
@@ -340,6 +393,7 @@ func remove_volume(id: String) -> void:
 		return
 	_push()
 	volumes.erase(v)
+	_drop_dangling()
 
 
 func _clamp_volume(v: Dictionary) -> void:
@@ -363,6 +417,8 @@ static func _snap_rot(deg: int) -> int:
 # ---------- 문제 JSON ----------
 
 func _key(h: Dictionary) -> String:
+	if h.get("role", "") in ["edge", "face"]:
+		return "%s/%s" % [route_id, h.id]
 	return "%s/%s/%s" % [route_id, h.id, "foot_1" if h.role == "foot" else "hand_1"]
 
 
@@ -380,6 +436,8 @@ func to_route_dict(pelvis := Vector2.INF, angle := 0.0) -> Dictionary:
 		if h.matchable:
 			s["hand_area"] = {"matchable": true}
 		hs.append({"hold_id": h.id, "slots": [s]})
+	if top_edge != "" and not hold(top_edge).is_empty():
+		goal_slots.append(_key(hold(top_edge)))
 	for v in volumes:  # 볼륨 모서리: 손발이 잡고 딛는 칸(합손)
 		var es: Array = []
 		for e in Volumes.edges(v):
@@ -432,7 +490,7 @@ func build(pelvis := Vector2.INF, angle := 0.0) -> RouteDef:
 ## 3D 미리보기·간격·막는 것이 같이 쓰는 문제(골반 (0, 0.75), 읽기 오류는 골반과 무관). 홀드·시작·벽이 그대로면 지난 것을 쓴다
 ## (홀드 300개면 한 번 읽는 데 약 5ms, 고칠 때마다 세 번 읽던 것을 한 번으로, 2026-11-26 최적화). 받은 쪽은 고치지 않는다.
 func layout_route() -> RouteDef:
-	var key := str([holds, start, walls, route_id, name, grade, volumes])
+	var key := str([holds, start, walls, route_id, name, grade, volumes, top_edge])
 	if key != _layout_key:
 		_layout_key = key
 		_layout = build(Vector2(0, 0.75))
@@ -701,7 +759,7 @@ func to_dict() -> Dictionary:
 	for l in start:
 		st[String(l)] = start[l]
 	return {"schema": SCHEMA, "route_id": route_id, "name": name, "grade": grade, "version": version, "holds": holds.duplicate(true), "start": st, "next": _next,
-		"walls": walls.duplicate(true), "volumes": volumes.duplicate(true)}
+		"walls": walls.duplicate(true), "volumes": volumes.duplicate(true), "top_edge": top_edge}
 
 
 static func from_dict(d: Dictionary) -> RouteDraft:
@@ -738,7 +796,9 @@ static func from_dict(d: Dictionary) -> RouteDraft:
 	for v in d.get("volumes", []):
 		if v is Dictionary and r.volumes.size() < Volumes.MAX:
 			r.volumes.append(Volumes.make(str(v.get("id", "V%02d" % (r.volumes.size() + 90))), str(v.get("shape", "box")), float(v.get("x", 0.0)), float(v.get("y", 1.0)), str(v.get("size", "M")), int(v.get("rot", 0))))
+	r.top_edge = str(d.get("top_edge", ""))
 	var st: Dictionary = d.get("start", {})
 	for l in r.start:
 		r.start[l] = str(st.get(String(l), ""))
+	r._drop_dangling()
 	return r

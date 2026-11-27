@@ -209,3 +209,45 @@ func test_bottom_edge_no_feet() -> void:
 	var b: Dictionary = r.slots["U_V/%s/edge_b" % v]
 	var t: Dictionary = r.slots["U_V/%s/edge_t" % v]
 	runner.check(not b.allowed.has(&"LF") and b.allowed.has(&"LH") and t.allowed.has(&"LF"), "아래 모서리 발 안 됨, 위는 됨 %s / %s" % [b.allowed, t.allowed])
+
+
+## 볼륨 모서리를 시작 자리·탑으로(2026-11-28 남은 것): 시작은 모서리(발은 아래 모서리 빼고)·면(발만), 탑은 위 모서리(합손).
+## 볼륨을 지우거나 모양을 바꿔 그 모서리가 없어지면 시작·탑에서 빠진다.
+func test_edges_as_start_and_top() -> void:
+	var d := RouteDraft.new()
+	d.route_id = "U_S"
+	d.name = "시작"
+	var v := d.place_volume("box", 0.0, 1.6, "M")      # 1.35~1.85
+	var w := d.place_volume("wedge", 0.0, 0.4, "L", 180)  # 0.05~0.85 면이 위를 봄
+	runner.check(d.set_start(&"LH", v + "/edge_l") and d.set_start(&"RH", v + "/edge_r"), "손 시작: 옆 모서리")
+	runner.check(not d.set_start(&"LF", v + "/edge_b") and not d.set_start(&"LH", w + "/face"), "아래 모서리는 발 안 됨, 면은 손 안 됨")
+	runner.check(d.set_start(&"LF", w + "/face"), "발 시작: 삼각 면")
+	d.set_start(&"RF", d.place("crimp", 0.5, 0.3, "foot"))
+	var t := d.place_volume("box", 0.0, 2.8, "M")
+	runner.check(d.set_top_edge(t + "/edge_t") and d.goal_hold().get("id", "") == t + "/edge_t", "탑: 위 모서리")
+	var r := d.build()
+	runner.check(r.errors.is_empty() and r.goal_slots == ["U_S/%s/edge_t" % t] and r.start_slots[&"LH"] == "U_S/%s/edge_l" % v, "문제 데이터 %s %s" % [r.errors, r.goal_slots])
+	runner.check(not d.problems().has(RouteDraft.P_GOAL) and not d.problems().has(RouteDraft.P_START), "막는 것 없음(시작·탑) %s" % [d.problems()])
+	d.place("jug", 0.0, 3.5, "top")
+	runner.check(d.top_edge == "" and d.goal_hold().get("role", "") == "top", "탑 홀드를 놓으면 모서리 탑은 풀림")
+	d.set_top_edge(t + "/edge_t")
+	runner.check(d.holds.filter(func(h): return h.role == "top").is_empty(), "모서리를 탑으로 하면 탑 홀드는 지움(탑은 하나)")
+	d.set_volume(v, "wedge", "M", 0)  # 삼각(위가 두꺼움): 옆 모서리는 남음
+	runner.check(d.start[&"LH"] == v + "/edge_l", "모서리가 남으면 시작 그대로")
+	d.set_volume(v, "wedge", "M", 90)  # 오른쪽이 두꺼움: 왼쪽(얇은 쪽) 모서리가 없어짐
+	runner.check(d.start[&"LH"] == "" and d.start[&"RH"] == v + "/edge_r", "없어진 모서리는 시작에서 빠짐 %s" % [d.start])
+	d.remove_volume(t)
+	runner.check(d.top_edge == "" and d.problems().has(RouteDraft.P_GOAL), "볼륨을 지우면 탑이 빠짐")
+	runner.check(RouteDraft.from_dict(d.to_dict()).start[&"LF"] == w + "/face", "저장·불러오기")
+
+
+## 만들기 화면 시작홀드 도구: 모서리 선 근처를 누르면 그 모서리, 발이면 위를 보는 삼각 면.
+func test_editor_picks_volume_slots() -> void:
+	var ui = load("res://scenes/editor_ui.gd").new()
+	ui.draft = RouteDraft.new()
+	var v: String = ui.draft.place_volume("box", 0.0, 1.6, "M")
+	var w: String = ui.draft.place_volume("wedge", 0.0, 0.4, "L", 180)
+	runner.check(ui._volume_slot_at(Vector2(-0.27, 1.7), &"LH") == v + "/edge_l" and ui._volume_slot_at(Vector2(0.1, 1.84), &"RH") == v + "/edge_t", "모서리 근처")
+	runner.check(ui._volume_slot_at(Vector2(0.0, 1.6), &"LH") == "", "앞면 가운데는 모서리 아님")
+	runner.check(ui._volume_slot_at(Vector2(0.1, 0.4), &"LF") == w + "/face" and ui._volume_slot_at(Vector2(0.1, 0.4), &"LH") == "", "발은 삼각 면, 손은 안 됨")
+	ui.free()
