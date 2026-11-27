@@ -996,16 +996,7 @@ static func _clear_mid(f: WallProfile, fi: Transform3D, root: Vector3, target: V
 
 ## 월드 점 w가 접힌 벽면 앞(+)·뒤(−)로 떨어진 거리(m): 판정 높이 s ±0.6m 벽면 선을 2cm마다 훑어 가장 가까운 곳의 법선 쪽.
 static func _surface_dist(f: WallProfile, w: Vector3, s: float, step := 0.02) -> float:
-	var best := INF
-	var signed := 0.0
-	for i in int(1.2 / step) + 1:
-		var si := s - 0.6 + step * i
-		var p := f.point(Vector3(w.x, si, 0.0))
-		var dd := Vector2(w.y - p.y, w.z - p.z).length_squared()
-		if dd < best:
-			best = dd
-			signed = (w - p).dot(f.basis_at(si) * Vector3(0, 0, 1))
-	return signed
+	return f.signed_dist(w, s, 0.6, step)
 
 
 const PART_LEAN_EXTRA := 0.5   # 벽 방향 범위 밖으로 더 기울여 보는 각(라디안, 약 29°)

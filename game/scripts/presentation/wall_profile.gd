@@ -122,6 +122,28 @@ func world_profile(z: float) -> PackedVector2Array:
 	return out
 
 
+## 월드 점 w가 벽면 앞(+)·뒤(−)로 떨어진 거리: 벽면 높이 s ± half를 step마다 훑어 (y, z) 단면으로 가장 가까운 곳의 법선 쪽.
+## 표(_oy·_oz·_ang)를 바로 읽는다(2026-11-28: 점마다 point()·basis_at()을 다시 만들어 3D 몸 변환이 프레임당 1.2~1.9ms).
+func signed_dist(w: Vector3, s: float, half := 0.6, step := 0.02) -> float:
+	var n := _ang.size()
+	var k := maxi(1, roundi(step / STEP))
+	var i0 := clampi(int(floor((s - half - s0) / STEP)), 0, n - 1)
+	var i1 := clampi(int(ceil((s + half - s0) / STEP)), 0, n - 1)
+	var best := INF
+	var bi := i0
+	var i := i0
+	while i <= i1:
+		var dy := w.y - _oy[i]
+		var dz := w.z - _oz[i]
+		var dd := dy * dy + dz * dz
+		if dd < best:
+			best = dd
+			bi = i
+		i += k
+	var a := _ang[bi]
+	return (w.y - _oy[bi]) * -sin(a) + (w.z - _oz[bi]) * cos(a)
+
+
 ## 월드 점 p에서 (y, z) 단면으로 가장 가까운 벽면 선의 높이 s. 벽이 아래로 꺾이면(270°보다 더) 높이로는 자리가 여럿이라
 ## s_at_world_y(이분 탐색)가 엉뚱한 벽면을 잡는다(2026-11-27 벽 모양 점검). 10cm마다 훑고 그 둘레를 1cm마다.
 func nearest_s(p: Vector3) -> float:
