@@ -909,6 +909,7 @@ static func climber_to_char(t: Dictionary, f: WallProfile, held: Dictionary, vol
 	for k in t:  # 나머지 점(있으면)은 그대로 접는다
 		if t[k] is Vector3 and not out.has(k):
 			out[k] = fi * f.point(t[k])
+	_shift_to_reach(out, t, f, fi, hands + feet)
 	for limb in hands + feet:
 		var ks: Array = LIMB_KEYS[limb]
 		if not (t.has(ks[0]) and t.has(ks[1]) and t.has(ks[2])):
@@ -956,7 +957,78 @@ static func climber_to_char(t: Dictionary, f: WallProfile, held: Dictionary, vol
 			var dir: Vector3 = fi * f.point(t[ks[3]]) - fi * f.point(t[ks[2]])
 			if dir.length() > 0.001:
 				out[ks[3]] = target + dir.normalized() * (t[ks[3]] as Vector3).distance_to(t[ks[2]])
+	_clear_head(out, f, fi, sp, vols)
 	return out
+
+
+const BODY_REACH := 0.12   # 어깨·엉덩이를 내밀어도 닿지 않는 손발이 있으면 몸 전체를 그쪽으로 옮기는 최대 거리(m)
+
+
+## 앞으로 튀어나온 능선을 사이에 두고 골반과 잡은 발(손)이 갈리면, 펼친 평면보다 접힌 벽에서 거리가 멀어져 다 펴도 닿지 않았다
+## (150° → 225°에서 발목이 홀드에서 15cm, 2026-11-28). 내민 뒤에도 모자라는 만큼 몸 전체를 옮긴다. 가장 많이 모자라는 것이 줄 때만.
+static func _shift_to_reach(out: Dictionary, t: Dictionary, f: WallProfile, fi: Transform3D, limbs: Array) -> void:
+	var lack := func(off: Vector3) -> Array:
+		var sum := Vector3.ZERO
+		var worst := 0.0
+		for limb in limbs:
+			var ks: Array = LIMB_KEYS[limb]
+			if not (t.has(ks[0]) and t.has(ks[1]) and t.has(ks[2])):
+				continue
+			var reach: float = (t[ks[1]] as Vector3).distance_to(t[ks[0]]) + (t[ks[2]] as Vector3).distance_to(t[ks[1]])
+			reach += SHOULDER_REACH if PoseSolver.is_hand(limb) else HIP_REACH
+			var to: Vector3 = fi * f.point(t[ks[2]]) - ((out[ks[0]] as Vector3) + off)
+			var short := to.length() - reach
+			if short > 0.0:
+				sum += to.normalized() * short
+				worst = maxf(worst, short)
+		return [sum, worst]
+	var r0: Array = lack.call(Vector3.ZERO)
+	if r0[1] <= 0.0:
+		return
+	var off: Vector3 = (r0[0] as Vector3).limit_length(BODY_REACH)
+	if (lack.call(off)[1] as float) >= r0[1]:
+		return
+	for k in out:
+		if out[k] is Vector3 and k != "up":
+			out[k] += off
+
+
+## 가슴·목·머리가 벽면에서 HEAD_CLEAR보다 가까우면 그 마디부터 위를 바로 아래 마디를 축으로(벽 x축) 벽에서 젖힌다.
+## 어깨·팔은 그대로라 잡은 손은 홀드 위에 남는다. 능선(오버행 → 누운 벽)에서 머리 15cm·목 10cm가 벽 속이었다(2026-11-28).
+const HEAD_CHAIN := ["spine", "chest", "neck", "head", "head_top"]
+const HEAD_CLEAR := 0.1
+const HEAD_BEND := {"chest": 0.35, "neck": 0.7, "head": 0.7}   # 마디마다 더 젖히는 최대 각(라디안)
+
+
+static func _clear_head(out: Dictionary, f: WallProfile, fi: Transform3D, sp: float, vols: Array) -> void:
+	var fr := fi.affine_inverse()
+	var gap := func(m: Vector3) -> float:
+		var w := fr * m
+		return f.signed_dist(w, sp + m.y, 0.6, 0.02) - Volumes.depth_near(vols, Vector2(w.x, sp + m.y), 0.05)  # 캐릭터 틀 y ≈ 골반에서 벽면을 따라 잰 높이
+	for i in range(1, 4):
+		var k: String = HEAD_CHAIN[i]
+		if not (out.has(k) and out.has(HEAD_CHAIN[i - 1])):
+			return
+		var d0: float = gap.call(out[k])
+		if d0 >= HEAD_CLEAR:
+			continue
+		var piv: Vector3 = out[HEAD_CHAIN[i - 1]]
+		var best_a := 0.0
+		var best_d := d0
+		var lim: float = HEAD_BEND[k]
+		for n in range(1, 13):
+			for sgn in [1.0, -1.0]:
+				var a: float = sgn * lim * n / 12.0
+				var d: float = gap.call(piv + ((out[k] as Vector3) - piv).rotated(Vector3.RIGHT, a))
+				if d > best_d + 1e-4:
+					best_d = d
+					best_a = a
+			if best_d >= HEAD_CLEAR:
+				break
+		if best_a != 0.0:
+			for j in range(i, HEAD_CHAIN.size()):
+				if out.has(HEAD_CHAIN[j]):
+					out[HEAD_CHAIN[j]] = piv + ((out[HEAD_CHAIN[j]] as Vector3) - piv).rotated(Vector3.RIGHT, best_a)
 
 
 const MID_CLEAR := 0.04        # 팔꿈치·무릎이 벽면에서 떨어져야 하는 거리(m). 이보다 가까우면 IK 방향을 돌린다

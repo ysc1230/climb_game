@@ -120,3 +120,38 @@ func test_free_limbs_stay_out_of_wall() -> void:
 		runner.check(worst.n > 200 and worst.d > -0.01, "벽 %s: %d틱, 벽면에 가장 깊이 %.3fm (%s)" % [walls.map(func(w): return 180 - w[1]), worst.n, worst.d, worst.at])
 
 
+
+
+## 앞으로 튀어나온 능선을 실제로 넘으며(공식 V0 배치): 120° → 240°에서 머리 15cm·목 10cm가 벽 속이었고(목·머리를 젖혀 풂),
+## 150° → 225°에서 능선 아래 딛은 발목이 홀드에서 15cm 떨어졌다(몸 전체를 옮겨 풂). 2026-11-28.
+func test_ridge_torso_and_reach() -> void:
+	var v0 := "G_V0_11/"
+	var bot_steps := [["RF", "F03"], ["LF", "F02"], ["LH", "F06"], ["LH", "H03"], ["LF", "F01"], ["RH", "H01"], ["LH", "H02"], ["RH", "H03"],
+		["LF", "F06"], ["LH", "H04"], ["LH", "H06"], ["RF", "F05"], ["RH", "G01"], ["LH", "G01"]].map(func(s): return [StringName(s[0]), v0 + s[1] + ("/foot_1" if s[1].begins_with("F") else "/hand_1")])
+	for c in [[[[0, 60], [2, -60]], bot_steps], [[[0, 30], [1.5, -45]], []]]:
+		var r := RouteDef.load_json(ContentIndex.route_path("G_V0_11"))
+		r.wall_sections = (c[0] as Array).map(func(w): return {"from_y": float(w[0]), "deg": float(w[1])})
+		r.wall_deg = 60.0
+		var top := ScoreCalc.top_y(r)
+		var f := WallProfile.new(r, -1.5, top + 3.0)
+		var cp := ClimberPose.new()
+		var w := {"torso": INF, "miss": 0.0, "n": 0}
+		var on_tick := func(s: ClimbSession, _res) -> void:
+			w.n += 1
+			if w.n % 3 != 0:
+				return
+			var t := cp.compute(s, 1.0 / 20.0)
+			var held := {}
+			for l in PoseSolver.LIMBS:
+				held[l] = s.limbs[l].state in ["Attached", "Armed"]
+			var m: Dictionary = P3.climber_to_char(t, f, held)
+			var fr := f.frame((t.pelvis as Vector3).y)
+			for k in ["chest", "neck", "head"]:
+				w.torso = minf(w.torso, _wall_dist(f, fr * (m[k] as Vector3), -0.5, top + 1.0))
+			for l in PoseSolver.LIMBS:
+				if held[l]:
+					var e: String = ("wrist_" if PoseSolver.is_hand(l) else "ankle_") + ("L" if PoseSolver.side_sign(l) < 0 else "R")
+					w.miss = maxf(w.miss, (m[e] as Vector3).distance_to(fr.affine_inverse() * f.point(t[e])))
+		var steps: Array = c[1] if not (c[1] as Array).is_empty() else r.intended_moves
+		var bot := SessionBot.run(r, steps, {}, null, on_tick, true)
+		runner.check(bot.ok() and w.torso > -0.01 and w.miss < 0.04, "능선 %s: 완등 %s, 몸통 벽면에서 최소 %.3fm, 잡은 손발 홀드에서 최대 %.3fm" % [(c[0] as Array).map(func(x): return 180 - x[1]), bot.ok(), w.torso, w.miss])
