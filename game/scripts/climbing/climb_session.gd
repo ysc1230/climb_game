@@ -272,7 +272,9 @@ func apply_input(cmds: Array) -> void:
 				l.contact = null
 				l.req = l.pos
 			"move":
-				l.req = _clamp_to_reach(c.limb, l.req, l.req + c.delta)
+				var want: Vector2 = l.req + c.delta
+				l.req = _clamp_to_reach(c.limb, l.req, want)
+				l.stuck = (c.delta as Vector2).length() > 1e-4 and (l.req as Vector2).distance_to(want) > (c.delta as Vector2).length() * 0.7
 			"release":
 				_try_grab(c.limb)
 			"cancel":
@@ -626,6 +628,16 @@ func _log_move_label() -> void:
 		_log_event({"type": "move", "label": lbl})
 
 
+## 같은 쪽(손↔손, 발↔발)이 잡은 홀드 위면 놓을 때 바꿔 잡는다(_try_slot_swap·_try_pad_foot_swap). "이미 사용 중"은 못 놓는 것처럼
+## 읽혀 풋스왑 튜토리얼에서 막혔다(2026-11-28 사용자 "왼쪽발을 제외한 아무곳에도 컨트롤이 안돼").
+func _swap_hint(limb: StringName) -> String:
+	var key := GripCheck.aimed_slot(route.slots, limbs[limb].req)
+	for o in limbs:
+		if o != limb and limbs[o].state in ["Attached", "Armed"] and limbs[o].get("key") == key and PoseSolver.is_hand(o) == PoseSolver.is_hand(limb):
+			return "놓으면 손을 바꿔 잡아요" if PoseSolver.is_hand(limb) else "놓으면 발을 바꿔 딛어요"
+	return GripCheck.message(GripCheck.OCCUPIED, limb)
+
+
 ## 드래그 중 경계에 막혀 후보가 없을 때 이유를 한 번 안내(반복 쿨다운 20틱, docs/05)
 func _drag_hints(att: Dictionary, occ: Dictionary) -> void:
 	_hint_cooldown = maxi(_hint_cooldown - 1, 0)
@@ -633,11 +645,21 @@ func _drag_hints(att: Dictionary, occ: Dictionary) -> void:
 		return
 	for limb in limbs:
 		var l: Dictionary = limbs[limb]
-		if l.state != "Dragging" or not l.cand.is_empty() or runner.uses(limb):
+		if l.state != "Dragging" or runner.uses(limb):
+			continue
+		# 패드는 미는데 팔(다리)이 다 펴져 손이 안 따라감: 떠나는 홀드의 이유("체중을 옮겨야")가 아니라 할 일을 알린다
+		# (2026-11-28 사용자 "위로 아무리 올려도 손이 위로 가지 않는다", V3 꺾인 곳에서 낮은 발로 매치한 채)
+		if l.get("stuck", false):
+			if _last_hint != &"STRETCHED":
+				messages.append("팔이 다 펴졌어요. 발을 올리거나 몸을 옮겨요" if PoseSolver.is_hand(limb) else "다리가 다 펴졌어요. 몸을 옮겨요")
+				_last_hint = &"STRETCHED"
+				_hint_cooldown = 20
+			return
+		if not l.cand.is_empty():
 			continue
 		var reason := GripCheck.reject_reason(route.slots, limb, l.pos, l.req, body.pos, body.angle, att, occ, rules.feet_eligible, body.yaw)
 		if reason in [GripCheck.JOINT_LIMIT, GripCheck.NEED_WEIGHT_SHIFT, GripCheck.OUT_OF_REACH, GripCheck.OCCUPIED, GripCheck.TYPE_MISMATCH] and reason != _last_hint:
-			messages.append(GripCheck.message(reason, limb))
+			messages.append(_swap_hint(limb) if reason == GripCheck.OCCUPIED else GripCheck.message(reason, limb))
 			_last_hint = reason
 			_hint_cooldown = 20
 			return

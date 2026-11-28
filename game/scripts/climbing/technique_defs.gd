@@ -41,6 +41,7 @@ static func load_all() -> Dictionary:
 			"seen_ko": str(d.get("seen_ko", "")),
 			"cond_ko": str(d.get("cond_ko", "")),
 			"ready": bool(d.get("ready", true)),
+			"dict_ko": d.get("dict_ko", {}),  # 기술 사전 한 줄·단계 그림(2026-11-28)
 		}
 	return out
 

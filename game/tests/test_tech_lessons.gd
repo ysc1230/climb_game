@@ -116,10 +116,10 @@ func test_cross() -> void:
 
 
 func test_dyno() -> void:
-	_never_without("C_DYNO_T", &"RH", "G01/goal_right")
+	_never_without("C_DYNO_T", &"RH", "G01/hand_1")
 	for hand in [&"LH", &"RH"]:
 		var d = _start("C_DYNO_T")
-		_try_without(d, "C_DYNO_T", &"RH", "G01/goal_right")
+		_try_without(d, "C_DYNO_T", &"RH", "G01/hand_1")
 		var s: ClimbSession = d.s
 		s.apply_input([{"type": "dyno_start", "limb": InputRouter.DYNO}])
 		s.apply_input([{"type": "dyno_move", "limb": InputRouter.DYNO, "delta": Vector2(0, -0.8)}])
@@ -136,3 +136,32 @@ func test_dyno() -> void:
 		runner.check(pressed, "가운데 원을 누름(%s 차례)" % hand)
 		d.wait(300)
 		runner.check(not d.results.is_empty() and d.results[-1] == "done", "두 손이 정상을 같이 잡아 완등 %s" % [d.results])
+
+
+## 2026-11-28 사용자 "풋스왑 튜토리얼에서 … 왼쪽발을 제외한 아무곳에도 컨트롤이 안돼": 왼발을 한 번 허공에 놓쳐도 다시 끌어
+## 오른발 발판에 놓으면 바뀌고, 잠긴 패드를 누르면 왜 안 되는지, 끄는 동안은 "이미 사용 중" 대신 놓으면 바꿔 딛는다고 알린다.
+func test_foot_swap_retry_and_hints() -> void:
+	var d = _start("C_FSWAP_T")
+	_try_without(d, "C_FSWAP_T", &"RF", "F05")
+	d.drag_to_air(&"LF", Vector2(-0.2, 0.35))
+	_hold(d, 30)
+	d._in([{"type": "detach", "limb": &"RF"}])
+	runner.check(d.s.messages.has("지금은 왼발만 움직여요"), "잠긴 오른발 패드를 누르면 알림 %s" % [d.s.messages.slice(-3)])
+	d.reach_and_release(&"LF", _k("C_FSWAP_T", "F04"))
+	_hold(d, 30)
+	runner.check(d.s.messages.has("놓으면 발을 바꿔 딛어요") and not d.s.messages.has("이미 사용 중이에요"), "끄는 동안 바꿔 딛는다는 알림 %s" % [d.s.messages.slice(-4)])
+	runner.check(d.s.limbs[&"LF"].key == _k("C_FSWAP_T", "F04") and d.results.size() == 2, "놓친 뒤 다시 끌어도 풋스왑 %s" % [d.results])
+
+
+## 2026-11-28 사용자 "위로 아무리 올려도 손이 위로 가지 않는다"(V3 꺾인 곳, 낮은 발로 매치한 채): 팔이 다 펴져 손이 안 따라가면
+## 떠나는 홀드 이유("체중을 옮겨야") 대신 팔이 다 펴졌다고, 발·몸을 옮기라고 알린다.
+func test_stretched_arm_hint() -> void:
+	var r := RouteDef.load_json(ContentIndex.route_path("G_V3_11"))
+	var im: Array = r.intended_moves
+	var s: ClimbSession = SessionBot.run(r, [im[0], im[1], im[2], im[3], im[4], im[6]], {}, null, Callable(), true).session
+	s.apply_input([{"type": "detach", "limb": &"LH"}])
+	var goal: Vector2 = r.slot_pos("G_V3_11/H05/hand_1")
+	for i in 90:
+		s.apply_input([{"type": "move", "limb": &"LH", "delta": (goal - s.limbs[&"LH"].req).limit_length(1.5 * Tuning.DT)}])
+		s.step()
+	runner.check(s.messages.back() == "팔이 다 펴졌어요. 발을 올리거나 몸을 옮겨요" and s.limbs[&"LH"].req.y < 2.45, "다 편 팔: %s, 손 높이 %.2f" % [s.messages.slice(-2), s.limbs[&"LH"].req.y])

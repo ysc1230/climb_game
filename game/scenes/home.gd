@@ -86,7 +86,7 @@ func _ready() -> void:
 	course_id = str(focus.get("course", ""))
 	if tab != "technique":
 		course_id = ""
-	if str(focus.get("view", "")) == "dict":
+	if str(focus.get("view", "")) in ["dict", "holds"]:
 		tech_view = "dict"
 		course_id = ""
 	_look_ok = CharacterAssembler.load_catalog().model_compatible()
@@ -315,14 +315,10 @@ func _draw() -> void:
 		_draw_course(size)
 	else:
 		_draw_views(size)
-		if tech_view == "holds":
-			_draw_hold_dict(size)
-		elif tech_view != "dict":
-			_draw_courses(size)
-		elif tech_id != "":
-			_draw_tech(size)
-		else:
+		if tech_view == "dict":
 			_draw_dict(size)
+		else:
+			_draw_courses(size)
 	if not choosing_level and _look_ok:
 		_button(Rect2(Vector2(size.x - MARGIN * k - 400 * k, 32 * k), Vector2(170, 52) * k), "캐릭터", "look_open", "", 21)
 	var lv: String = game.progress.level
@@ -610,11 +606,11 @@ func _route_name(route: RouteDef) -> String:
 func _draw_views(size: Vector2) -> void:
 	var w := 240.0 * k
 	var x := 60.0 * k
-	for v in [["learn", "처음 배우기"], ["dict", "기술 사전"], ["holds", "홀드 사전"]]:
+	for v in [["learn", "처음 배우기"], ["dict", "기술 사전"]]:
 		var on: bool = tech_view == v[0]
 		_button(Rect2(Vector2(x, 116 * k), Vector2(w, 52 * k)), v[1], "view", v[0], 22, on)
 		x += w + 12 * k
-	var hint: String = {"dict": "실제 기술을 이 게임에서 어떻게 하는지 찾아봐요", "holds": "홀드 모양마다 손 힘과 버티는 방향이 달라요"}.get(tech_view, "순서대로 따라 하며 배워요")
+	var hint: String = {"dict": "기술이나 홀드를 고르면 오른쪽에 그림으로 보여요"}.get(tech_view, "순서대로 따라 하며 배워요")
 	draw_string(font, Vector2(x + 12 * k, 145 * k), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), DIM)
 
 
@@ -635,58 +631,103 @@ func _draw_courses(size: Vector2) -> void:
 		_draw_course_card(Rect2(Vector2(60 * k + i * (tw + 14 * k), y), Vector2(tw, ch)), tech[i])
 
 
-## 기술 사전 목록: 발·손·몸 세 줄 + 이 게임에 없는 기술. 준비된(ready) 기술만 보인다.
-func _draw_dict(size: Vector2) -> void:
-	var x0 := 60.0 * k
-	var y := 200.0 * k
-	var bw := 176.0 * k
-	for g in GROUP_NAMES:
-		draw_string(font, Vector2(x0, y + 34 * k), g[1], HORIZONTAL_ALIGNMENT_LEFT, -1, int(24 * k), CREAM)
-		var x := x0 + 70 * k
-		for id in _techs:
-			var t: Dictionary = _techs[id]
-			if t.group != StringName(g[0]) or not t.ready:
-				continue
-			_button(Rect2(Vector2(x, y), Vector2(bw, 54 * k)), str(t.name_ko), "tech", str(id), 22)
-			x += bw + 12 * k
-		y += 76 * k
-	y += 20 * k
-	draw_string(font, Vector2(x0, y), "이 게임에 없는 기술", HORIZONTAL_ALIGNMENT_LEFT, -1, int(22 * k), CREAM)
-	y += 38 * k
-	for a in TechniqueDefs.absent():
-		draw_string(font, Vector2(x0, y), str(a.name_ko), HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), Color.WHITE)
-		draw_string(font, Vector2(x0 + 270 * k, y), str(a.why_ko), HORIZONTAL_ALIGNMENT_LEFT, size.x - x0 * 2 - 270 * k, int(19 * k), DIM)
-		y += 34 * k
-
-
-## 홀드 사전(작업 4 §4.4): 종류마다 카드 — 이름, 손 힘 빠짐(또는 발 몫), 버티는 방향, 특징. 색은 용도(손·발)대로.
-## 2026-11-28: 만들기에서 없앤 발판 두 종류 대신 볼륨 모서리·볼륨 면(만들기에 있는 것만 보인다)
+## 기술 사전(2026-11-28 사용자 "좌우측으로 분할하여 좌측에는 상하단으로 … 상단에는 기술 목록들, 하단에는 사전 항목들 우측에는
+## 선택한 기술들에 대한 설명 … 이미지들", "하이스텝, 풋스왑, 플래그, 매치, 크로스 락오프 휴식 다이노 만 남긴다. 설명이 너무 많고 가독성 떨어진다"):
+## 왼쪽 위 기술 8개, 왼쪽 아래 홀드(사전 항목), 오른쪽은 고른 것의 한 줄 설명과 단계 그림(게임 화면을 찍은 것, art/dict).
+const DICT_TECHS := [&"T_HIGH_STEP", &"T_FOOT_SWAP", &"T_FLAG", &"T_MATCH", &"T_CROSS", &"T_LOCK_OFF", &"T_REST", &"T_DYNO"]
 const HOLD_DICT_ORDER := ["jug", "crimp", "sloper", "pinch", "pocket", "volume", "volume_face"]
+var _dict_tex := {}
 
 
-func _draw_hold_dict(size: Vector2) -> void:
-	var cols := 4
-	var gap := 16.0 * k
-	var cw := (size.x - 120 * k - (cols - 1) * gap) / cols
-	var ch := 196.0 * k
-	for i in HOLD_DICT_ORDER.size():
-		var type: String = HOLD_DICT_ORDER[i]
-		var t: Dictionary = HoldTypes.types()[type]
-		var r := Rect2(Vector2(60 * k + (i % cols) * (cw + gap), 184 * k + (i / cols) * (ch + gap)), Vector2(cw, ch))
-		var foot: bool = t.limb == "foot"
-		var accent := Color("8fd0bc") if not foot else Color("c4b0d6")
-		_card(r)
-		draw_style_box(_box(accent, 3 * k), Rect2(r.position + Vector2(16, 17) * k, Vector2(5, 30) * k))
-		var x := r.position.x + 34 * k
-		var w := r.size.x - 36 * k
-		draw_string(font, Vector2(x, r.position.y + 40 * k), str(t.name_ko), HORIZONTAL_ALIGNMENT_LEFT, w, int(26 * k), Color.WHITE)
-		var stat := "발 몫 ×%.2f" % float(t.get("foot_share", 1.0)) if foot else "손 힘 빠짐 ×%.2f %s" % [float(t.fatigue), _drain_word(float(t.fatigue))]
-		draw_string(font, Vector2(x, r.position.y + 72 * k), stat, HORIZONTAL_ALIGNMENT_LEFT, w, int(19 * k), CREAM)
-		draw_multiline_string(font, Vector2(x, r.position.y + 102 * k), str(t.dir_ko), HORIZONTAL_ALIGNMENT_LEFT, w, int(18 * k), 2, DIM)
-		draw_multiline_string(font, Vector2(x, r.position.y + 146 * k), str(t.feat_ko), HORIZONTAL_ALIGNMENT_LEFT, w, int(18 * k), 3, Color.WHITE)
-	var y := 184 * k + 2 * (ch + gap) + 36 * k
-	draw_multiline_string(font, Vector2(60 * k, y), "방향 · " + str(HoldTypes.data().dir_note_ko), HORIZONTAL_ALIGNMENT_LEFT, size.x - 120 * k, int(19 * k), 2, CREAM)
-	draw_string(font, Vector2(60 * k, y + 56 * k), "크기 · 같은 종류도 클수록 잡기 쉽고 손 힘이 덜 빠져요(S·M·L)", HORIZONTAL_ALIGNMENT_LEFT, -1, int(19 * k), DIM)
+func _dict_img(name: String) -> Texture2D:
+	if not _dict_tex.has(name):
+		var path := "res://art/dict/%s.png" % name
+		_dict_tex[name] = load(path) if ResourceLoader.exists(path) else null
+	return _dict_tex[name]
+
+
+func _draw_dict(size: Vector2) -> void:
+	var sel := tech_id if tech_id != "" else str(DICT_TECHS[0])
+	var x0 := 60.0 * k
+	var lw := minf(560.0 * k, (size.x - 120 * k) * 0.36)
+	var bw := (lw - 12 * k) / 2
+	var bh := 50.0 * k
+	var y := 196.0 * k
+	for part in [["기술", DICT_TECHS.map(func(id): return [str(id), str(_techs[id].name_ko)])],
+			["홀드", HOLD_DICT_ORDER.map(func(t): return ["hold:" + t, str(HoldTypes.types()[t].name_ko)])]]:
+		draw_string(font_b, Vector2(x0, y + 22 * k), part[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(24 * k), CREAM)
+		y += 36 * k
+		var items: Array = part[1]
+		for i in items.size():
+			var r := Rect2(Vector2(x0 + (i % 2) * (bw + 12 * k), y + (i / 2) * (bh + 10 * k)), Vector2(bw, bh))
+			_button(r, items[i][1], "tech", items[i][0], 22, items[i][0] == sel)
+		y += ceili(items.size() / 2.0) * (bh + 10 * k) + 18 * k
+	var pr := Rect2(Vector2(x0 + lw + 28 * k, 184 * k), Vector2(size.x - 60 * k - (x0 + lw + 28 * k), size.y - 184 * k - 40 * k))
+	_card(pr)
+	if sel.begins_with("hold:"):
+		_draw_hold_entry(pr, sel.substr(5))
+	else:
+		_draw_tech_entry(pr, StringName(sel))
+
+
+## 오른쪽: 기술 이름·한 줄 설명, 단계마다 그림과 한 줄. 수업이 있으면 [연습하기].
+func _draw_tech_entry(pr: Rect2, id: StringName) -> void:
+	var t: Dictionary = _techs.get(id, {})
+	if t.is_empty():
+		return
+	var d: Dictionary = t.get("dict_ko", {})
+	var x := pr.position.x + 32 * k
+	var w := pr.size.x - 64 * k
+	_text(Vector2(x, pr.position.y + 58 * k), str(t.name_ko), 36, Color.WHITE)
+	draw_string(font_m, Vector2(x, pr.position.y + 100 * k), str(d.get("what", t.purpose_ko)), HORIZONTAL_ALIGNMENT_LEFT, w, int(23 * k), CREAM)
+	for c in game.index.courses():
+		if c.get("group", "") == "technique" and id in c.techniques and c.tutorial != "":
+			_button(Rect2(Vector2(pr.end.x - 32 * k - 200 * k, pr.position.y + 22 * k), Vector2(200, 56) * k), "연습하기", "play", c.tutorial, 24, true)
+			break
+	var steps: Array = d.get("steps", [])
+	if steps.is_empty():
+		return
+	var top := pr.position.y + 132 * k
+	var cap_h := 64.0 * k
+	var ih := pr.end.y - 24 * k - cap_h - top
+	var iw := ih * 300.0 / 378.0
+	var gap := 28.0 * k
+	iw = minf(iw, (w - gap * (steps.size() - 1)) / steps.size())
+	ih = iw * 378.0 / 300.0
+	for i in steps.size():
+		var ix := x + i * (iw + gap)
+		var tex := _dict_img(str(steps[i].img))
+		var ir := Rect2(Vector2(ix, top), Vector2(iw, ih))
+		if tex != null:
+			draw_texture_rect(tex, ir, false)
+		draw_rect(ir, Color(CHALK, 0.25), false, maxf(1.0, k))
+		var num := "%d  " % (i + 1) if steps.size() > 1 else ""
+		draw_multiline_string(font_m, Vector2(ix, ir.end.y + 30 * k), num + str(steps[i].text), HORIZONTAL_ALIGNMENT_LEFT, iw, int(21 * k), 2, Color.WHITE)
+
+
+## 오른쪽: 홀드 이름·손 힘(발 몫), 그림, 버티는 방향·특징.
+func _draw_hold_entry(pr: Rect2, type: String) -> void:
+	var t: Dictionary = HoldTypes.types().get(type, {})
+	if t.is_empty():
+		return
+	var x := pr.position.x + 32 * k
+	var w := pr.size.x - 64 * k
+	var foot: bool = t.limb == "foot"
+	_text(Vector2(x, pr.position.y + 58 * k), str(t.name_ko), 36, Color.WHITE)
+	var stat := "발 몫 ×%.2f" % float(t.get("foot_share", 1.0)) if foot else "손 힘 빠짐 ×%.2f %s" % [float(t.fatigue), _drain_word(float(t.fatigue))]
+	draw_string(font_m, Vector2(x, pr.position.y + 100 * k), stat, HORIZONTAL_ALIGNMENT_LEFT, w, int(23 * k), CREAM)
+	var side := minf(300.0 * k, pr.size.y - 170 * k)
+	var ir := Rect2(Vector2(x, pr.position.y + 132 * k), Vector2(side, side))
+	var tex := _dict_img("h_" + type)
+	if tex != null:
+		draw_texture_rect(tex, ir, false)
+	draw_rect(ir, Color(CHALK, 0.25), false, maxf(1.0, k))
+	var tx := ir.end.x + 32 * k
+	var tw := pr.end.x - 32 * k - tx
+	draw_string(font_m, Vector2(tx, ir.position.y + 26 * k), "버티는 방향", HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), CREAM)
+	draw_multiline_string(font_m, Vector2(tx, ir.position.y + 60 * k), str(t.dir_ko), HORIZONTAL_ALIGNMENT_LEFT, tw, int(22 * k), 3, Color.WHITE)
+	draw_string(font_m, Vector2(tx, ir.position.y + 160 * k), "특징", HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), CREAM)
+	draw_multiline_string(font_m, Vector2(tx, ir.position.y + 194 * k), str(t.feat_ko), HORIZONTAL_ALIGNMENT_LEFT, tw, int(22 * k), 4, Color.WHITE)
 
 
 static func _drain_word(f: float) -> String:
@@ -697,31 +738,6 @@ static func _drain_word(f: float) -> String:
 	if f > 1.05:
 		return "(빠름)"
 	return ""
-
-
-## 기술 카드: 실제로는 / 게임에서는 / 되는 조건 / 좋아지는 것 / 인식되면.
-func _draw_tech(size: Vector2) -> void:
-	var t: Dictionary = _techs.get(StringName(tech_id), {})
-	_button(Rect2(Vector2(60, 184) * k, Vector2(200, 52) * k), "‹ 기술 사전", "tech", "", 22)
-	if t.is_empty():
-		return
-	var x := 60.0 * k
-	var w := size.x - 120 * k
-	_text(Vector2(x, 290 * k), str(t.name_ko), 34, Color.WHITE)
-	var y := 345.0 * k
-	for row in [["실제로는", t.real_ko], ["게임에서는", t.how_ko], ["쓰는 때", t.when_ko], ["되는 조건", t.cond_ko], ["좋아지는 것", t.purpose_ko], ["인식되면", t.seen_ko]]:
-		if str(row[1]) == "":
-			continue
-		draw_string(font, Vector2(x, y), row[0], HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), CREAM)
-		draw_multiline_string(font, Vector2(x + 150 * k, y), str(row[1]), HORIZONTAL_ALIGNMENT_LEFT, w - 150 * k, int(21 * k), 2, Color.WHITE)
-		y += (66 if font.get_string_size(str(row[1]), HORIZONTAL_ALIGNMENT_LEFT, -1, int(21 * k)).x > w - 150 * k else 46) * k
-	# 그 기술의 수업(docs/47)이 있으면 [연습하기]와 해 봤는지
-	for c in game.index.courses():
-		if c.get("group", "") == "technique" and StringName(tech_id) in c.techniques and c.tutorial != "":
-			var done: bool = game.progress.tutorial_done(c.tutorial)
-			_button(Rect2(Vector2(x, y + 10 * k), Vector2(260, 60) * k), "연습하기", "play", c.tutorial, 24, true)
-			draw_string(font, Vector2(x + 280 * k, y + 50 * k), "✓ 해 봤어요" if done else "기술 없이 먼저 해 보고, 기술을 써서 다시 해요", HORIZONTAL_ALIGNMENT_LEFT, -1, int(20 * k), CREAM if done else DIM)
-			break
 
 
 func _draw_course_card(r: Rect2, c: Dictionary, n := 0) -> void:

@@ -11,8 +11,7 @@
  "course_slot": "tutorial",
  "fail_line_y": -0.5,
  "goal_slots": [
-  "C_DYNO_T/G01/goal_left",
-  "C_DYNO_T/G01/goal_right"
+  "C_DYNO_T/G01/hand_1"
  ],
  "grade": "V0",
  "holds": [
@@ -138,28 +137,17 @@
       "LH",
       "RH"
      ],
-     "hold_type": "goal",
+     "hand_area": {
+      "matchable": true
+     },
+     "hold_type": "jug",
      "pos": [
-      -0.15,
+      0.05,
       2.75
      ],
      "rot_deg": 0,
-     "size": "M",
-     "slot_id": "goal_left"
-    },
-    {
-     "allowed": [
-      "LH",
-      "RH"
-     ],
-     "hold_type": "goal",
-     "pos": [
-      0.25,
-      2.75
-     ],
-     "rot_deg": 0,
-     "size": "M",
-     "slot_id": "goal_right"
+     "size": "L",
+     "slot_id": "hand_1"
     }
    ]
   }
@@ -250,22 +238,21 @@
     }
    },
    "step_id": "DY2",
-   "text_ko": "너무 멀어요. 뛰어서 잡아요. 화면 가운데를 손가락으로 톡톡 두 번 누르고, 두 번째는 떼지 말고 아래로 쭉 끌어내려요. 정상에 고리가 생기면 손가락을 떼요. 날아가는 동안 잡을 손의 패드를 눌러요."
+   "text_ko": "너무 멀어요. 뛰어서 잡아요. 화면 가운데를 톡톡 두 번 누르고, 두 번째는 떼지 말고 아래로 쭉 끌어내려요. 정상에 고리가 생기면 손가락을 떼요. 날아가는 동안 잡을 손의 패드를 눌러요."
   },
   {
    "goal_event": {
     "type": "clear"
    },
    "help_ko": [
-    "한 손씩 정상 홀드로",
-    "두 손이 다 잡으면 끝나요"
+    "정상을 잡으면 끝나요"
    ],
    "rules": {
     "fatigue_drain": false,
     "techniques": []
    },
    "step_id": "DY3",
-   "text_ko": "멀리 있는 홀드로 뛰어서 잡는 것이 다이노예요. 두 손으로 정상을 잡아요."
+   "text_ko": "정상을 잡았어요! 멀리 있는 홀드로 뛰어서 잡는 것이 다이노예요."
   }
  ],
  "validation_status": "Draft"

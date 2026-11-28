@@ -366,4 +366,8 @@ func filter_input(s: ClimbSession, cmds: Array) -> Array:
 	s.only_slots = {lock: key} if lock != &"" and key != "" else {}
 	if lock == &"":
 		return cmds
-	return cmds.filter(func(c): return not (PoseSolver.LIMBS.has(c.get("limb", &"")) and c.limb != lock))
+	var blocked := func(c): return PoseSolver.LIMBS.has(c.get("limb", &"")) and c.limb != lock
+	# 잠긴 패드를 누르면 왜 안 움직이는지 알린다(2026-11-28 사용자 "왼쪽발을 제외한 아무곳에도 컨트롤이 안돼")
+	if cmds.any(func(c): return blocked.call(c) and str(c.type) in ["detach", "arm"]):
+		s.messages.append("지금은 손발을 움직이지 않아요" if lock == &"none" else "지금은 %s만 움직여요" % DangerFeedback.LIMB_KO.get(lock, ""))
+	return cmds.filter(func(c): return not blocked.call(c))

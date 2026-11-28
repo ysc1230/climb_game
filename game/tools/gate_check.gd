@@ -11,7 +11,7 @@ const LESSON_GATES := {
 	"C_FSWAP_T": [{"slot": "C_FSWAP_T/F04/foot_1", "technique": "T_FOOT_SWAP"}],
 	"C_FMATCH_T": [{"slot": "C_FMATCH_T/B01/hand_1", "technique": "T_FOOT_MATCH"}],
 	"C_CROSS_T": [{"slot": "C_CROSS_T/H03/hand_1", "technique": "T_CROSS"}],
-	"C_DYNO_T": [{"slot": "C_DYNO_T/G01/goal_right", "technique": "T_DYNO"}],
+	"C_DYNO_T": [{"slot": "C_DYNO_T/G01/hand_1", "technique": "T_DYNO"}],
 }
 
 
